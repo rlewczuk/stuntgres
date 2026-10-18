@@ -6,24 +6,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func regexpSQL(call functions.RegexpCall, name string, render func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
-	text := name + "("
-	for i, slot := range call.WrittenSlots[:len(call.Args)] {
-		if i > 0 {
-			text += ", "
-		}
-		if call.Labels[i] != "" {
-			text += identifier(call.Labels[i]) + " => "
-		}
-		s, err := render(call.Args[slot])
-		if err != nil {
-			return "", err
-		}
-		text += s
-	}
-	return text + ")", nil
-}
-
 func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive bool) (functions.RegexpCall, bool, error) {
 	var args []expr.Expr
 	for i, old := range call.Args {

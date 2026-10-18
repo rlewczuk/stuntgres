@@ -271,7 +271,9 @@ var _ expr.Renderable = JSONBPathQuery{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathQuery) Render() (expr.Rendering, error) {
-	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_query")
+	spec, err := jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_query")
+	spec.Replay.Validate = unsupportedReplay
+	return spec, err
 }
 
 func jsonbPathQueryRendering(args [4]expr.Expr, count int, slots [4]uint8, labels [4]string, variadic bool, name string) (expr.Rendering, error) {

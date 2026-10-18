@@ -165,6 +165,7 @@ var _ expr.Renderable = ArraySearch{}
 // Render implements expr.Renderable.
 func (e ArraySearch) Render() (expr.Rendering, error) {
 	spec := callRendering("ArraySearch "+e.Plan.Name()+" namespace "+e.Namespace, e.Args, e.Plan.Name(), e.Args)
+	spec.Replay.Validate, spec.Replay.QuoteNamespace = e.Validate, true
 	if e.Plan.Membership() {
 		spec.Form, spec.Namespace, spec.Grouping = expr.FormInfix, e.Namespace, expr.GroupNested
 		return spec, nil

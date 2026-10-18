@@ -83,7 +83,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 			t.Fatal("stored remap", sample.name, err)
 		}
 		demand := false
-		text, err := (scalarRenderer{commentSnapshot: &demand}).scalarFunctionSQL(context.Background(), e.CatalogRead(), mapped, mapped.ResultUsage())
+		text, err := (scalarRenderer{commentSnapshot: &demand}).scalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
 		if err != nil || !strings.Contains(text, "pg_catalog."+sample.name+"(") || !demand {
 			t.Fatal("symbolic serialization and catalog demand", text, demand, err)
 		}

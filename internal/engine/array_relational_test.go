@@ -465,9 +465,9 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 			t.Fatal("lost volatile provider", err)
 		}
 	}
-	rendered, err := functions.ArrayRandomSQL(call, func(expr.Expr) (string, error) { return "child", nil })
-	if err != nil || rendered != "pg_catalog.array_sample(child, child)" {
-		t.Fatal(rendered, err)
+	spec, err := call.Render()
+	if err != nil || spec.Form != expr.FormCall || spec.Name != "array_sample" || spec.Replay.Name != "" || len(spec.Args) != 2 || spec.Replay.Validate() != nil {
+		t.Fatal("stored replay", spec, err)
 	}
 	bad := call
 	bad.Args = bad.Args[:1]

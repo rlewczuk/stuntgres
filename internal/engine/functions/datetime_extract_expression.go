@@ -204,6 +204,9 @@ func (e DatetimeExtract) Render() (expr.Rendering, error) {
 		// The field displays as an identifier, like PostgreSQL's ruleutils.
 		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[1])
 		spec.Pieces = []expr.Piece{expr.TextPiece("EXTRACT("), expr.IdentifierPiece(e.Field), expr.TextPiece(" FROM "), expr.ArgPiece(0), expr.TextPiece(")")}
+		// Replay writes the field literal through the literal encoder.
+		spec.Replay.Args = []expr.RenderArg{{Expr: e.Args[0]}, {Expr: e.Args[1]}}
+		spec.Replay.Pieces = []expr.Piece{expr.TextPiece("EXTRACT("), expr.ArgPiece(0), expr.TextPiece(" FROM "), expr.ArgPiece(1), expr.TextPiece(")")}
 	}
 	return spec, nil
 }

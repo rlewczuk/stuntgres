@@ -79,9 +79,9 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" || n.Plan.Name() != "jsonb_extract_path_text" {
 		t.Fatal("lost call provenance", n)
 	}
-	rendered, err := functions.JSONExtractSQL(original, original.Plan.Name(), func(expr.Expr) (string, error) { return "value", nil }, func(s string) string { return s })
-	if err != nil || !strings.Contains(rendered, "VARIADIC path_elems => value") {
-		t.Fatal(rendered, err)
+	spec, err := original.Render()
+	if err != nil || spec.Form != expr.FormCall || !spec.Variadic || len(spec.Args) == 0 || spec.Args[len(spec.Args)-1].Label != "path_elems" {
+		t.Fatal("replay presentation", spec, err)
 	}
 	copied, did, err := functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
 	if err != nil || did || &copied.Args[0] != &original.Args[0] {

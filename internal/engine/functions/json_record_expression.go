@@ -82,5 +82,14 @@ func (e JSONRecord) Render() (expr.Rendering, error) {
 	if e.Plan.BaseIndex() == 1 {
 		spec.Args[0].Label, spec.Args[1].Label = "from_json", "base"
 	}
+	spec.Replay.Validate = func() error {
+		if _, err := e.Reconstruct(e.Info, e.Args); err != nil {
+			return err
+		}
+		if e.Plan.ReturnsSet() {
+			return fmt.Errorf("stuntgres: stored scalar contains JSON recordset")
+		}
+		return nil
+	}
 	return spec, nil
 }

@@ -72,5 +72,11 @@ var _ expr.Renderable = RangeOperator{}
 func (e RangeOperator) Render() (expr.Rendering, error) {
 	spec := callRendering("RangeOperator "+e.Plan.Name()+" namespace "+e.Namespace, e.Args[:], e.Plan.Name(), e.Args[:])
 	spec.Form, spec.Namespace = expr.FormInfix, e.Namespace
+	spec.Replay.QuoteNamespace = true
+	if missingArgument(e.Args[:]) {
+		spec.Replay.Validate = refuseReplay("stuntgres: missing range operator operand")
+	} else {
+		spec.Replay.Validate = e.Validate
+	}
 	return spec, nil
 }

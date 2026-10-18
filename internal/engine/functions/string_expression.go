@@ -396,14 +396,50 @@ var _ expr.Renderable = String{}
 
 // Render implements expr.Renderable.
 func (e String) Render() (expr.Rendering, error) {
-	return e.rendering()
+	// Corrupted operands have no form; stored SQL reports them.
+	switch {
+	case len(e.Args) < 1 || len(e.Args) > 4:
+		return expr.Rendering{Tree: "String " + e.Plan.Name(), Replay: expr.Replay{Validate: refuseReplay("stuntgres: invalid stored string arity")}}, nil
+	case missingArgument(e.Args):
+		return expr.Rendering{Tree: "String " + e.Plan.Name(), Replay: expr.Replay{Validate: refuseReplay("stuntgres: missing string operand")}}, nil
+	}
+	spec, err := e.rendering()
+	if err != nil {
+		return spec, err
+	}
+	spec.Replay.Validate = e.replayFault
+	for i, arg := range e.Args {
+		// A captured NAME literal would otherwise replay as unknown and
+		// resolve to text; base conversions select their stored integer
+		// overload, including small BIGINT values and typed NULLs.
+		spec.Args[i].Transport = expr.TransportName
+		if sqltype.StringBaseConversion(e.Plan.Name()) {
+			spec.Args[i].Transport, spec.Args[i].TransportType = expr.TransportCast, e.Plan.ArgumentUsage(i)
+		}
+		if !e.Textual[i] && catalogArgument(arg) {
+			spec.Replay.CatalogSnapshot = true
+		}
+	}
+	return spec, nil
+}
+
+// replayFault validates the stored provider and the prefix operator syntax.
+func (e String) replayFault() error {
+	if err := e.Validate(); err != nil {
+		return err
+	}
+	if e.Syntax == parser.PrefixStringSyntax && (e.Plan.Name() != "starts_with" || len(e.Args) != 2) {
+		return fmt.Errorf("stuntgres: invalid prefix syntax provider")
+	}
+	return nil
 }
 
 func (e String) rendering() (expr.Rendering, error) {
 	name := e.Plan.Name()
 	tree := "String " + name
 	if name == "||" {
-		return infixRendering(tree, e.Args, "", "||", e.Args[0], e.Args[1]), nil
+		// Replay always qualifies the operator; display shows it bare.
+		return infixRendering(tree, e.Args, "pg_catalog", "||", e.Args[0], e.Args[1]), nil
 	}
 	if e.Syntax == parser.OrdinaryStringSyntax || e.Syntax == parser.PrefixStringSyntax {
 		return e.callRendering(tree)
@@ -413,14 +449,14 @@ func (e String) rendering() (expr.Rendering, error) {
 	var err error
 	switch e.Syntax {
 	case parser.TrimStringSyntax:
-		spec.Pieces, err = trimPieces(name, len(e.Args))
+		spec.Pieces, err = TrimPieces(name, len(e.Args))
 	case parser.PositionStringSyntax:
 		if name != "position" || len(e.Args) != 2 {
 			return expr.Rendering{}, fmt.Errorf("stuntgres: invalid POSITION syntax provider")
 		}
-		spec.Pieces, err = syntaxPieces(name, len(e.Args))
+		spec.Pieces, err = SyntaxPieces(name, len(e.Args))
 	case parser.OverlayStringSyntax, parser.SubstringStringSyntax:
-		spec.Pieces, err = syntaxPieces(name, len(e.Args))
+		spec.Pieces, err = SyntaxPieces(name, len(e.Args))
 	case parser.NormalizeStringSyntax:
 		spec.Pieces = []expr.Piece{text("NORMALIZE("), arg(0)}
 		if len(e.Args) == 2 {
@@ -460,14 +496,18 @@ func (e String) callRendering(tree string) (expr.Rendering, error) {
 		}
 	}
 	if e.Syntax == parser.PrefixStringSyntax {
-		return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormInfix, Name: "^@", Args: args}, nil
+		return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormInfix, Name: "^@", Namespace: "pg_catalog", Args: args}, nil
 	}
 	quote := expr.QuoteVerbatim
+	var replay string
 	switch name {
-	case "normalize", "overlay", "left", "right", "substring":
+	case "normalize", "overlay":
+		replay = name
+		name = `"` + name + `"`
+	case "left", "right", "substring":
 		name = `"` + name + `"`
 	case "position":
 		quote = expr.QuoteIdentifier
 	}
-	return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormCall, Name: name, Quote: quote, LabelQuote: expr.QuoteVerbatim, Args: args}, nil
+	return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormCall, Name: name, Quote: quote, LabelQuote: expr.QuoteVerbatim, Args: args, Replay: expr.Replay{Name: replay}}, nil
 }

@@ -127,5 +127,11 @@ var _ expr.Renderable = RangeInspect{}
 
 // Render implements expr.Renderable.
 func (e RangeInspect) Render() (expr.Rendering, error) {
-	return callRendering("RangeInspect "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args), nil
+	spec := callRendering("RangeInspect "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args)
+	if missingArgument(e.Args) {
+		spec.Replay.Validate = refuseReplay("stuntgres: missing range inspection operand")
+	} else {
+		spec.Replay.Validate = e.Validate
+	}
+	return spec, nil
 }

@@ -67,9 +67,9 @@ func (e CurrentDateTime) Validate(intrinsicMatch bool) error {
 }
 func CurrentDateTimeIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 
-// CurrentDateTimeSQL renders the SQL value function for Render and the engine's
-// stored scalar SQL switch.
-func CurrentDateTimeSQL(e CurrentDateTime) (string, error) {
+// currentDateTimeSQL spells the SQL value function in lower case, as stored
+// SQL replays it; display shows it in upper case.
+func currentDateTimeSQL(e CurrentDateTime) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, CurrentDateTimeIntrinsicRule())); err != nil {
 		return "", err
 	}
@@ -103,9 +103,11 @@ var _ expr.Renderable = CurrentDateTime{}
 
 // Render implements expr.Renderable.
 func (e CurrentDateTime) Render() (expr.Rendering, error) {
-	text, err := CurrentDateTimeSQL(e)
+	text, err := currentDateTimeSQL(e)
 	if err != nil {
 		return expr.Rendering{}, err
 	}
-	return expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision), Form: expr.FormLeaf, Text: strings.ToUpper(text)}, nil
+	spec := expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision), Form: expr.FormLeaf, Text: strings.ToUpper(text)}
+	spec.Replay.Text = text
+	return spec, nil
 }

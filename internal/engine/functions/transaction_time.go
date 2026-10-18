@@ -73,9 +73,8 @@ func (e TransactionTime) Validate(intrinsicMatch bool) error {
 	return nil
 }
 
-// TransactionTimeSQL renders a stored call for Render and the engine's stored
-// scalar SQL switch.
-func TransactionTimeSQL(e TransactionTime) (string, error) {
+// transactionTimeSQL validates the leaf and spells its call.
+func transactionTimeSQL(e TransactionTime) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
@@ -159,7 +158,7 @@ var _ expr.Renderable = TransactionTime{}
 
 // Render implements expr.Renderable.
 func (e TransactionTime) Render() (expr.Rendering, error) {
-	text, err := TransactionTimeSQL(e)
+	text, err := transactionTimeSQL(e)
 	if err != nil {
 		return expr.Rendering{}, err
 	}

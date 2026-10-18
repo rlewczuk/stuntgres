@@ -89,9 +89,12 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			}
 			// Ordinary and SQL-special position orders are intentionally different.
 			if tc.name == "position" {
-				ordinary, err := renderBinaryCall(tc.name, parser.OrdinaryFunctionSyntax, []string{"source", "needle"}, "pg_catalog.position", func(s string) (string, error) { return s, nil })
-				special, specialErr := renderBinaryCall(tc.name, parser.SQLFunctionSyntax, []string{"source", "needle"}, "", func(s string) (string, error) { return s, nil })
-				if err != nil || specialErr != nil || ordinary != "pg_catalog.position(source, needle)" || special != "POSITION((needle) IN (source))" {
+				view := b.engine.CatalogRead()
+				binary.Syntax = parser.OrdinaryFunctionSyntax
+				ordinary, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, binary)
+				binary.Syntax = parser.SQLFunctionSyntax
+				special, specialErr := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, binary)
+				if err != nil || specialErr != nil || ordinary != "pg_catalog.position(B'10110', B'11')" || special != "POSITION((B'11') IN (B'10110'))" {
 					t.Fatal(ordinary, special, err, specialErr)
 				}
 			}

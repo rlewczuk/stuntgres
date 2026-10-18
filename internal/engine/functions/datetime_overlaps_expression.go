@@ -359,6 +359,7 @@ func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
 		return spec, nil
 	}
 	spec.Form, spec.Name, spec.Quote, spec.Args = expr.FormCall, `"overlaps"`, expr.QuoteVerbatim, listedArgs(e.Args[:])
+	spec.Replay.Name = "overlaps"
 	// Local-clock operands display the conversion to the selected signature.
 	for i, local := range e.Plan.LocalClock() {
 		if local {

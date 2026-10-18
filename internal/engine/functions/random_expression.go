@@ -241,5 +241,42 @@ var _ expr.Renderable = Random{}
 
 // Render implements expr.Renderable.
 func (e Random) Render() (expr.Rendering, error) {
-	return callRendering("Random "+e.Name, e.Args, e.Name, e.Args), nil
+	spec := callRendering("Random "+e.Name, e.Args, e.Name, e.Args)
+	spec.Replay.RelationOnly = true
+	spec.Replay.Validate = e.replayFault
+	return spec, nil
+}
+
+// replayFault validates the stored signature: the result selects the
+// argument type of random(min, max).
+func (e Random) replayFault() error {
+	var result sqltype.ID
+	if e.Usage.Type != nil {
+		result = e.Usage.Type.ID()
+	}
+	argumentType := sqltype.Float8
+	valid := false
+	switch e.Name {
+	case "random":
+		if len(e.Args) == 0 {
+			valid = result == sqltype.Float8
+		}
+		if len(e.Args) == 2 {
+			argumentType = result
+			valid = argumentType == sqltype.Int4 || argumentType == sqltype.Int8 || argumentType == sqltype.Numeric
+		}
+	case "random_normal":
+		valid = len(e.Args) <= 2 && result == sqltype.Float8
+	case "setseed":
+		valid = len(e.Args) == 1 && result == sqltype.Void
+	}
+	if !valid {
+		return fmt.Errorf("stuntgres: invalid stored random signature")
+	}
+	for _, arg := range e.Args {
+		if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != argumentType {
+			return fmt.Errorf("stuntgres: invalid stored random argument")
+		}
+	}
+	return nil
 }

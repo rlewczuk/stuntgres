@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"runtime"
 	"stuntgres/internal/engine/expr"
@@ -223,5 +224,20 @@ var _ expr.Renderable = UUIDGeneration{}
 
 // Render implements expr.Renderable.
 func (e UUIDGeneration) Render() (expr.Rendering, error) {
-	return callRendering("UUIDGeneration "+e.Name, e.Args, e.Name, e.Args), nil
+	spec := callRendering("UUIDGeneration "+e.Name, e.Args, e.Name, e.Args)
+	spec.Replay.Validate = e.replayFault
+	// A NULL shift must keep its interval type to select the overload.
+	transportArgs(spec.Args, expr.TransportIntervalNulls)
+	return spec, nil
+}
+
+// replayFault validates the stored signature and its optional uuidv7 shift.
+func (e UUIDGeneration) replayFault() error {
+	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.UUID || (e.Name != "uuidv7" && e.Name != "uuidv4" && e.Name != "gen_random_uuid") || len(e.Args) > 1 || len(e.Args) != 0 && e.Name != "uuidv7" {
+		return fmt.Errorf("stuntgres: invalid stored UUID generation signature")
+	}
+	if len(e.Args) != 0 && e.Args[0].ResultUsage().Type.ID() != sqltype.Interval {
+		return fmt.Errorf("stuntgres: invalid stored UUID shift")
+	}
+	return nil
 }

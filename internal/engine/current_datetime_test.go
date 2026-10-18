@@ -31,10 +31,11 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if !ok || node.Properties() != (expr.Properties{Volatility: expr.Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || plannedVolatility(node) != expr.Stable || generationImmutable(node) {
 			t.Fatal(raw, node)
 		}
-		sql, err := functions.CurrentDateTimeSQL(node)
+		spec, err := node.Render()
 		if err != nil {
 			t.Fatal(err)
 		}
+		sql := spec.Replay.Text
 		rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
 		if err != nil || rendered != strings.ToUpper(sql) {
 			t.Fatal(rendered, sql, err)

@@ -222,5 +222,6 @@ var _ expr.Renderable = ArrayRandom{}
 func (e ArrayRandom) Render() (expr.Rendering, error) {
 	spec := callRendering("ArrayRandom "+e.Kind.Name()+" namespace "+e.Namespace, e.Args, e.Kind.Name(), e.Args)
 	spec.SimpleCast = true
+	spec.Replay.Validate = e.Validate
 	return spec, nil
 }

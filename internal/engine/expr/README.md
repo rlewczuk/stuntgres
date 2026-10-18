@@ -102,18 +102,35 @@ without a hook gets the switch's previous generic behavior:
   them bare. These fields encode per-call differences in PostgreSQL's
   ruleutils, so the deparser holds no per-node knowledge. The renderer owns
   identifier quoting, literals, casts and parentheses.
+  Stored scalar SQL (replay) reads the same value plus `Replay`, the parts
+  where replay differs from display: it renders every argument in order before
+  assembling the form (literal capture and dependency order follow argument
+  order), qualifies call names with `pg_catalog`, always quotes labels and
+  parenthesizes operators, and ignores the display-only argument fields.
+  `Replay` adds a lazy `Validate` (stored provider checks and refusals such as
+  set-returning calls; display never runs it, so it cannot change deparse),
+  replay `Name`/`Text`, a replay template (`Pieces` over `Args`, for POSIX
+  `SUBSTRING ... FROM`, EXTRACT's field literal, `SIMILAR TO ... ESCAPE` over an
+  `Absorbed` normalizer and the `num_nulls` field notation), `QuoteNamespace`
+  for written operator schemas, the `CatalogSnapshot` and `VisibilitySnapshot`
+  demands, `RelationOnly` (random calls) and carried `Types` that must belong
+  to the definition's catalog (the pg_sleep clock). Each `RenderArg` names a
+  `Transport` that keeps its type on replay: always cast to `TransportType`,
+  or cast NAME, typed or ambiguously spelled literals, or type NULL intervals.
+  Binary and string operators state their `pg_catalog` schema, which display
+  shows bare and replay qualifies.
 
 Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
 (`generationImmutable`, `generationHasTableOID`, `validateGenerationPlan`),
 conditional planning (`simplifyConditionalNode`, `conditionalConstantInputs`),
 retag (`mapBoundExpressionReader`), remap (`remapScalarExpression`), node-tree
-output (`appendBoundTree`) and SQL deparse (`pgRenderer.sql`, interpreted in
-`deparse_rendering.go`). The walk keeps one explicit `Timezone` case: it
-visits the value before the zone, unlike PostgreSQL, a divergence kept until a
-compatibility fix. Stored scalar SQL (`scalar_function_sql.go`, `default.go`)
-and the preflight and aggregate switches still list function nodes; stored
-scalar SQL is meant to adopt `Rendering` next.
+output (`appendBoundTree`), SQL deparse (`pgRenderer.sql`, interpreted in
+`deparse_rendering.go`) and stored scalar SQL (`scalarRenderer.sql` and
+`scalarFunctionSQL`, interpreted in `scalar_rendering.go`). The walk keeps one
+explicit `Timezone` case: it visits the value before the zone, unlike
+PostgreSQL, a divergence kept until a compatibility fix. The preflight and
+aggregate switches still list function nodes.
 
 ## What stays in the engine
 

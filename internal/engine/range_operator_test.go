@@ -113,8 +113,8 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if err := forged.Validate(); err == nil {
 		t.Fatal("stale provider survived validation")
 	}
-	text, err := rangeOperatorSQL(next, func(expr.Expr) (string, error) { return "operand", nil }, func(ns, name string) string { return "OPERATOR(" + ns + "." + name + ")" })
-	if err != nil || !strings.Contains(text, "OPERATOR(pg_catalog.+)") {
+	text, err := (scalarRenderer{}).scalarFunctionSQL(ctx, target.CatalogRead(), next)
+	if err != nil || !strings.Contains(text, `OPERATOR("pg_catalog".+)`) {
 		t.Fatal("namespace spelling", text, err)
 	}
 }

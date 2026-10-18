@@ -137,6 +137,14 @@ func (e Format) Render() (expr.Rendering, error) {
 	spec.UnknownTexts = true
 	for i := range spec.Args {
 		spec.Args[i].UnknownText = e.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
+		// ANY operands need their type on replay; text written as a typed
+		// value after the format string needs it too.
+		spec.Args[i].Transport = expr.TransportAmbiguous
+		if i > 0 && !spec.Args[i].UnknownText {
+			spec.Args[i].Transport = expr.TransportAmbiguousText
+		}
 	}
+	spec.Replay.Validate = e.Validate
+	spec.Replay.CatalogSnapshot = catalogArguments(e.Args)
 	return spec, nil
 }

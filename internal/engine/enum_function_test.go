@@ -78,7 +78,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	}
 	forged := next
 	forged.Plan = plan
-	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged, targetArray.Usage()); err == nil {
+	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged); err == nil {
 		t.Fatal("foreign stored provider accepted")
 	}
 	if !sameGroupExpression(bound, bound) || sameGroupExpression(bound, next) {

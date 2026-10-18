@@ -182,5 +182,11 @@ var _ expr.Renderable = PosixSubstring{}
 
 // Render implements expr.Renderable.
 func (e PosixSubstring) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: fmt.Sprintf("PosixSubstring syntax %d", e.Syntax), Inputs: e.Args[:], Form: expr.FormCall, Name: `"substring"`, Quote: expr.QuoteVerbatim, Args: hiddenArgs(e.Args[0], e.Args[1])}, nil
+	spec := expr.Rendering{Tree: fmt.Sprintf("PosixSubstring syntax %d", e.Syntax), Inputs: e.Args[:], Form: expr.FormCall, Name: `"substring"`, Quote: expr.QuoteVerbatim, Args: hiddenArgs(e.Args[0], e.Args[1])}
+	if e.Syntax == parser.SQLFunctionSyntax {
+		// PostgreSQL displays the call; replay keeps the SQL syntax.
+		text, arg := expr.TextPiece, expr.ArgPiece
+		spec.Replay.Pieces = []expr.Piece{text("SUBSTRING("), arg(0), text(" FROM "), arg(1), text(")")}
+	}
+	return spec, nil
 }
