@@ -34,7 +34,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 		node BoundExpr
 		oid  uint32
 	}{{scalar, 1642}, {set, 6159}} {
-		reference := boundExpressionInfo(sample.node).routineReference
+		reference := boundExpressionInfo(sample.node).RoutineReference
 		if reference == nil || reference.RoutineOID() != sample.oid {
 			t.Fatal("wrong original declaration", reference)
 		}
@@ -131,7 +131,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	}
 	for i, fields := range retagged.metadata.fields {
 		for j, value := range fields {
-			if value.Type() != retagged.usage.Type.CompositeMember(j).Usage.Type {
+			if value.Type() != retagged.Usage.Type.CompositeMember(j).Usage.Type {
 				t.Fatal("foreign typed metadata", i, j)
 			}
 		}
@@ -177,7 +177,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := catalogUserNameExpression{expressionInfo: expressionInfo{usage: nameType.Usage()}, arg: literalExpression{expressionInfo: expressionInfo{usage: oidType.Usage()}, value: input}}
+		node := catalogUserNameExpression{expressionInfo: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: input}}
 		value, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 		if err != nil {
 			t.Fatal(err)
@@ -215,7 +215,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	saved := current.commentRoles
 	current.commentRoles = foreign.roles.root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
-	node := catalogUserNameExpression{expressionInfo: expressionInfo{usage: nameType.Usage()}, arg: literalExpression{expressionInfo: expressionInfo{usage: oidType.Usage()}, value: input}}
+	node := catalogUserNameExpression{expressionInfo: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}

@@ -43,11 +43,11 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 				})
 				expr := subqueryTestExpression(t, e, q, kind)
 				if kind == parser.SubqueryRow {
-					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, expr.usage.Type, usage.Collation, false)
+					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, expr.Usage.Type, usage.Collation, false)
 					if err != nil {
 						t.Fatal(err)
 					}
-					expr.comparisons = []comparisonExpression{{left: literalExpression{expressionInfo: expressionInfo{usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{expressionInfo: expressionInfo{usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+					expr.comparisons = []comparisonExpression{{left: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
 				}
 				parent := queryState{source: source}
 				c := parent.evaluation(ctx)
@@ -91,7 +91,7 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 			}
 			immutable := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(usage.Type, 1) })
 			volatile := immutable.(queryProbeExpression)
-			volatile.properties.Volatility = Volatile
+			volatile.Property.Volatility = Volatile
 			projection := []BoundExpr{immutable, volatile}
 			b := expressionBinder{}
 			next := b.scheduleQueryProjection(root, projection, bounded)
@@ -211,8 +211,8 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 			t.Fatal("property visitor evaluated ignored expression")
 			return sqltype.Value{}, nil
 		}).(queryProbeExpression)
-		probe.properties.Volatility = Volatile
-		probe.properties.RowDependent = true
+		probe.Property.Volatility = Volatile
+		probe.Property.RowDependent = true
 		if distinct {
 			project.child = &distinctNode{child: project.child, expressions: []BoundExpr{probe}}
 		} else {
@@ -272,8 +272,8 @@ func TestQuerySubqueryPresenceRemap(t *testing.T) {
 func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 	e, query, source := queryJoinsFixture(t, "SELECT TRUE FROM a")
 	child := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
-	typ := child.usage.Type
-	info := expressionInfo{usage: typ.Usage()}
+	typ := child.Usage.Type
+	info := expressionInfo{Usage: typ.Usage()}
 	falseLiteral := literalExpression{expressionInfo: info, value: sqltype.Boolean(typ, false)}
 	trueLiteral := literalExpression{expressionInfo: info, value: sqltype.Boolean(typ, true)}
 	nullLiteral := literalExpression{expressionInfo: info, value: sqltype.Null(typ)}

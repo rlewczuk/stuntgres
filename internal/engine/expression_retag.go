@@ -51,23 +51,23 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	}
 	info := boundExpressionInfo(node)
 	if leaf != nil {
-		info.properties = rewrittenIntrinsicProperties(node)
+		info.Property = rewrittenIntrinsicProperties(node)
 	}
-	typ := retainedType(info.usage.Type)
-	if typ == nil && info.usage.Type != nil {
+	typ := retainedType(info.Usage.Type)
+	if typ == nil && info.Usage.Type != nil {
 		return nil, false, fmt.Errorf("stuntgres: invalid remapped expression type")
 	}
-	changed := typ != info.usage.Type
-	info.usage.Type = typ
+	changed := typ != info.Usage.Type
+	info.Usage.Type = typ
 	if _, failure := expressionRecipeDescriptor(node); failure != nil {
 		return nil, false, failure
 	}
-	if recipe != nil && info.routineRecipe != recipe {
-		info.routineRecipe = recipe
+	if recipe != nil && info.RoutineRecipeReference != recipe {
+		info.RoutineRecipeReference = recipe
 		changed = true
 	}
 	var err error
-	if info.routineReference != nil {
+	if info.RoutineReference != nil {
 		captured, failure := expressionRoutineDescriptor(node)
 		if failure != nil {
 			return nil, false, failure
@@ -98,27 +98,27 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
 			}
 			changed = changed || current != captured
-			info.routineReference = current
+			info.RoutineReference = current
 		}
 		// A catalog-free structural rewrite preserves this already-owned
 		// identity. It neither relocates the callable nor admits its execution.
 	}
 	if len(collations) != 0 && collations[0] != nil {
-		info.usage.Collation, err = collations[0](info.usage.Collation)
+		info.Usage.Collation, err = collations[0](info.Usage.Collation)
 		if err != nil {
 			return nil, false, err
 		}
-		changed = changed || info.usage.Collation != node.ResultUsage().Collation
-		info.collationLeft, err = collations[0](info.collationLeft)
+		changed = changed || info.Usage.Collation != node.ResultUsage().Collation
+		info.CollationLeft, err = collations[0](info.CollationLeft)
 		if err != nil {
 			return nil, false, err
 		}
-		info.collationRight, err = collations[0](info.collationRight)
+		info.CollationRight, err = collations[0](info.CollationRight)
 		if err != nil {
 			return nil, false, err
 		}
 		oldInfo := boundExpressionInfo(node)
-		changed = changed || info.collationLeft != oldInfo.collationLeft || info.collationRight != oldInfo.collationRight
+		changed = changed || info.CollationLeft != oldInfo.CollationLeft || info.CollationRight != oldInfo.CollationRight
 	}
 	comparisonCollation := func(ref sqltype.CollationRef) sqltype.CollationRef {
 		if err != nil || len(collations) == 0 || collations[0] == nil {
@@ -133,7 +133,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
-			info.properties = mergeExpressionProperties(info.properties, next.Properties())
+			info.Property = mergeExpressionProperties(info.Property, next.Properties())
 		}
 		return next, replaced, failure
 	}
@@ -467,10 +467,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				if leaf != nil {
 					visitCTEQuery(root, func(LogicalNode) {}, func(expr BoundExpr) {
 						properties := expr.Properties()
-						info.properties.Volatility = max(info.properties.Volatility, properties.Volatility)
-						info.properties.ParameterDependent = info.properties.ParameterDependent || properties.ParameterDependent
-						info.properties.DomainDependent = info.properties.DomainDependent || properties.DomainDependent
-						info.properties.RuntimeDomainConversion = info.properties.RuntimeDomainConversion || properties.RuntimeDomainConversion
+						info.Property.Volatility = max(info.Property.Volatility, properties.Volatility)
+						info.Property.ParameterDependent = info.Property.ParameterDependent || properties.ParameterDependent
+						info.Property.DomainDependent = info.Property.DomainDependent || properties.DomainDependent
+						info.Property.RuntimeDomainConversion = info.Property.RuntimeDomainConversion || properties.RuntimeDomainConversion
 					}, true)
 				}
 			}
@@ -506,7 +506,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if err != nil {
 				return nil, false, err
 			}
-			copy.plan, err = sqltype.BindJSONArrayAggregate(copy.input.ResultUsage(), info.usage, true)
+			copy.plan, err = sqltype.BindJSONArrayAggregate(copy.input.ResultUsage(), info.Usage, true)
 			if err != nil {
 				return nil, false, err
 			}
@@ -1021,7 +1021,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.usage.Type, integer, ref, conflict)
+		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.Usage.Type, integer, ref, conflict)
 		rebound = n
 	case catalogUserNameExpression:
 		n.arg = child(n.arg)
@@ -1038,7 +1038,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		n.expressionInfo = info
-		n.metadata, err = newCatalogForeignKeyValues(info.usage.Type)
+		n.metadata, err = newCatalogForeignKeyValues(info.Usage.Type)
 		if err != nil {
 			return node, false, err
 		}
@@ -1263,7 +1263,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				left, right = n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type
 			}
 			if n.kind == parser.Greatest || n.kind == parser.Least {
-				n.comparison, n.missingOrdering, err = bindExtremaComparison(info.usage, conflict)
+				n.comparison, n.missingOrdering, err = bindExtremaComparison(info.Usage, conflict)
 			} else {
 				n.comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}
@@ -1289,8 +1289,8 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.expressionInfo = info
 		rebound = n
 	case literalExpression:
-		info.unknownNull = n.unknownNull
-		info.regclassRef = n.regclassRef
+		info.UnknownNull = n.UnknownNull
+		info.RegclassRef = n.RegclassRef
 		if !changed && (view.state == nil || view.state.aclItemImport == nil || !n.value.Type().ContainsACLItem()) {
 			return node, false, nil
 		}
@@ -1335,7 +1335,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		// storage/formal destinations. Map that captured Usage and structure;
 		// rederiving from the child would erase the destination contract.
 		if changed && err == nil {
-			n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.usage, n.mode)
+			n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.Usage, n.mode)
 		}
 		n.expressionInfo = info
 		rebound = n
@@ -1350,9 +1350,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				rt = n.right.ResultUsage().Type
 			}
 			n.provider, n.bits, n.network = sqltype.Bitwise{}, sqltype.BitStringBitwise{}, sqltype.NetworkBitwise{}
-			if info.usage.Type.ID() == sqltype.Inet {
+			if info.Usage.Type.ID() == sqltype.Inet {
 				n.network, err = sqltype.BindNetworkBitwise(n.operator, n.left.ResultUsage().Type, rt)
-			} else if info.usage.Type.ID() == sqltype.Bit {
+			} else if info.Usage.Type.ID() == sqltype.Bit {
 				n.bits, err = sqltype.BindBitStringBitwise(n.operator, n.left.ResultUsage().Type, rt)
 			} else {
 				n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)
@@ -1383,7 +1383,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if n.right != nil {
 				rightType = n.right.ResultUsage().Type
 			}
-			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType, info.usage.Type)
+			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType, info.Usage.Type)
 		}
 		n.expressionInfo = info
 		rebound = n
@@ -1394,9 +1394,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		if err == nil {
 			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{usage: n.left.ResultUsage(), pos: info.pos}, n.left, n.right)
+			collation, err = collatedInfo(view, expressionInfo{Usage: n.left.ResultUsage(), Pos: info.Pos}, n.left, n.right)
 			if err == nil {
-				n.provider, err = sqltype.BindLike(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.usage, collation.collationConflict)
+				n.provider, err = sqltype.BindLike(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.Usage, collation.CollationConflict)
 			}
 		}
 		n.expressionInfo = info
@@ -1421,9 +1421,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		if err == nil {
 			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{usage: n.Left.ResultUsage(), pos: info.pos}, n.Left, n.Right)
+			collation, err = collatedInfo(view, expressionInfo{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.usage.Collation, collation.collationConflict)
+				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
 			}
 		}
 		n.Info = functionInfo(info)
@@ -1435,9 +1435,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		if err == nil {
 			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{usage: n.Left.ResultUsage(), pos: info.pos}, n.Left, n.Right)
+			collation, err = collatedInfo(view, expressionInfo{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.usage.Collation, collation.collationConflict)
+				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
 			}
 		}
 		n.Info = functionInfo(info)

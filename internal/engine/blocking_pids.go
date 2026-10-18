@@ -103,7 +103,7 @@ func (n blockingInquiryExpression) validateStored() error {
 	}
 	properties := n.arg.Properties()
 	properties.Volatility = Volatile
-	if n.usage.Type == nil || n.usage != n.usage.Type.Usage() || n.usage.Type.ID() != n.arg.ResultUsage().Type.AssociatedArray() || n.usage.Type.Element() != n.arg.ResultUsage().Type || n.Properties() != properties {
+	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != n.arg.ResultUsage().Type.AssociatedArray() || n.Usage.Type.Element() != n.arg.ResultUsage().Type || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored blocking inquiry signature")
 	}
 	return nil
@@ -119,7 +119,7 @@ func (n blockingInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	pid, err := value.Integer()
 	if err != nil {
@@ -136,14 +136,14 @@ func (n blockingInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 	_, err = scope.writeAuthorizationLocked(e)
 	var elements []sqltype.Value
 	if err == nil && pid > 0 && n.kind == safeSnapshotBlockingInquiry {
-		elements, err = e.safeSnapshotBlockingPidsLocked(ids.SessionID(pid), n.usage.Type.Element())
+		elements, err = e.safeSnapshotBlockingPidsLocked(ids.SessionID(pid), n.Usage.Type.Element())
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if pid > 0 && n.kind == ordinaryBlockingInquiry {
-		elements, err = e.blockingPidValues(ids.SessionID(pid), n.usage.Type.Element())
+		elements, err = e.blockingPidValues(ids.SessionID(pid), n.Usage.Type.Element())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -155,7 +155,7 @@ func (n blockingInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 	if len(elements) != 0 {
 		dimensions = []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}
 	}
-	return sqltype.OwnedArrayValue(n.usage.Type, dimensions, elements)
+	return sqltype.OwnedArrayValue(n.Usage.Type, dimensions, elements)
 }
 
 func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token ids.SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {

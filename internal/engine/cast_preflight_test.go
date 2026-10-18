@@ -45,8 +45,8 @@ func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 			t.Fatal("original tree mutated")
 		}
 	}
-	column := columnExpression{expressionInfo: expressionInfo{usage: inner.ResultUsage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	predicate := comparisonExpression{expressionInfo: expressionInfo{properties: ExprProperties{RowDependent: true}}, left: column, right: inner}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: inner.ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	predicate := comparisonExpression{expressionInfo: expressionInfo{Property: ExprProperties{RowDependent: true}}, left: column, right: inner}
 	folded, changed, err := preflightCoercions(&evaluation, predicate)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
@@ -70,7 +70,7 @@ func TestCastCoercionPreflightDependenceAndCancellation(t *testing.T) {
 		{RowDependent: true}, {StageDependent: true}, {Volatility: Volatility(1)},
 	} {
 		expression := original
-		expression.properties = properties
+		expression.Property = properties
 		folded, changed, err := preflightCoercions(&evaluation, expression)
 		if err != nil || changed || folded.(coercionExpression).expressionInfo != expression.expressionInfo {
 			t.Fatal(properties, folded, changed, err)
@@ -99,7 +99,7 @@ func TestCastCoercionPreflightDependentParent(t *testing.T) {
 		{RowDependent: true}, {StageDependent: true}, {Volatility: Volatility(1)},
 	} {
 		original := preflightCast(t, "SELECT CAST(int4('42'::text) AS text) FROM t").(coercionExpression)
-		original.properties = properties
+		original.Property = properties
 		folded, changed, err := preflightCoercions(&EvalContext{Context: context.Background()}, original)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)

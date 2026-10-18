@@ -21,7 +21,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v}
+	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}
 	result := b.typ(sqltype.Numeric)
 	original, err := functions.NewRangeInspect[BoundExpr, ExprContext](functionInfo(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeLower, []BoundExpr{arg})
 	if err != nil {
@@ -80,7 +80,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}
+	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Pos: parser.Position{Character: 8}}
 	node, err := b.finishRangeInspect(raw, true, []functions.Argument[BoundExpr]{{Expression: arg, Usage: d.Usage()}})
 	if err != nil {

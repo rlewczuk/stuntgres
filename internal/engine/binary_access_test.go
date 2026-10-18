@@ -100,13 +100,13 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			} else {
 				value, _ = sqltype.Integer(d, 0)
 			}
-			args[i] = literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}
+			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 		}
 		p, err := sqltype.BindBinary(name, types[result].Usage(), usages...)
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[result].Usage()}), Plan: p, Args: args}
+		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: types[result].Usage()}), Plan: p, Args: args}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
@@ -190,12 +190,12 @@ func bitAccessBindingProperties(t *testing.T) {
 				t.Fatal(err)
 			}
 			props := ExprProperties{Volatility: Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
-			source := literalExpression{expressionInfo: expressionInfo{usage: usage, properties: props}, value: value}
+			source := literalExpression{expressionInfo: expressionInfo{Usage: usage, Property: props}, value: value}
 			operands := []functions.Argument[BoundExpr]{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
 				u := b.typ(sqltype.Int4).Usage()
 				v, _ := sqltype.Integer(u.Type, 0)
-				operands = append(operands, functions.Argument[BoundExpr]{Expression: literalExpression{expressionInfo: expressionInfo{usage: u}, value: v}, Usage: u})
+				operands = append(operands, functions.Argument[BoundExpr]{Expression: literalExpression{expressionInfo: expressionInfo{Usage: u}, value: v}, Usage: u})
 			}
 			var types functions.BinaryTypes
 			node, err := b.finishBinary(name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

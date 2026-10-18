@@ -16,11 +16,11 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 			integer = typ
 		}
 	}
-	info := expressionInfo{usage: integer.Usage()}
+	info := expressionInfo{Usage: integer.Usage()}
 	key := columnExpression{expressionInfo: info, slot: 0}
-	key.properties.RowDependent = true
+	key.Property.RowDependent = true
 	count := aggregateExpression{expressionInfo: info, slot: 0}
-	count.properties.StageDependent = true
+	count.Property.StageDependent = true
 	plan, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Implicit)
 	if err != nil {
 		t.Fatal(err)

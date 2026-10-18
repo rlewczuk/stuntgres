@@ -56,8 +56,8 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	for _, route := range []string{"default", "generation", "check"} {
 		t.Run(route, func(t *testing.T) {
 			calls := 0
-			producer := functions.Enum[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: mood.Usage()}), Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
-			nested := conditionalExpression{expressionInfo: expressionInfo{usage: mood.Usage()}, kind: parser.Coalesce, args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: mood.Usage()}, value: safe}, producer}}
+			producer := functions.Enum[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: mood.Usage()}), Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			nested := conditionalExpression{expressionInfo: expressionInfo{Usage: mood.Usage()}, kind: parser.Coalesce, args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: safe}, producer}}
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog
 			scope.owner.catalog = newCatalogChanges()

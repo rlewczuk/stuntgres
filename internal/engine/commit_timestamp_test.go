@@ -313,7 +313,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		}
 		if kind != commitTimestampLast {
 			v, err := n.Eval(&EvalContext{Context: ctx})
-			if err != nil || !v.IsNull() || v.Type() != n.usage.Type {
+			if err != nil || !v.IsNull() || v.Type() != n.Usage.Type {
 				t.Fatal("strict whole NULL", err)
 			}
 		}
@@ -332,7 +332,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			}
 			withColumn := n
 			withColumn.arg = column
-			withColumn.properties = mergeExpressionProperties(ExprProperties{Volatility: Volatile}, column.Properties())
+			withColumn.Property = mergeExpressionProperties(ExprProperties{Volatility: Volatile}, column.Properties())
 			persisted, err := remapBoundExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
 				ref.Address.SubID++
 				return ref

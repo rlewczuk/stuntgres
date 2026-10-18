@@ -37,7 +37,7 @@ func (n scalarArrayComparisonExpression) Eval(ctx ExprContext) (sqltype.Value, e
 			return sqltype.Value{}, err
 		}
 		if array.IsNull() {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
 		count = array.ArrayLen()
 	}
@@ -75,18 +75,18 @@ func (n scalarArrayComparisonExpression) Eval(ctx ExprContext) (sqltype.Value, e
 		}
 		if (!n.all && truth == True) || (n.all && truth == False) {
 			if n.array != nil {
-				return sqltype.Boolean(n.usage.Type, !n.all), nil
+				return sqltype.Boolean(n.Usage.Type, !n.all), nil
 			}
 			decisive = true
 		}
 	}
 	if decisive {
-		return sqltype.Boolean(n.usage.Type, !n.all), nil
+		return sqltype.Boolean(n.Usage.Type, !n.all), nil
 	}
 	if unknown {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
-	return sqltype.Boolean(n.usage.Type, n.all), nil
+	return sqltype.Boolean(n.Usage.Type, n.all), nil
 }
 
 func comparisonOperator(name string) (sqltype.ComparisonOperator, bool) {
@@ -259,7 +259,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type.BaseType().Element(), b.typ(sqltype.Bool), input.usage.Collation, input.collationConflict)
+	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type.BaseType().Element(), b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, b.comparisonError(err, left.descriptor(), element, operatorRaw)
 	}
@@ -421,7 +421,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			if err != nil {
 				return nil, err
 			}
-			predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, children[0].ResultUsage().Type, b.typ(sqltype.Bool), input.usage.Collation, input.collationConflict)
+			predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, children[0].ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 			if err != nil {
 				return nil, b.comparisonError(err, left.descriptor(), common.Type, op)
 			}
@@ -439,7 +439,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.
-			if parameter, ok := left.node.(parameterExpression); ok && parameter.usage.Type == nil {
+			if parameter, ok := left.node.(parameterExpression); ok && parameter.Usage.Type == nil {
 				left.node = l
 			}
 			batched = true

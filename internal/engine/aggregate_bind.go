@@ -215,7 +215,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		if !ok {
 			return false
 		}
-		return e.unknownNull == o.unknownNull && sqltype.SameDatum(e.value, o.value)
+		return e.UnknownNull == o.UnknownNull && sqltype.SameDatum(e.value, o.value)
 	case domainValueExpression:
 		_, ok := other.(domainValueExpression)
 		return ok
@@ -929,7 +929,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			properties.RowDependent = false
 			properties.StageDependent = true
 			info := boundExpressionInfo(expr)
-			info.properties = properties
+			info.Property = properties
 			return groupExpression{expressionInfo: info, slot: i, frame: b.frameID()}, nil
 		}
 	}
@@ -942,7 +942,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		out, err = b.rewriteGroup(child, keys)
 		return out
 	}
-	stage := func(info *expressionInfo) { info.properties.StageDependent = true }
+	stage := func(info *expressionInfo) { info.Property.StageDependent = true }
 	switch e := expr.(type) {
 	case subqueryExpression:
 		old := b.groupSubquery
@@ -1035,9 +1035,9 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 		}
 		if b.groupSubquery {
-			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.pos)
+			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
 		}
-		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
+		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
 	case rowExpression:
 		e, _, err = mapRow(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			next := rewrite(old)
@@ -1588,24 +1588,24 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&e.expressionInfo)
 		expr = e
 	case indexPropertyExpression:
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i := range e.children() {
 			e.args[i] = rewrite(e.args[i])
 			if err != nil {
 				return nil, err
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		expr = e
 	case deparseExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 			if err != nil {
 				return nil, err
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		expr = e
 	case visibilityInquiryExpression:

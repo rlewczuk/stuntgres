@@ -451,8 +451,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			if err != nil {
 				return "", err
 			}
-			if literal, ok := arg.(literalExpression); ok && !literal.usage.Type.IsDomain() && r.checkLiterals == nil && !n.UnknownArgument(i) {
-				declaration, err := catalogTypeDeclaration(view, literal.usage)
+			if literal, ok := arg.(literalExpression); ok && !literal.Usage.Type.IsDomain() && r.checkLiterals == nil && !n.UnknownArgument(i) {
+				declaration, err := catalogTypeDeclaration(view, literal.Usage)
 				if err != nil {
 					return "", err
 				}
@@ -474,10 +474,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			if err != nil {
 				return "", err
 			}
-			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
-				id := literal.usage.Type.ID()
+			if literal, ok := arg.(literalExpression); ok && !literal.UnknownNull && !literal.Usage.Type.IsDomain() && r.checkLiterals == nil {
+				id := literal.Usage.Type.ID()
 				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && !sqltype.IsOperatorAlias(id) && !sqltype.IsRegTS(id) && id != sqltype.Bit {
-					declaration, err := catalogTypeDeclaration(view, literal.usage)
+					declaration, err := catalogTypeDeclaration(view, literal.Usage)
 					if err != nil {
 						return "", err
 					}
@@ -505,10 +505,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			// ANY operands need explicit identity on replay unless their owning
 			// literal syntax already preserves it (including canonical B literals).
-			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
-				id := literal.usage.Type.ID()
+			if literal, ok := arg.(literalExpression); ok && !literal.UnknownNull && !literal.Usage.Type.IsDomain() && r.checkLiterals == nil {
+				id := literal.Usage.Type.ID()
 				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && !sqltype.IsOperatorAlias(id) && !sqltype.IsRegTS(id) && id != sqltype.Bit || id == sqltype.Text && i > 0 && n.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) == 0 {
-					declaration, err := catalogTypeDeclaration(view, literal.usage)
+					declaration, err := catalogTypeDeclaration(view, literal.Usage)
 					if err != nil {
 						return "", err
 					}
@@ -533,7 +533,7 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
 	}
-	if n.unknownNull {
+	if n.UnknownNull {
 		if !n.value.IsNull() || u.Type.ID() != sqltype.Text {
 			return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
 		}

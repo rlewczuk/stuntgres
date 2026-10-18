@@ -111,8 +111,8 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			}
 			defer done()
 			usage := testUsage(e, sqltype.Text)
-			info := expressionInfo{usage: usage, collationConflict: tc.conflict}
-			project := &projectNode{querySchema: querySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, expressions: []BoundExpr{literalExpression{expressionInfo: info, value: sqltype.Null(usage.Type)}, literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.Null(usage.Type)}}}
+			info := expressionInfo{Usage: usage, CollationConflict: tc.conflict}
+			project := &projectNode{querySchema: querySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, expressions: []BoundExpr{literalExpression{expressionInfo: info, value: sqltype.Null(usage.Type)}, literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: sqltype.Null(usage.Type)}}}
 			syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: tc.labels, Query: &parser.Select{}}
 			registry := queryCreateTypes(e)
 			e.mu.Lock()

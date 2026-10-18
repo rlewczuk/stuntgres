@@ -164,12 +164,12 @@ func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 		t.Fatal("duplicated subquery inlined")
 	}
 	order := []int{}
-	volatile := mathObservedArgument{expressionInfo: expressionInfo{usage: start.ResultUsage(), properties: ExprProperties{Volatility: Volatile}}, order: &order}
+	volatile := mathObservedArgument{expressionInfo: expressionInfo{Usage: start.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, order: &order}
 	e.Args[0] = volatile
 	if overlapsInlineSafe(e) {
 		t.Fatal("duplicated volatile start inlined")
 	}
-	volatile.usage = e.Plan.ArgumentType(1).Usage()
+	volatile.Usage = e.Plan.ArgumentType(1).Usage()
 	e.Args[0] = start
 	e.Args[1] = volatile
 	if !overlapsInlineSafe(e) {
@@ -217,7 +217,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 		}
 	}
 	// Current imported values are constant candidates, not retained literal cache entries.
-	p := parameterExpression{expressionInfo: expressionInfo{usage: b.typ(sqltype.Timestamp).Usage(), properties: ExprProperties{ParameterDependent: true}}, number: 1}
+	p := parameterExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.Timestamp).Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}
 	if !overlapsExecutionConstant(p, c) || overlapsExecutionConstant(p, &EvalContext{Context: ctx}) {
 		t.Fatal("parameter availability classification")
 	}

@@ -112,7 +112,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 func TestIntaggEnumerationIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	n := intaggUnitEnum(t, e, "{2,2,NULL}")
-	if n.procedure != e.state.descriptors[ext.members[1]] || n.ref.Address != ext.members[1] || n.usage.Type.ID() != sqltype.Int4 {
+	if n.procedure != e.state.descriptors[ext.members[1]] || n.ref.Address != ext.members[1] || n.Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixed enum identity", n)
 	}
 	builtin := n
@@ -145,8 +145,8 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		t.Fatal("once per open/shared payload", count)
 	}
 	for _, want := range []any{int64(2), int64(2), nil} {
-		value, present, err := first.next(c.Context, n.usage.Type)
-		if err != nil || !present || value.Type() != n.usage.Type {
+		value, present, err := first.next(c.Context, n.Usage.Type)
+		if err != nil || !present || value.Type() != n.Usage.Type {
 			t.Fatal("stored element", value, present, err)
 		}
 		if want == nil {
@@ -157,10 +157,10 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 			t.Fatal(v, err)
 		}
 	}
-	if _, present, err := first.next(c.Context, n.usage.Type); err != nil || present {
+	if _, present, err := first.next(c.Context, n.Usage.Type); err != nil || present {
 		t.Fatal("extra element", present, err)
 	}
-	if _, present, err := second.next(c.Context, n.usage.Type); err != nil || !present {
+	if _, present, err := second.next(c.Context, n.Usage.Type); err != nil || !present {
 		t.Fatal("cursor state shared", present, err)
 	}
 	for _, wholeNull := range []bool{false, true} {
@@ -172,7 +172,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, present, err := cursor.next(c.Context, empty.usage.Type)
+		_, present, err := cursor.next(c.Context, empty.Usage.Type)
 		cursor.close()
 		if err != nil || present {
 			t.Fatal("whole NULL/empty yielded row", present, err)

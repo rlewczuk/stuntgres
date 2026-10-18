@@ -59,7 +59,7 @@ func advisoryDefinition(name string) (mode relationLockMode, action advisoryActi
 
 func (x advisoryExpression) validStored() bool {
 	mode, action, lifetime, id, ok := advisoryDefinition(x.name)
-	if !ok || x.mode != mode || x.action != action || x.lifetime != lifetime || x.usage.Type == nil || x.usage.Type.ID() != id {
+	if !ok || x.mode != mode || x.action != action || x.lifetime != lifetime || x.Usage.Type == nil || x.Usage.Type.ID() != id {
 		return false
 	}
 	if action == advisoryUnlockAll {
@@ -104,7 +104,7 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	for i := range x.args {
 		if values[i].IsNull() {
-			return sqltype.Null(x.usage.Type), nil
+			return sqltype.Null(x.Usage.Type), nil
 		}
 	}
 	s := c.liveScope()
@@ -116,7 +116,7 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if err := ticket.manager.unlockAdvisoryAll(ticket); err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.VoidValue(x.usage.Type), nil
+		return sqltype.VoidValue(x.Usage.Type), nil
 	}
 	first, err := values[0].Integer()
 	if err != nil {
@@ -142,7 +142,7 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			}
 			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
 		}
-		return sqltype.Boolean(x.usage.Type, unlocked), nil
+		return sqltype.Boolean(x.Usage.Type, unlocked), nil
 	}
 	try := x.action == advisoryTry
 	acquired, err := s.acquireAdvisory(c.Context, ref, x.mode, x.lifetime, try)
@@ -150,9 +150,9 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if try {
-		return sqltype.Boolean(x.usage.Type, acquired), nil
+		return sqltype.Boolean(x.Usage.Type, acquired), nil
 	}
-	return sqltype.VoidValue(x.usage.Type), nil
+	return sqltype.VoidValue(x.Usage.Type), nil
 }
 
 func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
@@ -167,7 +167,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	for i, child := range raw.Args {
 		if l, ok := child.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
-				args[i] = literalExpression{expressionInfo: expressionInfo{pos: child.SourcePosition()}}
+				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: child.SourcePosition()}}
 				if i < len(unknown) {
 					unknown[i] = true
 				}
@@ -248,7 +248,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 func foldAdvisoryNull(x advisoryExpression) (BoundExpr, bool) {
 	for _, arg := range x.args {
 		if randomLiteralNull(arg) {
-			return literalExpression{expressionInfo: expressionInfo{usage: x.usage, pos: x.pos}, value: sqltype.Null(x.usage.Type)}, true
+			return literalExpression{expressionInfo: expressionInfo{Usage: x.Usage, Pos: x.Pos}, value: sqltype.Null(x.Usage.Type)}, true
 		}
 	}
 	return x, false

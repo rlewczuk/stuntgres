@@ -22,8 +22,8 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{expressionInfo: expressionInfo{usage: b.typ(sqltype.JSONB).Usage()}, value: value}
-		original, err := functions.NewJSONBElements[BoundExpr, ExprContext](functionInfo(expressionInfo{usage: b.typ(id).Usage(), pos: parser.Position{Offset: 20, Character: 21}, properties: ExprProperties{StageDependent: true}}), name, BoundExpr(arg))
+		arg := literalExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.JSONB).Usage()}, value: value}
+		original, err := functions.NewJSONBElements[BoundExpr, ExprContext](functionInfo(expressionInfo{Usage: b.typ(id).Usage(), Pos: parser.Position{Offset: 20, Character: 21}, Property: ExprProperties{StageDependent: true}}), name, BoundExpr(arg))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -84,7 +84,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	if evaluation.domainValue != sentinel || evaluation.Input.DomainChecks != prior {
 		t.Fatal("cancellation leaked frame")
 	}
-	leaf := domainValueExpression{expressionInfo: expressionInfo{usage: child.typ.DomainBase()}}
+	leaf := domainValueExpression{expressionInfo: expressionInfo{Usage: child.typ.DomainBase()}}
 	evaluation.Context = context.Background()
 	evaluation.domainValue = sqltype.Null(child.typ.DomainBase().Type)
 	evaluation.domainFrameUsage = child.typ.DomainBase()

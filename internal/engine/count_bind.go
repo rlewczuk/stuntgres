@@ -65,7 +65,7 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	// Modifiers can resolve a matched UNKNOWN input target. Only an actual
 	// remaining ANY occurrence participates in the unresolved-parameter guard.
 	argument := b.aggregates[result.(aggregateExpression).slot].argument
-	if parameter, ok := argument.(parameterExpression); ok && parameter.usage.Type == nil {
+	if parameter, ok := argument.(parameterExpression); ok && parameter.Usage.Type == nil {
 		b.anyParameters = append(b.anyParameters, parameter)
 	}
 	return result, nil

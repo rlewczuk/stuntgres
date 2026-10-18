@@ -154,7 +154,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			args[i] = literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
+			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
 		}
 		routine := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid}].(*procedureDescriptor)
 		node, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
@@ -179,7 +179,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	text, _ := view.LookupType(sqltype.Text)
-	arg := literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "ABC")}
+	arg := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "ABC")}
 	routine := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 870}].(*procedureDescriptor)
 	node, err := b.bindSelectedOperatorRoutine(routine, []BoundExpr{arg}, parser.Position{})
 	if err != nil {
@@ -350,14 +350,14 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
 	three, _ := sqltype.Integer(integer, 3)
-	args := []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, value: two}, literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, value: three}}
+	args := []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: two}, literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: three}}
 	routine := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 177}].(*procedureDescriptor)
 	provider, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	info := boundExpressionInfo(provider)
-	info.routineReference = nil
+	info.RoutineReference = nil
 	wrapped := selectedOperatorExpression{expressionInfo: info, operator: source, ref: original, provider: provider}
 	assertManifest := func(node BoundExpr, operator ids.ObjectAddress) {
 		t.Helper()

@@ -74,9 +74,9 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
-	node := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
-		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "a")},
-		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "b")},
+	node := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
+		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "a")},
+		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "b")},
 	}}
 	var replacement *sqltype.Descriptor
 	for _, d := range sqltype.Builtins() {
@@ -106,7 +106,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	nested := node
 	nested.Args = append([]BoundExpr(nil), node.Args...)
-	nested.Args[1] = columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), pos: parser.Position{Character: 17}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	nested.Args[1] = columnExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Pos: parser.Position{Character: 17}, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
 	nested.Pos = parser.Position{Character: 8}
 	nested.Property.RowDependent = true
 	if position := firstQueryBoundFrameVariable(nested, 1); position.Character != 17 {

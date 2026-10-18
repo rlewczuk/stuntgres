@@ -147,7 +147,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	}
 	// Match the analyzed catalog shape, not the execution tree after folding.
 	// PostgreSQL removes only a standalone nonnull Boolean TRUE predicate.
-	if literal, ok := definition.(literalExpression); ok && literal.usage.Type.ID() == sqltype.Bool && !literal.value.IsNull() {
+	if literal, ok := definition.(literalExpression); ok && literal.Usage.Type.ID() == sqltype.Bool && !literal.value.IsNull() {
 		truth, err := TruthOf(literal.value)
 		if err != nil {
 			return nil, err

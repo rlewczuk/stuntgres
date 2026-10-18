@@ -76,7 +76,7 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
-		r.add(n.regclassRef.Address)
+		r.add(n.RegclassRef.Address)
 		if r.err == nil {
 			r.err = walkCatalogAliasDependencies(r.catalog, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)

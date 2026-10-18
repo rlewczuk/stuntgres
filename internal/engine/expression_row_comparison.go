@@ -72,7 +72,7 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 	}
 	operand, err := b.comparisonOperand(raw)
 	result := inComparisonOperand{scalar: operand}
-	if row, ok := operand.node.(rowExpression); ok && row.raw != nil && !row.usage.Type.IsDomain() {
+	if row, ok := operand.node.(rowExpression); ok && row.raw != nil && !row.Usage.Type.IsDomain() {
 		result.constructor, result.expansions = true, row.expansions
 		result.fields = make([]comparisonOperand, len(row.fields))
 		for i, field := range row.fields {
@@ -160,7 +160,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 			return nil, fmt.Errorf("stuntgres: invalid row comparison pair")
 		}
 		e.comparisons[i] = pair
-		e.properties = mergeExpressionProperties(e.properties, pair.Properties())
+		e.Property = mergeExpressionProperties(e.Property, pair.Properties())
 		if len(e.ordering) != 0 {
 			ref, conflict := pair.predicate.InputCollation()
 			e.ordering[i], err = sqltype.BindComparison(pair.left.ResultUsage().Type, pair.right.ResultUsage().Type, ref, conflict)
@@ -260,7 +260,7 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 				distinct = !equal
 			}
 			if distinct {
-				return sqltype.Boolean(e.usage.Type, e.operator == "IS DISTINCT FROM"), nil
+				return sqltype.Boolean(e.Usage.Type, e.operator == "IS DISTINCT FROM"), nil
 			}
 			continue
 		}
@@ -269,7 +269,7 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 		}
 		if len(e.ordering) != 0 {
 			if valueLeft.IsNull() || right.IsNull() {
-				return sqltype.Null(e.usage.Type), nil
+				return sqltype.Null(e.Usage.Type), nil
 			}
 			sign, err := e.ordering[i].Compare(c.Context, valueLeft, right, c.Input)
 			if err != nil {
@@ -282,7 +282,7 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 			if e.operator == ">" || e.operator == ">=" {
 				truth = sign > 0
 			}
-			return sqltype.Boolean(e.usage.Type, truth), nil
+			return sqltype.Boolean(e.Usage.Type, truth), nil
 		}
 		value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
 		if err != nil {
@@ -298,15 +298,15 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 		}
 		if e.operator == "<>" {
 			if truth {
-				return sqltype.Boolean(e.usage.Type, true), nil
+				return sqltype.Boolean(e.Usage.Type, true), nil
 			}
 		} else if !truth {
-			return sqltype.Boolean(e.usage.Type, false), nil
+			return sqltype.Boolean(e.Usage.Type, false), nil
 		}
 	}
 	if unknown {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">=" || e.operator == "IS NOT DISTINCT FROM"
-	return sqltype.Boolean(e.usage.Type, truth), nil
+	return sqltype.Boolean(e.Usage.Type, truth), nil
 }

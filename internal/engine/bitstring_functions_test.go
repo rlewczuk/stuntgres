@@ -126,7 +126,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{expressionInfo: expressionInfo{usage: sourceUsage}, value: sourceValue}
+		source := literalExpression{expressionInfo: expressionInfo{Usage: sourceUsage}, value: sourceValue}
 		operands := []functions.Argument[BoundExpr]{{Expression: source, Usage: sourceUsage}}
 		if name == "overlay" || name == "position" {
 			operands = append(operands, operands[0])
@@ -137,7 +137,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			index := literalExpression{expressionInfo: expressionInfo{usage: usage}, value: value}
+			index := literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value}
 			operands = append(operands, functions.Argument[BoundExpr]{Expression: index, Usage: usage})
 		}
 		var types functions.BinaryTypes

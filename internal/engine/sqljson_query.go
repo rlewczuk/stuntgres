@@ -21,7 +21,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 	}
 	query := bound.(subqueryExpression)
 	project := query.queryPlan.Root.(*projectNode)
-	arg := BoundExpr(columnExpression{expressionInfo: b.info(query.usage, raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: 0})
+	arg := BoundExpr(columnExpression{expressionInfo: b.info(query.Usage, raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: 0})
 	var format *parser.JSONFormat
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]
@@ -63,7 +63,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 		return nil, err
 	}
 	query.jsonArray = &sqlJSONArrayQuery{raw: raw, input: arg, plan: plan}
-	query.usage = usage
+	query.Usage = usage
 	if returning.Type == nil {
 		return query, nil
 	}

@@ -43,7 +43,7 @@ type transactionIdentityExpression struct {
 }
 
 func (n transactionIdentityExpression) validate() error {
-	if n.kind > identityMembers || !n.usage.Valid() {
+	if n.kind > identityMembers || !n.Usage.Valid() {
 		return fmt.Errorf("stuntgres: invalid stored transaction identity provider")
 	}
 	count := n.kind != identityCurrent && n.kind != identityAssigned
@@ -64,13 +64,13 @@ func (n transactionIdentityExpression) validate() error {
 	case identityStatus:
 		result = sqltype.Text
 	case identityMembers:
-		d := n.usage.Type
+		d := n.Usage.Type
 		if !d.IsComposite() || d.CompositeLen() != 2 || d.CompositeMember(0).Name != "xid" || d.CompositeMember(0).Usage.Type.ID() != sqltype.Xid || d.CompositeMember(1).Name != "mode" || d.CompositeMember(1).Usage.Type.ID() != sqltype.Text {
 			return fmt.Errorf("stuntgres: invalid MultiXact OUT shape")
 		}
 		return nil
 	}
-	if n.usage.Type.ID() != result {
+	if n.Usage.Type.ID() != result {
 		return fmt.Errorf("stuntgres: invalid transaction identity result")
 	}
 	return nil
@@ -191,7 +191,7 @@ func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, err
 			return sqltype.Value{}, err
 		}
 		if value.IsNull() {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
 		if n.kind == identityStatus {
 			full, err = value.XID8()
@@ -212,7 +212,7 @@ func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, err
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.Integer(n.usage.Type, int64(age))
+		return sqltype.Integer(n.Usage.Type, int64(age))
 	}
 	if n.kind == identityMembers {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: MultiXact set call requires an invocation")
@@ -228,27 +228,27 @@ func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, err
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.Integer(n.usage.Type, int64(age))
+		return sqltype.Integer(n.Usage.Type, int64(age))
 	case identityCurrent:
 		if err := e.assignTransactionXIDLocked(scope.txRef); err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.XID8Value(n.usage.Type, e.visibility[scope.txRef].fullXID)
+		return sqltype.XID8Value(n.Usage.Type, e.visibility[scope.txRef].fullXID)
 	case identityAssigned:
 		full = e.visibility[scope.txRef].fullXID
 		if full == 0 {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.XID8Value(n.usage.Type, full)
+		return sqltype.XID8Value(n.Usage.Type, full)
 	case identityStatus:
 		status, present, err := e.transactionStatusLocked(full)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if !present {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.String(n.usage.Type, status), nil
+		return sqltype.String(n.Usage.Type, status), nil
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid transaction identity operation")
 }
@@ -274,12 +274,12 @@ func (n transactionIdentityExpression) openMembers(c *EvalContext) ([]sqltype.Va
 	}
 	rows := make([]sqltype.Value, len(members))
 	for i, m := range members {
-		x, err := sqltype.XIDValue(n.usage.Type.CompositeMember(0).Usage.Type, m.xid)
+		x, err := sqltype.XIDValue(n.Usage.Type.CompositeMember(0).Usage.Type, m.xid)
 		if err != nil {
 			return nil, err
 		}
-		mode := sqltype.String(n.usage.Type.CompositeMember(1).Usage.Type, m.mode.name())
-		rows[i], err = sqltype.OwnedCompositeValue(n.usage.Type, []sqltype.Value{x, mode})
+		mode := sqltype.String(n.Usage.Type.CompositeMember(1).Usage.Type, m.mode.name())
+		rows[i], err = sqltype.OwnedCompositeValue(n.Usage.Type, []sqltype.Value{x, mode})
 		if err != nil {
 			return nil, err
 		}

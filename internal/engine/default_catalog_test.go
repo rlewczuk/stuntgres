@@ -27,7 +27,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := parameterExpression{expressionInfo: expressionInfo{usage: u, properties: ExprProperties{ParameterDependent: true}}, number: 1}
+			node := parameterExpression{expressionInfo: expressionInfo{Usage: u, Property: ExprProperties{ParameterDependent: true}}, number: 1}
 			bad := old.defaults[1]
 			bad.expression = node
 			d.defaults = map[int32]columnDefault{1: bad}
@@ -37,7 +37,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := literalExpression{expressionInfo: expressionInfo{usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
+			node := literalExpression{expressionInfo: expressionInfo{Usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
 			bad := old.defaults[1]
 			bad.expression = node
 			d.defaults = map[int32]columnDefault{1: bad}
@@ -83,7 +83,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{expressionInfo: expressionInfo{usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{expressionInfo: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32
@@ -92,14 +92,14 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 		{"null-child", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.child = nil; return n }},
 		{"null-result-type", 1, func(node BoundExpr) BoundExpr {
 			n := node.(nullTestExpression)
-			n.usage = old.columns[3].Usage
+			n.Usage = old.columns[3].Usage
 			return n
 		}},
 		{"null-foreign-child", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.child = foreignChild; return n }},
 		{"null-dependent-child", 1, func(node BoundExpr) BoundExpr {
 			n := node.(nullTestExpression)
 			child := old.defaults[4].expression.(literalExpression)
-			child.properties.RowDependent = true
+			child.Property.RowDependent = true
 			n.child = child
 			return n
 		}},

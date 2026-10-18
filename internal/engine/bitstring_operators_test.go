@@ -117,11 +117,11 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 		func(n bitwiseExpression) bitwiseExpression { n.left = nil; return n },
 		func(n bitwiseExpression) bitwiseExpression { n.right = nil; return n },
 		func(n bitwiseExpression) bitwiseExpression { n.operator = sqltype.BitwiseOperator(255); return n },
-		func(n bitwiseExpression) bitwiseExpression { n.usage.Typmod = 3; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.Usage.Typmod = 3; return n },
 		func(n bitwiseExpression) bitwiseExpression {
 			n.right = n.left.(literalExpression)
 			r := n.right.(literalExpression)
-			r.usage.Typmod = 3
+			r.Usage.Typmod = 3
 			n.right = r
 			return n
 		},
@@ -155,9 +155,9 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	}
 	// An imported parameter literal must not acquire immutable-constant demand.
 	dependent := root
-	dependent.properties.ParameterDependent = true
+	dependent.Property.ParameterDependent = true
 	left := dependent.left.(literalExpression)
-	left.properties.ParameterDependent = true
+	left.Property.ParameterDependent = true
 	dependent.left = left
 	if _, changed, err := preflightCoercions(&EvalContext{Context: ctx}, dependent); err != nil || changed {
 		t.Fatal("parameter-dependent bit expression folded", changed, err)
@@ -182,7 +182,7 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 			calls = append(calls, "error")
 			return sqltype.Value{}, &sqlstate.Error{Code: "22026", Message: "cannot AND bit strings of different sizes"}
 		})
-		root := bitwiseExpression{expressionInfo: expressionInfo{usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
+		root := bitwiseExpression{expressionInfo: expressionInfo{Usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
 		if reverse {
 			root.left, root.right = root.right, root.left
 		}
@@ -206,7 +206,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{expressionInfo: expressionInfo{usage: usage}, value: value}
+		source := literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value}
 		operands := []functions.Argument[BoundExpr]{{Expression: source, Usage: usage}, {Expression: source, Usage: usage}}
 		var types functions.BinaryTypes
 		node, err := b.finishBinary("||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

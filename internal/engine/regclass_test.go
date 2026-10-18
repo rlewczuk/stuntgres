@@ -48,7 +48,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	arrayTyp, _ := view.LookupType(typ.AssociatedArray())
 	value := sqltype.String(typ, "1259")
 	var err error
-	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
 	var deps []ids.ObjectRef
 	if _, err = (scalarRenderer{dependencies: &deps}).sql(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}) || deps[1].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}) {
 		t.Fatal(deps, err)
@@ -57,7 +57,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opaque := literalExpression{expressionInfo: expressionInfo{usage: arrayTyp.Usage()}, value: array}
+	opaque := literalExpression{expressionInfo: expressionInfo{Usage: arrayTyp.Usage()}, value: array}
 	deps = nil
 	if _, err = (scalarRenderer{dependencies: &deps}).sql(context.Background(), view, opaque); err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	numeric := coercionExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, child: literalExpression{expressionInfo: expressionInfo{usage: intTyp.Usage()}, value: integer}, plan: plan, mode: sqltype.Explicit}
+	numeric := coercionExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, child: literalExpression{expressionInfo: expressionInfo{Usage: intTyp.Usage()}, value: integer}, plan: plan, mode: sqltype.Explicit}
 	replay = nil
 	if err = regclassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
 		t.Fatal(replay, err)
@@ -144,8 +144,8 @@ func TestRegclassDeferredDefinitionSelection(t *testing.T) {
 	descriptor := retiredUnitTable(t, e, "t")
 	regclass, _ := view.LookupType(sqltype.Regclass)
 	text, _ := view.LookupType(sqltype.Text)
-	scalar := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}, value: sqltype.String(regclass, "1259")}
-	inline := literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "inline")}
+	scalar := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}, value: sqltype.String(regclass, "1259")}
+	inline := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "inline")}
 	if !defaultReplayDeferrable(columnDefault{expression: scalar}) || defaultReplayDeferrable(columnDefault{expression: inline}) {
 		t.Fatal("selected result eligibility or primitive inline definition changed")
 	}

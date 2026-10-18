@@ -108,7 +108,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 			return nil, fmt.Errorf("missing JSON function operand")
 		}
 		args[i] = arg
-		if parameter, ok := arg.(parameterExpression); ok && parameter.usage.Type == nil {
+		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
 			b.anyParameters = append(b.anyParameters, parameter)
 		}
 		p := arg.Properties()

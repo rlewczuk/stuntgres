@@ -59,7 +59,7 @@ func (e sqlJSONExpression) reconstruct(info expressionInfo, args []BoundExpr) (B
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
-	plan, err := sqltype.BindSQLJSON(sqlJSONKind(e.raw.Kind), info.usage, usages, e.raw.Absent, e.raw.Unique && e.raw.Kind != "json")
+	plan, err := sqltype.BindSQLJSON(sqlJSONKind(e.raw.Kind), info.Usage, usages, e.raw.Absent, e.raw.Unique && e.raw.Kind != "json")
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +247,7 @@ func (e jsonPredicateExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	truth, err := sqltype.JSONPredicate(c.Context, value, strings.ToUpper(e.kind), e.unique)
 	if err != nil {
@@ -256,7 +256,7 @@ func (e jsonPredicateExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if e.not {
 		truth = !truth
 	}
-	return sqltype.Boolean(e.usage.Type, truth), nil
+	return sqltype.Boolean(e.Usage.Type, truth), nil
 }
 func (b *expressionBinder) bindJSONPredicate(raw parser.JSONPredicateExpr) (BoundExpr, error) {
 	operand, err := b.comparisonOperand(raw.Child)

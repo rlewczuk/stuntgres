@@ -27,8 +27,8 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
 	failure := errors.New("demanded recipe")
-	probe := generatedOccurrenceProbe{expressionInfo: expressionInfo{usage: typ.Usage()}, calls: &calls, value: one, err: failure}
-	column := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, scope: 1, frame: 4, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
+	probe := generatedOccurrenceProbe{expressionInfo: expressionInfo{Usage: typ.Usage()}, calls: &calls, value: one, err: failure}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
 	// Local aliases 0/1 map to global physical ordinals 3/7 under locks.
 	physical := &querySource{occurrence: 3}
 	state := &queryState{source: &querySource{sources: []*querySource{{input: physical}, {occurrence: 7}}}, virtualReads: true}
@@ -68,7 +68,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	negative, _ := sqltype.Integer(typ, -9)
 	origin := e.domain.Ref(catalog.Epoch(), source.address)
 	origin.Address.SubID = 2
-	old := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, origin: origin, scope: 1, frame: 1, slot: 1, virtual: literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: seven}, rowWidth: 2, queryOccurrence: 1}
+	old := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 1, slot: 1, virtual: literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: seven}, rowWidth: 2, queryOccurrence: 1}
 	ordinary := *source
 	ordinary.checkConstraints = []checkConstraint{{Name: "positive", expression: old}}
 	if err := refreshGenerationChecks(&ordinary, catalog); err != nil {
@@ -86,7 +86,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	wide := *source
 	wide.columns = append(append([]ColumnDescriptor(nil), source.columns...), source.columns...)
 	wide.attributes = []int32{3, 4, 1, 2}
-	base := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
+	base := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
 	wide.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
 	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
@@ -123,19 +123,19 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	origin.Address.SubID = 2
 	typ := d.columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
-	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: one}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: one}
 	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: literal, planned: literal}}
-	left := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, queryOccurrence: 1}.withGeneration(d, 1, 0)
+	left := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, queryOccurrence: 1}.withGeneration(d, 1, 0)
 	right := left
 	right.slot, right.rowStart, right.queryOccurrence = 3, 2, 2
 	provider, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, typ, typ, typ)
 	if err != nil {
 		t.Fatal(err)
 	}
-	add := arithmeticExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, left: left, right: literal, provider: provider, operator: sqltype.ArithmeticAdd}
+	add := arithmeticExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, left: left, right: literal, provider: provider, operator: sqltype.ArithmeticAdd}
 	boolean := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil).typ(sqltype.Bool)
-	test := nullTestExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, child: right}
-	choice := caseExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, arms: []caseBranch{{condition: test, result: add}}, otherwise: right}
+	test := nullTestExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, child: right}
+	choice := caseExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, arms: []caseBranch{{condition: test, result: add}}, otherwise: right}
 	outside := left
 	outside.frame = 99
 	syntax := &parser.Select{}
@@ -208,8 +208,8 @@ func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	for _, present := range []bool{false, true} {
 		calls := 0
-		probe := generatedOccurrenceProbe{expressionInfo: expressionInfo{usage: typ.Usage()}, calls: &calls, value: one}
-		column := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, scope: 1, frame: 1, slot: 2, virtual: probe, rowStart: 1, rowWidth: 2, queryOccurrence: 2}
+		probe := generatedOccurrenceProbe{expressionInfo: expressionInfo{Usage: typ.Usage()}, calls: &calls, value: one}
+		column := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 2, virtual: probe, rowStart: 1, rowWidth: 2, queryOccurrence: 2}
 		left := &querySource{anonymous: [][]sqltype.Value{{one}}, occurrence: 0}
 		right := &querySource{anonymous: [][]sqltype.Value{}, occurrence: 1}
 		if present {

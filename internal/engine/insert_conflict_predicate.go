@@ -35,7 +35,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 			return nil, err
 		}
 		info := boundExpressionInfo(node)
-		info.properties = ExprProperties{}
+		info.Property = ExprProperties{}
 		return literalExpression{expressionInfo: info, value: value}, nil
 	}
 	switch n := node.(type) {

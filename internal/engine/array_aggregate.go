@@ -37,7 +37,7 @@ func (b *expressionBinder) bindArrayAggregate(raw parser.AggregateExpr, name par
 	properties := arg.Properties()
 	properties.StageDependent = true
 	info := b.info(usage, raw.Pos, properties)
-	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
+	info.CollationConflict, info.CollationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
 	operation := aggregateArrayScalar
 	if arrays {
 		operation = aggregateArrayArray

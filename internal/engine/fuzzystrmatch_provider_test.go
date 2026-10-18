@@ -198,15 +198,15 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	n := daitchUnitExpression(t, e, "Bierschbach")
 	ctx := &EvalContext{Context: context.Background()}
 	value, err := n.Eval(ctx)
-	text, _ := n.usage.Type.Output(ctx.Context, value)
+	text, _ := n.Usage.Type.Output(ctx.Context, value)
 	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || plannedVolatility(n) != Immutable || !generationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
-	if n.ref.Address != ext.members[0] || n.dictionary != nil || n.template != nil || value.Type() != n.usage.Type || value.ArrayLen() != 8 {
+	if n.ref.Address != ext.members[0] || n.dictionary != nil || n.template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
 		t.Fatal("captured authority", n)
 	}
 	for i := range value.ArrayLen() {
-		if value.ArrayElement(i).Type() != n.usage.Type.Element() {
+		if value.ArrayElement(i).Type() != n.Usage.Type.Element() {
 			t.Fatal("foreign element generation")
 		}
 	}
@@ -254,14 +254,14 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	}
 	for _, input := range []string{"", "---"} {
 		v, err := daitchUnitExpression(t, e, input).Eval(ctx)
-		if err != nil || !v.IsNull() || v.Type() != n.usage.Type {
+		if err != nil || !v.IsNull() || v.Type() != n.Usage.Type {
 			t.Fatal("typed no-encodable NULL", v, err)
 		}
 	}
 	foreign := New()
 	foreignArray, _ := foreign.CatalogRead().LookupType(1009)
 	forged := n
-	forged.usage.Type = foreignArray
+	forged.Usage.Type = foreignArray
 	if forged.validProvider() {
 		t.Fatal("foreign array/argument generation admitted")
 	}
@@ -269,9 +269,9 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("foreign generation evaluated")
 	}
 	calls := 0
-	n.arg = daitchCountingArgument{expressionInfo: expressionInfo{usage: n.arg.ResultUsage(), properties: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.arg.ResultUsage().Type)}
+	n.arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
-	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.usage.Type || plannedVolatility(n) != Volatile || generationImmutable(n) {
+	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || plannedVolatility(n) != Volatile || generationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)
 	}
 	ctxCanceled, cancel := context.WithCancel(ctx.Context)

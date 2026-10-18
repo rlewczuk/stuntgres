@@ -62,10 +62,10 @@ func (e returningColumnExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 		return sqltype.Value{}, err
 	}
 	if e.merge && mergeReturningAbsent(parent, e.side) {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	if e.absent || !e.merge && e.old && parent.OldRow == nil {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	value := BoundExpr(e.columnExpression)
 	if e.value != nil {

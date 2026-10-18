@@ -62,7 +62,7 @@ func (e queryProbeExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return e.eval(evalContext(ctx))
 }
 func queryProbe(usage sqltype.Usage, eval func(*EvalContext) (sqltype.Value, error)) BoundExpr {
-	return queryProbeExpression{expressionInfo: expressionInfo{usage: usage, pos: parser.Position{Offset: -1}}, eval: eval}
+	return queryProbeExpression{expressionInfo: expressionInfo{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
 }
 
 func TestQueryCoreEagerFinalization(t *testing.T) {

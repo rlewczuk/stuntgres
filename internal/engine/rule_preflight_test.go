@@ -90,7 +90,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			{DomainDependent: true, RuntimeDomainConversion: true}, {Volatility: Volatile},
 		} {
 			recipe := original
-			recipe.properties = mergeExpressionProperties(recipe.properties, barrier)
+			recipe.Property = mergeExpressionProperties(recipe.Property, barrier)
 			evaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true, specializeRuleParameters: true}
 			mapped, changed, err := preflightCoercions(&evaluation, recipe)
 			if err != nil || !changed {
@@ -129,7 +129,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		}
 		demanded := *outer
 		demanded.expressions = []BoundExpr{columnExpression{
-			expressionInfo: expressionInfo{usage: bad.ResultUsage(), properties: ExprProperties{RowDependent: true}},
+			expressionInfo: expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
 			frame:          1, slot: 0,
 		}}
 		_, err = preflightQuery(&evaluation, &demanded)
@@ -142,7 +142,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if used {
 				// The mutation target owns slot zero; FROM starts at slot one.
 				expression = columnExpression{
-					expressionInfo: expressionInfo{usage: bad.ResultUsage(), properties: ExprProperties{RowDependent: true}},
+					expressionInfo: expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
 					frame:          1, slot: 1,
 				}
 			}
@@ -150,7 +150,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				expression, _, err = rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
 					if parameter, ok := node.(parameterExpression); ok {
 						info := parameter.expressionInfo
-						info.properties = ExprProperties{RowDependent: true}
+						info.Property = ExprProperties{RowDependent: true}
 						return columnExpression{expressionInfo: info, frame: 1, slot: 1}, true, nil
 					}
 					return node, false, nil
@@ -286,7 +286,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		predicate, _, err := rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
 			if parameter, ok := node.(parameterExpression); ok {
 				info := parameter.expressionInfo
-				info.properties = ExprProperties{RowDependent: true}
+				info.Property = ExprProperties{RowDependent: true}
 				return columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}, true, nil
 			}
 			return node, false, nil

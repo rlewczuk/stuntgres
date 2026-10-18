@@ -131,7 +131,7 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 	if id != 90001 || originalID != 90000 || fixedID != 1397 || unknownID != 4294967295 || !remapped.ArrayElement(3).IsNull() {
 		t.Fatal("remap identities/null/ownership")
 	}
-	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}, value: original})
+	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: original})
 	if err != nil || !strings.Contains(text, "[-2:1]") || !strings.Contains(text, "pg_catalog.abs(integer)") || !strings.Contains(text, "::regprocedure::regproc") || !strings.Contains(text, "4294967295") {
 		t.Fatal("overload-safe recursive dump", text, err)
 	}

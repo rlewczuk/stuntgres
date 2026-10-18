@@ -34,7 +34,7 @@ func (n arrayExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
-	return sqltype.ConstructArray(c.Context, n.usage.Type, values, n.multidimensional)
+	return sqltype.ConstructArray(c.Context, n.Usage.Type, values, n.multidimensional)
 }
 
 // target is supplied only by explicit array casts, never ordinary assignment.
@@ -109,9 +109,9 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 				info, err = b.coercionInfo(b.info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
 					var plan sqltype.CoercionPlan
-					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Explicit)
+					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
 					if err == nil {
-						info.properties = coercionProperties(input, plan)
+						info.Property = coercionProperties(input, plan)
 						node = restoreDomainCastCollations(annotations, coercionExpression{expressionInfo: info, child: input, plan: plan, mode: sqltype.Explicit, syntheticConstructorElement: true})
 					}
 				}
@@ -143,7 +143,7 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view CatalogRead, n arrayE
 	}
 	text := "ARRAY[" + strings.Join(parts, ", ") + "]"
 	if len(parts) == 0 {
-		declaration, err := catalogTypeDeclarationAt(view, r.definition, n.usage)
+		declaration, err := catalogTypeDeclarationAt(view, r.definition, n.Usage)
 		if err != nil {
 			return "", err
 		}
@@ -173,7 +173,7 @@ func (n subscriptExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	var storage [6]sqltype.ArraySubscriptValue
 	bounds, err := evaluateArrayBounds(c, n.subscripts, n.slice, storage[:len(n.subscripts)])

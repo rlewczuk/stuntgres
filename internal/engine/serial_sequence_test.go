@@ -46,10 +46,10 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		view.state.names[descriptorNameKey(descriptor)] = descriptor.Address()
 	}
 	literal := func(s string) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, s)}
+		return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
 	}
 	node := deparseExpression{
-		expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable}},
+		expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}},
 		signature:      deparseSerialSequence, args: []BoundExpr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
 	}
 	scope := &StatementScope{commentCatalog: view, deparseAuth: catalogAuthorization(e, view)}
@@ -141,8 +141,8 @@ func TestSerialSequenceNameInput(t *testing.T) {
 		t.Run(tc.table+"/"+tc.column, func(t *testing.T) {
 			node := f.node
 			node.args = []BoundExpr{
-				literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, tc.table)},
-				literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, tc.column)},
+				literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, tc.table)},
+				literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, tc.column)},
 			}
 			_, err := node.Eval(f.context)
 			var diagnostic *sqlstate.Error
@@ -185,13 +185,13 @@ func TestSerialSequenceExpression(t *testing.T) {
 		{"signature", func(n *deparseExpression) { n.signature = deparseSignature(len(deparseSignatures)) }},
 		{"arity", func(n *deparseExpression) { n.args = n.args[:1] }},
 		{"nil-child", func(n *deparseExpression) { n.args[1] = nil }},
-		{"result-type", func(n *deparseExpression) { n.usage.Type, _ = f.view.LookupType(sqltype.Int4) }},
+		{"result-type", func(n *deparseExpression) { n.Usage.Type, _ = f.view.LookupType(sqltype.Int4) }},
 		{"child-type", func(n *deparseExpression) {
 			integer, _ := f.view.LookupType(sqltype.Int4)
 			v, _ := sqltype.Integer(integer, 1)
-			n.args[1] = literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, value: v}
+			n.args[1] = literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: v}
 		}},
-		{"properties", func(n *deparseExpression) { n.properties.Volatility = Immutable }},
+		{"properties", func(n *deparseExpression) { n.Property.Volatility = Immutable }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node := f.node
@@ -205,8 +205,8 @@ func TestSerialSequenceExpression(t *testing.T) {
 	// Real parameter nodes prove strict child demand and property merging.
 	text := f.node.ResultUsage().Type
 	node := f.node
-	node.args = []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text)}, parameterExpression{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{ParameterDependent: true}}, number: 1}}
-	node.properties.ParameterDependent = true
+	node.args = []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}, parameterExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}}
+	node.Property.ParameterDependent = true
 	if _, err := node.Eval(&EvalContext{Context: context.Background()}); err == nil {
 		t.Fatal("NULL suppressed demanded child")
 	}

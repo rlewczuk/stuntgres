@@ -22,7 +22,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 			if functions.FormatUnknownArgument(r, i) {
 				rawUnknown[i/64] |= uint64(1) << uint(i%64)
 			}
-			if parameter, ok := node.(parameterExpression); ok && parameter.usage.Type == nil {
+			if parameter, ok := node.(parameterExpression); ok && parameter.Usage.Type == nil {
 				b.anyParameters = append(b.anyParameters, parameter)
 			}
 		}

@@ -75,7 +75,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	usage.Collation = ref
 	position := parser.Position{Character: 1}
 	info := b.info(usage, position, ExprProperties{})
-	info.collationExplicit = position
+	info.CollationExplicit = position
 	collated := collationExpression{expressionInfo: info, child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
 	replace, err := b.newArraySearch("array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []BoundExpr{collated, search, replacement})

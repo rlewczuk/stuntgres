@@ -90,11 +90,11 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		}
 		constant = &text
 	}
-	plan, err := sqltype.BindDatetimeFormat(b.ctx, name, info.usage, args[0].ResultUsage(), constant)
+	plan, err := sqltype.BindDatetimeFormat(b.ctx, name, info.Usage, args[0].ResultUsage(), constant)
 	if err != nil {
 		return nil, err
 	}
-	plan = plan.WithCollationConflict(collated.collationConflict)
+	plan = plan.WithCollationConflict(collated.CollationConflict)
 	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, selection.Source, sqltype.Text)
 	if err != nil {
 		return nil, err

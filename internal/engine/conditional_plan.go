@@ -294,7 +294,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.args = args
 		}
 		if len(e.args) == 0 {
-			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			return literalExpression{e.expressionInfo, sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
 	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
@@ -314,7 +314,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 	case coercionExpression:
 		e.child, err = child(e.child)
 		if err == nil && e.plan.ChecksDomain() {
-			err = c.prepareDomainConversion(e.child.ResultUsage().Type, e.usage.Type)
+			err = c.prepareDomainConversion(e.child.ResultUsage().Type, e.Usage.Type)
 		}
 		expression = e
 	case bitwiseExpression:
@@ -323,7 +323,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		if err == nil && (bitwiseConstantNull(e.left) || bitwiseConstantNull(e.right)) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
 	case selectedOperatorExpression:
@@ -335,7 +335,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		if err == nil && arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
 	case likeExpression:
@@ -1026,7 +1026,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		e.Arg = node
 		if randomLiteralNull(node) {
-			return literalExpression{expressionInfo: expressionInfo{usage: e.Usage, pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{expressionInfo: expressionInfo{Usage: e.Usage, Pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		changed = changed || did
 		expression = e
@@ -1073,7 +1073,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case objectAddressExpression:
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i, arg := range e.args {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -1082,7 +1082,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		// PostgreSQL eliminates strict scalar calls with a constant NULL,
 		// but leaves RECORD calls and nonconstant NULL inputs intact.
@@ -1090,13 +1090,13 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		if e.op == describeObject {
 			for _, arg := range e.args {
 				if randomLiteralNull(arg) {
-					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.usage.Type)}, true, nil
+					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 				}
 			}
 		}
 		expression = e
 	case aclValueExpression:
-		e.properties = e.baseProperties()
+		e.Property = e.baseProperties()
 		for i, arg := range e.arguments() {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -1105,11 +1105,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case objectACLExpression:
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i, arg := range e.args {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -1118,11 +1118,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case accessInquiryExpression:
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i, arg := range e.arguments() {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -1131,7 +1131,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case namespaceInquiryExpression:
@@ -1153,11 +1153,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		if did {
 			e.arg, changed = node, true
 		}
-		e.properties = e.arg.Properties()
-		e.properties.Volatility = Volatile
+		e.Property = e.arg.Properties()
+		e.Property.Volatility = Volatile
 		expression = e
 	case indexPropertyExpression:
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i, old := range e.children() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -1167,7 +1167,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 				e.args[i] = node
 				changed = true
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case deparseExpression:
@@ -1742,7 +1742,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case installedFunctionExpression:
 		return e.procedure != nil && e.procedure.volatility == Immutable && literal(e.arg)
 	case sqlJSONExpression:
-		if e.properties.Volatility != Immutable {
+		if e.Property.Volatility != Immutable {
 			return false
 		}
 		for _, arg := range e.args {

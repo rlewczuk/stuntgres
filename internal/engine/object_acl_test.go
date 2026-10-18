@@ -140,7 +140,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("accepted duplicate formal slot")
 		}
 		bad = n
-		bad.properties.Volatility = Immutable
+		bad.Property.Volatility = Immutable
 		if bad.validateStored() == nil {
 			t.Fatal("accepted immutable inquiry")
 		}
@@ -156,9 +156,9 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	oid, _ := view.LookupType(sqltype.Oid)
 	integer, _ := view.LookupType(sqltype.Int4)
-	n := objectACLExpression{expressionInfo: expressionInfo{usage: array.Usage(), properties: ExprProperties{Volatility: Stable}}, slots: [3]uint8{0, 1, 2}}
+	n := objectACLExpression{expressionInfo: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, slots: [3]uint8{0, 1, 2}}
 	for i, typ := range []*sqltype.Descriptor{oid, oid, integer} {
-		n.args[i] = literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: sqltype.Null(typ)}
+		n.args[i] = literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}
 	}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {

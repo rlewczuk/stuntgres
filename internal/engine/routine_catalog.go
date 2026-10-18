@@ -104,7 +104,7 @@ func (b *expressionBinder) selectedBuiltinRoutineInfo(info expressionInfo, decla
 	if err != nil {
 		return expressionInfo{}, err
 	}
-	info.routineReference = d
+	info.RoutineReference = d
 	return info, nil
 }
 

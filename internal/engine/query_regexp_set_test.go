@@ -20,7 +20,7 @@ func regexpSetUnitTypes(t *testing.T) (CatalogRead, *sqltype.Descriptor) {
 	return view, text
 }
 func regexpSetUnitLiteral(text *sqltype.Descriptor, s string) BoundExpr {
-	return literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, s)}
+	return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
 }
 func regexpSetUnitCall(t *testing.T, text *sqltype.Descriptor, source BoundExpr, pattern string) functions.RegexpCall[BoundExpr, ExprContext, ExprProperties] {
 	t.Helper()
@@ -29,7 +29,7 @@ func regexpSetUnitCall(t *testing.T, text *sqltype.Descriptor, source BoundExpr,
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage(), pos: parser.Position{Offset: source.SourcePosition().Offset + 1}}), Plan: plan, Args: args, WrittenSlots: [7]uint8{0, 1}}
+	return functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage(), Pos: parser.Position{Offset: source.SourcePosition().Offset + 1}}), Plan: plan, Args: args, WrittenSlots: [7]uint8{0, 1}}
 }
 func regexpSetUnitRows(t *testing.T, stage *indexedStage) [][]string {
 	t.Helper()
@@ -119,7 +119,7 @@ func TestRegexpSetProjection(t *testing.T) {
 		if !ok {
 			t.Fatal("missing INT4")
 		}
-		column := columnExpression{expressionInfo: expressionInfo{usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
+		column := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
 		left := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, rows: [][]BoundExpr{{regexpSetUnitLiteral(text, "a bb")}}}
 		correlated := regexpSetUnitCall(t, text, column, " ")
 		function := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, calls: regexpSetUnitSources(correlated), frame: 1, correlated: true}
@@ -140,7 +140,7 @@ func TestRegexpSetProjection(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				length := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: integer.Usage()}), Plan: plan, Args: []BoundExpr{setColumn}, Textual: [4]bool{true}}
+				length := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: integer.Usage()}), Plan: plan, Args: []BoundExpr{setColumn}, Textual: [4]bool{true}}
 				project := &projectNode{querySchema: querySchema{{Usage: integer.Usage()}}, child: tc.root, expressions: []BoundExpr{length}, frame: 1}
 				stage, err := openQueryProjectStage(context.Background(), state, project)
 				if err != nil {
@@ -164,7 +164,7 @@ func TestRegexpSetProjection(t *testing.T) {
 			})
 		}
 	})
-	null := literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text)}
+	null := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}
 	a = functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: regexpSetUnitCall(t, text, null, " ")}
 	n.calls = []BoundExpr{a, a}
 	stage, err = openSetProjectNode(context.Background(), state, n)
@@ -230,7 +230,7 @@ func TestRegexpSetProjection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: typ.Usage()}), Args: args, Plan: plan, WrittenSlots: [7]uint8{0, 1, 2}}
+			call := functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: typ.Usage()}), Args: args, Plan: plan, WrittenSlots: [7]uint8{0, 1, 2}}
 			from := &functionFromNode{querySchema: querySchema{{Usage: typ.Usage()}}, calls: regexpSetUnitSources(call), frame: 1}
 			stage, err := openFunctionFromNode(context.Background(), state, from)
 			if err != nil {
@@ -279,7 +279,7 @@ func TestRegexpSetNested(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wrapper := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Plan: plan, Args: []BoundExpr{outer}, Textual: [4]bool{true}}
+		wrapper := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Plan: plan, Args: []BoundExpr{outer}, Textual: [4]bool{true}}
 		root, outputs, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{wrapper}, 1)
 		if err != nil {
 			t.Fatal(err)
@@ -312,10 +312,10 @@ func TestRegexpSetNested(t *testing.T) {
 }
 func TestRegexpSetCorrelation(t *testing.T) {
 	_, text := regexpSetUnitTypes(t)
-	column := columnExpression{expressionInfo: expressionInfo{usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
 	call := regexpSetUnitCall(t, text, column, " ")
 	right := &functionFromNode{querySchema: querySchema{{Usage: text.Usage()}}, calls: regexpSetUnitSources(call), frame: 1, correlated: true}
-	left := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, rows: [][]BoundExpr{{regexpSetUnitLiteral(text, "a b")}, {literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text)}}}}
+	left := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, rows: [][]BoundExpr{{regexpSetUnitLiteral(text, "a b")}, {literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}}}}
 	n := &joinNode{querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, left: left, right: right, leftWidth: 1, rightWidth: 1, kind: parser.JoinLeft, frame: 1, correlatedRight: true}
 	state := &queryState{source: &querySource{materialized: true}, frame: 1}
 	stage, err := openJoinNode(context.Background(), state, n)
@@ -396,7 +396,7 @@ func TestRegexpSetOwnership(t *testing.T) {
 }
 func TestRegexpSetWalks(t *testing.T) {
 	view, text := regexpSetUnitTypes(t)
-	column := columnExpression{expressionInfo: expressionInfo{usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
 	set := functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: regexpSetUnitCall(t, text, column, " ")}
 	input := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, rows: [][]BoundExpr{{regexpSetUnitLiteral(text, "a b")}}}
 	root, _, err := regexpSetUnitLower(view, input, []BoundExpr{set}, 1)
@@ -435,7 +435,7 @@ func TestRegexpSetWalks(t *testing.T) {
 func TestRegexpCorrelationFrameRebase(t *testing.T) {
 	view, text := regexpSetUnitTypes(t)
 	column := func(frame uint32, slot int) columnExpression {
-		return columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: frame, slot: slot}
+		return columnExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: frame, slot: slot}
 	}
 	capture := func(frame uint32, slot int) []functionCorrelation {
 		return []functionCorrelation{{frame: frame, slot: slot, name: "captured"}}
@@ -525,7 +525,7 @@ func TestFunctionSourceMixedRows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stringCall := stringSplitMarker(t, b, 40, regexpSetUnitLiteral(text, tc.input), regexpSetUnitLiteral(text, ","))
 			regexpCall := functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x_y_z"), "_")}
-			null := literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text)}
+			null := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}
 			plan, err := sqltype.BindRegexpFunction("regexp_count", []sqltype.Usage{text.Usage(), text.Usage()}, integer.Usage(), text.Usage().Collation, false)
 			if err != nil {
 				t.Fatal(err)
@@ -568,7 +568,7 @@ func TestFunctionSourceMixedRows(t *testing.T) {
 	}
 }
 func regexpCallForNull(plan sqltype.RegexpPlan, result *sqltype.Descriptor, source, pattern BoundExpr) functions.RegexpCall[BoundExpr, ExprContext, ExprProperties] {
-	return functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: result.Usage()}), Plan: plan, Args: []BoundExpr{source, pattern}, WrittenSlots: [7]uint8{0, 1}}
+	return functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: result.Usage()}), Plan: plan, Args: []BoundExpr{source, pattern}, WrittenSlots: [7]uint8{0, 1}}
 }
 
 func TestQuerySetMixedAttemptOwnership(t *testing.T) {
@@ -586,7 +586,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				selected = functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Plan: plan, Args: []BoundExpr{selected}, Textual: [4]bool{true}}
+				selected = functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Plan: plan, Args: []BoundExpr{selected}, Textual: [4]bool{true}}
 			}
 			outputs := []BoundExpr{scalar, stringCall, selected}
 			root, err := b.lowerQuerySets(&singletonNode{}, outputs, nil, true)
@@ -629,7 +629,7 @@ func TestFunctionRecheckOwnedRegexpCursor(t *testing.T) {
 	draws := 0
 	source := queryProbe(text.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.String(text, "a b"), nil })
 	constant := functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: regexpSetUnitCall(t, text, source, " ")}
-	column := columnExpression{expressionInfo: expressionInfo{usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
 	dependent := functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: regexpSetUnitCall(t, text, column, " ")}
 	node := &functionFromNode{calls: []BoundExpr{constant, dependent}, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}}
 	var cache functionRecheckCache

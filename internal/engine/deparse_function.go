@@ -61,7 +61,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 		if literal, ok := child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{expressionInfo: expressionInfo{pos: child.SourcePosition()}}
+				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: child.SourcePosition()}}
 			}
 			continue
 		}
@@ -230,7 +230,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		null = null || value.IsNull()
 	}
 	if null {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
@@ -357,7 +357,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			}
 		}
 		if !found {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
 	} else {
 		carrier, err := values[0].Tree()
@@ -372,7 +372,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if id != 0 {
 			relation, ok = view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)}].(*relationDescriptor)
 			if !ok {
-				return sqltype.Null(e.usage.Type), nil
+				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
 		renderer.relation = relation
@@ -381,7 +381,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
-	return sqltype.String(e.usage.Type, text), nil
+	return sqltype.String(e.Usage.Type, text), nil
 }
 
 func deparseAttribute(relation *relationDescriptor, attr int32) (string, error) {
@@ -397,7 +397,7 @@ func deparseAttribute(relation *relationDescriptor, attr int32) (string, error) 
 }
 
 func validateDeparseExpression(e deparseExpression) error {
-	if int(e.signature) >= len(deparseSignatures) || e.usage.Type == nil || e.usage.Type.ID() != sqltype.Text {
+	if int(e.signature) >= len(deparseSignatures) || e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Text {
 		return fmt.Errorf("stuntgres: invalid stored deparse signature")
 	}
 	definition := deparseSignatures[e.signature]
@@ -451,13 +451,13 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 	}
 	relation, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	var text string
 	var err error
 	if e.signature == deparseIndex || e.signature == deparseIndexColumn {
 		if relation.sqlIndex == nil {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
 		var column int64
 		if e.signature == deparseIndexColumn {
@@ -469,7 +469,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath, temporary: temporaryNamespace(scope.deparseAuth), output: scope.output})
 	} else {
 		if relation.view == nil {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
 		var wrap int64
 		if e.signature == deparseViewWrap {
@@ -485,5 +485,5 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return sqltype.String(e.usage.Type, text), nil
+	return sqltype.String(e.Usage.Type, text), nil
 }

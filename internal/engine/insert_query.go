@@ -245,7 +245,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 				return nil, err
 			}
 		}
-		common = info.usage
+		common = info.Usage
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
 		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: j}
 	}
@@ -584,7 +584,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 
 func identityUnusedOutput(expression BoundExpr) BoundExpr {
 	info := boundExpressionInfo(expression)
-	info.properties = ExprProperties{}
+	info.Property = ExprProperties{}
 	return literalExpression{
 		expressionInfo: info,
 		value:          sqltype.Null(expression.ResultUsage().Type),

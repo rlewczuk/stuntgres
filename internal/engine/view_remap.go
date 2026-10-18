@@ -123,10 +123,10 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			next = n
 			break
 		}
-		if n.regclassRef != (ids.ObjectRef{}) {
-			n.regclassRef = ref(n.regclassRef)
+		if n.RegclassRef != (ids.ObjectRef{}) {
+			n.RegclassRef = ref(n.RegclassRef)
 		}
-		if n.usage.Type.ContainsRegclass() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsRegclass() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRegclassDatum(n.value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}}).Address.ObjectID
@@ -135,7 +135,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 				return nil, failure
 			}
 		}
-		if (n.usage.Type.ContainsRegtype() || n.usage.Type.ContainsRegObject()) && !n.value.IsNull() {
+		if (n.Usage.Type.ContainsRegtype() || n.Usage.Type.ContainsRegObject()) && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapCatalogAliasDatum(n.value, func(address ids.ObjectAddress) ids.ObjectAddress {
 				return ref(ids.ObjectRef{Address: address}).Address
@@ -144,7 +144,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 				return nil, failure
 			}
 		}
-		if n.usage.Type.ContainsRegproc() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsRegproc() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRoutineDatum(n.value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}}).Address.ObjectID
@@ -153,7 +153,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 				return nil, failure
 			}
 		}
-		if n.usage.Type.ContainsOperatorAlias() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsOperatorAlias() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapOperatorDatum(n.value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}}).Address.ObjectID
@@ -162,7 +162,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 				return nil, failure
 			}
 		}
-		if n.usage.Type.ContainsRegTS() && !n.value.IsNull() {
+		if n.Usage.Type.ContainsRegTS() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRegTSDatum(n.value, func(address ids.ObjectAddress) ids.ObjectAddress {
 				return ref(ids.ObjectRef{Address: address}).Address

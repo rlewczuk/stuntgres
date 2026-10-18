@@ -172,7 +172,7 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 		return nil, err
 	}
 	info := b.info(usage, raw.Pos, ExprProperties{})
-	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
+	info.CollationConflict, info.CollationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
 	return b.finishAggregate(raw, call, filter, info)
 }
 

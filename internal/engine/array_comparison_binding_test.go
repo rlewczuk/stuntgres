@@ -116,7 +116,7 @@ func TestArrayCompareCommonType(t *testing.T) {
 	local := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), frame: b.frameID()}
 	other := local
 	other.frame++
-	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{expressionInfo: expressionInfo{properties: ExprProperties{RowDependent: true}}}) {
+	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{expressionInfo: expressionInfo{Property: ExprProperties{RowDependent: true}}}) {
 		t.Fatal("IN Var classification lost lexical identity")
 	}
 }

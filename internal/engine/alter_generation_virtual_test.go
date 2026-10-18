@@ -54,7 +54,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	defer previous.close()
 	origin := ref
 	origin.Address.SubID = 2
-	frozen := columnExpression{expressionInfo: expressionInfo{usage: old.columns[1].Usage}, origin: origin, scope: 1, frame: 1, slot: 1, queryOccurrence: 1}.withGeneration(old, 1, 0)
+	frozen := columnExpression{expressionInfo: expressionInfo{Usage: old.columns[1].Usage}, origin: origin, scope: 1, frame: 1, slot: 1, queryOccurrence: 1}.withGeneration(old, 1, 0)
 	add := parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: "c", TypeName: parser.TypeName{Name: "int4"}, Constraints: []parser.ColumnConstraint{{Default: alterGenerationLiteral(5)}}}}
 	set := alterGenerationAction(alterGenerationOperator("+", alterGenerationColumn("a"), alterGenerationColumn("c")))
 	if _, err := e.Execute(admin, &parser.AlterTable{Name: alterGenerationName("g"), Actions: []parser.AlterTableAction{add, set}}, 0, nil); err != nil {

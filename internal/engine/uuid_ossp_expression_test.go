@@ -291,7 +291,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, grafted, true, false); err != nil {
 		t.Fatal("graft lost actual owning manifest", err)
 	}
-	if boundExpressionInfo(grafted).routineRecipe != recipe || boundExpressionInfo(node).routineRecipe != nil {
+	if boundExpressionInfo(grafted).RoutineRecipeReference != recipe || boundExpressionInfo(node).RoutineRecipeReference != nil {
 		t.Fatal("graft lost ancestry or mutated original")
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
@@ -366,7 +366,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
-	if !reflect.DeepEqual(binder.dependencies, original) || boundExpressionInfo(node).routineReference != captured || n.procedure != captured || n.ref.Address != ext.members[0] {
+	if !reflect.DeepEqual(binder.dependencies, original) || boundExpressionInfo(node).RoutineReference != captured || n.procedure != captured || n.ref.Address != ext.members[0] {
 		t.Fatal("authority probes mutated original")
 	}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {

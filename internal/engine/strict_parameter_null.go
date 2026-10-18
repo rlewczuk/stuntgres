@@ -50,7 +50,7 @@ func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, e
 		return node, false, nil
 	}
 	info := foldedExpressionInfo(node)
-	return literalExpression{expressionInfo: info, value: sqltype.ResultNull(info.usage)}, true, nil
+	return literalExpression{expressionInfo: info, value: sqltype.ResultNull(info.Usage)}, true, nil
 }
 
 // Expanded variadic path elements form one non-NULL array argument. A NULL
@@ -80,7 +80,7 @@ func executionKnownNullArgument(c *EvalContext, node BoundExpr) (bool, error) {
 	case collationExpression:
 		return executionKnownNullArgument(c, e.child)
 	case coercionExpression:
-		if e.usage.Type == nil || e.usage.Type.IsDomain() {
+		if e.Usage.Type == nil || e.Usage.Type.IsDomain() {
 			return false, nil
 		}
 		return executionKnownNullArgument(c, e.child)

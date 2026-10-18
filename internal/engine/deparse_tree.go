@@ -58,7 +58,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		out.WriteString("Const")
 		if n.value.IsNull() {
 			out.WriteString(" null")
-			if n.unknownNull {
+			if n.UnknownNull {
 				out.WriteString(" unknown")
 			}
 		} else {
@@ -129,7 +129,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			}
 		}
 	case collationExpression:
-		fmt.Fprintf(out, "Collate oid %d", n.usage.Collation.ID)
+		fmt.Fprintf(out, "Collate oid %d", n.Usage.Collation.ID)
 		err = child(n.child)
 	case coercionExpression:
 		fmt.Fprintf(out, "Coerce mode %d", n.mode)

@@ -96,50 +96,50 @@ type EvalContext struct {
 	domainPhase        domainCheckIdentity // Existing transaction/command identity, not a permission result.
 }
 type expressionInfo struct {
-	usage       sqltype.Usage
-	pos         parser.Position
-	properties  ExprProperties
-	unknownNull bool
+	Usage       sqltype.Usage
+	Pos         parser.Position
+	Property    ExprProperties
+	UnknownNull bool
 	// Only genuine scalar REGCLASS constants carry captured relation authority.
-	regclassRef                   ids.ObjectRef
-	collationConflict             bool
-	collationExplicit             parser.Position
-	collationLeft, collationRight sqltype.CollationRef
-	collationConflictPos          parser.Position
-	routineReference              functions.RoutineReference
-	routineRecipe                 functions.RoutineRecipeReference // Borrowed immutable defining recipe of a grafted stored node.
+	RegclassRef                   ids.ObjectRef
+	CollationConflict             bool
+	CollationExplicit             parser.Position
+	CollationLeft, CollationRight sqltype.CollationRef
+	CollationConflictPos          parser.Position
+	RoutineReference              functions.RoutineReference
+	RoutineRecipeReference        functions.RoutineRecipeReference // Borrowed immutable defining recipe of a grafted stored node.
 }
 
-func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.usage }
-func (e expressionInfo) SourcePosition() parser.Position    { return e.pos }
-func (e expressionInfo) Properties() ExprProperties         { return e.properties }
-func (e expressionInfo) CollationIndeterminate() bool       { return e.collationConflict }
-func (e expressionInfo) ExplicitCollation() parser.Position { return e.collationExplicit }
+func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.Usage }
+func (e expressionInfo) SourcePosition() parser.Position    { return e.Pos }
+func (e expressionInfo) Properties() ExprProperties         { return e.Property }
+func (e expressionInfo) CollationIndeterminate() bool       { return e.CollationConflict }
+func (e expressionInfo) ExplicitCollation() parser.Position { return e.CollationExplicit }
 func (e expressionInfo) ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position) {
-	return e.collationLeft, e.collationRight, e.collationConflictPos
+	return e.CollationLeft, e.CollationRight, e.CollationConflictPos
 }
 
 func (e expressionInfo) CallRoutineReference() functions.RoutineReference {
-	return e.routineReference
+	return e.RoutineReference
 }
 
 func (e expressionInfo) CallRoutineRecipeReference() functions.RoutineRecipeReference {
-	return e.routineRecipe
+	return e.RoutineRecipeReference
 }
 
 // Preserve diagnostic provenance when an existing wrapper copies metadata.
 func boundExpressionInfo(node BoundExpr) expressionInfo {
 	left, right, position := node.ImplicitCollationConflict()
-	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation(), collationLeft: left, collationRight: right, collationConflictPos: position}
+	info := expressionInfo{Usage: node.ResultUsage(), Pos: node.SourcePosition(), Property: node.Properties(), CollationConflict: node.CollationIndeterminate(), CollationExplicit: node.ExplicitCollation(), CollationLeft: left, CollationRight: right, CollationConflictPos: position}
 	if call, ok := node.(interface {
 		CallRoutineReference() functions.RoutineReference
 	}); ok {
-		info.routineReference = call.CallRoutineReference()
+		info.RoutineReference = call.CallRoutineReference()
 	}
 	if call, ok := node.(interface {
 		CallRoutineRecipeReference() functions.RoutineRecipeReference
 	}); ok {
-		info.routineRecipe = call.CallRoutineRecipeReference()
+		info.RoutineRecipeReference = call.CallRoutineRecipeReference()
 	}
 	return info
 }
@@ -148,17 +148,17 @@ func boundExpressionInfo(node BoundExpr) expressionInfo {
 // binding retains its lifetime manifest, but the value is not a callable node.
 func foldedExpressionInfo(node BoundExpr) expressionInfo {
 	info := boundExpressionInfo(node)
-	info.routineReference = nil
+	info.RoutineReference = nil
 	return info
 }
 
 func functionInfo(info expressionInfo) functions.Info[ExprProperties] {
 	return functions.Info[ExprProperties]{
-		Usage: info.usage, Pos: info.pos, Property: info.properties,
-		CollationConflict: info.collationConflict, CollationExplicit: info.collationExplicit,
-		CollationLeft: info.collationLeft, CollationRight: info.collationRight,
-		CollationConflictPos:   info.collationConflictPos,
-		RoutineReference:       info.routineReference,
+		Usage: info.Usage, Pos: info.Pos, Property: info.Property,
+		CollationConflict: info.CollationConflict, CollationExplicit: info.CollationExplicit,
+		CollationLeft: info.CollationLeft, CollationRight: info.CollationRight,
+		CollationConflictPos:   info.CollationConflictPos,
+		RoutineReference:       info.RoutineReference,
 		RoutineRecipeReference: info.CallRoutineRecipeReference(),
 	}
 }
@@ -179,7 +179,7 @@ func (c *EvalContext) WholeRowNullPresence(node BoundExpr) (handled, absent bool
 	if !ok || row.wholeNames == nil {
 		return false, false, nil
 	}
-	if row.usage.Type == nil || !row.usage.Type.Concrete() || !row.usage.Type.BaseType().IsComposite() || len(row.fields) != row.usage.Type.BaseType().CompositeLen() {
+	if row.Usage.Type == nil || !row.Usage.Type.Concrete() || !row.Usage.Type.BaseType().IsComposite() || len(row.fields) != row.Usage.Type.BaseType().CompositeLen() {
 		return true, false, fmt.Errorf("stuntgres: invalid null-count argument type")
 	}
 	absent, err = row.absent(c)
@@ -267,8 +267,8 @@ func (e literalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.usage.Type == nil || !e.usage.Type.Concrete() || e.value.Type() != e.usage.Type ||
-		e.unknownNull && (!e.value.IsNull() || e.usage.Type.ID() != sqltype.Text) {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.value.Type() != e.Usage.Type ||
+		e.UnknownNull && (!e.value.IsNull() || e.Usage.Type.ID() != sqltype.Text) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid literal expression")
 	}
 	return e.value, nil
@@ -299,7 +299,7 @@ func (e columnExpression) rowContext(c *EvalContext) (*EvalContext, error) {
 		return nil, fmt.Errorf("stuntgres: invalid expression row frame")
 	}
 	v := c.Row[e.slot]
-	if !v.ValidResult(e.usage) {
+	if !v.ValidResult(e.Usage) {
 		return nil, fmt.Errorf("stuntgres: invalid expression column type")
 	}
 	return c, nil
@@ -312,7 +312,7 @@ func (e columnExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.mergeSource && !row.mergeSourcePresent {
-		return sqltype.ResultNull(e.usage), nil
+		return sqltype.ResultNull(e.Usage), nil
 	}
 	if e.virtual == nil {
 		return row.Row[e.slot], nil
@@ -323,7 +323,7 @@ func (e columnExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		if absent {
-			return sqltype.ResultNull(e.usage), nil
+			return sqltype.ResultNull(e.Usage), nil
 		}
 	}
 	if e.rowStart < 0 || e.rowWidth <= 0 || e.rowStart > len(row.Row)-e.rowWidth {
@@ -376,7 +376,7 @@ func (e parameterExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression parameter frame")
 	}
 	v := c.Parameters[e.number-1]
-	if e.usage.Type == nil || !e.usage.Type.Concrete() || v.Type() != e.usage.Type {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || v.Type() != e.Usage.Type {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression parameter type")
 	}
 	return v, nil
@@ -429,7 +429,7 @@ func (e coercionExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			input.Regcollation, input.Regnamespace = scope.input.Regcollation, scope.input.Regnamespace
 		}
 	}
-	if sqltype.ContainsDomainChecks(e.usage.Type) {
+	if sqltype.ContainsDomainChecks(e.Usage.Type) {
 		input.DomainChecks = c
 	}
 	return e.plan.Apply(c.Context, v, input, output)
@@ -882,7 +882,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.child = child
 		if e.plan.ChecksDomain() {
-			if err := c.prepareDomainConversion(e.child.ResultUsage().Type, e.usage.Type); err != nil {
+			if err := c.prepareDomainConversion(e.child.ResultUsage().Type, e.Usage.Type); err != nil {
 				return nil, false, err
 			}
 		}
@@ -1103,7 +1103,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.left, e.right = left, right
 		if randomLiteralNull(left) || randomLiteralNull(right) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
@@ -1188,18 +1188,18 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.left, e.right = left, right
 		if bitwiseConstantNull(left) || bitwiseConstantNull(right) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
 		}
 		// Network operators follow the release's custom-plan Execute frontier:
 		// imported parameters are available now, but retain their provenance.
-		if e.usage.Type.ID() == sqltype.Inet && networkOperatorExecutionConstant(e, c) {
+		if e.Usage.Type.ID() == sqltype.Inet && networkOperatorExecutionConstant(e, c) {
 			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
 			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
-		if decisiveDefaults || e.usage.Type.ID() == sqltype.Bit {
+		if decisiveDefaults || e.Usage.Type.ID() == sqltype.Bit {
 			_, l := left.(literalExpression)
 			_, r := right.(literalExpression)
 			p := e.Properties()
@@ -1235,7 +1235,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.left, e.right = left, right
 		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
 		}
 		if (e.left.ResultUsage().Type.ID() == sqltype.Inet || e.right != nil && e.right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
 			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
@@ -1838,7 +1838,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.Arg = folded
 		if randomLiteralNull(e.Arg) {
-			return literalExpression{expressionInfo: expressionInfo{usage: e.Usage, pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{expressionInfo: expressionInfo{Usage: e.Usage, Pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		return e, changed, nil
 	case advisoryExpression:
@@ -1864,7 +1864,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		return e, args != nil, nil
 	case indexPropertyExpression:
 		did := false
-		e.properties = ExprProperties{Volatility: Stable}
+		e.Property = ExprProperties{Volatility: Stable}
 		for i, arg := range e.children() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
@@ -1874,7 +1874,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 				e.args[i] = folded
 				did = true
 			}
-			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
 		if did {
 			return e, true, nil
@@ -2030,7 +2030,7 @@ func preflightValue(c *EvalContext, info expressionInfo, value sqltype.Value, er
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	info.routineReference = nil
+	info.RoutineReference = nil
 	return literalExpression{expressionInfo: info, value: value}, true, nil
 }
 
@@ -2278,7 +2278,7 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProp
 			b.dependency(b.engine.domain.Ref(view.Epoch(), address), d.Revision())
 		}
 	}
-	return expressionInfo{usage: u, pos: pos, properties: p}
+	return expressionInfo{Usage: u, Pos: pos, Property: p}
 }
 func expressionError(code, message string, pos parser.Position) error {
 	d := sqlError(code, message).(*sqlstate.Error)
@@ -2295,7 +2295,7 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 		if b.updateParameters {
 			// UPDATE uses occurrence-sensitive inference diagnostics; other
 			// assignment consumers retain their selected 0A000 boundary.
-			_, err := b.coerceParameter(parameterExpression{expressionInfo: expressionInfo{pos: pos}, number: n}, u)
+			_, err := b.coerceParameter(parameterExpression{expressionInfo: expressionInfo{Pos: pos}, number: n}, u)
 			return err
 		}
 		return sqlError("0A000", "parameter reused with different destination types")
@@ -2308,7 +2308,7 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 	// Diagnose occurrence mismatches before gaps or unresolved shared slots.
 	for _, p := range b.anyParameters {
 		if b.parameters[p.number].Type != nil {
-			return ParameterInfo{}, expressionError("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.number), p.pos)
+			return ParameterInfo{}, expressionError("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.number), p.Pos)
 		}
 	}
 	keys := make([]int, 0, len(b.parameters))
@@ -2335,7 +2335,7 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 // constrained shared slot. These private provisional nodes never escape describe.
 func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error) {
 	p, ok := node.(parameterExpression)
-	if !ok || p.usage.Type != nil {
+	if !ok || p.Usage.Type != nil {
 		return node, nil
 	}
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
@@ -2456,7 +2456,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) BoundExpr {
 
 func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) BoundExpr {
 	ref := b.useColumnOf(relation, i)
-	column := columnExpression{expressionInfo: expressionInfo{usage: relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: relation.columns[i].Usage, Pos: pos, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, i, 0)
 	}
@@ -2874,7 +2874,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			if u.Type == nil {
 				b.parameters[r.Number] = sqltype.Usage{}
-				node = parameterExpression{expressionInfo{pos: r.Pos, properties: ExprProperties{ParameterDependent: true}}, r.Number}
+				node = parameterExpression{expressionInfo{Pos: r.Pos, Property: ExprProperties{ParameterDependent: true}}, r.Number}
 			} else {
 				if err := b.constrain(r.Number, u, r.Pos); err != nil {
 					return nil, err
@@ -3013,7 +3013,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 			info := b.info(usage, r.Pos, child.Properties())
-			info.collationExplicit = r.Pos
+			info.CollationExplicit = r.Pos
 			node = collationExpression{info, child}
 		case parser.CastExpr:
 			var err error
@@ -3108,7 +3108,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if err != nil {
 			return nil, err
 		}
-		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, policy.mode)
+		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, policy.mode)
 		if err != nil {
 			// Retain the resolved source for the assignment caller's diagnostic.
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && policy.column != "" {
@@ -3123,7 +3123,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if plan.RequiresCatalogOutput() {
 			b.regclassConcat = true
 		}
-		info.properties = coercionProperties(input, plan)
+		info.Property = coercionProperties(input, plan)
 		if folded, ok, err := b.foldRegtypeConstant(input, plan, info); ok || err != nil {
 			if err != nil {
 				return nil, err
@@ -3298,7 +3298,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err != nil {
 		return nil, err
 	}
-	target = info.usage
+	target = info.Usage
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
 		if source.Type.BaseType().ID() == sqltype.Tid || target.Type.BaseType().ID() == sqltype.Tid {
@@ -3338,7 +3338,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if source == target {
 		return child, nil
 	}
-	info.properties = coercionProperties(child, plan)
+	info.Property = coercionProperties(child, plan)
 	if folded, ok, err := b.foldRegtypeConstant(child, plan, info); ok || err != nil {
 		return restoreDomainCastCollations(annotations, folded), err
 	}
@@ -3367,11 +3367,11 @@ func restoreDomainCastCollations(original, coerced BoundExpr) BoundExpr {
 	if !ok {
 		return coerced
 	}
-	ref := annotation.usage.Collation
+	ref := annotation.Usage.Collation
 	annotation.child = restoreDomainCastCollations(annotation.child, coerced)
-	annotation.usage = coerced.ResultUsage()
-	annotation.usage.Collation = ref
-	annotation.properties = coerced.Properties()
+	annotation.Usage = coerced.ResultUsage()
+	annotation.Usage.Collation = ref
+	annotation.Property = coerced.Properties()
 	return annotation
 }
 
@@ -3386,7 +3386,7 @@ func storageDestination(node BoundExpr, target sqltype.Usage, pos parser.Positio
 	if err != nil {
 		return nil, err
 	}
-	info := expressionInfo{usage: target, pos: pos, properties: coercionProperties(node, plan)}
+	info := expressionInfo{Usage: target, Pos: pos, Property: coercionProperties(node, plan)}
 	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
 }
 
@@ -3394,7 +3394,7 @@ func storageDestination(node BoundExpr, target sqltype.Usage, pos parser.Positio
 // assignments already retain their semantic expression as the child and can
 // convert directly to the physical destination, without an intermediate relabel.
 func storageCoercionInfo(view CatalogRead, info expressionInfo, child BoundExpr) (expressionInfo, error) {
-	if info.usage.Type.IsDomain() && child.ResultUsage().Type != info.usage.Type {
+	if info.Usage.Type.IsDomain() && child.ResultUsage().Type != info.Usage.Type {
 		return coercionInfo(view, info, child)
 	}
 	return info, nil
@@ -3808,7 +3808,7 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 		operand.raw = raw
 		if err == nil && unknownNullSyntax(raw) {
 			if literal, ok := operand.node.(literalExpression); ok {
-				literal.unknownNull = true
+				literal.UnknownNull = true
 				operand.node = literal
 			}
 		}
@@ -3855,11 +3855,11 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument[BoundExpr]
 		if err != nil {
 			return nil, err
 		}
-		plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.usage, sqltype.Implicit)
+		plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.Usage, sqltype.Implicit)
 		if err != nil {
 			return nil, err
 		}
-		info.properties = coercionProperties(node, plan)
+		info.Property = coercionProperties(node, plan)
 		return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 	case functions.ConditionalArgument:
 		return b.coerceConditional(operand, request.Target, request.Label)
@@ -3906,7 +3906,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument[BoundExpr]
 	case request.Intent == functions.TextFormalArgument && request.Target.Type.ID() == sqltype.Text:
 		info, err = b.coercionInfo(info, node)
 	}
-	if err == nil && info.routineReference == nil {
+	if err == nil && info.RoutineReference == nil {
 		info, err = b.coercionRoutineInfo(info, node)
 	}
 	if err != nil {
@@ -3950,12 +3950,12 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 
 func (b *expressionBinder) coerceParameter(p parameterExpression, u sqltype.Usage) (BoundExpr, error) {
 	if existing := b.parameters[p.number]; existing.Type != nil && existing.Type != u.Type {
-		d := expressionError("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.pos).(*sqlstate.Error)
+		d := expressionError("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.Pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
 		return nil, d
 	}
 	b.parameters[p.number] = u.Type.Usage()
-	return parameterExpression{b.info(u.Type.Usage(), p.pos, p.properties), p.number}, nil
+	return parameterExpression{b.info(u.Type.Usage(), p.Pos, p.Property), p.number}, nil
 }
 
 func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Descriptor) (BoundExpr, error) {
@@ -4045,7 +4045,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	if err != nil {
 		return nil, err
 	}
-	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool), input.usage.Collation, input.collationConflict)
+	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, b.comparisonError(err, left.descriptor(), right.descriptor(), raw)
 	}

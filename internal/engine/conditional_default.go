@@ -33,7 +33,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 		if len(e.arms) == 0 || e.otherwise == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored CASE")
 		}
-		if e.otherwise.ResultUsage().Type != e.usage.Type {
+		if e.otherwise.ResultUsage().Type != e.Usage.Type {
 			return "", fmt.Errorf("stuntgres: invalid stored CASE result")
 		}
 		var sql strings.Builder
@@ -47,7 +47,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 			sql.WriteString(text)
 		}
 		for _, arm := range e.arms {
-			if arm.result == nil || arm.result.ResultUsage().Type != e.usage.Type || arm.condition == nil {
+			if arm.result == nil || arm.result.ResultUsage().Type != e.Usage.Type || arm.condition == nil {
 				return "", fmt.Errorf("stuntgres: invalid stored CASE arm")
 			}
 			if e.test == nil {
@@ -91,18 +91,18 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 			return "", fmt.Errorf("stuntgres: invalid stored conditional")
 		}
 		if e.kind == parser.NullIf {
-			if e.args[0].ResultUsage() != e.usage {
+			if e.args[0].ResultUsage() != e.Usage {
 				return "", fmt.Errorf("stuntgres: invalid stored NULLIF result")
 			}
 		} else {
 			for _, arg := range e.args {
-				if arg == nil || arg.ResultUsage().Type != e.usage.Type {
+				if arg == nil || arg.ResultUsage().Type != e.Usage.Type {
 					return "", fmt.Errorf("stuntgres: invalid stored conditional argument")
 				}
 			}
 		}
 		if e.kind != parser.Coalesce {
-			left, right := e.usage.Type, e.usage.Type
+			left, right := e.Usage.Type, e.Usage.Type
 			if e.kind == parser.NullIf {
 				left, right = e.args[0].ResultUsage().Type, e.args[1].ResultUsage().Type
 			}
@@ -111,7 +111,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 			missingOrdering := false
 			ref, conflict := e.comparison.InputCollation()
 			if e.kind == parser.Greatest || e.kind == parser.Least {
-				comparison, missingOrdering, err = bindExtremaComparison(e.usage, conflict)
+				comparison, missingOrdering, err = bindExtremaComparison(e.Usage, conflict)
 			} else {
 				comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}

@@ -202,7 +202,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			properties = mergeExpressionProperties(properties, expr.Properties())
 		}
 	})
-	info.properties = properties
+	info.Property = properties
 	slot := len(b.aggregates)
 	if properties.Volatility == Immutable {
 		for i, existing := range b.aggregates {

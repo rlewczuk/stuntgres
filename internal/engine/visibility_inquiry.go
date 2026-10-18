@@ -93,7 +93,7 @@ func (b *expressionBinder) bindVisibilityInquiry(raw parser.FunctionExpr) (Bound
 		return nil, err
 	}
 	if literal, ok := n.arg.(literalExpression); ok && literal.value.IsNull() {
-		typ := n.usage.Type
+		typ := n.Usage.Type
 		return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
 	}
 	b.visibilitySnapshot = true
@@ -199,7 +199,7 @@ func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.kind.class() == 0 || e.arg == nil || e.usage.Type == nil || e.usage.Type.ID() != e.kind.result() {
+	if e.kind.class() == 0 || e.arg == nil || e.Usage.Type == nil || e.Usage.Type.ID() != e.kind.result() {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}
 	value, err := e.arg.Eval(c)
@@ -207,7 +207,7 @@ func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	scope := c.liveScope()
 	if scope == nil {
@@ -254,7 +254,7 @@ func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error
 			}
 			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("%s with OID %d does not exist", kind, oid))
 		}
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	if e.kind == collationVersionInquiry || e.kind == databaseCollationVersionInquiry {
 		var version *string
@@ -267,9 +267,9 @@ func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error
 			return sqltype.Value{}, err
 		}
 		if version == nil {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
-		return sqltype.String(e.usage.Type, *version), nil
+		return sqltype.String(e.Usage.Type, *version), nil
 	}
 	path := scope.visibilityRelationPath
 	if e.kind == collationVisibility || e.kind == conversionVisibility {
@@ -281,7 +281,7 @@ func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error
 	} else {
 		visible = namedObjectVisible(scope.visibilityCatalog, path, d)
 	}
-	return sqltype.Boolean(e.usage.Type, visible), nil
+	return sqltype.Boolean(e.Usage.Type, visible), nil
 }
 
 // Engine.mu is held. The execution frontier owns catalog and path, never mutable

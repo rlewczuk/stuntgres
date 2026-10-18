@@ -47,10 +47,10 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 			func(n sequenceCallExpression) sequenceCallExpression { n.name = "currval"; return n },
 			func(n sequenceCallExpression) sequenceCallExpression { n.ref.Epoch++; return n },
 			func(n sequenceCallExpression) sequenceCallExpression { n.args = nil; return n },
-			func(n sequenceCallExpression) sequenceCallExpression { n.properties.Volatility = Stable; return n },
+			func(n sequenceCallExpression) sequenceCallExpression { n.Property.Volatility = Stable; return n },
 			func(n sequenceCallExpression) sequenceCallExpression {
 				arg := n.args[0].(literalExpression)
-				arg.value = sqltype.String(arg.usage.Type, "999")
+				arg.value = sqltype.String(arg.Usage.Type, "999")
 				n.args = []BoundExpr{arg}
 				return n
 			},

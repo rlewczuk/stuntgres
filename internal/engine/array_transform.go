@@ -118,7 +118,7 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 				}
 			}
 			if u.Type != nil {
-				views[count] = comparisonOperand{node: literalExpression{expressionInfo: expressionInfo{usage: u}}}
+				views[count] = comparisonOperand{node: literalExpression{expressionInfo: expressionInfo{Usage: u}}}
 				count++
 			}
 		}
@@ -294,7 +294,7 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 		if err != nil {
 			return nil, err
 		}
-		e.Sort, err = sqltype.BindArraySort(targets[0].Type, input.usage.Collation, input.collationConflict)
+		e.Sort, err = sqltype.BindArraySort(targets[0].Type, input.Usage.Collation, input.CollationConflict)
 		if err != nil {
 			return nil, err
 		}

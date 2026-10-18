@@ -153,7 +153,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 		return nil, err
 	}
 	if foldNull && null {
-		return literalExpression{b.info(n.usage, raw.Pos, ExprProperties{}), sqltype.Null(n.usage.Type)}, nil
+		return literalExpression{b.info(n.Usage, raw.Pos, ExprProperties{}), sqltype.Null(n.Usage.Type)}, nil
 	}
 	if kind != accessMethodProperty {
 		n.oidUsage = b.typ(sqltype.Oid).Usage()
@@ -166,7 +166,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 }
 
 func validateIndexPropertyExpression(e indexPropertyExpression) error {
-	if e.kind.count() == 0 || e.usage.Type == nil || e.usage != e.usage.Type.Usage() || e.usage.Type.ID() != sqltype.Bool {
+	if e.kind.count() == 0 || e.Usage.Type == nil || e.Usage != e.Usage.Type.Usage() || e.Usage.Type.ID() != sqltype.Bool {
 		return fmt.Errorf("stuntgres: invalid stored index property signature")
 	}
 	properties := ExprProperties{Volatility: Stable}
@@ -230,7 +230,7 @@ func (e indexPropertyExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		null = null || v.IsNull()
 	}
 	if null {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	identity := values[0]
 	if e.kind != accessMethodProperty {
@@ -262,7 +262,7 @@ func (e indexPropertyExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 		relation, ok := c.liveScope().commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}].(*relationDescriptor)
 		if !ok || relation.sqlIndex == nil {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
 		if e.kind == wholeIndexProperty {
 			switch relation.sqlIndex.method {
@@ -285,9 +285,9 @@ func (e indexPropertyExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 	}
 	if !known {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
-	return sqltype.Boolean(e.usage.Type, result), nil
+	return sqltype.Boolean(e.Usage.Type, result), nil
 }
 
 func indexPropertyName(name string) string {

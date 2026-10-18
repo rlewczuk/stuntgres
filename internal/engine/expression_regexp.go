@@ -98,11 +98,11 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 		resultType = b.typ(result)
 	}
 	info := b.info(resultType.Usage(), raw.Pos, properties)
-	if info.usage.Collation.ID != 0 {
-		info.usage.Collation = input.usage.Collation
-		info.collationConflict = input.collationConflict
+	if info.Usage.Collation.ID != 0 {
+		info.Usage.Collation = input.Usage.Collation
+		info.CollationConflict = input.CollationConflict
 	}
-	call, err = functions.NewRegexpCall[BoundExpr, ExprContext](functionInfo(info), name, call.Args, call.WrittenSlots, call.Labels, input.usage.Collation, input.collationConflict)
+	call, err = functions.NewRegexpCall[BoundExpr, ExprContext](functionInfo(info), name, call.Args, call.WrittenSlots, call.Labels, input.Usage.Collation, input.CollationConflict)
 	if err == nil && call.Plan.ReturnsSet() {
 		err = b.regexpPlacement(call)
 	}
@@ -137,11 +137,11 @@ func mapRegexpChildren(call functions.RegexpCall[BoundExpr, ExprContext, ExprPro
 	for i, old := range call.Args {
 		call.Args[i] = child(old)
 	}
-	input, err := collatedInfo(view, expressionInfo{usage: call.Args[0].ResultUsage(), pos: info.pos}, call.Args...)
+	input, err := collatedInfo(view, expressionInfo{Usage: call.Args[0].ResultUsage(), Pos: info.Pos}, call.Args...)
 	if err != nil {
 		return call, err
 	}
-	return call.Reconstruct(functionInfo(info), call.Args, input.usage.Collation, input.collationConflict)
+	return call.Reconstruct(functionInfo(info), call.Args, input.Usage.Collation, input.CollationConflict)
 }
 func preflightRegexpCall(c *EvalContext, call functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], decisive bool) (functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], bool, error) {
 	var args []BoundExpr

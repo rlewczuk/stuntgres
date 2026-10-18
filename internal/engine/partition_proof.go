@@ -97,10 +97,10 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 			slot := in.targetSlots[parent.indexForAttribute(key.attribute)]
 			ref := catalog.owner.domain.Ref(catalog.Epoch(), relation.address)
 			ref.Address.SubID = relation.attributes[slot]
-			node = columnExpression{expressionInfo: expressionInfo{usage: relation.columns[slot].Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+			node = columnExpression{expressionInfo: expressionInfo{Usage: relation.columns[slot].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}
 		if node.ResultUsage().Collation.ID != key.usage.Collation.ID {
-			node = collationExpression{expressionInfo: expressionInfo{usage: key.usage, properties: node.Properties()}, child: node}
+			node = collationExpression{expressionInfo: expressionInfo{Usage: key.usage, Property: node.Properties()}, child: node}
 		}
 		keys[i] = node
 	}

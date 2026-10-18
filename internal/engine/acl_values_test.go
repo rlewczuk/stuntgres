@@ -210,9 +210,9 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 	char, _ := view.LookupType(sqltype.Char)
 	oid, _ := view.LookupType(sqltype.Oid)
 	zero, _ := sqltype.OIDValue(oid, 0)
-	n := aclValueExpression{kind: aclDefault, expressionInfo: expressionInfo{usage: array.Usage()}}
-	n.args[0] = literalExpression{expressionInfo: expressionInfo{usage: char.Usage()}, value: sqltype.String(char, "c")}
-	n.args[1] = literalExpression{expressionInfo: expressionInfo{usage: oid.Usage()}, value: zero}
+	n := aclValueExpression{kind: aclDefault, expressionInfo: expressionInfo{Usage: array.Usage()}}
+	n.args[0] = literalExpression{expressionInfo: expressionInfo{Usage: char.Usage()}, value: sqltype.String(char, "c")}
+	n.args[1] = literalExpression{expressionInfo: expressionInfo{Usage: oid.Usage()}, value: zero}
 	if err := n.validateStored(); err != nil {
 		t.Fatal(err)
 	}
@@ -236,12 +236,12 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 		t.Fatal("remapped recipe lost behavior", err)
 	}
 	empty, _ := sqltype.EmptyACLArrayValue(array)
-	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}, value: empty})
+	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: empty})
 	if err != nil || text != `pg_catalog.acldefault('c'::"char",0::oid)` {
 		t.Fatal("lossless empty literal", text, err)
 	}
 	bad := n
-	bad.usage = oid.Usage()
+	bad.Usage = oid.Usage()
 	if bad.validateStored() == nil {
 		t.Fatal("bad result admitted")
 	}

@@ -230,7 +230,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	}
 	for i, e := range projection {
 		if cached, ok := e.(cachedOrderExpression); ok {
-			cached.properties.StageDependent = true
+			cached.Property.StageDependent = true
 			projection[i] = cached
 		}
 	}
@@ -239,6 +239,6 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 
 func distinctOnCached(expression BoundExpr, slot int) cachedOrderExpression {
 	info := boundExpressionInfo(expression)
-	info.properties.StageDependent = true
+	info.Property.StageDependent = true
 	return cachedOrderExpression{expressionInfo: info, slot: slot}
 }

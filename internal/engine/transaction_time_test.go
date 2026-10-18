@@ -160,7 +160,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
-	random := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	random := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: binder.typ(sqltype.Float8).Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if closedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}

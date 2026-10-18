@@ -46,7 +46,7 @@ func TestAccessInquiryBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			bad := n
-			bad.properties.Volatility = Immutable
+			bad.Property.Volatility = Immutable
 			if bad.validateStored() == nil {
 				t.Fatal("accepted immutable inquiry")
 			}
@@ -164,11 +164,11 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	name, _ := view.LookupType(sqltype.Name)
 	text, _ := view.LookupType(sqltype.Text)
-	n := accessInquiryExpression{expressionInfo: expressionInfo{usage: boolean.Usage(), properties: ExprProperties{Volatility: Stable}}, count: 3}
-	n.args[0] = literalExpression{expressionInfo: expressionInfo{usage: name.Usage()}, value: sqltype.String(name, "postgres")}
+	n := accessInquiryExpression{expressionInfo: expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{Volatility: Stable}}, count: 3}
+	n.args[0] = literalExpression{expressionInfo: expressionInfo{Usage: name.Usage()}, value: sqltype.String(name, "postgres")}
 	v, _ := sqltype.OIDValue(oid, 10)
-	n.args[1] = literalExpression{expressionInfo: expressionInfo{usage: oid.Usage()}, value: v}
-	n.args[2] = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "MEMBER")}
+	n.args[1] = literalExpression{expressionInfo: expressionInfo{Usage: oid.Usage()}, value: v}
+	n.args[2] = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "MEMBER")}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {

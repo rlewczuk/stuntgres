@@ -107,7 +107,7 @@ func (n namespaceInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error)
 			return sqltype.Value{}, err
 		}
 		if value.IsNull() {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
 		oid, err = value.OID()
 		if err != nil {
@@ -126,14 +126,14 @@ func (n namespaceInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error)
 		return sqltype.Value{}, err
 	}
 	if n.kind == myTempNamespace {
-		return sqltype.OIDValue(n.usage.Type, uint32(temporaryNamespace(auth).ObjectID))
+		return sqltype.OIDValue(n.Usage.Type, uint32(temporaryNamespace(auth).ObjectID))
 	}
 	if n.kind != otherTempNamespace {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid namespace inquiry")
 	}
 	ns, _ := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)}].(*namespaceDescriptor)
 	other := ns != nil && ns.temporary != (ids.SessionToken{}) && ns.temporary != auth.session.token
-	return sqltype.Boolean(n.usage.Type, other), nil
+	return sqltype.Boolean(n.Usage.Type, other), nil
 }
 
 // Engine.mu is held. Every inquiry sees the statement's private candidate before
@@ -206,7 +206,7 @@ func (n namespaceInquiryExpression) validateStored() error {
 	} else if n.kind != myTempNamespace || n.arg != nil {
 		return fmt.Errorf("stuntgres: invalid stored namespace inquiry kind")
 	}
-	if n.usage.Type == nil || n.usage != n.usage.Type.Usage() || n.usage.Type.ID() != result || n.Properties() != properties {
+	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != result || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored namespace inquiry signature")
 	}
 	return nil

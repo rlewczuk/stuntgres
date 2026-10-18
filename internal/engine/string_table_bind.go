@@ -440,7 +440,7 @@ func (b *expressionBinder) functionCaptures(calls []BoundExpr) []functionCorrela
 						break
 					}
 				}
-				captures = append(captures, functionCorrelation{frame: column.frame, slot: column.slot, name: name, pos: column.pos})
+				captures = append(captures, functionCorrelation{frame: column.frame, slot: column.slot, name: name, pos: column.Pos})
 			})
 		}
 	}

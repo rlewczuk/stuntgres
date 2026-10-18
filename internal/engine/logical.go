@@ -87,7 +87,7 @@ func (e logicalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool || e.left == nil ||
+	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Bool || e.left == nil ||
 		(e.op == parser.LogicalNot) != (e.right == nil) || e.op > parser.LogicalNot {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid logical expression")
 	}
@@ -99,7 +99,7 @@ func (e logicalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		if decisive {
-			return sqltype.Boolean(e.usage.Type, e.op == parser.LogicalOr), nil
+			return sqltype.Boolean(e.Usage.Type, e.op == parser.LogicalOr), nil
 		}
 	}
 	v, err := e.left.Eval(c)
@@ -112,9 +112,9 @@ func (e logicalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	if e.op == parser.LogicalNot {
 		if a == Unknown {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
-		return sqltype.Boolean(e.usage.Type, a == False), nil
+		return sqltype.Boolean(e.Usage.Type, a == False), nil
 	}
 	// Evaluation order for nondecisive operands remains private.
 	v, err = e.right.Eval(c)
@@ -127,13 +127,13 @@ func (e logicalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	if e.op == parser.LogicalAnd {
 		if a == False || b == False {
-			return sqltype.Boolean(e.usage.Type, false), nil
+			return sqltype.Boolean(e.Usage.Type, false), nil
 		}
 	} else if a == True || b == True {
-		return sqltype.Boolean(e.usage.Type, true), nil
+		return sqltype.Boolean(e.Usage.Type, true), nil
 	}
 	if a == Unknown || b == Unknown {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
-	return sqltype.Boolean(e.usage.Type, e.op == parser.LogicalAnd), nil
+	return sqltype.Boolean(e.Usage.Type, e.op == parser.LogicalAnd), nil
 }

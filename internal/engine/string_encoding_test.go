@@ -96,8 +96,8 @@ func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, name := b.typ(sqltype.Text), b.typ(sqltype.Name)
 	args := []BoundExpr{
-		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable, ParameterDependent: true}}, sqltype.Null(text)},
-		literalExpression{expressionInfo{usage: name.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, sqltype.String(name, "nope")},
+		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable, ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, sqltype.String(name, "nope")},
 	}
 	node, err := b.stringNode("to_ascii", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {

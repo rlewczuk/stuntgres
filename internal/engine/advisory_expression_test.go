@@ -165,9 +165,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := advisoryExpression{expressionInfo: expressionInfo{usage: types[sqltype.Bool].Usage(), properties: ExprProperties{Volatility: Volatile}}, name: "pg_try_advisory_lock", mode: advisoryExclusive, action: advisoryTry, args: []BoundExpr{
-			mathObservedArgument{expressionInfo: expressionInfo{usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
-			mathObservedArgument{expressionInfo: expressionInfo{usage: types[sqltype.Int4].Usage()}, value: one, order: &order, index: 1},
+		node := advisoryExpression{expressionInfo: expressionInfo{Usage: types[sqltype.Bool].Usage(), Property: ExprProperties{Volatility: Volatile}}, name: "pg_try_advisory_lock", mode: advisoryExclusive, action: advisoryTry, args: []BoundExpr{
+			mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
+			mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: one, order: &order, index: 1},
 		}}
 		v, err := node.Eval(&EvalContext{Context: ctx})
 		if err != nil || !v.IsNull() || v.Type().ID() != sqltype.Bool || !reflect.DeepEqual(order, []int{0, 1}) {
@@ -175,7 +175,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		}
 		failure := errors.New("demanded advisory sibling")
 		order = nil
-		node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
+		node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
 		if _, err = node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 			t.Fatal("runtime NULL suppressed demanded error", order, err)
 		}
@@ -187,9 +187,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(advisoryExpression)
-		column := columnExpression{expressionInfo: expressionInfo{usage: node.args[0].ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
+		column := columnExpression{expressionInfo: expressionInfo{Usage: node.args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
 		node.args = []BoundExpr{node.args[0], column}
-		node.properties.RowDependent = true
+		node.Property.RowDependent = true
 		visits := 0
 		walkBoundExpression(node, func(BoundExpr) { visits++ })
 		if visits != 3 || firstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
@@ -230,7 +230,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if fresh.ResultUsage().Type != types[sqltype.Bool] || fresh.args[1].ResultUsage().Type != types[sqltype.Int4] || fresh.mode != node.mode || fresh.action != node.action || node.ResultUsage().Type == fresh.ResultUsage().Type {
 			t.Fatal("retained generation/compiled action")
 		}
-		aggregate := aggregateExpression{expressionInfo: expressionInfo{usage: node.args[0].ResultUsage(), properties: ExprProperties{StageDependent: true}}, slot: 7}
+		aggregate := aggregateExpression{expressionInfo: expressionInfo{Usage: node.args[0].ResultUsage(), Property: ExprProperties{StageDependent: true}}, slot: 7}
 		node.args = []BoundExpr{node.args[0], aggregate}
 		if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
 			t.Fatal("aggregate descendant lost")
@@ -321,7 +321,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	column := columnExpression{expressionInfo: expressionInfo{usage: trueNode.ResultUsage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: trueNode.ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
 	stored := bind("pg_try_advisory_lock(NULL::integer,CASE WHEN pg_try_advisory_lock(3201) THEN 2 ELSE 3 END)")
 	var before strings.Builder
 	if err := appendBoundTree(ctx, &before, stored); err != nil {

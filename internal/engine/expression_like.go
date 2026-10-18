@@ -70,21 +70,21 @@ func (b *expressionBinder) collatedInfo(info expressionInfo, inputs ...BoundExpr
 // nondefault collation. Targeting coercions move top-level COLLATE wrappers
 // outside their domain boundary; nested explicit authority is replaced here.
 func coercionInfo(view CatalogRead, info expressionInfo, child BoundExpr) (expressionInfo, error) {
-	info.collationExplicit = parser.Position{}
-	info.collationConflict = false
-	info.collationLeft, info.collationRight, info.collationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
-	if info.usage.Collation.ID == 0 {
+	info.CollationExplicit = parser.Position{}
+	info.CollationConflict = false
+	info.CollationLeft, info.CollationRight, info.CollationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
+	if info.Usage.Collation.ID == 0 {
 		return info, nil
 	}
-	if info.usage.Type.IsDomain() && child.ResultUsage().Type != info.usage.Type {
-		declared := info.usage.Type.Usage().Collation
+	if info.Usage.Type.IsDomain() && child.ResultUsage().Type != info.Usage.Type {
+		declared := info.Usage.Type.Usage().Collation
 		if declared.ID != 0 && declared.ID != 100 {
-			info.usage.Collation = declared
+			info.Usage.Collation = declared
 			return info, nil
 		}
 	}
 	if source := child.ResultUsage().Collation; source.ID != 0 {
-		info.usage.Collation = source
+		info.Usage.Collation = source
 	}
 	return collatedInfo(view, info, child)
 }
@@ -100,7 +100,7 @@ func (b *expressionBinder) coercionInfo(info expressionInfo, child BoundExpr) (e
 // Some successful coercion seams deliberately retain their own collation
 // handling. They still select the same actual function-method identity.
 func (b *expressionBinder) coercionRoutineInfo(info expressionInfo, child BoundExpr) (expressionInfo, error) {
-	if id := embeddedCastOID(child.ResultUsage().Type, info.usage.Type); id != 0 {
+	if id := embeddedCastOID(child.ResultUsage().Type, info.Usage.Type); id != 0 {
 		return b.selectedBuiltinRoutineInfo(info, builtinRoutineByOID[id])
 	}
 	return info, nil
@@ -111,7 +111,7 @@ func comparisonInfo(view CatalogRead, left, right BoundExpr) (expressionInfo, er
 	if usage.Collation.ID == 0 {
 		usage = right.ResultUsage()
 	}
-	return collatedInfo(view, expressionInfo{usage: usage}, left, right)
+	return collatedInfo(view, expressionInfo{Usage: usage}, left, right)
 }
 
 func (b *expressionBinder) comparisonInfo(left, right BoundExpr) (expressionInfo, error) {
@@ -128,7 +128,7 @@ func (b *expressionBinder) comparisonInfo(left, right BoundExpr) (expressionInfo
 // state. Preserve both across collatable wrappers without inventing an invalid
 // stored collation or evaluating branches merely to choose their collation.
 func collatedInfo(view CatalogRead, info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
-	if info.usage.Collation.ID == 0 {
+	if info.Usage.Collation.ID == 0 {
 		return info, nil
 	}
 	for _, input := range inputs {
@@ -137,27 +137,27 @@ func collatedInfo(view CatalogRead, info expressionInfo, inputs ...BoundExpr) (e
 			continue
 		}
 		if explicit.Character > 0 {
-			if info.collationExplicit.Character > 0 && info.usage.Collation.ID != u.Collation.ID {
-				return info, expressionError("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, collationName(view, info.usage.Collation.ID), collationName(view, u.Collation.ID)), explicit)
+			if info.CollationExplicit.Character > 0 && info.Usage.Collation.ID != u.Collation.ID {
+				return info, expressionError("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, collationName(view, info.Usage.Collation.ID), collationName(view, u.Collation.ID)), explicit)
 			}
-			info.usage.Collation = u.Collation
-			if info.collationExplicit.Character == 0 {
-				info.collationExplicit = explicit
+			info.Usage.Collation = u.Collation
+			if info.CollationExplicit.Character == 0 {
+				info.CollationExplicit = explicit
 			}
-			info.collationConflict = false
-			info.collationLeft, info.collationRight, info.collationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
-		} else if info.collationExplicit.Character == 0 {
-			selected, conflict := likeCollation(info.usage, u)
+			info.CollationConflict = false
+			info.CollationLeft, info.CollationRight, info.CollationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
+		} else if info.CollationExplicit.Character == 0 {
+			selected, conflict := likeCollation(info.Usage, u)
 			indeterminate := input.CollationIndeterminate()
-			if !info.collationConflict {
+			if !info.CollationConflict {
 				if indeterminate {
-					info.collationLeft, info.collationRight, info.collationConflictPos = input.ImplicitCollationConflict()
+					info.CollationLeft, info.CollationRight, info.CollationConflictPos = input.ImplicitCollationConflict()
 				} else if conflict {
-					info.collationLeft, info.collationRight, info.collationConflictPos = info.usage.Collation, u.Collation, input.SourcePosition()
+					info.CollationLeft, info.CollationRight, info.CollationConflictPos = info.Usage.Collation, u.Collation, input.SourcePosition()
 				}
 			}
-			info.usage.Collation = selected
-			info.collationConflict = info.collationConflict || conflict || indeterminate
+			info.Usage.Collation = selected
+			info.CollationConflict = info.CollationConflict || conflict || indeterminate
 		}
 	}
 	return info, nil
@@ -249,11 +249,11 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	if err != nil {
 		return nil, err
 	}
-	if !collation.collationConflict && (operator == "~~*" || operator == "!~~*") &&
-		collation.usage.Collation.Unicode() {
+	if !collation.CollationConflict && (operator == "~~*" || operator == "!~~*") &&
+		collation.Usage.Collation.Unicode() {
 		return nil, expressionError("0A000", "ILIKE is unsupported for this collation", raw.Pos)
 	}
-	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.typ(sqltype.Bool).Usage(), collation.collationConflict)
+	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.typ(sqltype.Bool).Usage(), collation.CollationConflict)
 	if err != nil {
 		return nil, err
 	}

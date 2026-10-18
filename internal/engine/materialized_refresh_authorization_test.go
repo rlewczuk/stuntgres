@@ -115,7 +115,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if current != "refresh_unit_owner" || session != "refresh_unit_caller" {
 				t.Fatal(current, session)
 			}
-			value, err := (identityExpression{expressionInfo: expressionInfo{usage: name.Usage()}, kind: identityCurrentSchema}).Eval(c)
+			value, err := (identityExpression{expressionInfo: expressionInfo{Usage: name.Usage()}, kind: identityCurrentSchema}).Eval(c)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -139,7 +139,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		converted := coercionExpression{expressionInfo: expressionInfo{usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
+		converted := coercionExpression{expressionInfo: expressionInfo{Usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
 		definition := *d.view
 		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []BoundExpr{converted}}}
 		d.view = &definition

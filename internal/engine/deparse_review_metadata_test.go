@@ -30,12 +30,12 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			coercion, ok := node.(coercionExpression)
-			if !ok || coercion.mode != sqltype.Explicit || coercion.usage.Typmod != 3 {
+			if !ok || coercion.mode != sqltype.Explicit || coercion.Usage.Typmod != 3 {
 				t.Fatal(node)
 			}
 			literal := coercion.child.(literalExpression)
-			if literal.usage.Typmod != -1 {
-				t.Fatal(literal.usage)
+			if literal.Usage.Typmod != -1 {
+				t.Fatal(literal.Usage)
 			}
 			unrounded, err := literal.value.Type().Output(context.Background(), literal.value)
 			if err != nil || !strings.Contains(unrounded, ".1234") {
@@ -78,14 +78,14 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal(expression, err)
 		}
 		leaf := node.(functions.NullCount[BoundExpr, ExprContext, ExprProperties]).Args[0].(literalExpression)
-		if !leaf.unknownNull || !leaf.value.IsNull() || leaf.usage.Type.ID() != sqltype.Text {
+		if !leaf.UnknownNull || !leaf.value.IsNull() || leaf.Usage.Type.ID() != sqltype.Text {
 			t.Fatal(leaf)
 		}
 		if text, err := literalSQL(context.Background(), leaf); err != nil || text != "NULL::unknown" {
 			t.Fatal(text, err)
 		}
 		typed := leaf
-		typed.unknownNull = false
+		typed.UnknownNull = false
 		if b.sameGroupExpression(leaf, typed) {
 			t.Fatal("unknown and concrete NULL conflated")
 		}
@@ -115,7 +115,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal(serialized, err)
 		}
 		bad := leaf
-		bad.value = sqltype.String(leaf.usage.Type, "not null")
+		bad.value = sqltype.String(leaf.Usage.Type, "not null")
 		if _, err := literalSQL(context.Background(), bad); err == nil {
 			t.Fatal("invalid provenance accepted")
 		}
@@ -125,7 +125,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
 	for _, tc := range []struct {
 		off  bool
 		want string
@@ -226,7 +226,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaf := node.(functions.NullCount[BoundExpr, ExprContext, ExprProperties]).Args[0].(literalExpression)
-	if leaf.unknownNull || leaf.usage.Type.ID() != sqltype.Int4 || !leaf.value.IsNull() {
+	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.value.IsNull() {
 		t.Fatal(leaf)
 	}
 	text, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
@@ -274,7 +274,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := e.CatalogRead().state.descriptors[roleTableRef(t, e, "v").Address].(*relationDescriptor).view
 	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 0, node: 0}]
-	if !ok || literal.usage.Type.ID() != sqltype.Time || literal.usage.Typmod != 3 {
+	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
 	raw, err := literal.value.Time()
@@ -282,7 +282,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 		t.Fatal(raw, err)
 	}
 	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 1, node: 1}]
-	if !ok || literal.usage.Type.ID() != sqltype.Int8 {
+	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}
 	number, err := literal.value.Integer()

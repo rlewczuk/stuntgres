@@ -146,7 +146,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
 	usage := testUsage(e, sqltype.Int4)
 	expression := func(n int64) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{usage: usage}, value: inheritanceQueryInt(e, n)}
+		return literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: inheritanceQueryInt(e, n)}
 	}
 	p.defaults = map[int32]columnDefault{1: {expression: expression(1)}}
 	c.defaults = map[int32]columnDefault{1: {expression: expression(9)}}

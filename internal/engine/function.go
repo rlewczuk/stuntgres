@@ -313,10 +313,10 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		rawArg, arg := analyzed.Raw, analyzed.Expression
 		if unknownNullSyntax(rawArg) {
 			literal, ok := arg.(literalExpression)
-			if !ok || !literal.value.IsNull() || literal.usage.Type.ID() != sqltype.Text {
+			if !ok || !literal.value.IsNull() || literal.Usage.Type.ID() != sqltype.Text {
 				return nil, fmt.Errorf("stuntgres: invalid unknown null-count argument")
 			}
-			literal.unknownNull = true
+			literal.UnknownNull = true
 			arg = literal
 		}
 		if args != nil {
@@ -331,7 +331,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		if p.Volatility > properties.Volatility {
 			properties.Volatility = p.Volatility
 		}
-		if parameter, ok := arg.(parameterExpression); ok && parameter.usage.Type == nil {
+		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
 			b.anyParameters = append(b.anyParameters, parameter)
 		}
 	}
@@ -380,7 +380,7 @@ func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if v.IsNull() {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	implicit, err := v.Boolean()
 	if err != nil {
@@ -405,7 +405,7 @@ func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			for j, a := range path {
 				names[j] = auth.catalog.state.descriptors[a].Name()
 			}
-			results[i], err = sqltype.Names(e.usage.Type, names[:len(path)])
+			results[i], err = sqltype.Names(e.Usage.Type, names[:len(path)])
 			if err != nil {
 				return sqltype.Value{}, err
 			}

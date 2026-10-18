@@ -42,7 +42,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected.Args[0] = literalExpression{expressionInfo: expressionInfo{usage: b.typ(id).Usage()}, value: v}
+		selected.Args[0] = literalExpression{expressionInfo: expressionInfo{Usage: b.typ(id).Usage()}, value: v}
 		replacements := make(map[sqltype.ID]*sqltype.Descriptor)
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -81,7 +81,7 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	u := b.typ(sqltype.Text).Usage()
 	value := sqltype.String(u.Type, "abc")
-	arg := literalExpression{expressionInfo: expressionInfo{usage: u}, value: value}
+	arg := literalExpression{expressionInfo: expressionInfo{Usage: u}, value: value}
 	node, err := b.stringNode("md5", u, parser.Position{}, []BoundExpr{arg}, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)

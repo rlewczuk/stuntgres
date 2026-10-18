@@ -151,7 +151,7 @@ func (n objectACLExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		null = null || value.IsNull()
 	}
 	if null {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	class, err := values[0].OID()
 	if err != nil {
@@ -183,7 +183,7 @@ func (n objectACLExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.pgClassACL(auth.roles, n.usage.Type, acl)
+	return e.pgClassACL(auth.roles, n.Usage.Type, acl)
 }
 
 // REL_18_0 ObjectProperty, not the native provider inventory. A catalog without
@@ -254,7 +254,7 @@ func (n objectACLExpression) validateStored() error {
 		}
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
-	if n.usage.Type == nil || n.usage != n.usage.Type.Usage() || n.usage.Type.ID() != sqltype.ACLItemArray || n.Properties() != properties {
+	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != sqltype.ACLItemArray || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored object ACL result")
 	}
 	return nil

@@ -267,7 +267,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 		if err != nil {
 			return "", err
 		}
-		n.usage = u.BaseUsage()
+		n.Usage = u.BaseUsage()
 		n.value = value
 		literal, err := catalogLiteralWithACLAt(ctx, view, reader, n, aclOutput)
 		if err != nil {
@@ -288,7 +288,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 		parts := make([]string, n.value.CompositeLen())
 		for i := range parts {
 			member := n.value.CompositeField(i)
-			literal := literalExpression{expressionInfo: expressionInfo{usage: u.Type.CompositeMember(i).Usage}, value: member}
+			literal := literalExpression{expressionInfo: expressionInfo{Usage: u.Type.CompositeMember(i).Usage}, value: member}
 			parts[i], err = catalogLiteralWithACLAt(ctx, view, reader, literal, aclOutput)
 			if err != nil {
 				return "", err

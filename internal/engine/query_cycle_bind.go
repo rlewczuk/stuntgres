@@ -42,22 +42,22 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe
 	}
 	nodes := []BoundExpr{mark, otherwise}
 	for i, node := range nodes {
-		if node.ResultUsage() != info.usage {
-			plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.usage, sqltype.Implicit)
+		if node.ResultUsage() != info.Usage {
+			plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.Usage, sqltype.Implicit)
 			if err != nil {
 				return nil, err
 			}
 			coercionInfo := info
-			coercionInfo.pos = node.SourcePosition()
-			coercionInfo.properties = coercionProperties(node, plan)
+			coercionInfo.Pos = node.SourcePosition()
+			coercionInfo.Property = coercionProperties(node, plan)
 			nodes[i] = coercionExpression{coercionInfo, node, plan, sqltype.Implicit, false}
 		}
 	}
 	mark, otherwise = nodes[0], nodes[1]
-	if _, err := sqltype.BindGrouping(info.usage); err != nil {
+	if _, err := sqltype.BindGrouping(info.Usage); err != nil {
 		return nil, err
 	}
-	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, common.Type, common.Type, b.typ(sqltype.Bool), info.usage.Collation, info.collationConflict)
+	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, common.Type, common.Type, b.typ(sqltype.Bool), info.Usage.Collation, info.CollationConflict)
 	if err != nil {
 		return nil, err
 	}

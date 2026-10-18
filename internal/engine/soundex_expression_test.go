@@ -146,7 +146,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 		} {
 			modified := n
 			modified.Args = append([]BoundExpr(nil), n.Args...)
-			modified.Args[0] = parameterExpression{expressionInfo: expressionInfo{usage: n.Args[0].ResultUsage(), properties: property}, number: 1}
+			modified.Args[0] = parameterExpression{expressionInfo: expressionInfo{Usage: n.Args[0].ResultUsage(), Property: property}, number: 1}
 			modified.Property = property
 			if plannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)

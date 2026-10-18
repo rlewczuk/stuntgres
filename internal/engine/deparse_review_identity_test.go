@@ -89,7 +89,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(err)
 			}
 			copy := remapped.(identityExpression)
-			if copy.kind != node.kind || copy.ordinaryCall != node.ordinaryCall || copy.pos != node.pos || copy.Properties() != node.Properties() || copy.ResultUsage().Type == node.ResultUsage().Type {
+			if copy.kind != node.kind || copy.ordinaryCall != node.ordinaryCall || copy.Pos != node.Pos || copy.Properties() != node.Properties() || copy.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(copy, node)
 			}
 			got, err := (pgRenderer{view: target.CatalogRead()}).sql(context.Background(), copy, pgRenderParent{})
@@ -112,7 +112,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 		e := New()
 		name, _ := e.CatalogRead().LookupType(sqltype.Name)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		valid := identityExpression{expressionInfo: expressionInfo{usage: name.Usage(), properties: ExprProperties{Volatility: Stable}}, kind: identityCurrentUser}
+		valid := identityExpression{expressionInfo: expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: identityCurrentUser}
 		for _, tc := range []struct {
 			name   string
 			mutate func(*identityExpression)
@@ -122,15 +122,15 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			{"catalog call", func(n *identityExpression) { n.kind = identityCatalog; n.ordinaryCall = true }},
 			{"role call", func(n *identityExpression) { n.kind = identityRole; n.ordinaryCall = true }},
 			{"user call", func(n *identityExpression) { n.kind = identityUser; n.ordinaryCall = true }},
-			{"name type", func(n *identityExpression) { n.usage = text.Usage() }},
+			{"name type", func(n *identityExpression) { n.Usage = text.Usage() }},
 			{"system type", func(n *identityExpression) { n.kind = identitySystemUser }},
-			{"missing type", func(n *identityExpression) { n.usage.Type = nil }},
-			{"typmod", func(n *identityExpression) { n.usage.Typmod = 3 }},
-			{"immutable", func(n *identityExpression) { n.properties.Volatility = Immutable }},
-			{"volatile", func(n *identityExpression) { n.properties.Volatility = Volatile }},
-			{"row", func(n *identityExpression) { n.properties.RowDependent = true }},
-			{"parameter", func(n *identityExpression) { n.properties.ParameterDependent = true }},
-			{"stage", func(n *identityExpression) { n.properties.StageDependent = true }},
+			{"missing type", func(n *identityExpression) { n.Usage.Type = nil }},
+			{"typmod", func(n *identityExpression) { n.Usage.Typmod = 3 }},
+			{"immutable", func(n *identityExpression) { n.Property.Volatility = Immutable }},
+			{"volatile", func(n *identityExpression) { n.Property.Volatility = Volatile }},
+			{"row", func(n *identityExpression) { n.Property.RowDependent = true }},
+			{"parameter", func(n *identityExpression) { n.Property.ParameterDependent = true }},
+			{"stage", func(n *identityExpression) { n.Property.StageDependent = true }},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				defer func() {

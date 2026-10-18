@@ -21,7 +21,7 @@ func (unknownOutput) Eval(ExprContext) (sqltype.Value, error) {
 func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundExpr, error) {
 	if contextual {
 		if v, ok := raw.(parser.LiteralExpr); ok && (v.Value.Kind == parser.StringValue || v.Value.Kind == parser.NullValue) {
-			return unknownOutput{expressionInfo: expressionInfo{pos: raw.SourcePosition()}, raw: raw}, nil
+			return unknownOutput{expressionInfo: expressionInfo{Pos: raw.SourcePosition()}, raw: raw}, nil
 		}
 	}
 	return b.bind(raw, expressionPolicy{context: projectionContext})
@@ -684,7 +684,7 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 		// whole-source conversion authority at the destination boundary.
 		return nil, b.rowCoercionError(target.Usage, expr.SourcePosition(), "")
 	}
-	if p, ok := expr.(parameterExpression); ok && p.usage.Type == nil {
+	if p, ok := expr.(parameterExpression); ok && p.Usage.Type == nil {
 		var err error
 		expr, err = b.coerceParameter(p, target.Usage)
 		if err != nil {
@@ -699,7 +699,7 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
+	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
 		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(expr.ResultUsage().Type)), expr.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
@@ -708,7 +708,7 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 	if plan.RequiresCatalogOutput() {
 		b.regclassConcat = true
 	}
-	info.properties = coercionProperties(input, plan)
+	info.Property = coercionProperties(input, plan)
 	expr = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
-	return storageDestination(expr, target.Usage, info.pos)
+	return storageDestination(expr, target.Usage, info.Pos)
 }

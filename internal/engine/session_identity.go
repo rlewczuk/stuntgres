@@ -83,9 +83,9 @@ func (e identityExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		result := sqltype.Null(e.usage.Type)
+		result := sqltype.Null(e.Usage.Type)
 		if len(path) > 0 {
-			result = sqltype.String(e.usage.Type, auth.catalog.state.descriptors[path[0]].Name())
+			result = sqltype.String(e.Usage.Type, auth.catalog.state.descriptors[path[0]].Name())
 		}
 		if s.foreignActionAuth == nil && s.ruleActionAuth == nil {
 			s.currentSchemaResult = result
@@ -197,7 +197,7 @@ func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundE
 	}
 	identity := node.(identityExpression)
 	identity.ordinaryCall = true
-	if identity.routineReference == nil {
+	if identity.RoutineReference == nil {
 		identity.expressionInfo, err = b.builtinRoutineInfo(identity.expressionInfo, catalogRoutineProvider, name)
 		if err != nil {
 			return nil, err

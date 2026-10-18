@@ -132,7 +132,7 @@ func (b *expressionBinder) resolveJSONObjectAggregateSignature(raw parser.Aggreg
 		if arg == nil {
 			return args, sqltype.Usage{}, fmt.Errorf("stuntgres: missing JSON object aggregate argument")
 		}
-		if parameter, ok := arg.(parameterExpression); ok && parameter.usage.Type == nil {
+		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
 			b.anyParameters = append(b.anyParameters, parameter)
 		}
 		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
@@ -152,7 +152,7 @@ func (b *expressionBinder) resolveJSONObjectAggregateSignature(raw parser.Aggreg
 // parameter number. Keep earlier occurrences for finish's 42P08 validation.
 func (b *expressionBinder) completeJSONObjectAggregateInput(node BoundExpr) (BoundExpr, error) {
 	p, unknown := node.(parameterExpression)
-	if !unknown || p.usage.Type != nil {
+	if !unknown || p.Usage.Type != nil {
 		return node, nil
 	}
 	resolved, err := b.finalizeProjection(node)
@@ -160,7 +160,7 @@ func (b *expressionBinder) completeJSONObjectAggregateInput(node BoundExpr) (Bou
 		return nil, err
 	}
 	for i, prior := range b.anyParameters {
-		if prior.number != p.number || prior.pos != p.pos {
+		if prior.number != p.number || prior.Pos != p.Pos {
 			continue
 		}
 		copy(b.anyParameters[i:], b.anyParameters[i+1:])
