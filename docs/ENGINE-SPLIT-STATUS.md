@@ -38,7 +38,7 @@ not run alongside each other or another broad rewrite or alias removal (§8).
   - [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`,
     `9e1ba1dae`, docs `8f542f797`)
   - [x] 2c — Node protocol landed with the walk switch as first adopter
-    (`328df6341`, `aafd6fe97`, `f038faf09`, docs DOCS_COMMIT)
+    (`328df6341`, `aafd6fe97`, `f038faf09`, docs `767e1293e`)
     *(full racecheck skipped at user request)*
   - [ ] 2d — Aliases removed *(broad rewrite)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs

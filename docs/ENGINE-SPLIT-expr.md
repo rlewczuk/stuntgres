@@ -127,7 +127,7 @@ evaluation regression. 2d completes the step.
   field export, `9e1ba1dae` move, docs `8f542f797`)
 - [x] 2c — Node protocol landed with the walk switch as first adopter
   (`328df6341` protocol, `aafd6fe97` function nodes, `f038faf09` walk
-  adopter, docs DOCS_COMMIT)
+  adopter, docs `767e1293e`)
 - [ ] 2d — Aliases removed
 
 Outstanding aliases (2d removes them):
