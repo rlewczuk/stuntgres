@@ -56,7 +56,7 @@ func admitInquiryBody(c *EvalContext, node commentInquiryExpression) error {
 		return err
 	}
 	local.routineBodyContext = routineBodyContext{outer: outer, statement: true}
-	for _, edge := range outer.body {
+	for _, edge := range outer.Body {
 		body, err := bodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)

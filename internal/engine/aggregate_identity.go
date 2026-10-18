@@ -24,8 +24,8 @@ func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
 		return p
 	}
 	for _, d := range view.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.aggregate != nil {
-			for _, helper := range p.aggregate.helpers {
+		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
+			for _, helper := range p.Aggregate.helpers {
 				if helper.id == id {
 					return p
 				}
@@ -38,12 +38,12 @@ func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
 func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg aggregate metadata") }
 	if proc.name != "int_array_aggregate" {
-		if proc.aggregate != nil {
+		if proc.Aggregate != nil {
 			return invalid()
 		}
 		return nil
 	}
-	owned := proc.aggregate
+	owned := proc.Aggregate
 	if owned == nil || owned.definition != intaggDefinition(proc.address.ObjectID, owned.helpers[0].id, owned.helpers[1].id) {
 		return invalid()
 	}
@@ -62,8 +62,8 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 			if address.ObjectID == helper.id {
 				return invalid()
 			}
-			if other, ok := d.(*procedureDescriptor); ok && other != proc && other.aggregate != nil {
-				for _, alias := range other.aggregate.helpers {
+			if other, ok := d.(*procedureDescriptor); ok && other != proc && other.Aggregate != nil {
+				for _, alias := range other.Aggregate.helpers {
 					if alias.id == helper.id || alias.namespace == helper.namespace && alias.name == helper.name && alias.signature == helper.signature {
 						return invalid()
 					}

@@ -42,7 +42,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	a := view.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#=#", Signature: "23,23"})
 	shellAddress := view.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#!#", Signature: "23,23"})
 	shell := view.MustOperator(shellAddress)
-	if shell.function != 0 || shell.result != 0 || shell.negator != a.ObjectID || shell.owner != auth.state.CurrentUser {
+	if shell.Function != 0 || shell.Result != 0 || shell.Negator != a.ObjectID || shell.Owner != auth.state.CurrentUser {
 		t.Fatal("invalid forward shell", shell)
 	}
 	auth.recaptureCatalog(view)
@@ -51,10 +51,10 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	stage = operatorUnitStage(t, e, op, auth, complete)
 	collationUnitPublish(t, e, stage)
 	completed := e.CatalogRead().MustOperator(shellAddress)
-	if completed.address != shell.address || completed.function != 144 || completed.result != 16 || completed.negator != a.ObjectID {
+	if completed.address != shell.address || completed.Function != 144 || completed.Result != 16 || completed.Negator != a.ObjectID {
 		t.Fatal("completion lost real identity or binding", completed)
 	}
-	if shell.function != 0 || shell.result != 0 {
+	if shell.Function != 0 || shell.Result != 0 {
 		t.Fatal("published predecessor mutated")
 	}
 	auth.recaptureCatalog(e.CatalogRead())
@@ -76,7 +76,7 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stage := e.BeginCatalogStage(view)
-	d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, name: "#~#", left: 23, right: 23, owner: e.authorizationDomain.Principal(10), function: 177, result: 23}
+	d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, name: "#~#", Left: 23, Right: 23, Owner: e.authorizationDomain.Principal(10), Function: 177, Result: 23}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 	if err := (operatorProvider{}).Validate(candidate, d); err != nil {
 		t.Fatal(err)
 	}
-	for _, alter := range []func(*operatorDescriptor){func(n *operatorDescriptor) { n.result = 20 }, func(n *operatorDescriptor) { n.left = 21 }, func(n *operatorDescriptor) { n.right = 0 }, func(n *operatorDescriptor) { n.function = 0 }, func(n *operatorDescriptor) { n.negator = n.address.ObjectID }} {
+	for _, alter := range []func(*operatorDescriptor){func(n *operatorDescriptor) { n.Result = 20 }, func(n *operatorDescriptor) { n.Left = 21 }, func(n *operatorDescriptor) { n.Right = 0 }, func(n *operatorDescriptor) { n.Function = 0 }, func(n *operatorDescriptor) { n.Negator = n.address.ObjectID }} {
 		next := *d
 		alter(&next)
 		if err := (operatorProvider{}).Validate(candidate, &next); err == nil {
@@ -106,7 +106,7 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	seed := view.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 3247})
-	if seed.name != "?" || seed.left != 3802 || seed.right != 25 || seed.result != 16 || seed.function != 4047 {
+	if seed.name != "?" || seed.Left != 3802 || seed.Right != 25 || seed.Result != 16 || seed.Function != 4047 {
 		t.Fatal("released JSONB existence metadata changed", seed)
 	}
 	if _, ok := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4047}); ok {
@@ -116,9 +116,9 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 		t.Fatal("lookup-only released seed rejected", err)
 	}
 	for _, alter := range []func(*operatorDescriptor){
-		func(d *operatorDescriptor) { d.result = 23 },
-		func(d *operatorDescriptor) { d.function = 177 },
-		func(d *operatorDescriptor) { d.result, d.function = 0, 0 },
+		func(d *operatorDescriptor) { d.Result = 23 },
+		func(d *operatorDescriptor) { d.Function = 177 },
+		func(d *operatorDescriptor) { d.Result, d.Function = 0, 0 },
 	} {
 		next := *seed
 		alter(&next)
@@ -334,7 +334,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal(id, err)
 	}
 	stage := e.BeginCatalogStage(view)
-	source := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, name: "#~#", left: 23, right: 23, result: 23, function: 177, owner: e.authorizationDomain.Principal(10)}
+	source := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, name: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.authorizationDomain.Principal(10)}
 	destination := *source
 	destination.address.ObjectID = 90001
 	destination.name = "#/#"
@@ -480,7 +480,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	}
 	e.DiscardCatalogStage(stage)
 	stage = e.BeginCatalogStage(before)
-	unowned := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, name: "#~#", left: 23, right: 23}
+	unowned := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, name: "#~#", Left: 23, Right: 23}
 	if err = stage.Create(unowned); err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +490,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	stage = e.BeginCatalogStage(before)
 	foreign := *unowned
-	foreign.owner = New().authorizationDomain.Principal(10)
+	foreign.Owner = New().authorizationDomain.Principal(10)
 	if err = stage.Create(&foreign); err != nil {
 		t.Fatal(err)
 	}
@@ -515,7 +515,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal("exact utility lookup", err)
 	}
-	if d.address.ClassID != ids.OperatorClassID || d.function != 65 || d.commutator != d.address.ObjectID {
+	if d.address.ClassID != ids.OperatorClassID || d.Function != 65 || d.Commutator != d.address.ObjectID {
 		t.Fatal("self link must select the exact existing definition", d)
 	}
 	base := auth.catalog.state
@@ -540,7 +540,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	auth.recaptureCatalog(e.CatalogRead())
 	altered := auth.catalog.MustOperator(d.address)
-	if !altered.hash || altered.address != d.address || d.hash {
+	if !altered.Hash || altered.address != d.address || d.Hash {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
 	}
 	stage = e.BeginCatalogStage(auth.catalog)
@@ -559,7 +559,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 	shell := &operatorDescriptor{
 		address:   ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000},
 		namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
-		revision:  1, name: "#?#", left: 23, right: 23, owner: auth.state.CurrentUser,
+		revision:  1, name: "#?#", Left: 23, Right: 23, Owner: auth.state.CurrentUser,
 	}
 	if err := stage.Create(shell); err != nil {
 		t.Fatal(err)
@@ -600,7 +600,7 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 	survivor := auth.catalog.MustOperator(survivorAddress)
 	shellAddress := auth.catalog.NameAddress(key("#!#"))
 	otherAddress := auth.catalog.NameAddress(key("#~#"))
-	if survivor.negator != shellAddress.ObjectID {
+	if survivor.Negator != shellAddress.ObjectID {
 		t.Fatal("missing forward-shell link", survivor)
 	}
 	signature := func(name string) parser.OperatorSignature {
@@ -629,10 +629,10 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 		}
 	}
 	next := view.MustOperator(survivorAddress)
-	if next.negator != 0 || next.function != survivor.function || next.revision == survivor.revision {
+	if next.Negator != 0 || next.Function != survivor.Function || next.revision == survivor.revision {
 		t.Fatal("surviving peer was not atomically relinked", next)
 	}
-	if survivor.negator != shellAddress.ObjectID || auth.catalog.Get(shellAddress) == nil {
+	if survivor.Negator != shellAddress.ObjectID || auth.catalog.Get(shellAddress) == nil {
 		t.Fatal("DROP mutated its captured predecessor")
 	}
 }

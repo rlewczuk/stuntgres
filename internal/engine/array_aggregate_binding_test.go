@@ -79,10 +79,10 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	view := e.CatalogRead()
-	di := domainUnitType(t, view, "aa_unit_di").typ
-	dj := domainUnitType(t, view, "aa_unit_dj").typ
-	da := domainUnitType(t, view, "aa_unit_da").typ
-	dc := domainUnitType(t, view, "aa_unit_dc").typ
+	di := domainUnitType(t, view, "aa_unit_di").SQLType
+	dj := domainUnitType(t, view, "aa_unit_dj").SQLType
+	da := domainUnitType(t, view, "aa_unit_da").SQLType
+	dc := domainUnitType(t, view, "aa_unit_dc").SQLType
 	diArray, ok := view.LookupArray(di)
 	if !ok {
 		t.Fatal("scalar-domain associated array")

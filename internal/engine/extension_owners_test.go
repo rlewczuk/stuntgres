@@ -115,7 +115,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	before := e.CatalogRead()
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-	for i, address := range ext.members {
+	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)
@@ -133,16 +133,16 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)
 	}
-	for i, original := range ext.members {
+	for i, original := range ext.Members {
 		proc := next.MustProcedure(mapping[original])
 		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.MustProcedure(original)
-		if remapped.members[i] != proc.address || proc.extension != remapped.address || proc.namespace != old.namespace || proc.owner != old.owner || proc.pgcryptoProvider() != old.pgcryptoProvider() || proc.signature != old.signature || proc.result != old.result || proc.strict != old.strict || proc.volatility != old.volatility {
+		if remapped.Members[i] != proc.address || proc.Extension != remapped.address || proc.namespace != old.namespace || proc.Owner != old.Owner || proc.pgcryptoProvider() != old.pgcryptoProvider() || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
 			t.Fatal("remapped member identity", proc)
 		}
-		if old.address != original || old.extension != ext.address || ext.members[i] != original {
+		if old.address != original || old.Extension != ext.address || ext.Members[i] != original {
 			t.Fatal("source generation mutated")
 		}
 	}

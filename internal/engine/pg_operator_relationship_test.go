@@ -67,7 +67,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 				t.Fatal("released generic identity", tc, row)
 			}
 			identity := catalog.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: tc.oid})
-			if strconv.FormatUint(uint64(identity.left), 10) != tc.declaredLeft || strconv.FormatUint(uint64(identity.right), 10) != tc.declaredRight {
+			if strconv.FormatUint(uint64(identity.Left), 10) != tc.declaredLeft || strconv.FormatUint(uint64(identity.Right), 10) != tc.declaredRight {
 				t.Fatal("identity became a concrete overload", identity)
 			}
 			bound, err := pgOperatorRelationshipBind(t, e, "||", typ(tc.inputLeft), typ(tc.inputRight))
@@ -98,9 +98,9 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 		if d, ok := d.(*typeDescriptor); ok {
 			switch d.Name() {
 			case "operator_left_enum":
-				leftEnum = d.typ
+				leftEnum = d.SQLType
 			case "operator_right_enum":
-				rightEnum = d.typ
+				rightEnum = d.SQLType
 			}
 		}
 	}

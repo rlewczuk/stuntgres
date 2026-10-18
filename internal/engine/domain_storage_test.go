@@ -48,11 +48,11 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := a.typ.Input(context.Background(), "7", -1)
+	value, err := a.SQLType.Input(context.Background(), "7", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 3, values: []sqltype.Value{keep, value, sqltype.Null(chain.typ), tail}}}}
+	source := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 3, values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
 	e.mu.Lock()
 	e.storage[table.address] = source
 	e.commitSeq = 3
@@ -98,7 +98,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	if row.row != 42 || row.version != 99 || row.born != 3 || len(row.values) != 2 || !sqltype.SameDatum(row.values[0], keep) || !sqltype.SameDatum(row.values[1], tail) {
 		t.Fatal(row)
 	}
-	if retained.Get(table.address) != table || len(table.Columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.typ {
+	if retained.Get(table.address) != table || len(table.Columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.SQLType {
 		t.Fatal("immutable old descriptor/storage altered")
 	}
 	if err = validateTypeProviders(current, next); err != nil {
@@ -106,7 +106,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
 	recreated := domainUnitType(t, e.CatalogRead(), "a")
-	if recreated.Address() == a.Address() || recreated.typ == a.typ {
+	if recreated.Address() == a.Address() || recreated.SQLType == a.SQLType {
 		t.Fatal("recreated logical identity reused")
 	}
 }
@@ -120,7 +120,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	a := domainUnitType(t, e.CatalogRead(), "a")
 	chain := domainUnitType(t, e.CatalogRead(), "chain")
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.chain)")
-	value, err := chain.typ.Input(context.Background(), "12.345", -1)
+	value, err := chain.SQLType.Input(context.Background(), "12.345", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	next := cloneCatalog(e.CatalogRead().state)
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
-	next.setDescriptor(builtin, &typeDescriptor{typ: physical})
+	next.setDescriptor(builtin, &typeDescriptor{SQLType: physical})
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002}}
 	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {
@@ -139,21 +139,21 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := next.MustType(chain.Address())
-	if imported.typ.ID() != 60002 || imported.typ.DomainBase().Type.ID() != 60001 || imported.typ.BaseType() != physical || imported.typ.Usage().BaseUsage().Typmod != 327686 {
+	if imported.SQLType.ID() != 60002 || imported.SQLType.DomainBase().Type.ID() != 60001 || imported.SQLType.BaseType() != physical || imported.SQLType.Usage().BaseUsage().Typmod != 327686 {
 		t.Fatal(imported)
 	}
 	rebound := storage[table.address]
-	if rebound == original || rebound.versions[0].values[0].Type() != imported.typ || next.MustRelation(table.address).Columns[0].Usage.Type != imported.typ {
+	if rebound == original || rebound.versions[0].values[0].Type() != imported.SQLType || next.MustRelation(table.address).Columns[0].Usage.Type != imported.SQLType {
 		t.Fatal("remap did not detach/retag", rebound)
 	}
-	text, err := imported.typ.Output(context.Background(), rebound.versions[0].values[0])
+	text, err := imported.SQLType.Output(context.Background(), rebound.versions[0].values[0])
 	if err != nil || text != "12.35" {
 		t.Fatal(text, err)
 	}
-	if original.versions[0].values[0].Type() != chain.typ || table.Columns[0].Usage.Type != chain.typ || a.typ.BaseType() == physical {
+	if original.versions[0].values[0].Type() != chain.SQLType || table.Columns[0].Usage.Type != chain.SQLType || a.SQLType.BaseType() == physical {
 		t.Fatal("source generation mutated")
 	}
-	if _, err = value.Retag(imported.typ); err == nil {
+	if _, err = value.Retag(imported.SQLType); err == nil {
 		t.Fatal("ordinary Retag remapped logical ID")
 	}
 }
@@ -176,7 +176,7 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	domain := domainUnitType(t, e.CatalogRead(), "a")
-	array, ok := e.CatalogRead().LookupArray(domain.typ)
+	array, ok := e.CatalogRead().LookupArray(domain.SQLType)
 	if !ok || len(dependencies) != 4 || !dependencies[0].automatic || dependencies[0].address.ObjectID != ids.OID(array.ID()) {
 		t.Fatal("missing automatic array lifetime dependency", dependencies)
 	}

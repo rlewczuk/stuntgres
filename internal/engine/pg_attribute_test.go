@@ -76,7 +76,7 @@ func TestPGAttributeShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270})
-	if array.owningRelation != d.address || array.typ.Element().ID() != 75 {
+	if array.OwningRelation != d.address || array.SQLType.Element().ID() != 75 {
 		t.Fatal("array ownership", array)
 	}
 	bad := *d

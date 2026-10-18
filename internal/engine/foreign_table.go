@@ -120,7 +120,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	wrapper, ok := auth.catalog.Foreign(server.wrapper)
+	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
@@ -203,7 +203,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	wrapper, ok := auth.catalog.Foreign(server.wrapper)
+	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced

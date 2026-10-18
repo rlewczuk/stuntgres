@@ -97,7 +97,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	for _, ref := range refs {
 		relation := auth.catalog.Get(ref.Address)
 		namespace := auth.catalog.MustNamespace(relation.Namespace())
-		if namespace.temporary != op.session.token {
+		if namespace.Temporary != op.session.token {
 			temporary = false
 			break
 		}

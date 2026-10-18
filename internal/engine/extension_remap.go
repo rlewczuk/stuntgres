@@ -17,12 +17,12 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 	}
 	switch d := d.(type) {
 	case *typeDescriptor:
-		next := address(d.extension)
-		if next == d.extension {
+		next := address(d.Extension)
+		if next == d.Extension {
 			return d
 		}
 		n := *d
-		n.extension = next
+		n.Extension = next
 		return &n
 	case *relationDescriptor:
 		var addresses []ids.ObjectAddress
@@ -45,21 +45,21 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 	case *extensionDescriptor:
 		n := *d
 		n.address = address(n.address)
-		n.targetNamespace = address(n.targetNamespace)
+		n.TargetNamespace = address(n.TargetNamespace)
 		var members []ids.ObjectAddress
-		for i, a := range d.members {
+		for i, a := range d.Members {
 			mapped := address(a)
 			if mapped != a && members == nil {
-				members = slices.Clone(d.members)
+				members = slices.Clone(d.Members)
 			}
 			if members != nil {
 				members[i] = mapped
 			}
 		}
 		if members != nil {
-			n.members = members
+			n.Members = members
 		}
-		if n.address == d.address && n.targetNamespace == d.targetNamespace && members == nil {
+		if n.address == d.address && n.TargetNamespace == d.TargetNamespace && members == nil {
 			return d
 		}
 		return &n
@@ -67,22 +67,22 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n := *d
 		n.address = address(n.address)
 		n.namespace = address(n.namespace)
-		n.extension = address(n.extension)
-		n.dictionary = address(n.dictionary)
-		n.aggregate = remapOwnedAggregate(d.aggregate, n.address, n.namespace, mapping)
+		n.Extension = address(n.Extension)
+		n.Dictionary = address(n.Dictionary)
+		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.address, n.namespace, mapping)
 		if n.intarrayProvider() != nil {
 			if n.name == "bqarr_in" {
-				n.result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.result}).ObjectID
+				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
-				if oid, err := strconv.ParseUint(string(n.signature), 10, 32); err == nil {
+				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {
 					next := address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)})
 					if next.ObjectID != ids.OID(oid) {
-						n.signature = queryIntSignature(sqltype.ID(next.ObjectID))
+						n.Signature = queryIntSignature(sqltype.ID(next.ObjectID))
 					}
 				}
 			}
 		}
-		if n.address == d.address && n.namespace == d.namespace && n.extension == d.extension && n.dictionary == d.dictionary && n.signature == d.signature && n.result == d.result && n.aggregate == d.aggregate {
+		if n.address == d.address && n.namespace == d.namespace && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate {
 			return d
 		}
 		return &n
@@ -90,16 +90,16 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n := *d
 		n.address = address(n.address)
 		n.namespace = address(n.namespace)
-		n.extension = address(n.extension)
-		n.init = address(n.init)
-		n.lexize = address(n.lexize)
+		n.Extension = address(n.Extension)
+		n.Init = address(n.Init)
+		n.Lexize = address(n.Lexize)
 		return &n
 	case *tsDictionaryDescriptor:
 		n := *d
 		n.address = address(n.address)
 		n.namespace = address(n.namespace)
-		n.extension = address(n.extension)
-		n.template = address(n.template)
+		n.Extension = address(n.Extension)
+		n.Template = address(n.Template)
 		return &n
 	}
 	return d

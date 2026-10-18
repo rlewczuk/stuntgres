@@ -57,7 +57,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	table := view.MustRelation(tableRef.Address)
 	original := table.Defaults[table.Attributes[0]].expression.(comparisonExpression)
 	oldRef, conflict := original.predicate.InputCollation()
-	if oldRef.ID != uint32(source.oid) || conflict || original.Usage.Collation.ID != 0 {
+	if oldRef.ID != uint32(source.OID) || conflict || original.Usage.Collation.ID != 0 {
 		t.Fatal("BOOL result hid wrong input authority", oldRef, conflict, original.Usage)
 	}
 	oldSQL, err := defaultSQL(context.Background(), view, original)
@@ -71,7 +71,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	mapped := rebound.(comparisonExpression)
 	newRef, conflict := mapped.predicate.InputCollation()
-	if newRef.ID != uint32(destination.oid) || !newRef.Valid() || conflict || newRef == oldRef {
+	if newRef.ID != uint32(destination.OID) || !newRef.Valid() || conflict || newRef == oldRef {
 		t.Fatal("hidden comparison input not remapped", newRef, conflict)
 	}
 	newSQL, err := defaultSQL(context.Background(), view, mapped)
@@ -107,10 +107,10 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if ref, conflict := mapped.predicate.InputCollation(); ref != selected || !conflict {
 		t.Fatal("retag lost demand flag", ref, conflict)
 	}
-	if mapped.left.ResultUsage().Collation.ID != uint32(destination.oid) || mapped.right.ResultUsage().Collation.ID != uint32(otherDestination.oid) {
+	if mapped.left.ResultUsage().Collation.ID != uint32(destination.OID) || mapped.right.ResultUsage().Collation.ID != uint32(otherDestination.OID) {
 		t.Fatal("destination operands not genuine mapped capabilities")
 	}
-	if stored.left.ResultUsage().Collation.ID != uint32(source.oid) || stored.right.ResultUsage().Collation.ID != uint32(other.oid) {
+	if stored.left.ResultUsage().Collation.ID != uint32(source.OID) || stored.right.ResultUsage().Collation.ID != uint32(other.OID) {
 		t.Fatal("source conflict operands mutated")
 	}
 	left, right := mapped.left.ResultUsage().Type, mapped.right.ResultUsage().Type
@@ -125,7 +125,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	saved := storedExpression("expr_retag_case").(caseExpression)
 	ref, conflict := saved.arms[0].equality.InputCollation()
-	if ref.ID != uint32(other.oid) || conflict {
+	if ref.ID != uint32(other.OID) || conflict {
 		t.Fatal("saved CASE test incorrectly kept explicit strength", ref, conflict)
 	}
 	rebound, changed, err = retagBoundTypes(view, saved, identity, remap)
@@ -133,10 +133,10 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	mappedCase := rebound.(caseExpression)
-	if ref, conflict := mappedCase.arms[0].equality.InputCollation(); ref.ID != uint32(otherDestination.oid) || conflict {
+	if ref, conflict := mappedCase.arms[0].equality.InputCollation(); ref.ID != uint32(otherDestination.OID) || conflict {
 		t.Fatal("CASE equality authority not remapped", ref, conflict)
 	}
-	if ref, _ := saved.arms[0].equality.InputCollation(); ref.ID != uint32(other.oid) {
+	if ref, _ := saved.arms[0].equality.InputCollation(); ref.ID != uint32(other.OID) {
 		t.Fatal("CASE source arm mutated")
 	}
 
@@ -149,7 +149,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if ref, conflict := mappedRow.ordering[1].InputCollation(); ref != selected || !conflict {
 		t.Fatal("lexical pair authority lost conflict", ref, conflict)
 	}
-	if mappedRow.comparisons[1].left.ResultUsage().Collation.ID != uint32(destination.oid) || row.comparisons[1].left.ResultUsage().Collation.ID != uint32(source.oid) {
+	if mappedRow.comparisons[1].left.ResultUsage().Collation.ID != uint32(destination.OID) || row.comparisons[1].left.ResultUsage().Collation.ID != uint32(source.OID) {
 		t.Fatal("row pair remap mutated source or missed destination")
 	}
 	mappedRow.comparisons = append([]comparisonExpression(nil), mappedRow.comparisons...)
@@ -195,7 +195,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" || diagnostic.Message != "could not determine which collation to use for string hashing" {
 		t.Fatal("actual membership hash lost indeterminate input", err)
 	}
-	if membership.comparisons[0].left.ResultUsage().Collation.ID != uint32(source.oid) || mappedMembership.comparisons[0].left.ResultUsage().Collation.ID != uint32(destination.oid) {
+	if membership.comparisons[0].left.ResultUsage().Collation.ID != uint32(source.OID) || mappedMembership.comparisons[0].left.ResultUsage().Collation.ID != uint32(destination.OID) {
 		t.Fatal("membership input remap/source immutability broken")
 	}
 	projectionRef := catalogRef(t, e, view, "expr_retag_projection")
@@ -250,9 +250,9 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		ref  uint32
 		top  bool
 	}{
-		{"expr_retag_domain_top", uint32(otherDestination.oid), true},
-		{"expr_retag_domain_nested", uint32(destination.oid), false},
-		{"expr_retag_domain_bubble", uint32(otherDestination.oid), false},
+		{"expr_retag_domain_top", uint32(otherDestination.OID), true},
+		{"expr_retag_domain_nested", uint32(destination.OID), false},
+		{"expr_retag_domain_bubble", uint32(otherDestination.OID), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source := storedExpression(tc.name).(comparisonExpression)

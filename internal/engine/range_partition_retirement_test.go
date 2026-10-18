@@ -231,7 +231,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
 	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for a, d := range base.Descriptors() {
-		if ns, ok := base.Namespace(d.Namespace()); ok && ns.temporary == peer.token {
+		if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == peer.token {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage[a], e.indexRoots[a]
 		}
 	}

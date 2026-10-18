@@ -25,7 +25,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	if !mood.typ.IsEnum() || mood.owner != op.RoleState().CurrentUser || !defaultDomainACL(mood) || !reflect.DeepEqual(mood.typ.EnumLabels(), []string{"sad", "ok", "happy"}) {
+	if !mood.SQLType.IsEnum() || mood.Owner != op.RoleState().CurrentUser || !defaultDomainACL(mood) || !reflect.DeepEqual(mood.SQLType.EnumLabels(), []string{"sad", "ok", "happy"}) {
 		t.Fatal(mood)
 	}
 	for _, labels := range []string{"'ok','ok'", "'" + strings.Repeat("x", 64) + "'"} {
@@ -68,7 +68,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	auth.state.CurrentUser = reader
 	// Grant schema access through the authority fixture, without adding SQL GRANT.
 	ns := *auth.catalog.MustNamespace(mood.Namespace())
-	ns.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
+	ns.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	namespaceStage := e.BeginCatalogStage(auth.catalog)
 	ns.revision++
 	if err := namespaceStage.Replace(&ns); err != nil {
@@ -89,8 +89,8 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		t.Fatal("enum owner and ACL references missing")
 	}
 	next := *mood
-	next.acl = authorization.ACLValue{Explicit: true}
-	next.aclSyntheticDefault = false
+	next.ACL = authorization.ACLValue{Explicit: true}
+	next.ACLSyntheticDefault = false
 	next.revision++
 	revoke := e.BeginCatalogStage(e.CatalogRead())
 	if err := revoke.Replace(&next); err != nil {
@@ -123,18 +123,18 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(err)
 	}
-	newMood := next.MustType(mood.Address()).typ
-	newWrapped := next.MustType(wrapped.Address()).typ
-	if newMood.ID() != sqltype.ID(target.ObjectID) || newWrapped.BaseType() != newMood || mood.typ.ID() == newMood.ID() {
+	newMood := next.MustType(mood.Address()).SQLType
+	newWrapped := next.MustType(wrapped.Address()).SQLType
+	if newMood.ID() != sqltype.ID(target.ObjectID) || newWrapped.BaseType() != newMood || mood.SQLType.ID() == newMood.ID() {
 		t.Fatal("identity mapping lost")
 	}
-	for _, typ := range []*sqltype.Descriptor{mood.typ, wrapped.typ} {
+	for _, typ := range []*sqltype.Descriptor{mood.SQLType, wrapped.SQLType} {
 		value, err := typ.Input(context.Background(), "happy", -1)
 		if err != nil {
 			t.Fatal(err)
 		}
 		destination := newMood
-		if typ == wrapped.typ {
+		if typ == wrapped.SQLType {
 			destination = newWrapped
 		}
 		if _, err := reownDomainDatum(value, destination, nil, nil, nil); err == nil {
@@ -144,10 +144,10 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.typ: foreign}, nil); err == nil {
+		if _, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.SQLType: foreign}, nil); err == nil {
 			t.Fatal("equal-ID/member/label destination bypassed exact codec authority")
 		}
-		mapped, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.typ: newMood}, nil)
+		mapped, err := reownDomainDatum(value, destination, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{mood.SQLType: newMood}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +156,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 			t.Fatal(output, err)
 		}
 	}
-	if mood.typ.ID() != sqltype.ID(mood.Address().ObjectID) {
+	if mood.SQLType.ID() != sqltype.ID(mood.Address().ObjectID) {
 		t.Fatal("source mutated")
 	}
 }

@@ -70,13 +70,13 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 		if descriptor, exists := view.Descriptor(address); exists {
 			providers[address] = descriptor
 			if domain, ok := descriptor.(*typeDescriptor); ok {
-				for _, check := range domain.domainChecks {
+				for _, check := range domain.DomainChecks {
 					for _, dependency := range check.dependencies {
 						address := dependency.ref.Address
 						address.SubID = 0
 						if provider, exists := view.Descriptor(address); exists {
 							if target, typed := provider.(*typeDescriptor); typed {
-								visit(target.typ)
+								visit(target.SQLType)
 							} else {
 								providers[address] = provider
 							}

@@ -79,7 +79,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 				return err
 			}
 			namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}
-			ns := &namespaceDescriptor{address: namespace, name: name.Schema, revision: 1, owner: owner}
+			ns := &namespaceDescriptor{address: namespace, name: name.Schema, revision: 1, Owner: owner}
 			e.catalog.state.setDescriptor(namespace, ns)
 			e.catalog.state.bindName(descriptorNameKey(ns), namespace)
 			if e.foreignNamespaces == nil {
@@ -95,7 +95,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 		if err != nil {
 			return err
 		}
-		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: name.Name, signature: signature, owner: owner, routineKind: functionRoutine, result: result, strict: true, volatility: expr.Volatile, foreign: p}
+		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: name.Name, Signature: signature, Owner: owner, RoutineKind: functionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Foreign: p}
 		e.catalog.state.setDescriptor(d.address, d)
 		e.catalog.state.bindName(key, d.address)
 		return nil

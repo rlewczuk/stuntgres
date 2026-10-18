@@ -56,8 +56,8 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		}
 		stage := e.BeginCatalogStage(catalog)
 		next := *typ
-		next.acl = acl
-		next.aclSyntheticDefault = false
+		next.ACL = acl
+		next.ACLSyntheticDefault = false
 		next.revision++
 		if err := stage.Replace(&next); err != nil {
 			return err

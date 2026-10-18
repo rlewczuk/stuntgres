@@ -20,7 +20,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	source := e.CatalogRead().MustRelation(sourceRef.Address)
 	typeRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 	sourceType := e.CatalogRead().MustType(typeRef.Address)
-	if sourceType.owningRelation != source.address {
+	if sourceType.OwningRelation != source.address {
 		t.Fatal("composite fixture lacks reciprocal type authority")
 	}
 	reader, _ := e.Roles().Lookup("composite_reader")
@@ -35,8 +35,8 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		// seam, as domain/enum authorization tests do; no public setter expands.
 		current := e.CatalogRead()
 		replacement := *current.MustType(typeRef.Address)
-		replacement.acl = acl
-		replacement.aclSyntheticDefault = false
+		replacement.ACL = acl
+		replacement.ACLSyntheticDefault = false
 		replacement.revision++
 		stage := e.BeginCatalogStage(current)
 		if err := stage.Replace(&replacement); err != nil {

@@ -23,14 +23,14 @@ func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*fore
 	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.name))
 }
 func foreignHandlerFor(catalog CatalogRead, wrapper *foreignDescriptor) (*foreignProcedure, error) {
-	if wrapper.handler == (ids.ObjectAddress{}) {
+	if wrapper.Handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.name))
 	}
-	p, ok := catalog.Procedure(wrapper.handler)
-	if !ok || p.foreign == nil || p.foreign.wrapper == nil {
+	p, ok := catalog.Procedure(wrapper.Handler)
+	if !ok || p.Foreign == nil || p.Foreign.wrapper == nil {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered handler`, wrapper.name))
 	}
-	return p.foreign, nil
+	return p.Foreign, nil
 }
 
 func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
@@ -57,7 +57,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	wrapper, ok := auth.catalog.Foreign(server.wrapper)
+	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
@@ -87,13 +87,13 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	request := ForeignImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.name, Role: role.Name, WrapperOptions: slices.Clone(wrapper.options), ServerOptions: slices.Clone(server.options), MappingOptions: slices.Clone(mapping.options), Options: options, Except: s.ImportExcept}
+	request := ForeignImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.name, Role: role.Name, WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), MappingOptions: slices.Clone(mapping.Options), Options: options, Except: s.ImportExcept}
 	for _, table := range s.ImportFilter {
 		request.Tables = append(request.Tables, table.Text)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
-	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.catalog.Get(wrapper.handler), auth.catalog.Get(ns.Address))
+	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.catalog.Get(wrapper.Handler), auth.catalog.Get(ns.Address))
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if scope.replacementRead {

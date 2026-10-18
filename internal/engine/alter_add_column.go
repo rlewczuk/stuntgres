@@ -120,7 +120,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.defaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.queryAuth = &auth
-		binder.defaultTemporary = auth.catalog.MustNamespace(old.namespace).temporary
+		binder.defaultTemporary = auth.catalog.MustNamespace(old.namespace).Temporary
 		node, err := binder.bindDefault(declaration.defaultExpr, definition)
 		if err != nil {
 			return fail(alterCookingError(err))

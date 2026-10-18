@@ -31,7 +31,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.ref.Address != ext.members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+			if n.ref.Address != ext.Members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -52,17 +52,17 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
 			if sameGroupExpression(n, changed) { t.Fatal("argument identity collapsed") }
 			other := n
-			other.ref.Address = ext.members[0]
+			other.ref.Address = ext.Members[0]
 			if sameGroupExpression(n, other) { t.Fatal("procedure identity collapsed") }
 			consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
 			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil { t.Fatal(err) }
 			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil { t.Fatal(err) }
 			for _, mutate := range []func(*procedureDescriptor){
-				func(p *procedureDescriptor) { p.result = 1009 },
-				func(p *procedureDescriptor) { p.signature = "23" },
+				func(p *procedureDescriptor) { p.Result = 1009 },
+				func(p *procedureDescriptor) { p.Signature = "23" },
 				func(p *procedureDescriptor) { p.name = "text_soundex" },
-				func(p *procedureDescriptor) { p.implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}} },
-				func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
+				func(p *procedureDescriptor) { p.Implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}} },
+				func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 			} {
 				state := cloneCatalog(e.catalog.state)
 				bad := *n.procedure
@@ -94,7 +94,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			call := soundexUnitExpression(t, e, name)
 			before := e.CatalogRead()
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-			for i, address := range ext.members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
+			for i, address := range ext.Members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
 			next := cloneCatalog(before.state)
 			for address := range mapping {
 				next.unbindName(descriptorNameKey(before.Get(address)))

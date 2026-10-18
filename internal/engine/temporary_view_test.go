@@ -71,10 +71,10 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(view.RowType)}
 	row, ok := catalog.Type(rowAddress)
-	if !ok || row.owningRelation != view.address || row.array == 0 {
+	if !ok || row.OwningRelation != view.address || row.Array == 0 {
 		t.Fatal("missing real associated rowtype", row)
 	}
-	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}
+	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}
 	if catalog.Get(arrayAddress) == nil || e.catalog.state.Get(rowAddress) != nil || e.catalog.state.Get(arrayAddress) != nil || e.storage[view.address] != nil {
 		t.Fatal("type/storage publication escaped private stage")
 	}
@@ -190,7 +190,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 		}
 	}
 	peerNamespace := *next.MustNamespace(table.namespace)
-	peerNamespace.temporary = withSessionID(peerNamespace.temporary, peerNamespace.temporary.ID()+1)
+	peerNamespace.Temporary = withSessionID(peerNamespace.Temporary, peerNamespace.Temporary.ID()+1)
 	next.setDescriptor(table.namespace, &peerNamespace)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("peer namespace accepted")

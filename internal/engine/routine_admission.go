@@ -117,7 +117,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 }
 
 func admitCaseEquality(c *EvalContext, arm caseBranch) error {
-	if arm.routine == nil || arm.routine.strict && randomLiteralNull(arm.condition) {
+	if arm.routine == nil || arm.routine.Strict && randomLiteralNull(arm.condition) {
 		return nil
 	}
 	auth, dependencies, err := c.routineAdmissionAuthority()

@@ -218,7 +218,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		auth.catalog = e.privateCatalogLocked(changes)
 		auth.recaptureCatalog(auth.catalog)
-		if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+		if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.address
 		}
 		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
@@ -230,7 +230,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if nsd, ok := auth.catalog.Namespace(ns.Address); ok && nsd.temporary == op.session.token {
+		if nsd, ok := auth.catalog.Namespace(ns.Address); ok && nsd.Temporary == op.session.token {
 			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -428,7 +428,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// against that same private catalog, without publishing on rejection.
 			auth.catalog = e.privateCatalogLocked(changes)
 			auth.recaptureCatalog(auth.catalog)
-			if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+			if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 				auth.stagedTemporary = table.address
 			}
 			if err = auth.CheckCreate(ns); err != nil {
@@ -439,7 +439,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			oldNamespace := auth.catalog.MustNamespace(d.namespace)
 			newNamespace := auth.catalog.MustNamespace(ns.Address)
-			if oldNamespace.temporary != (ids.SessionToken{}) || newNamespace.temporary != (ids.SessionToken{}) {
+			if oldNamespace.Temporary != (ids.SessionToken{}) || newNamespace.Temporary != (ids.SessionToken{}) {
 				return Result{}, sqlError("0A000", "cannot move objects into or out of temporary schemas")
 			}
 			d.namespace = ns.Address

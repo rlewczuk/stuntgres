@@ -85,11 +85,11 @@ func TestPGRolesDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001})
-	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12001 || row.typ.Concrete() {
+	if row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 12001 || row.SQLType.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
 	views := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000})
-	if views.name != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.owner != d.Owner || array.owner != d.Owner {
+	if views.name != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}
 	if representedSummaryTable(12007) || representedSummaryViewDefinition(12007) == "" {

@@ -31,15 +31,15 @@ func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, 
 // Principal/grantor references do: losing them would change DROP dependencies.
 func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
 	if d.address.ObjectID == ids.PGToastNamespaceOID {
-		return !d.acl.Explicit && len(d.acl.Entries) == 0
+		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
 	}
-	if !d.acl.Explicit {
+	if !d.ACL.Explicit {
 		return false
 	}
 	publicRights := authorization.UsagePrivilege
 	var publicUse, publicOptions, ownerUse, ownerOptions authorization.Privileges
-	for _, entry := range d.acl.Entries {
-		if entry.Grantor != d.owner {
+	for _, entry := range d.ACL.Entries {
+		if entry.Grantor != d.Owner {
 			return false
 		}
 		if entry.Grantee.Public {
@@ -49,7 +49,7 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
 			publicUse |= entry.Privileges
 			publicOptions |= entry.GrantOptions
 		} else {
-			if entry.Grantee.Role != d.owner {
+			if entry.Grantee.Role != d.Owner {
 				return false
 			}
 			ownerUse |= entry.Privileges
@@ -97,7 +97,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		namespace := e.catalog.state.MustNamespace(index.namespace)
-		if namespace.temporary != (ids.SessionToken{}) || index.SQLIndex.ready && index.SQLIndex.valid && index.SQLIndex.live {
+		if namespace.Temporary != (ids.SessionToken{}) || index.SQLIndex.ready && index.SQLIndex.valid && index.SQLIndex.live {
 			continue
 		}
 		parent, ok := e.catalog.state.Relation(index.SQLIndex.parent)
@@ -188,7 +188,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		ns := d.(*namespaceDescriptor)
-		role, err := domainRoles.Descriptor(ns.owner)
+		role, err := domainRoles.Descriptor(ns.Owner)
 		if err != nil {
 			e.mu.Unlock()
 			return err
@@ -255,7 +255,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for a, d := range e.catalog.state.Descriptors() {
-		if ns, ok := e.catalog.state.Namespace(d.Namespace()); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := e.catalog.state.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		r, ok := d.(*relationDescriptor)
@@ -271,7 +271,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if t.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.acl.Explicit {
+				if t.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.ACL.Explicit {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize altered tablespace authority")
 				}
@@ -286,40 +286,40 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *procedureDescriptor:
-				if t.foreign != nil {
+				if t.Foreign != nil {
 					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
-					if t.acl.Explicit || t.owner != e.authorizationDomain.Principal(10) {
+					if t.ACL.Explicit || t.Owner != e.authorizationDomain.Principal(10) {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize altered native foreign capability authority")
 					}
 					continue
 				}
-				if t.builtin != nil {
+				if t.Builtin != nil {
 					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
-					if t.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.acl.Explicit {
+					if t.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.ACL.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin routine authority")
 					}
 					continue
 				}
-				if t.conversion.Name() != "" {
+				if t.Conversion.Name() != "" {
 					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
-					if t.owner != e.authorizationDomain.Principal(10) || t.acl.Explicit {
+					if t.Owner != e.authorizationDomain.Principal(10) || t.ACL.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin conversion routine authority")
 					}
 					continue
 				}
-				if t.acl.Explicit {
+				if t.ACL.Explicit {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 				}
@@ -339,12 +339,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				ns := catalog.MustNamespace(t.targetNamespace)
-				if ns.temporary != (ids.SessionToken{}) {
+				ns := catalog.MustNamespace(t.TargetNamespace)
+				if ns.Temporary != (ids.SessionToken{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: temporary extension installation is not portable")
 				}
-				principal, err := domainRoles.Descriptor(t.owner)
+				principal, err := domainRoles.Descriptor(t.Owner)
 				if err != nil {
 					e.mu.Unlock()
 					return err
@@ -354,7 +354,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				text := "CREATE EXTENSION " + quoteIdentifier(t.name) + " WITH SCHEMA " + quoteIdentifier(ns.name) + " VERSION '" + strings.ReplaceAll(t.version, "'", "''") + "';\n" + metadata
+				text := "CREATE EXTENSION " + quoteIdentifier(t.name) + " WITH SCHEMA " + quoteIdentifier(ns.name) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
 				viewDependencies[dumpEventKey{oid: t.address.ObjectID}] = nil
 				viewIndices[t.address.ObjectID] = len(views)
 				views = append(views, dumpView{principal.Name, text})
@@ -362,31 +362,31 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			case *typeDescriptor:
 				// A recipe can regenerate synthetic type defaults, never a real
 				// explicit ACL (even one equal to the effective baseline).
-				if t.acl.Explicit && !defaultDomainACL(t) {
+				if t.ACL.Explicit && !defaultDomainACL(t) {
 					message := "stuntgres: dump cannot serialize changed type ACL"
-					if t.typ.IsDomain() || t.typ.IsEnum() {
+					if t.SQLType.IsDomain() || t.SQLType.IsEnum() {
 						message = "stuntgres: dump cannot serialize changed domain ACL"
-					} else if t.typ.IsComposite() {
+					} else if t.SQLType.IsComposite() {
 						message = "stuntgres: dump cannot serialize changed composite ACL"
 					}
 					e.mu.Unlock()
 					return fmt.Errorf("%s", message)
 				}
-				if t.typ.IsQueryInt() || t.extension != (ids.ObjectAddress{}) {
+				if t.SQLType.IsQueryInt() || t.Extension != (ids.ObjectAddress{}) {
 					if err := (typeProvider{}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
 					continue
 				}
-				if t.typ.IsUserDefined() && !t.typ.IsComposite() {
+				if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {
 					domains = append(domains, t)
-				} else if t.typ.IsArray() {
+				} else if t.SQLType.IsArray() {
 					if err := (typeProvider{}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
-				} else if t.Namespace().ObjectID != ids.PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.owningRelation == (ids.ObjectAddress{}) {
+				} else if t.Namespace().ObjectID != ids.PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.OwningRelation == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize unsupported user type")
 				}
@@ -412,11 +412,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if d.Kind() == ids.NamespaceObject {
 				ns, valid := d.(*namespaceDescriptor)
-				if valid && ns.temporary != (ids.SessionToken{}) {
+				if valid && ns.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if valid && ns.comment != namespaceCommentBaseline(a.ObjectID) {
-					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
+				if valid && ns.Comment != namespaceCommentBaseline(a.ObjectID) {
+					schemaComments = append(schemaComments, dumpComment{ns.name, ns.Comment})
 				}
 				if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&
 					!bootstrapNamespaceDumpable(ns) {
@@ -424,11 +424,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
 				}
 				if valid && a.ObjectID != ids.PublicNamespaceOID && a.ObjectID != ids.PGCatalogNamespaceOID && a.ObjectID != ids.PGToastNamespaceOID && a.ObjectID != 13229 {
-					if ns.acl.Explicit {
+					if ns.ACL.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
 					}
-					role, err := domainRoles.Descriptor(ns.owner)
+					role, err := domainRoles.Descriptor(ns.Owner)
 					if err != nil {
 						e.mu.Unlock()
 						return err
@@ -449,7 +449,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation namespace is missing")
 		}
-		if ns.temporary != (ids.SessionToken{}) {
+		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if r.ACL.Explicit || len(r.ColumnACL) != 0 {
@@ -799,15 +799,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		id := d.Address().ObjectID
 		domainNodes[id] = d
 		viewDependencies[dumpEventKey{oid: id}] = nil
-		if d.typ.IsDomain() {
-			predecessor, err := dumpPredecessor(catalog, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.DomainBase().Type.ID())}, d.Address())
+		if d.SQLType.IsDomain() {
+			predecessor, err := dumpPredecessor(catalog, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, d.Address())
 			if err != nil {
 				return err
 			}
 			if predecessor != 0 {
 				viewDependencies[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
 			}
-			for _, check := range d.domainChecks {
+			for _, check := range d.DomainChecks {
 				if check.NotValid {
 					continue
 				}
@@ -826,7 +826,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for _, d := range operators {
-		if d.function == 0 && operatorShellGenerator(catalog, d) != nil {
+		if d.Function == 0 && operatorShellGenerator(catalog, d) != nil {
 			continue
 		}
 		id := d.address.ObjectID
@@ -941,7 +941,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	operatorLinks := make(map[ids.OID]string)
 	for _, d := range operators {
-		if d.function == 0 && operatorShellGenerator(catalog, d) != nil {
+		if d.Function == 0 && operatorShellGenerator(catalog, d) != nil {
 			continue
 		}
 		declaration, err := operatorDumpDeclaration(ctx, catalog, domainRoles, d)
@@ -949,7 +949,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		declarations[d.address.ObjectID] = declaration
-		if d.function != 0 {
+		if d.Function != 0 {
 			text, err := operatorDumpLinks(catalog, d)
 			if err != nil {
 				return err
@@ -1149,7 +1149,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if declaration, exists := declarations[oid]; exists {
-			if domain := domainNodes[oid]; domain != nil && domain.typ.IsDomain() && declaration.owner != "postgres" {
+			if domain := domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.owner != "postgres" {
 				// Owner metadata does not imply schema CREATE/USAGE. Preserve
 				// its captured identity, construct as bootstrap, then transfer only
 				// the exact fresh domain through the ordinary owner executor.
@@ -1163,7 +1163,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if err := emit(declaration.sql); err != nil {
 					return err
 				}
-				qualified, err := catalogTypeDeclaration(catalog, domain.typ.Usage())
+				qualified, err := catalogTypeDeclaration(catalog, domain.SQLType.Usage())
 				if err != nil {
 					return err
 				}

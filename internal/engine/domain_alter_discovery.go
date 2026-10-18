@@ -52,15 +52,15 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 		switch {
 		case d.Address() == target:
 			found = id
-		case d.typ.IsDomain():
-			found, err = contains(d.typ.DomainBase().Type.ID())
-			if found != 0 && domainDescendsFrom(d.typ, target.ObjectID) {
+		case d.SQLType.IsDomain():
+			found, err = contains(d.SQLType.DomainBase().Type.ID())
+			if found != 0 && domainDescendsFrom(d.SQLType, target.ObjectID) {
 				found = id
 			}
-		case d.typ.IsArray():
-			found, err = contains(d.typ.Element().ID())
-		case d.owningRelation != (ids.ObjectAddress{}):
-			relation, ok := view.Relation(d.owningRelation)
+		case d.SQLType.IsArray():
+			found, err = contains(d.SQLType.Element().ID())
+		case d.OwningRelation != (ids.ObjectAddress{}):
+			relation, ok := view.Relation(d.OwningRelation)
 			if !ok {
 				return 0, fmt.Errorf("stuntgres: missing domain use rowtype owner")
 			}

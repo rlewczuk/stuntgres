@@ -261,7 +261,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 }
 
 func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
-	if ns, ok := view.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
+	if ns, ok := view.Namespace(d.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
 			if old == (ids.ObjectRef{}) {
@@ -276,7 +276,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 				return nil
 			}
 			if d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
-				return d.typ
+				return d.SQLType
 			}
 			return old
 		}
@@ -406,7 +406,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 			continue
 		}
 		ns, ok := e.catalog.state.Namespace(d.namespace)
-		if !ok || ns.temporary == (ids.SessionToken{}) {
+		if !ok || ns.Temporary == (ids.SessionToken{}) {
 			continue
 		}
 		for _, rule := range rulesOf(d) {
@@ -427,7 +427,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 					return ids.ErrCatalogReplaced
 				}
 				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
-				if !ok || providerNS.temporary != ns.temporary {
+				if !ok || providerNS.Temporary != ns.Temporary {
 					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
 				}
 			}

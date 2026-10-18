@@ -20,7 +20,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
 	view.state = cloneCatalog(view.state)
 	view.state.setDescriptor(relation.address, relation)
-	schema := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, acl: whole}
+	schema := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
 	view.state.setDescriptor(schema.address, schema)
 	check := func(address ids.ObjectAddress, want authorization.ACLValue) {
 		t.Helper()

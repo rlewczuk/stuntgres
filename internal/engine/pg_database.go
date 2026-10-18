@@ -16,7 +16,7 @@ const nativeDatabaseLocale = "C"
 func databaseCollationActualVersion() (*string, error) {
 	locale := nativeDatabaseLocale
 	return collationActualVersion(&collationDescriptor{
-		provider: nativeDatabaseProvider, collate: &locale, ctype: &locale,
+		Provider: nativeDatabaseProvider, Collate: &locale, CType: &locale,
 	})
 }
 
@@ -49,13 +49,13 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 	if !roles.BelongsTo(&e.authorizationDomain) {
 		return nil, fmt.Errorf("stuntgres: foreign database owner authority")
 	}
-	if _, err := roles.Descriptor(database.owner); err != nil {
+	if _, err := roles.Descriptor(database.Owner); err != nil {
 		return nil, err
 	}
-	if database.owner.ID() > math.MaxUint32 {
+	if database.Owner.ID() > math.MaxUint32 {
 		return nil, fmt.Errorf("stuntgres: unrepresentable database owner")
 	}
-	acl, err := e.pgClassACL(roles, source.Columns[17].Usage.Type, database.acl)
+	acl, err := e.pgClassACL(roles, source.Columns[17].Usage.Type, database.ACL)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 	// Unknown database-wide properties remain concrete typed NULLs. UTF8/C is
 	// the native semantic declaration, not a host locale or physical horizon.
 	row := []sqltype.Value{
-		oid(0, uint32(database.address.ObjectID)), text(1, database.name), oid(2, uint32(database.owner.ID())),
+		oid(0, uint32(database.address.ObjectID)), text(1, database.name), oid(2, uint32(database.Owner.ID())),
 		checked(sqltype.Integer(source.Columns[3].Usage.Type, 6)), text(4, nativeDatabaseProvider), null(5), null(6),
 		sqltype.Boolean(source.Columns[7].Usage.Type, false), null(8), null(9), null(10), null(11),
 		text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,

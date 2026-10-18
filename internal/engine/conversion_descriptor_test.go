@@ -11,7 +11,7 @@ import (
 )
 
 func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *conversionDescriptor {
-	return &conversionDescriptor{oid: oid, name: name, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, owner: e.authorizationDomain.Principal(10), source: 6, destination: 8, handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, defaultConversion: def}
+	return &conversionDescriptor{OID: oid, name: name, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, Owner: e.authorizationDomain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
 }
 
 func conversionUnitName(parts ...string) parser.ObjectName {
@@ -49,8 +49,8 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, corrupt := range []func(*conversionDescriptor){
-		func(d *conversionDescriptor) { d.source = 0 }, func(d *conversionDescriptor) { d.destination = 9 },
-		func(d *conversionDescriptor) { d.handler.ObjectID = 4374 }, func(d *conversionDescriptor) { d.handler.SubID = 1 },
+		func(d *conversionDescriptor) { d.Source = 0 }, func(d *conversionDescriptor) { d.Destination = 9 },
+		func(d *conversionDescriptor) { d.Handler.ObjectID = 4374 }, func(d *conversionDescriptor) { d.Handler.SubID = 1 },
 		func(d *conversionDescriptor) { d.namespace.ObjectID = 999999 }, func(d *conversionDescriptor) { d.revision = 0 },
 	} {
 		bad := *d
@@ -60,7 +60,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		}
 	}
 	bad := *d
-	bad.owner = New().authorizationDomain.Principal(10)
+	bad.Owner = New().authorizationDomain.Principal(10)
 	bad.revision++
 	stage = e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
@@ -71,7 +71,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal("foreign principal admitted")
 	}
 	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
-	seed.defaultConversion = false
+	seed.DefaultConversion = false
 	if err := (conversionProvider{}).Validate(view, &seed); err == nil {
 		t.Fatal("pinned capability/default invariant changed")
 	}
@@ -82,7 +82,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.handler != d.handler {
+	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
 	if original := view.MustConversion(seed.Address()); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {

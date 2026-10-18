@@ -51,8 +51,8 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
 				target, _ := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				if target != nil && target.typ != value.Type() {
-					v, err := reownDomainDatum(value, target.typ, nil, nil, nil)
+				if target != nil && target.SQLType != value.Type() {
+					v, err := reownDomainDatum(value, target.SQLType, nil, nil, nil)
 					if err != nil {
 						return err
 					}

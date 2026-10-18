@@ -31,7 +31,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')"))
-	mood := domainUnitType(t, e.CatalogRead(), "mood").typ
+	mood := domainUnitType(t, e.CatalogRead(), "mood").SQLType
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')"))
-	mood := domainUnitType(t, e.CatalogRead(), "mood").typ
+	mood := domainUnitType(t, e.CatalogRead(), "mood").SQLType
 	members := mood.EnumMembers()
 	scope, err := e.StartStatement(op)
 	if err != nil {

@@ -70,7 +70,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					sessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")
 					address = schemaRef(t, e, "retirement_peer").Address
 					descriptor = e.catalog.state.Get(address)
-					if descriptor.(*namespaceDescriptor).owner != role.Ref {
+					if descriptor.(*namespaceDescriptor).Owner != role.Ref {
 						t.Fatal("peer schema lost its canonical owner")
 					}
 				case "policy":
@@ -176,7 +176,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 		t.Fatal("candidate restoration deleted its still-dependent principal")
 	}
 	address := schemaRef(t, e, "restoration_peer").Address
-	if e.catalog.state.MustNamespace(address).owner != role.Ref {
+	if e.catalog.state.MustNamespace(address).Owner != role.Ref {
 		t.Fatal("candidate restoration changed the unrelated peer root")
 	}
 }

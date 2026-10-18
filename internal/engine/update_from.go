@@ -33,7 +33,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token {
+	if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != token {
 		return sqlError("0A000", "cannot access temporary tables of other sessions")
 	}
 	return nil

@@ -61,10 +61,10 @@ func domainAlterReplayOwnership(t *testing.T) {
 			domain := view.MustType(view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: "d"})[0])
 			role, ok := e.Roles().Lookup("captured_owner")
 			bootstrap, rootOK := e.Roles().Lookup("postgres")
-			if !ok || !rootOK || domain.owner != role.Ref || ns.owner != bootstrap.Ref || ns.acl.Explicit || !defaultDomainACL(domain) {
+			if !ok || !rootOK || domain.Owner != role.Ref || ns.Owner != bootstrap.Ref || ns.ACL.Explicit || !defaultDomainACL(domain) {
 				t.Fatal("replay invented namespace ACL or lost real domain ownership/default ACL")
 			}
-			if len(domain.domainChecks) != 2 || !domain.domainChecks[0].NotValid || domain.domainChecks[1].NotValid {
+			if len(domain.DomainChecks) != 2 || !domain.DomainChecks[0].NotValid || domain.DomainChecks[1].NotValid {
 				t.Fatal("replay lost selected validity state")
 			}
 			s := sessionStart(t, e, nil)

@@ -139,7 +139,7 @@ func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltyp
 	if err != nil || procedure == nil {
 		return nil, err
 	}
-	return &procedure.conversion, nil
+	return &procedure.Conversion, nil
 }
 
 func (c *EvalContext) FunctionPropertiesMatch(properties expr.Properties, rule expr.IntrinsicPropertyRule) bool {

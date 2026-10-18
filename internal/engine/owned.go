@@ -69,8 +69,8 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 		case *relationDescriptor:
 			group[a] = true
 		case *typeDescriptor:
-			if d.owningRelation != (ids.ObjectAddress{}) {
-				group[d.owningRelation] = true
+			if d.OwningRelation != (ids.ObjectAddress{}) {
+				group[d.OwningRelation] = true
 			}
 		}
 	}
@@ -182,9 +182,9 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			var extension ids.ObjectAddress
 			switch d := auth.catalog.Get(a).(type) {
 			case *procedureDescriptor:
-				extension = d.extension
+				extension = d.Extension
 			case *tsDictionaryDescriptor:
-				extension = d.extension
+				extension = d.Extension
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := auth.catalog.MustExtension(extension)
@@ -194,7 +194,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		end := len(roots)
 		for _, a := range roots[:end] {
 			if extension, ok := auth.catalog.Extension(a); ok {
-				for _, member := range extension.members {
+				for _, member := range extension.Members {
 					if !pending[member] {
 						roots = append(roots, member)
 						pending[member] = true
@@ -233,7 +233,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				foreign := d.(*foreignDescriptor)
 				err = foreignOwnershipEligibility(auth, foreign, target)
 				if err == nil && foreign.address.ClassID == ids.ForeignServerClassID {
-					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.wrapper))
+					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
 			case *namespaceDescriptor:
 				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})

@@ -42,7 +42,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 			continue
 		}
 		ns := view.MustNamespace(d.namespace)
-		if ns.temporary != (ids.SessionToken{}) {
+		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		owner, err := roles.Descriptor(d.Owner)
@@ -86,7 +86,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if view.MustNamespace(relation.namespace).temporary != (ids.SessionToken{}) {
+					if view.MustNamespace(relation.namespace).Temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
@@ -97,7 +97,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					if provider == nil {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
+					if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}

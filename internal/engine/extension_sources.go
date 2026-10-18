@@ -58,32 +58,32 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 		case *extensionDescriptor:
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)
-			integer(2, int64(d.owner.ID()))
-			integer(3, int64(d.targetNamespace.ObjectID))
+			integer(2, int64(d.Owner.ID()))
+			integer(3, int64(d.TargetNamespace.ObjectID))
 			boolean(4, true)
-			text(5, d.version)
+			text(5, d.Version)
 			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
 			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
 		case *procedureDescriptor:
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)
 			integer(2, int64(d.namespace.ObjectID))
-			integer(3, int64(d.owner.ID()))
+			integer(3, int64(d.Owner.ID()))
 			integer(4, procedureArity(d))
-			integer(5, int64(d.result))
+			integer(5, int64(d.Result))
 			vol := "v"
-			if d.volatility == expr.Stable {
+			if d.Volatility == expr.Stable {
 				vol = "s"
-			} else if d.volatility == expr.Immutable {
+			} else if d.Volatility == expr.Immutable {
 				vol = "i"
 			}
 			text(6, vol)
-			boolean(7, d.strict)
+			boolean(7, d.Strict)
 			parallel := "s"
-			if d.foreign != nil {
+			if d.Foreign != nil {
 				parallel = "u"
-			} else if d.builtin != nil {
-				switch d.builtin.parallel {
+			} else if d.Builtin != nil {
+				switch d.Builtin.parallel {
 				case 'r':
 					parallel = "r"
 				case 'u':
@@ -99,8 +99,8 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)
 			integer(2, int64(d.namespace.ObjectID))
-			integer(3, int64(d.owner.ID()))
-			integer(4, int64(d.template.ObjectID))
+			integer(3, int64(d.Owner.ID()))
+			integer(4, int64(d.Template.ObjectID))
 			text(5, "rules = 'unaccent'")
 		default:
 			continue

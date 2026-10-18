@@ -15,7 +15,7 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDesc
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
 	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, name: "ownership_guard", revision: 1, owner: owner, acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, name: "ownership_guard", revision: 1, Owner: owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	if err := setup.Create(ns); err != nil {
 		t.Fatal(err)
@@ -35,13 +35,13 @@ func TestRoleOwnershipPublicationAtomicCleanup(t *testing.T) {
 	e, stage, ns := ownershipCleanupStage(t)
 	oldState, oldRoles := e.catalog.state, e.roles
 	oldEdges := append([]authorization.Membership(nil), fixtureEdges(oldRoles)...)
-	oldACL := append([]authorization.ACLEntry(nil), ns.acl.Entries...)
+	oldACL := append([]authorization.ACLEntry(nil), ns.ACL.Entries...)
 	ownershipUnitPublish(t, e, stage)
 	current := e.catalog.state.MustNamespace(ns.address)
-	if e.catalog.state == oldState || e.roles != stage.roleCandidate || len(current.acl.Entries) != 0 || len(fixtureEdges(e.roles)) != len(oldEdges)-1 {
+	if e.catalog.state == oldState || e.roles != stage.roleCandidate || len(current.ACL.Entries) != 0 || len(fixtureEdges(e.roles)) != len(oldEdges)-1 {
 		t.Fatal("catalog and membership did not commit together")
 	}
-	if !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || !reflect.DeepEqual(ns.acl.Entries, oldACL) || oldState.Get(ns.address) != ns {
+	if !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || !reflect.DeepEqual(ns.ACL.Entries, oldACL) || oldState.Get(ns.address) != ns {
 		t.Fatal("publication mutated retained snapshots")
 	}
 }
@@ -88,7 +88,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				ownershipUnitPublish(t, e, other)
 			case "database":
 				replacement := *e.catalog.state.MustDatabase(currentDatabaseAddress)
-				replacement.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
+				replacement.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.revision++
 				other := e.BeginCatalogStage(e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {

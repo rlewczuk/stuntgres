@@ -48,7 +48,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 	}
 	count := len(builtinAggregateDefinitions)
 	for _, d := range catalog.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.aggregate != nil {
+		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
 			count++
 		}
 	}
@@ -115,8 +115,8 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 		}
 	}
 	for _, d := range catalog.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.aggregate != nil {
-			if err := put(&p.aggregate.definition); err != nil {
+		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
+			if err := put(&p.Aggregate.definition); err != nil {
 				return nil, err
 			}
 		}

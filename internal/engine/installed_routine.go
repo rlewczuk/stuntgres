@@ -83,7 +83,7 @@ func (r installedExtensionRoutine) Validate() error {
 	case p.intaggProvider() != nil:
 		return stockIntagg.validateProcedure(r.catalog, p)
 	case p.unaccentProvider() == stockUnaccent:
-		ext, ok := r.catalog.Extension(p.extension)
+		ext, ok := r.catalog.Extension(p.Extension)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing unaccent installation")
 		}
@@ -154,11 +154,11 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 	var tmpl *tsTemplateDescriptor
 	if p.unaccentProvider() != nil {
 		var ok bool
-		dict, ok = r.catalog.TSDictionary(p.dictionary)
+		dict, ok = r.catalog.TSDictionary(p.Dictionary)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing installed unaccent dictionary")
 		}
-		tmpl, ok = r.catalog.TSTemplate(dict.template)
+		tmpl, ok = r.catalog.TSTemplate(dict.Template)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing installed unaccent template")
 		}

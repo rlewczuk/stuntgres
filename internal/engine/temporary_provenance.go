@@ -25,13 +25,13 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		return false
 	}
 	namespace, ok := view.Namespace(consumer.namespace)
-	if !ok || namespace.temporary == (ids.SessionToken{}) {
+	if !ok || namespace.Temporary == (ids.SessionToken{}) {
 		return false
 	}
 	switch target := target.(type) {
 	case *relationDescriptor:
 		ns, ok := view.Namespace(target.namespace)
-		if !ok || ns.temporary != namespace.temporary {
+		if !ok || ns.Temporary != namespace.Temporary {
 			return false
 		}
 		return ref.Address.SubID == 0 || target.hasAttribute(ref.Address.SubID)
@@ -39,9 +39,9 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		// Full rendering has already compared each concrete node's exact Usage
 		// generation. Native replacement retains these builtin descriptors, not
 		// user-defined/domain generations under this exception.
-		return ref.Address.SubID == 0 && !target.typ.IsUserDefined() && !target.typ.IsDomain() && !(target.typ.IsArray() && target.typ.Element().IsDomain())
+		return ref.Address.SubID == 0 && !target.SQLType.IsUserDefined() && !target.SQLType.IsDomain() && !(target.SQLType.IsArray() && target.SQLType.Element().IsDomain())
 	case *collationDescriptor:
-		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
+		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.Temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
 		if capability, err := target.usage(); err != nil || !capability.Valid() {
@@ -51,18 +51,18 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 			return pgDependPinned(view, ref.Address) && (collationProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
-		return ok && ns.temporary == namespace.temporary && (collationProvider{}).Validate(view, target) == nil
+		return ok && ns.Temporary == namespace.Temporary && (collationProvider{}).Validate(view, target) == nil
 	case *procedureDescriptor:
-		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
+		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.Temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
-		if target.builtin != nil {
+		if target.Builtin != nil {
 			// Only the genuine immutable release declaration can bridge a
 			// retained TEMP recipe; ACL authority is recaptured separately.
 			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.namespace)
-		return ok && ns.temporary == namespace.temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
+		return ok && ns.Temporary == namespace.Temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 	}
 	return false
 }
@@ -90,7 +90,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return false
 	}
 	namespace, ok := catalog.Namespace(consumer.namespace)
-	if !ok || namespace.temporary == (ids.SessionToken{}) || namespace.temporary != temporary || namespace.temporary.Domain() != catalog.Domain() {
+	if !ok || namespace.Temporary == (ids.SessionToken{}) || namespace.Temporary != temporary || namespace.Temporary.Domain() != catalog.Domain() {
 		return false
 	}
 	captured, exists := consumer.View.CapturedReference(ref)
@@ -109,7 +109,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return ok && actual.namespace == old.namespace && actual.RelationKind == old.RelationKind
 	case *typeDescriptor:
 		old, ok := captured.(*typeDescriptor)
-		return ok && actual.typ == old.typ
+		return ok && actual.SQLType == old.SQLType
 	case *collationDescriptor:
 		old, ok := captured.(*collationDescriptor)
 		if !ok {
@@ -127,7 +127,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 			return false
 		}
 		return ok && old.address == address && old.revision != 0 &&
-			old.owner.ID() != 0 && old.owner == catalog.owner.principals.Principal(old.owner.ID()) &&
+			old.Owner.ID() != 0 && old.Owner == catalog.owner.principals.Principal(old.Owner.ID()) &&
 			sameRoutineDeclaration(actual, old)
 	}
 	return false
@@ -160,7 +160,7 @@ func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.
 		return false
 	}
 	ns, ok := view.Namespace(sequence.namespace)
-	return ok && ns.temporary == token
+	return ok && ns.Temporary == token
 }
 
 func (r scalarRenderer) retainedConsumer() *relationDescriptor {

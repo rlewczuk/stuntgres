@@ -75,24 +75,24 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
 // seam. A sqltype ID is a projection, not an authorization token.
 type typeDescriptor struct {
-	typ       *sqltype.Descriptor
-	comment   string
+	SQLType   *sqltype.Descriptor
+	Comment   string
 	namespace ids.ObjectAddress
 	revision  ids.DefinitionRevision
-	owner     authorization.PrincipalRef
-	extension ids.ObjectAddress
-	acl       authorization.ACLValue
-	// aclSyntheticDefault distinguishes effective baseline USAGE from raw NULL
+	Owner     authorization.PrincipalRef
+	Extension ids.ObjectAddress
+	ACL       authorization.ACLValue
+	// ACLSyntheticDefault distinguishes effective baseline USAGE from raw NULL
 	// typacl. Copies/owner remaps retain it; genuine ACL replacement clears it.
-	aclSyntheticDefault bool
-	dimensions          int32
-	array               sqltype.ID
-	owningRelation      ids.ObjectAddress
-	domainChecks        []domainCheckConstraint
+	ACLSyntheticDefault bool
+	Dimensions          int32
+	Array               sqltype.ID
+	OwningRelation      ids.ObjectAddress
+	DomainChecks        []domainCheckConstraint
 }
 
 func (d *typeDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.ID())}
+	return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.ID())}
 }
 func (d *typeDescriptor) Revision() ids.DefinitionRevision {
 	if d.revision == 0 {
@@ -106,7 +106,7 @@ func (d *typeDescriptor) Namespace() ids.ObjectAddress {
 	}
 	return ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 }
-func (d *typeDescriptor) Name() string       { return d.typ.Name() }
+func (d *typeDescriptor) Name() string       { return d.SQLType.Name() }
 func (*typeDescriptor) Kind() ids.ObjectKind { return ids.TypeObject }
 
 type typeProvider struct{}
@@ -114,10 +114,10 @@ type typeProvider struct{}
 func (typeProvider) ClassID() ids.OID { return ids.TypeClassID }
 func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	t, ok := descriptor.(*typeDescriptor)
-	if !ok || t.typ == nil || t.typ.ID() == 0 {
+	if !ok || t.SQLType == nil || t.SQLType.ID() == 0 {
 		return fmt.Errorf("stuntgres: invalid type descriptor")
 	}
-	if t.aclSyntheticDefault && !authorization.MatchesDefaultBaseline(t.acl, t.owner, authorization.DefaultTypes, false) {
+	if t.ACLSyntheticDefault && !authorization.MatchesDefaultBaseline(t.ACL, t.Owner, authorization.DefaultTypes, false) {
 		return fmt.Errorf("stuntgres: invalid synthetic type ACL")
 	}
 	ns, ok := view.Descriptor(descriptor.Namespace())
@@ -128,74 +128,74 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
-	if t.extension != (ids.ObjectAddress{}) {
-		parent, ok := view.Extension(t.extension)
-		if !ok || parent.name != "intarray" || parent.targetNamespace != t.Namespace() || !t.typ.IsQueryInt() {
+	if t.Extension != (ids.ObjectAddress{}) {
+		parent, ok := view.Extension(t.Extension)
+		if !ok || parent.name != "intarray" || parent.TargetNamespace != t.Namespace() || !t.SQLType.IsQueryInt() {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
 		if err := stockIntarray.ValidateExtension(view, parent); err != nil {
 			return err
 		}
-	} else if t.typ.IsQueryInt() {
+	} else if t.SQLType.IsQueryInt() {
 		return fmt.Errorf("stuntgres: query_int type has no installation")
 	}
-	if t.owningRelation != (ids.ObjectAddress{}) {
-		relation, ok := view.Relation(t.owningRelation)
-		if !ok || relation.namespace != t.Namespace() || relation.Owner != t.owner {
+	if t.OwningRelation != (ids.ObjectAddress{}) {
+		relation, ok := view.Relation(t.OwningRelation)
+		if !ok || relation.namespace != t.Namespace() || relation.Owner != t.Owner {
 			return fmt.Errorf("stuntgres: invalid row type ownership")
 		}
-		if !t.typ.IsArray() && (relation.RowType != t.typ.ID() || relation.name != t.Name()) {
+		if !t.SQLType.IsArray() && (relation.RowType != t.SQLType.ID() || relation.name != t.Name()) {
 			return CatalogConflict{}
 		}
-		if t.typ.IsArray() && relation.RowType != t.typ.Element().ID() {
-			return CatalogConflict{}
-		}
-	}
-	if t.typ.IsUserDefined() || t.typ.IsArray() && t.typ.Element().IsUserDefined() {
-		if t.revision == 0 || t.owningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+		if t.SQLType.IsArray() && relation.RowType != t.SQLType.Element().ID() {
 			return CatalogConflict{}
 		}
 	}
-	if t.typ.IsComposite() {
-		relation, ok := view.Relation(t.owningRelation)
-		if !ok || len(relation.Columns) != t.typ.CompositeLen() {
+	if t.SQLType.IsUserDefined() || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined() {
+		if t.revision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+			return CatalogConflict{}
+		}
+	}
+	if t.SQLType.IsComposite() {
+		relation, ok := view.Relation(t.OwningRelation)
+		if !ok || len(relation.Columns) != t.SQLType.CompositeLen() {
 			return fmt.Errorf("stuntgres: missing composite backing definition")
 		}
 		for i, column := range relation.Columns {
-			member := t.typ.CompositeMember(i)
+			member := t.SQLType.CompositeMember(i)
 			actual, exists := view.LookupType(member.Usage.Type.ID())
 			if !exists || actual != member.Usage.Type || member.Attribute != relation.Attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
 				return fmt.Errorf("stuntgres: inconsistent composite member generation")
 			}
 		}
 	}
-	if t.typ.IsDomain() {
-		base := t.typ.DomainBase()
+	if t.SQLType.IsDomain() {
+		base := t.SQLType.DomainBase()
 		if err := validateUsageCollation(view, base); err != nil {
 			return err
 		}
 		actual, exists := view.LookupType(base.Type.ID())
-		if !exists || actual != base.Type || t.typ.Concrete() && (!base.Valid() || t.revision == 0) || t.dimensions < 0 {
+		if !exists || actual != base.Type || t.SQLType.Concrete() && (!base.Valid() || t.revision == 0) || t.Dimensions < 0 {
 			return fmt.Errorf("stuntgres: invalid domain base generation")
 		}
 		if err := validateDomainCheckDefinitions(view, t); err != nil {
 			return err
 		}
 	}
-	if t.typ.IsArray() {
-		element := t.typ.Element()
+	if t.SQLType.IsArray() {
+		element := t.SQLType.Element()
 		actual, exists := view.LookupType(element.ID())
 		if !exists || actual != element {
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
 		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-		if !exists || owner.(*typeDescriptor).array != t.typ.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).owner != t.owner {
+		if !exists || owner.(*typeDescriptor).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).Owner != t.Owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
 	}
-	if t.array != 0 {
-		array, exists := view.LookupType(t.array)
-		if !exists || !array.IsArray() || array.Element() != t.typ {
+	if t.Array != 0 {
+		array, exists := view.LookupType(t.Array)
+		if !exists || !array.IsArray() || array.Element() != t.SQLType {
 			return fmt.Errorf("stuntgres: invalid element array association")
 		}
 	}
@@ -211,7 +211,7 @@ func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	if !ok {
 		return nil, false
 	}
-	return t.typ, true
+	return t.SQLType, true
 }
 
 func (r CatalogRead) LookupArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
@@ -219,10 +219,10 @@ func (r CatalogRead) LookupArray(element *sqltype.Descriptor) (*sqltype.Descript
 		return nil, false
 	}
 	owner, ok := r.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-	if !ok || owner.(*typeDescriptor).typ != element {
+	if !ok || owner.(*typeDescriptor).SQLType != element {
 		return nil, false
 	}
-	array, ok := r.LookupType(owner.(*typeDescriptor).array)
+	array, ok := r.LookupType(owner.(*typeDescriptor).Array)
 	return array, ok && array.IsArray() && array.Element() == element
 }
 

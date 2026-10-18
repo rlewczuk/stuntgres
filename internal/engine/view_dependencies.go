@@ -127,10 +127,10 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 	if d, ok := catalog.Foreign(base); ok {
 		if d.address.ClassID == ids.ForeignMappingClassID {
 			user := "public"
-			if d.mappedRole != (authorization.PrincipalRef{}) {
-				user = dependencyIdentifier(d.mappedName)
+			if d.MappedRole != (authorization.PrincipalRef{}) {
+				user = dependencyIdentifier(d.MappedName)
 			}
-			server := catalog.Get(d.server)
+			server := catalog.Get(d.Server)
 			return "user mapping for " + user + " on server " + dependencyIdentifier(server.Name())
 		}
 		return foreignLabel(d.address.ClassID) + " " + dependencyIdentifier(d.name)
@@ -145,10 +145,10 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		name := dependencyIdentifier(d.name)
 		visible := path == nil
 		for _, namespace := range path {
-			if n, ok := catalog.Namespace(namespace); ok && n.temporary != (ids.SessionToken{}) {
+			if n, ok := catalog.Namespace(namespace); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}); ok {
+			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.Signature)}); ok {
 				visible = address == d.address
 				break
 			}
@@ -157,7 +157,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 			name = dependencyIdentifier(catalog.Get(d.namespace).Name()) + "." + name
 		}
 		var arguments string
-		switch d.signature {
+		switch d.Signature {
 		case "23":
 			arguments = "integer"
 		case "1007":
@@ -185,7 +185,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		name := dependencyIdentifier(d.name)
 		visible := path == nil
 		for _, ns := range path {
-			if n, ok := catalog.Namespace(ns); ok && n.temporary != (ids.SessionToken{}) {
+			if n, ok := catalog.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
 			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}); ok {
@@ -206,7 +206,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.Namespace(ns); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
 				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}); ok {
@@ -225,7 +225,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.Namespace(ns); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
 				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.name}); ok {
@@ -499,7 +499,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 		}
 		namespace, ok := v.Namespace(source.namespace)
 		consumerNamespace, consumerOK := v.Namespace(d.namespace)
-		if !ok || namespace.temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.temporary != namespace.temporary) {
+		if !ok || namespace.Temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.Temporary != namespace.Temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
 		for _, attribute := range leaf.reads {

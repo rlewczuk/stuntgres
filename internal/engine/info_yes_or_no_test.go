@@ -15,25 +15,25 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
 	d, ok := view.Type(address)
-	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.typ.IsBuiltin() || !d.typ.Concrete() || !d.typ.HasDomainChecks() {
+	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.SQLType.IsBuiltin() || !d.SQLType.Concrete() || !d.SQLType.HasDomainChecks() {
 		t.Fatal("selected domain wrapper", d)
 	}
 	base, ok := view.LookupType(sqltype.VarChar)
-	if !ok || d.typ.DomainBase() != (sqltype.Usage{Type: base, Typmod: 7, Collation: sqltype.CollationRef{ID: 950, Derivation: sqltype.Default}}) {
-		t.Fatal("selected immediate base generation", d.typ.DomainBase())
+	if !ok || d.SQLType.DomainBase() != (sqltype.Usage{Type: base, Typmod: 7, Collation: sqltype.CollationRef{ID: 950, Derivation: sqltype.Default}}) {
+		t.Fatal("selected immediate base generation", d.SQLType.DomainBase())
 	}
 	namespace, ok := view.Descriptor(d.Namespace())
 	if !ok || namespace.Name() != "information_schema" {
 		t.Fatal("selected namespace", namespace)
 	}
 	array, ok := view.LookupType(13255)
-	if !ok || array.Element() != d.typ || array.Concrete() || d.array != 13255 {
+	if !ok || array.Element() != d.SQLType || array.Concrete() || d.Array != 13255 {
 		t.Fatal("selected companion backlink", array)
 	}
-	if len(d.domainChecks) != 1 {
-		t.Fatal("own recipe count", len(d.domainChecks))
+	if len(d.DomainChecks) != 1 {
+		t.Fatal("own recipe count", len(d.DomainChecks))
 	}
-	check := d.domainChecks[0]
+	check := d.DomainChecks[0]
 	if check.OID == 0 || check.Name != "yes_or_no_check" || check.NotValid || check.ordinal != 0 || check.expression == nil || len(check.dependencies) == 0 || !check.expression.Properties().DomainDependent || check.expression.Properties().RowDependent {
 		t.Fatal("real validated VALUE recipe", check)
 	}
@@ -47,7 +47,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	walkBoundExpression(check.expression, func(node expr.Expr) {
 		if _, ok := node.(domainValueExpression); ok {
 			valueLeaves++
-			if node.ResultUsage() != d.typ.DomainBase() {
+			if node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base/typmod/C authority", node.ResultUsage())
 			}
 		}
@@ -66,17 +66,17 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 
 func infoYesOrNoUnitEvaluate(t *testing.T, view CatalogRead, d *typeDescriptor) {
 	t.Helper()
-	base := d.typ.DomainBase().Type
+	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()
 	eval := EvalContext{Context: ctx, catalog: view}
 	eval.Input.DomainChecks = &eval
-	plan, err := sqltype.PlanCoercion(base.Usage(), d.typ.Usage(), sqltype.Assignment)
+	plan, err := sqltype.PlanCoercion(base.Usage(), d.SQLType.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, value := range []sqltype.Value{sqltype.String(base, "YES"), sqltype.String(base, "NO"), sqltype.Null(base)} {
 		out, err := plan.Apply(ctx, value, eval.Input, eval.Output)
-		if err != nil || out.Type() != d.typ || out.IsNull() != value.IsNull() {
+		if err != nil || out.Type() != d.SQLType || out.IsNull() != value.IsNull() {
 			t.Fatal("real TRUE/UNKNOWN recipe evaluation", out, err)
 		}
 	}
@@ -95,7 +95,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 	before := source.CatalogRead()
 	original := infoYesOrNoUnitCatalog(t, source, before)
 	infoYesOrNoUnitEvaluate(t, before, original)
-	originalRecipe := original.domainChecks[0]
+	originalRecipe := original.DomainChecks[0]
 	target := New()
 	if _, err := target.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if source.CatalogRead().state != before.state || original.domainChecks[0].OID != originalRecipe.OID {
+	if source.CatalogRead().state != before.state || original.DomainChecks[0].OID != originalRecipe.OID {
 		t.Fatal("replacement mutated immutable source recipe")
 	}
 	infoYesOrNoUnitCatalog(t, source, before)
@@ -128,7 +128,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	next := cloneCatalog(originalView.state)
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
 	base := *next.MustType(baseAddress)
-	base.typ, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
+	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.setDescriptor(baseAddress, &base)
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
@@ -139,7 +139,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	}
 	view := source.catalog.read(next)
 	mapped := infoYesOrNoUnitCatalog(t, source, view)
-	if mapped == original || mapped.typ == original.typ || mapped.typ.DomainBase().Type != base.typ || mapped.typ.DomainBase().Type == original.typ.DomainBase().Type {
+	if mapped == original || mapped.SQLType == original.SQLType || mapped.SQLType.DomainBase().Type != base.SQLType || mapped.SQLType.DomainBase().Type == original.SQLType.DomainBase().Type {
 		t.Fatal("changed base did not rebuild logical domain authority")
 	}
 	infoYesOrNoUnitEvaluate(t, view, mapped)

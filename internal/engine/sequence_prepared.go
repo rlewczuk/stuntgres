@@ -99,7 +99,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 				return false, ids.ErrCatalogReplaced
 			}
 			ns, ok := auth.catalog.Namespace(d.namespace)
-			if !ok || ns.temporary != constant.temporary {
+			if !ok || ns.Temporary != constant.temporary {
 				return false, ids.ErrCatalogReplaced
 			}
 		}

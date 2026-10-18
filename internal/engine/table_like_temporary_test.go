@@ -143,7 +143,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				if destination.namespace != namespace || sequence.namespace != namespace || sequence.Owner != destination.Owner || identity.sequence == sourceIdentity.sequence || sequence.Revision() == sourceSequence.Revision() || !reflect.DeepEqual(*sequence.Sequence, want) || fresh == nil || fresh.called || fresh.last != 7 || identity.mode != sourceIdentity.mode || len(destination.Defaults) != 0 {
 					t.Fatal("fresh identity destination ownership/persistence/config/state", destination, sequence, fresh)
 				}
-				if ns := e.catalog.state.MustNamespace(namespace); destinationTemporary && ns.temporary != owner.token {
+				if ns := e.catalog.state.MustNamespace(namespace); destinationTemporary && ns.Temporary != owner.token {
 					t.Fatal("destination temporary token drift")
 				}
 				if *e.sequences[sourceIdentity.sequence] != generator {

@@ -37,7 +37,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.CheckConstraints) != 0 {
 			relations = append(relations, relation)
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
 			domains = append(domains, domain)
 		}
 	}
@@ -102,7 +102,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 		return 0
 	})
 	for _, domain := range domains {
-		for _, check := range domain.domainChecks {
+		for _, check := range domain.DomainChecks {
 			if !expressionUsesCompositeField(check.expression, source.RowType, attribute) {
 				continue
 			}

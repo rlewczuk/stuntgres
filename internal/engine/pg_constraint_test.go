@@ -47,11 +47,11 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
 	t.Helper()
 	domain := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256})
-	if len(row) != 28 || len(domain.domainChecks) != 1 {
+	if len(row) != 28 || len(domain.DomainChecks) != 1 {
 		t.Fatal("missing real bootstrap domain CHECK", row)
 	}
 	id, err := row[0].OID()
-	if err != nil || id == 0 || ids.OID(id) != domain.domainChecks[0].OID {
+	if err != nil || id == 0 || ids.OID(id) != domain.DomainChecks[0].OID {
 		t.Fatal("bootstrap CHECK identity detached from recipe", id, err)
 	}
 	for i, value := range row {
@@ -129,7 +129,7 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10003})
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10002})
-	if row.owningRelation != source.address || array.owningRelation != source.address || row.array != 10002 {
+	if row.OwningRelation != source.address || array.OwningRelation != source.address || row.Array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}
 	captured, err := capturePGConstraint(context.Background(), view, ref, source)
@@ -366,7 +366,7 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE pc_unit_enum AS ENUM ('z','a')"))
 	view = e.CatalogRead()
-	enum := domainUnitType(t, view, "pc_unit_enum").typ
+	enum := domainUnitType(t, view, "pc_unit_enum").SQLType
 	class, _ := sqltype.DefaultIndexClass(enum)
 	bound, err := sqltype.BindIndexForeignKey(enum.Usage(), enum.Usage(), class, view.LookupType)
 	if err != nil {

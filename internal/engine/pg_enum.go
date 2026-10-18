@@ -28,13 +28,13 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 			return nil, err
 		}
 		d, ok := descriptor.(*typeDescriptor)
-		if !ok || !d.typ.IsEnum() {
+		if !ok || !d.SQLType.IsEnum() {
 			continue
 		}
-		if address != d.Address() || address.ClassID != ids.TypeClassID || address.ObjectID == 0 || sqltype.ID(address.ObjectID) != d.typ.ID() {
+		if address != d.Address() || address.ClassID != ids.TypeClassID || address.ObjectID == 0 || sqltype.ID(address.ObjectID) != d.SQLType.ID() {
 			return nil, fmt.Errorf("stuntgres: invalid enum owner identity")
 		}
-		count += d.typ.EnumMemberCount()
+		count += d.SQLType.EnumMemberCount()
 	}
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*4)
@@ -44,14 +44,14 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 			return nil, err
 		}
 		d, ok := descriptor.(*typeDescriptor)
-		if !ok || !d.typ.IsEnum() {
+		if !ok || !d.SQLType.IsEnum() {
 			continue
 		}
-		for i := range d.typ.EnumMemberCount() {
+		for i := range d.SQLType.EnumMemberCount() {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			member, ok := d.typ.EnumMemberAt(i)
+			member, ok := d.SQLType.EnumMemberAt(i)
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: missing enum member metadata")
 			}
@@ -61,7 +61,7 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 			if err != nil {
 				return nil, err
 			}
-			row[1], err = sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(d.typ.ID()))
+			row[1], err = sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(d.SQLType.ID()))
 			if err != nil {
 				return nil, err
 			}

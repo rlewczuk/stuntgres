@@ -137,7 +137,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	if err != nil || sourceCall == nil {
 		t.Fatal("missing original DEFAULT routine carrier", err)
 	}
-	sourceOwner, sourceRevision := sourceCall.owner, sourceCall.revision
+	sourceOwner, sourceRevision := sourceCall.Owner, sourceCall.revision
 	target := New()
 	retired := target.CatalogRead()
 	retiredRef := target.catalog.domain.Ref(retired.Epoch(), sourceCall.address)
@@ -160,7 +160,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		}
 		call, err := expressionRoutineDescriptor(item.node)
 		if err != nil || call == nil || call.address != sourceCall.address || call == sourceCall ||
-			call.owner != target.authorizationDomain.Principal(call.owner.ID()) || call.revision == 0 {
+			call.Owner != target.authorizationDomain.Principal(call.Owner.ID()) || call.revision == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
 		}
 		evaluation := EvalContext{Context: ctx, routineAuthority: &targetAuth, routineRecipe: true,
@@ -241,7 +241,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		}
 	}
 	after := capture(source)
-	if source.CatalogRead().state != before.state || sourceCall.owner != sourceOwner || sourceCall.revision != sourceRevision ||
+	if source.CatalogRead().state != before.state || sourceCall.Owner != sourceOwner || sourceCall.revision != sourceRevision ||
 		!reflect.DeepEqual(after[0].refs, originalRefs) || !reflect.DeepEqual(after[1].checks, originalChecks) {
 		t.Fatal("replacement or negative probes mutated source provenance")
 	}

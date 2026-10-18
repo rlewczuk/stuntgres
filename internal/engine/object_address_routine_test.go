@@ -40,7 +40,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.revision == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
 			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
@@ -121,7 +121,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = false
+			replacement.Strict = false
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed

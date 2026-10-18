@@ -62,11 +62,11 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []sqltype.ID{table.RowType, base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}).array} {
+	for _, id := range []sqltype.ID{table.RowType, base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}).Array} {
 		d := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		next := *d
-		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
-		next.aclSyntheticDefault = false
+		next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
+		next.ACLSyntheticDefault = false
 		next.revision++
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
@@ -99,13 +99,13 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	current := e.CatalogRead()
 	compositeAddress := base.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: table.namespace, Name: "ownership_c"})
 	composite := base.MustType(compositeAddress)
-	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.array)}
+	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.Array)}
 	array := base.MustType(arrayAddress)
-	backing := base.MustRelation(composite.owningRelation)
+	backing := base.MustRelation(composite.OwningRelation)
 	movedComposite := current.MustType(compositeAddress)
 	movedArray := current.MustType(arrayAddress)
-	movedBacking := current.MustRelation(composite.owningRelation)
-	if !array.typ.IsArray() || backing.RowType != composite.typ.ID() || backing.RowType == array.typ.ID() || movedComposite.owner != target || movedArray.owner != target || movedBacking.Owner != target || movedBacking.RowType != backing.RowType || movedComposite.array != composite.array || movedComposite.owningRelation != composite.owningRelation || movedArray.owningRelation != array.owningRelation || composite.owner != owner || array.owner != owner || backing.Owner != owner || movedComposite.typ != composite.typ || movedArray.typ != array.typ {
+	movedBacking := current.MustRelation(composite.OwningRelation)
+	if !array.SQLType.IsArray() || backing.RowType != composite.SQLType.ID() || backing.RowType == array.SQLType.ID() || movedComposite.Owner != target || movedArray.Owner != target || movedBacking.Owner != target || movedBacking.RowType != backing.RowType || movedComposite.Array != composite.Array || movedComposite.OwningRelation != composite.OwningRelation || movedArray.OwningRelation != array.OwningRelation || composite.Owner != owner || array.Owner != owner || backing.Owner != owner || movedComposite.SQLType != composite.SQLType || movedArray.SQLType != array.SQLType {
 		t.Fatal("composite root/array/backing reciprocity or retained codec mutated")
 	}
 	for a, old := range base.Descriptors() {
@@ -118,7 +118,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 			t.Fatal("associated owner", a, got)
 		}
 		if typ, ok := old.(*typeDescriptor); ok {
-			if next.(*typeDescriptor).typ != typ.typ {
+			if next.(*typeDescriptor).SQLType != typ.SQLType {
 				t.Fatal("ownership replaced codec/signature", a)
 			}
 		}
@@ -156,7 +156,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 			}
 		}
 	}
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: ids.DefinitionRevision(^uint64(0)), owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: ids.DefinitionRevision(^uint64(0)), Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)

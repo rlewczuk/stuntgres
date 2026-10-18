@@ -55,9 +55,9 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
 		}
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
-		if !d.typ.IsEnum() {
-			display := d.typ.DiagnosticName()
-			if d.typ.IsUserDefined() || d.typ.IsDomain() || d.typ.IsComposite() {
+		if !d.SQLType.IsEnum() {
+			display := d.SQLType.DiagnosticName()
+			if d.SQLType.IsUserDefined() || d.SQLType.IsDomain() || d.SQLType.IsComposite() {
 				path, err := e.referencePath(auth)
 				if err != nil {
 					return nil, ref, err
@@ -124,7 +124,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 				changes.enumCreated = make(map[ids.ObjectAddress]bool)
 			}
 			for a, d := range stage.descriptors {
-				if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsEnum() {
+				if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsEnum() {
 					changes.enumCreated[a] = true
 				}
 			}
@@ -139,7 +139,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
-		members := old.typ.EnumMembers()
+		members := old.SQLType.EnumMembers()
 		oldIndex, newIndex := -1, -1
 		for i, m := range members {
 			if m.Label == alter.Old.Text {
@@ -191,7 +191,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 				changes.enumUnsafe[member] = true
 			}
 		}
-		typ, err := sqltype.EnumWithMembers(old.typ.ID(), old.Name(), old.typ.SQLName(), members)
+		typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)
 		if err != nil {
 			return Result{}, err
 		}
@@ -200,7 +200,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, err
 		}
 		next := *old
-		next.typ = typ
+		next.SQLType = typ
 		next.revision = revision
 		if err := stage.Replace(&next); err != nil {
 			return Result{}, err

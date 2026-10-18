@@ -28,7 +28,7 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			if ns.temporary != (ids.SessionToken{}) && ns.temporary != token {
+			if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token {
 				continue
 			}
 			if err := visit(child); err != nil {

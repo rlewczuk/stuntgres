@@ -182,7 +182,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{d1, d2, array, enum} {
-		d := &typeDescriptor{typ: typ, namespace: ns, revision: 1}
+		d := &typeDescriptor{SQLType: typ, namespace: ns, revision: 1}
 		catalog.state.setDescriptor(d.Address(), d)
 	}
 	if !pgDependPinned(catalog, pgDependUnitAddress(1247, 23, 0)) || !pgDependPinned(catalog, pgDependUnitAddress(2615, 11, 0)) || pgDependPinned(catalog, pgDependUnitAddress(2615, 2200, 0)) || pgDependPinned(catalog, pgDependUnitAddress(1247, 47003, 0)) {

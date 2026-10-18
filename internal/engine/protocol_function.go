@@ -56,7 +56,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		}
 		return ProtocolField{}, sqlError("42883", fmt.Sprintf("function with OID %d does not exist", oid))
 	}
-	if d.routineKind != functionRoutine || d.returnsSet() {
+	if d.RoutineKind != functionRoutine || d.returnsSet() {
 		e.mu.Unlock()
 		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.name))
 	}
@@ -71,8 +71,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, err
 	}
 	var usages []sqltype.Usage
-	if d.signature != "" {
-		for _, word := range strings.Split(string(d.signature), ",") {
+	if d.Signature != "" {
+		for _, word := range strings.Split(string(d.Signature), ",") {
 			id, parseErr := strconv.ParseUint(word, 10, 32)
 			if parseErr != nil {
 				e.mu.Unlock()

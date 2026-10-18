@@ -17,8 +17,8 @@ type tablespaceDescriptor struct {
 	address  ids.ObjectAddress
 	revision ids.DefinitionRevision
 	name     string
-	owner    authorization.PrincipalRef
-	acl      authorization.ACLValue
+	Owner    authorization.PrincipalRef
+	ACL      authorization.ACLValue
 }
 
 func (d *tablespaceDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -48,7 +48,7 @@ func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range builtinTablespaces {
-		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
+		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, Owner: owner}
 		e.catalog.state.setDescriptor(d.address, d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.address)
 	}

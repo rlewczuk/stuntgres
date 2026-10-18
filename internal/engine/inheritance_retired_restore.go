@@ -95,7 +95,7 @@ func captureHistoricalRelation(view CatalogRead, ref ids.ObjectRef, facts map[id
 		return
 	}
 	namespace, ok := view.Namespace(table.namespace)
-	if !ok || namespace.temporary != (ids.SessionToken{}) {
+	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return
 	}
 	for _, c := range table.NotNullConstraints {
@@ -274,7 +274,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		return reject()
 	}
 	namespace, ok := auth.catalog.Namespace(old.namespace)
-	if !ok || namespace.temporary != (ids.SessionToken{}) {
+	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		e.mu.Unlock()
 		return reject()
 	}

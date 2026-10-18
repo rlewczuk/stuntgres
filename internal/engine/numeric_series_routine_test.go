@@ -33,12 +33,12 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
 			captured, err := expressionRoutineDescriptor(node)
-			if err != nil || captured == nil || captured.builtin == nil {
+			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != expr.Immutable || captured.revision == 0 || len(captured.body) != 0 {
+			declaration := captured.Builtin
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.Signature) != tc.signature || captured.Result != 1700 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.revision == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.kind != functionRoutine || declaration.result != 1700 || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || !declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers&seriesRoutineProvider == 0 {
@@ -128,7 +128,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = false
+			replacement.Strict = false
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed

@@ -78,31 +78,31 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if previous, ok := changes.descriptors[d.address].(*foreignDescriptor); ok {
 			d = previous
 		}
-		source, available, er := authorization.ObjectGrantSource(op.Context(), d.owner, d.acl, authorization.ACLValue{}, principals, actor.Superuser, authorization.UsagePrivilege)
+		source, available, er := authorization.ObjectGrantSource(op.Context(), d.Owner, d.ACL, authorization.ACLValue{}, principals, actor.Superuser, authorization.UsagePrivilege)
 		if er != nil {
 			return Result{}, er
 		}
-		if available == 0 && authorization.ACLRights(d.acl, d.owner, principals, authorization.UsagePrivilege, false) == 0 {
+		if available == 0 && authorization.ACLRights(d.ACL, d.Owner, principals, authorization.UsagePrivilege, false) == 0 {
 			return Result{}, sqlError("42501", "permission denied for "+s.Kind+" "+d.name)
 		}
 		grantWarning(op, d.name, "", authorization.UsagePrivilege, available, false, s.Revoke)
 		if available == 0 {
 			continue
 		}
-		baseline := d.acl
+		baseline := d.ACL
 		if !baseline.Explicit {
 			// Materialize only ordinary owner USAGE; owner grant options remain implicit.
-			baseline = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Role: d.owner}, Privileges: authorization.UsagePrivilege}}}
+			baseline = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: d.Owner}, Privileges: authorization.UsagePrivilege}}}
 		}
-		acl, changed, er := authorization.ChangeObjectACL(op.Context(), auth.roles, baseline, d.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+		acl, changed, er := authorization.ChangeObjectACL(op.Context(), auth.roles, baseline, d.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 		if er != nil {
 			return Result{}, er
 		}
-		if !changed && d.acl.Explicit {
+		if !changed && d.ACL.Explicit {
 			continue
 		}
 		next := *d
-		next.acl = acl
+		next.ACL = acl
 		next.revision, er = e.catalog.revisionLocked()
 		if er != nil {
 			return Result{}, er

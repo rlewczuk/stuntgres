@@ -44,7 +44,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		// tests catalog authority, not SQL admission for transactional DB OWNER.
 		changes = newCatalogChanges()
 		database := *committed.(*databaseDescriptor)
-		database.owner, database.revision = actor, database.revision+1
+		database.Owner, database.revision = actor, database.revision+1
 		changes.descriptors[currentDatabaseAddress] = &database
 		changes.originals[currentDatabaseAddress] = committed
 	}
@@ -115,9 +115,9 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 					if private {
-						database.owner = actor.Ref
+						database.Owner = actor.Ref
 					} else {
-						database.owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+						database.Owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.revision++
 					if err := stage.Replace(&database); err != nil {

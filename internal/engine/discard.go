@@ -204,7 +204,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	base := auth.catalog
 	owned := make(map[ids.ObjectAddress]bool)
 	for address, d := range base.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
+		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == session.token {
 			owned[address] = true
 		}
 	}

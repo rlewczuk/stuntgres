@@ -59,19 +59,19 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
 	oldCatalog := e.catalog.state
 	oldRelation := oldCatalog.MustRelation(ref.Address)
-	value, _ := mood.typ.Input(context.Background(), "q", -1)
+	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
 	oldStore := &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 3, keyChangedAt: 2, values: []sqltype.Value{value}}}, generation: 4}
 	e.storage[ref.Address] = oldStore
 	otherStore := e.storage[other.Address]
-	members := mood.typ.EnumMembers()
+	members := mood.SQLType.EnumMembers()
 	members[1].Label = "end"
 	members = append(members, sqltype.EnumMember{ID: 100000, Label: "last", SortOrder: 3})
-	typ, err := sqltype.EnumWithMembers(mood.typ.ID(), mood.Name(), mood.typ.SQLName(), members)
+	typ, err := sqltype.EnumWithMembers(mood.SQLType.ID(), mood.Name(), mood.SQLType.SQLName(), members)
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *mood
-	next.typ = typ
+	next.SQLType = typ
 	next.revision++
 	stage = e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
@@ -102,7 +102,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
-	if text, err := mood.typ.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {
+	if text, err := mood.SQLType.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {
 		t.Fatal("old root mutated", text, err)
 	}
 }

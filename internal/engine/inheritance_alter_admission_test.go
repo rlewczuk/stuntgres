@@ -485,12 +485,12 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 					if !ok {
 						continue
 					}
-					if typ.typ.ID() == p.RowType {
-						assertShape(typ.typ, names)
+					if typ.SQLType.ID() == p.RowType {
+						assertShape(typ.SQLType, names)
 						row = true
 					}
-					if typ.typ.IsArray() && typ.typ.Element().ID() == p.RowType {
-						assertShape(typ.typ.Element(), names)
+					if typ.SQLType.IsArray() && typ.SQLType.Element().ID() == p.RowType {
+						assertShape(typ.SQLType.Element(), names)
 						array = true
 					}
 				}
@@ -509,7 +509,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			assertPhase(dropTypes, []string{"a"})
 			assertPhase(prepared.steps[1].types, []string{"a", "z"})
 			assertPhase(prepared.steps[2].types, []string{"a", "z", "u"})
-			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.RowType)}).typ, []string{"a", "b"})
+			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.RowType)}).SQLType, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression

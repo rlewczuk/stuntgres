@@ -70,8 +70,8 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TEMPORARY SEQUENCE retained")
-	oldInt8 := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).typ
-	oldBool := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).typ
+	oldInt8 := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).SQLType
+	oldBool := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
 	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 		t.Fatal(err)

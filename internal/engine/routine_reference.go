@@ -32,7 +32,7 @@ func expressionRoutineDescriptor(node expr.Expr) (*procedureDescriptor, error) {
 // ACL are never used as a permission decision, and a COW ACL/owner replacement
 // does not require captured-descriptor pointer equality with the current root.
 func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captured *procedureDescriptor) (*procedureDescriptor, error) {
-	if err := roles.ValidatePrincipal(captured.owner); err != nil {
+	if err := roles.ValidatePrincipal(captured.Owner); err != nil {
 		return nil, err
 	}
 	return currentRoutineDeclaration(view, captured)
@@ -43,7 +43,7 @@ func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captu
 // against the principal domain of view's own engine, which is what the
 // engine's committed role root would check.
 func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
-	if _, ok := view.Database(currentDatabaseAddress); !ok || view.owner == nil || captured.owner.ID() == 0 || captured.owner != view.owner.principals.Principal(captured.owner.ID()) {
+	if _, ok := view.Database(currentDatabaseAddress); !ok || view.owner == nil || captured.Owner.ID() == 0 || captured.Owner != view.owner.principals.Principal(captured.Owner.ID()) {
 		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
 	}
 	return currentRoutineDeclaration(view, captured)
@@ -59,11 +59,11 @@ func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) 
 
 func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
 	return current != nil && captured != nil &&
-		current.name == captured.name && current.signature == captured.signature &&
-		current.routineKind == captured.routineKind && current.result == captured.result &&
-		current.strict == captured.strict && current.volatility == captured.volatility &&
-		current.builtin == captured.builtin && current.implementation == captured.implementation &&
-		current.conversion == captured.conversion
+		current.name == captured.name && current.Signature == captured.Signature &&
+		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
+		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
+		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
+		current.Conversion == captured.Conversion
 }
 
 func (d *relationDescriptor) RoutineRecipeOID() uint32 { return uint32(d.address.ObjectID) }

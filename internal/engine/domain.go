@@ -56,7 +56,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	if replacement, ok := stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor); ok {
-		base.Type = replacement.typ
+		base.Type = replacement.SQLType
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)
 	if err != nil {
@@ -100,14 +100,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	domain := &typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, aclSyntheticDefault: synthetic, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}
+	domain := &typeDescriptor{SQLType: typ, namespace: ns.Address, revision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), aclSyntheticDefault: true})
+	return stage.Create(&typeDescriptor{SQLType: array, namespace: ns.Address, revision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
@@ -132,7 +132,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
 		target := auth.catalog.MustType(found[0])
-		if !target.typ.IsDomain() {
+		if !target.SQLType.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), target.Address())
@@ -150,8 +150,8 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 }
 
 func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
-	if d.typ.IsArray() {
-		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
+	if d.SQLType.IsArray() {
+		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
 			return typeDiagnosticNameAt(catalog, element.(*typeDescriptor), path) + "[]"
 		}
@@ -174,8 +174,8 @@ func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.Obj
 func validateTypeProviders(view CatalogRead, d Descriptor) error {
 	switch d := d.(type) {
 	case *typeDescriptor:
-		if d.typ.IsDomain() {
-			base := d.typ.DomainBase()
+		if d.SQLType.IsDomain() {
+			base := d.SQLType.DomainBase()
 			if err := validateUsageCollation(view, base); err != nil {
 				return err
 			}
@@ -184,9 +184,9 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 				return CatalogConflict{}
 			}
 		}
-		if d.typ.IsArray() {
-			actual, ok := view.LookupType(d.typ.Element().ID())
-			if !ok || actual != d.typ.Element() {
+		if d.SQLType.IsArray() {
+			actual, ok := view.LookupType(d.SQLType.Element().ID())
+			if !ok || actual != d.SQLType.Element() {
 				return CatalogConflict{}
 			}
 		}

@@ -90,15 +90,15 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
-			for _, helper := range proc.aggregate.helpers {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+			for _, helper := range proc.Aggregate.helpers {
 				if helper.id == id {
 					return true
 				}
 			}
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
-			for _, check := range domain.domainChecks {
+			for _, check := range domain.DomainChecks {
 				if check.OID == id {
 					return true
 				}
@@ -162,13 +162,13 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
-			for _, helper := range proc.aggregate.helpers {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+			for _, helper := range proc.Aggregate.helpers {
 				reserved[helper.id] = true
 			}
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
-			for _, check := range domain.domainChecks {
+			for _, check := range domain.DomainChecks {
 				reserved[check.OID] = true
 			}
 		}
@@ -219,15 +219,15 @@ func validateDefinitionOIDs(view CatalogRead) error {
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
-			for _, helper := range proc.aggregate.helpers {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+			for _, helper := range proc.Aggregate.helpers {
 				if err := claim(helper.id); err != nil {
 					return err
 				}
 			}
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
-			for _, check := range domain.domainChecks {
+			for _, check := range domain.DomainChecks {
 				if err := claim(check.OID); err != nil {
 					return err
 				}
@@ -299,10 +299,10 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	var domains []*typeDescriptor
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] = true
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
 			reserveDefinitionOIDs(reserved, proc)
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
 			domains = append(domains, domain)
 			reserveDefinitionOIDs(reserved, domain)
 		}
@@ -315,8 +315,8 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	claimed := make(map[ids.OID]bool)
 	for address, descriptor := range next.Descriptors() {
 		claimed[address.ObjectID] = true
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
-			for _, helper := range proc.aggregate.helpers {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+			for _, helper := range proc.Aggregate.helpers {
 				claimed[helper.id] = true
 			}
 		}
@@ -325,7 +325,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if d.View != nil {
 			claimed[d.View.RuleOID()] = true
 		}
-		if ns, ok := next.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := next.Namespace(d.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			for _, r := range rulesOf(d) {
 				claimed[r.OID] = true
 			}
@@ -378,20 +378,20 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	for _, domain := range domains {
 		copy := *domain
 		var checks []domainCheckConstraint
-		for i, check := range domain.domainChecks {
+		for i, check := range domain.DomainChecks {
 			id, err := remint(check.OID)
 			if err != nil {
 				return err
 			}
 			if id != check.OID {
 				if checks == nil {
-					checks = append([]domainCheckConstraint(nil), domain.domainChecks...)
+					checks = append([]domainCheckConstraint(nil), domain.DomainChecks...)
 				}
 				checks[i].OID = id
 			}
 		}
 		if checks != nil {
-			copy.domainChecks = checks
+			copy.DomainChecks = checks
 			next.setDescriptor(domain.Address(), &copy)
 		}
 	}
@@ -407,7 +407,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: old}] = ids.ObjectAddress{ClassID: 2606, ObjectID: next}
 	}
 	for _, old := range relations {
-		if ns, ok := next.Namespace(old.namespace); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := next.Namespace(old.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if len(old.NotNullConstraints)+len(old.CheckConstraints)+len(old.UniqueConstraints)+len(old.ExclusionConstraints)+len(old.ForeignKeys)+len(old.Defaults)+len(old.Generations)+len(old.Policies)+len(rulesOf(old)) == 0 {
@@ -627,7 +627,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			if !ok || len(rulesOf(parent)) == 0 {
 				continue
 			}
-			if namespace, ok := next.Namespace(parent.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
+			if namespace, ok := next.Namespace(parent.namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
 			remapped, err := remapRuleConstraintIdentities(view, parent, constraintMapping)

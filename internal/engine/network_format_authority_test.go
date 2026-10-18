@@ -42,10 +42,10 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			outer, err := expressionRoutineDescriptor(node)
-			if err != nil || outer == nil || outer.builtin == nil {
+			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing original declaration", outer, err)
 			}
-			d := outer.builtin
+			d := outer.Builtin
 			if d.identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != expr.Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}

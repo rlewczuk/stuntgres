@@ -20,10 +20,10 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 	// Temporary namespaces never participate in unqualified operator visibility.
 	operatorPath := path
 	for i, ns := range path {
-		if d, ok := view.Namespace(ns); ok && d.temporary != (ids.SessionToken{}) {
+		if d, ok := view.Namespace(ns); ok && d.Temporary != (ids.SessionToken{}) {
 			operatorPath = append([]ids.ObjectAddress(nil), path[:i]...)
 			for _, remaining := range path[i+1:] {
-				if d, ok := view.Namespace(remaining); !ok || d.temporary == (ids.SessionToken{}) {
+				if d, ok := view.Namespace(remaining); !ok || d.Temporary == (ids.SessionToken{}) {
 					operatorPath = append(operatorPath, remaining)
 				}
 			}
@@ -35,7 +35,7 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 	if alias == sqltype.Regoperator {
 		visible = false
 		for _, d := range candidates {
-			if d.left == descriptor.left && d.right == descriptor.right {
+			if d.Left == descriptor.Left && d.Right == descriptor.Right {
 				visible = d.address == descriptor.address
 				break
 			}
@@ -52,7 +52,7 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 			}
 			return regtypeSpelling(view, path, id)
 		}
-		name += "(" + operand(descriptor.left) + "," + operand(descriptor.right) + ")"
+		name += "(" + operand(descriptor.Left) + "," + operand(descriptor.Right) + ")"
 	}
 	return name
 }

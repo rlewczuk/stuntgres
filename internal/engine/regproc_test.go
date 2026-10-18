@@ -37,7 +37,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 		}
 		if p, exists := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: fact.id}); exists {
 			procedure, ok := p.(*procedureDescriptor)
-			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure) != nil {
+			if !ok || procedure.Signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure) != nil {
 				t.Fatal("invalid genuine catalog declaration", p, fact)
 			}
 		}
@@ -67,9 +67,9 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: expr.Stable, strict: true, implementation: stockUnaccent}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
-	second.address.ObjectID, second.namespace, second.signature = 90001, catalog, unaccentDictionarySignature
+	second.address.ObjectID, second.namespace, second.Signature = 90001, catalog, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	if got := routineSpelling(view, path, second.address.ObjectID, true, false); got != "unaccent(regdictionary,text)" {
 		t.Fatal("visible later exact signature", got)
 	}
-	selected, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", &first.signature)
+	selected, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", &first.Signature)
 	if count != 1 || selected.id != first.address.ObjectID {
 		t.Fatal("exact signature selection", selected, count)
 	}

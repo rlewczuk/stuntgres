@@ -24,7 +24,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					provider := &typeDescriptor{typ: domain, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), revision: 1}
+					provider := &typeDescriptor{SQLType: domain, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), revision: 1}
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
 					p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.Attributes, p.AttributeHighWater, p.Index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}

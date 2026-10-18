@@ -181,7 +181,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	}
 	unchanged()
 	namespaceDescriptor := *e.catalog.state.MustNamespace(namespace.Address)
-	namespaceDescriptor.acl = namespaceACL
+	namespaceDescriptor.ACL = namespaceACL
 	namespaceView := cloneCatalog(e.catalog.state)
 	namespaceView.setDescriptor(namespace.Address, &namespaceDescriptor)
 	if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(namespaceView)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {

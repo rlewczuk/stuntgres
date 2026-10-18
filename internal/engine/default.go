@@ -695,10 +695,10 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 				return "", err
 			}
 		}
-		if d.left == 0 && len(text) == 1 {
+		if d.Left == 0 && len(text) == 1 {
 			return "(" + op + " " + text[0] + ")", nil
 		}
-		if d.left != 0 && len(text) == 2 {
+		if d.Left != 0 && len(text) == 2 {
 			return "(" + text[0] + " " + op + " " + text[1] + ")", nil
 		}
 		return "", fmt.Errorf("stuntgres: invalid default operator operands")

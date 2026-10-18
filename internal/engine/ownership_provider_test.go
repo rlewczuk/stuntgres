@@ -18,7 +18,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				source := roleAttributeCreate(t, e, op, "own_source", false, parser.RoleOptions{})
 				target := roleAttributeCreate(t, e, op, "own_target", false, parser.RoleOptions{})
 				original := e.CatalogRead()
-				member := original.Get(extension.members[index])
+				member := original.Get(extension.Members[index])
 				owner, _, _ := descriptorACL(member)
 				stage := e.BeginCatalogStage(original)
 				defer e.DiscardCatalogStage(stage)
@@ -61,7 +61,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				noun := ""
 				switch d := member.(type) {
 				case *procedureDescriptor:
-					switch d.signature {
+					switch d.Signature {
 					case unaccentTextSignature:
 						noun = "function unaccent(text)"
 					case unaccentDictionarySignature:
@@ -97,12 +97,12 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				if e.catalog.state.Get(extension.address) != nil {
 					t.Fatal("extension survived complete union")
 				}
-				for _, address := range extension.members {
+				for _, address := range extension.Members {
 					if e.catalog.state.Get(address) != nil {
 						t.Fatal("canonical member survived", address)
 					}
 				}
-				for _, address := range extension.members {
+				for _, address := range extension.Members {
 					if original.Get(address) == nil {
 						t.Fatal("retained member generation mutated", address)
 					}

@@ -357,7 +357,7 @@ func TestArrayRelationalUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, engine, stage)
-	ref, err := sqltype.RegisteredCollation(uint32(collation.oid), collation.semantics)
+	ref, err := sqltype.RegisteredCollation(uint32(collation.OID), collation.Semantics)
 	if err != nil {
 		t.Fatal(err)
 	}

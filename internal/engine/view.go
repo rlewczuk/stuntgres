@@ -201,7 +201,7 @@ func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sour
 		return "temporary"
 	}
 	for _, source := range sources {
-		if namespace, ok := catalog.Namespace(source.relation.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := catalog.Namespace(source.relation.namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
 			return "temporary"
 		}
 	}
@@ -251,7 +251,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
-	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == s.op.session.token {
+	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
 		auth.stagedTemporary = table.address
 	}
 	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
@@ -284,7 +284,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if scope.viewChanges != nil {
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
 		auth.recaptureCatalog(auth.catalog)
-		if table, ok := scope.viewChanges.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+		if table, ok := scope.viewChanges.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.address
 		}
 	}

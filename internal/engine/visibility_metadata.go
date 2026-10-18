@@ -8,30 +8,30 @@ import (
 )
 
 type collationDescriptor struct {
-	oid                                    ids.OID
+	OID                                    ids.OID
 	name                                   string
-	encoding                               int32
+	Encoding                               int32
 	namespace                              ids.ObjectAddress
 	revision                               ids.DefinitionRevision
-	owner                                  authorization.PrincipalRef
-	provider                               string
-	deterministic                          bool
-	collate, ctype, locale, rules, version *string
-	semantics                              uint32
+	Owner                                  authorization.PrincipalRef
+	Provider                               string
+	Deterministic                          bool
+	Collate, CType, Locale, Rules, Version *string
+	Semantics                              uint32
 }
 type conversionDescriptor struct {
-	oid                 ids.OID
+	OID                 ids.OID
 	name                string
 	namespace           ids.ObjectAddress
 	revision            ids.DefinitionRevision
-	owner               authorization.PrincipalRef
-	source, destination int
-	handler             ids.ObjectAddress
-	defaultConversion   bool
+	Owner               authorization.PrincipalRef
+	Source, Destination int
+	Handler             ids.ObjectAddress
+	DefaultConversion   bool
 }
 
 func (d *collationDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: d.oid}
+	return ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: d.OID}
 }
 func (d *collationDescriptor) Revision() ids.DefinitionRevision {
 	if d.revision == 0 {
@@ -48,7 +48,7 @@ func (d *collationDescriptor) Namespace() ids.ObjectAddress {
 func (d *collationDescriptor) Name() string       { return d.name }
 func (*collationDescriptor) Kind() ids.ObjectKind { return ids.CollationObject }
 func (d *conversionDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: d.oid}
+	return ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: d.OID}
 }
 func (d *conversionDescriptor) Revision() ids.DefinitionRevision { return d.revision }
 func (d *conversionDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
@@ -58,25 +58,25 @@ func (*conversionDescriptor) Kind() ids.ObjectKind               { return ids.Co
 func collationText(s string) *string { return &s }
 
 var builtinCollations = [...]collationDescriptor{
-	{oid: 100, name: "default", encoding: -1, provider: "d", deterministic: true, semantics: 950},
-	{oid: 950, name: "C", encoding: -1, provider: "c", deterministic: true, collate: collationText("C"), ctype: collationText("C"), semantics: 950},
-	{oid: 951, name: "POSIX", encoding: -1, provider: "c", deterministic: true, collate: collationText("POSIX"), ctype: collationText("POSIX"), semantics: 950},
-	{oid: 962, name: "ucs_basic", encoding: 6, provider: "b", deterministic: true, locale: collationText("C"), version: collationText("1")},
-	{oid: 963, name: "unicode", encoding: -1, provider: "i", deterministic: true, locale: collationText("und")},
-	{oid: 811, name: "pg_c_utf8", encoding: 6, provider: "b", deterministic: true, locale: collationText("C.UTF-8"), version: collationText("1"), semantics: 811},
-	{oid: 6411, name: "pg_unicode_fast", encoding: 6, provider: "b", deterministic: true, locale: collationText("PG_UNICODE_FAST"), version: collationText("1"), semantics: 6411},
+	{OID: 100, name: "default", Encoding: -1, Provider: "d", Deterministic: true, Semantics: 950},
+	{OID: 950, name: "C", Encoding: -1, Provider: "c", Deterministic: true, Collate: collationText("C"), CType: collationText("C"), Semantics: 950},
+	{OID: 951, name: "POSIX", Encoding: -1, Provider: "c", Deterministic: true, Collate: collationText("POSIX"), CType: collationText("POSIX"), Semantics: 950},
+	{OID: 962, name: "ucs_basic", Encoding: 6, Provider: "b", Deterministic: true, Locale: collationText("C"), Version: collationText("1")},
+	{OID: 963, name: "unicode", Encoding: -1, Provider: "i", Deterministic: true, Locale: collationText("und")},
+	{OID: 811, name: "pg_c_utf8", Encoding: 6, Provider: "b", Deterministic: true, Locale: collationText("C.UTF-8"), Version: collationText("1"), Semantics: 811},
+	{OID: 6411, name: "pg_unicode_fast", Encoding: 6, Provider: "b", Deterministic: true, Locale: collationText("PG_UNICODE_FAST"), Version: collationText("1"), Semantics: 6411},
 }
 
 func (d *collationDescriptor) seeded() bool {
 	for i := range builtinCollations {
-		if d.oid == builtinCollations[i].oid {
+		if d.OID == builtinCollations[i].OID {
 			return true
 		}
 	}
 	return false
 }
 func (d *collationDescriptor) usage() (sqltype.CollationRef, error) {
-	return sqltype.RegisteredCollation(uint32(d.oid), d.semantics)
+	return sqltype.RegisteredCollation(uint32(d.OID), d.Semantics)
 }
 
 type collationProvider struct{}
@@ -92,11 +92,11 @@ func (collationProvider) Validate(view CatalogRead, descriptor Descriptor) error
 	if d.seeded() {
 		found := false
 		for _, fixed := range builtinCollations {
-			if d.oid != fixed.oid {
+			if d.OID != fixed.OID {
 				continue
 			}
 			invariant := *d
-			invariant.name, invariant.namespace, invariant.revision, invariant.owner = fixed.name, fixed.namespace, fixed.revision, fixed.owner
+			invariant.name, invariant.namespace, invariant.revision, invariant.Owner = fixed.name, fixed.namespace, fixed.revision, fixed.Owner
 			found = invariant == fixed && d.name != ""
 			break
 		}
@@ -104,14 +104,14 @@ func (collationProvider) Validate(view CatalogRead, descriptor Descriptor) error
 			return fmt.Errorf("stuntgres: unsupported collation identity")
 		}
 	} else {
-		if d.oid == 0 || d.name == "" || d.revision == 0 || d.encoding != 6 && d.encoding != -1 || !d.deterministic || d.rules != nil {
+		if d.OID == 0 || d.name == "" || d.revision == 0 || d.Encoding != 6 && d.Encoding != -1 || !d.Deterministic || d.Rules != nil {
 			return fmt.Errorf("stuntgres: invalid collation properties")
 		}
-		if d.provider == "c" && d.version != nil || d.provider == "b" && d.version == nil {
+		if d.Provider == "c" && d.Version != nil || d.Provider == "b" && d.Version == nil {
 			return fmt.Errorf("stuntgres: invalid recorded collation version")
 		}
 		mode, err := collationSemantics(d)
-		if err != nil || mode != d.semantics {
+		if err != nil || mode != d.Semantics {
 			return fmt.Errorf("stuntgres: invalid collation provider")
 		}
 		if _, err = d.usage(); err != nil {
@@ -125,32 +125,32 @@ func (conversionProvider) Validate(view CatalogRead, descriptor Descriptor) erro
 	if !ok || d == nil {
 		return fmt.Errorf("stuntgres: invalid conversion descriptor")
 	}
-	if d.oid == 0 || d.name == "" || d.revision == 0 || d.source <= 0 || d.destination <= 0 || sqltype.EncodingName(d.source) == "" || sqltype.EncodingName(d.destination) == "" {
+	if d.OID == 0 || d.name == "" || d.revision == 0 || d.Source <= 0 || d.Destination <= 0 || sqltype.EncodingName(d.Source) == "" || sqltype.EncodingName(d.Destination) == "" {
 		return fmt.Errorf("stuntgres: invalid conversion properties")
 	}
-	if fixed := conversionSeed(d.oid); fixed != nil {
-		if d.source != fixed.source || d.destination != fixed.destination || d.handler != fixed.handler || d.defaultConversion != fixed.defaultConversion {
+	if fixed := conversionSeed(d.OID); fixed != nil {
+		if d.Source != fixed.Source || d.Destination != fixed.Destination || d.Handler != fixed.Handler || d.DefaultConversion != fixed.DefaultConversion {
 			return fmt.Errorf("stuntgres: unsupported seeded conversion capability")
 		}
 	}
-	procedure, ok := view.Procedure(d.handler)
-	if !ok || procedure.signature != conversionSignature || procedure.result != 23 || procedure.conversion.Name() == "" {
+	procedure, ok := view.Procedure(d.Handler)
+	if !ok || procedure.Signature != conversionSignature || procedure.Result != 23 || procedure.Conversion.Name() == "" {
 		return fmt.Errorf("stuntgres: unavailable conversion routine")
 	}
 	registered, ok := sqltype.RegisteredEncodingConversion(procedure.name)
-	if !ok || registered != procedure.conversion {
+	if !ok || registered != procedure.Conversion {
 		return fmt.Errorf("stuntgres: invalid conversion routine capability")
 	}
-	if !registered.Supports(d.source, d.destination) {
+	if !registered.Supports(d.Source, d.Destination) {
 		return fmt.Errorf("stuntgres: conversion pair does not match real routine")
 	}
 	if err := validateInquiryIdentity(view, d); err != nil {
 		return err
 	}
 	namespace := view.MustNamespace(d.Namespace())
-	if namespace.temporary == (ids.SessionToken{}) {
+	if namespace.Temporary == (ids.SessionToken{}) {
 		handlerNamespace := view.MustNamespace(procedure.Namespace())
-		if handlerNamespace.temporary != (ids.SessionToken{}) {
+		if handlerNamespace.Temporary != (ids.SessionToken{}) {
 			return fmt.Errorf("stuntgres: durable conversion has temporary routine")
 		}
 	}
@@ -197,7 +197,7 @@ func visibleCollation(view CatalogRead, path []ids.ObjectAddress, d Descriptor) 
 		if !ok {
 			continue
 		}
-		one := [1]collationCandidate{{a, candidate.encoding}}
+		one := [1]collationCandidate{{a, candidate.Encoding}}
 		if selected := selectCollation(one[:], 6); selected != (ids.ObjectAddress{}) {
 			return selected == d.Address()
 		}

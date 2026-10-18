@@ -444,7 +444,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	original := e.catalog.state.MustNamespace(namespace.Address).acl
+	original := e.catalog.state.MustNamespace(namespace.Address).ACL
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.CreatePrivilege},
@@ -497,7 +497,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	owner, _ := e.Roles().Lookup("namespace_owner")
 	replacement := cloneCatalog(e.catalog.state)
 	ns := *replacement.MustNamespace(namespace.Address)
-	ns.owner = owner.Ref
+	ns.Owner = owner.Ref
 	replacement.setDescriptor(namespace.Address, &ns)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)

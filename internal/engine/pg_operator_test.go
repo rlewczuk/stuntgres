@@ -118,7 +118,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
 		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		if row.owningRelation != d.address || row.owner != d.Owner {
+		if row.OwningRelation != d.address || row.Owner != d.Owner {
 			t.Fatal("row/array ownership", id, row)
 		}
 	}

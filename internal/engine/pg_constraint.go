@@ -45,7 +45,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			count += len(table.NotNullConstraints) + len(table.CheckConstraints) + len(table.UniqueConstraints) + len(table.ForeignKeys) + len(table.ExclusionConstraints)
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
-			count += len(domain.domainChecks)
+			count += len(domain.DomainChecks)
 		}
 	}
 	rows := make([][]sqltype.Value, count)
@@ -57,7 +57,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			return nil, err
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
-			for _, check := range domain.domainChecks {
+			for _, check := range domain.DomainChecks {
 				row := values[at*28 : (at+1)*28 : (at+1)*28]
 				rows[at] = row
 				at++
@@ -362,7 +362,7 @@ func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID
 		return 0, fmt.Errorf("stuntgres: missing constraint operator identity")
 	}
 	op, ok := catalog.Operator(address)
-	if !ok || op.left != ids.OID(left) || op.right != ids.OID(right) {
+	if !ok || op.Left != ids.OID(left) || op.Right != ids.OID(right) {
 		return 0, fmt.Errorf("stuntgres: invalid constraint operator identity")
 	}
 	return address.ObjectID, nil

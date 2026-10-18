@@ -24,12 +24,12 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if len(changes.descriptors) != 0 {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
-		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.temporaryToast && auth.session != nil && ns.temporary == auth.session.token {
+		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
 			auth.stagedTemporary = ns.address
 		}
 	}
 	ns := auth.catalog.MustNamespace(ref.Address)
-	if ns.temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
+	if ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
 			return ids.ObjectRef{}, err
@@ -55,7 +55,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		base := e.catalog.read(e.catalog.state)
 		var namespaces []*namespaceDescriptor
 		for _, d := range base.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == source.token {
 				namespaces = append(namespaces, ns)
 			}
 		}
@@ -128,7 +128,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	stage.terminalCleanup = true
 	defer e.DiscardCatalogStage(stage)
 	for _, ns := range namespaces {
-		if ns.temporary != token {
+		if ns.Temporary != token {
 			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
 		stage.domainBases = append(stage.domainBases, ns)

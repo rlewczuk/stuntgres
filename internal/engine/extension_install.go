@@ -198,7 +198,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, version: version, targetNamespace: namespace, owner: actor.Ref}
+	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
@@ -212,13 +212,13 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 }
 
 func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ids.ObjectAddress, 6)
+	ext.Members = make([]ids.ObjectAddress, 6)
 	for i, class := range [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		ext.members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
+		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
@@ -242,12 +242,12 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			vol = expr.Volatile
 			strict = false
 		}
-		proc := &procedureDescriptor{address: ext.members[i], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: vol, strict: strict, implementation: p}
+		proc := &procedureDescriptor{address: ext.Members[i], namespace: ext.TargetNamespace, Extension: ext.address, revision: rev, name: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p}
 		if i < 2 {
-			proc.dictionary = ext.members[5]
+			proc.Dictionary = ext.Members[5]
 		}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return extensionMemberConflict(proc, ext.targetNamespace)
+			return extensionMemberConflict(proc, ext.TargetNamespace)
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
@@ -259,13 +259,13 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	auth.catalog = e.stageRead(stage)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = owner
-	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ext.targetNamespace)); err != nil {
+	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ext.TargetNamespace)); err != nil {
 		return err
 	}
 	// Extension scripts replace, rather than prefix, the caller's path. The
 	// stock script has no prerequisite schemas; implicit pg_catalog remains,
 	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := e.effectivePath(auth, []ids.ObjectAddress{ext.targetNamespace}, installedFunctionLookup)
+	path := e.effectivePath(auth, []ids.ObjectAddress{ext.TargetNamespace}, installedFunctionLookup)
 	var helpers [2]ids.ObjectAddress
 	for i, helper := range [...]struct {
 		name      string
@@ -282,9 +282,9 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	tmpl := &tsTemplateDescriptor{address: ext.members[4], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", init: helpers[0], lexize: helpers[1], implementation: p}
+	tmpl := &tsTemplateDescriptor{address: ext.Members[4], namespace: ext.TargetNamespace, Extension: ext.address, revision: rev, name: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
 	if stage.lookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
-		return extensionMemberConflict(tmpl, ext.targetNamespace)
+		return extensionMemberConflict(tmpl, ext.TargetNamespace)
 	}
 	if err := stage.Create(tmpl); err != nil {
 		return err
@@ -293,9 +293,9 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	dict := &tsDictionaryDescriptor{address: ext.members[5], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", template: tmpl.address, owner: owner, implementation: p}
+	dict := &tsDictionaryDescriptor{address: ext.Members[5], namespace: ext.TargetNamespace, Extension: ext.address, revision: rev, name: "unaccent", Template: tmpl.address, Owner: owner, Implementation: p}
 	if stage.lookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
-		return extensionMemberConflict(dict, ext.targetNamespace)
+		return extensionMemberConflict(dict, ext.TargetNamespace)
 	}
 	return stage.Create(dict)
 }
@@ -306,7 +306,7 @@ func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 		err.Code = "42723"
 		err.Message = fmt.Sprintf(`function "%s" already exists with same argument types`, d.name)
 		args, result, symbol, properties, line := "text", "text", "unaccent_dict", "STABLE STRICT PARALLEL SAFE", 11
-		switch d.signature {
+		switch d.Signature {
 		case unaccentDictionarySignature:
 			args, line = "regdictionary, text", 6
 		case unaccentInitSignature:

@@ -26,13 +26,13 @@ func pgDependPinned(catalog CatalogRead, address ids.ObjectAddress) bool {
 	}
 	switch d := d.(type) {
 	case *typeDescriptor:
-		if d.owningRelation != (ids.ObjectAddress{}) {
-			relation, ok := catalog.Relation(d.owningRelation)
+		if d.OwningRelation != (ids.ObjectAddress{}) {
+			relation, ok := catalog.Relation(d.OwningRelation)
 			return !ok || relation.RelationKind == catalogRelation
 		}
 		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
 		// arrays retain their owned element's dependency even without storage.
-		return !d.typ.IsUserDefined() && !(d.typ.IsArray() && (d.typ.Element().IsDomain() || d.typ.Element().IsUserDefined()))
+		return !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && (d.SQLType.Element().IsDomain() || d.SQLType.Element().IsUserDefined()))
 	case *collationDescriptor:
 		return d.seeded()
 	case *conversionDescriptor:
@@ -93,27 +93,27 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 			}
 		case *extensionDescriptor:
-			add(d.address, d.targetNamespace, 'n')
+			add(d.address, d.TargetNamespace, 'n')
 		case *procedureDescriptor:
-			add(d.address, d.extension, 'e')
+			add(d.address, d.Extension, 'e')
 			add(d.address, d.namespace, 'n')
 			if d.intarrayProvider() != nil {
 				if d.name == "bqarr_in" {
-					add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.result}, 'n')
+					add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				} else {
-					ext := catalog.MustExtension(d.extension)
-					add(d.address, ext.members[0], 'n')
+					ext := catalog.MustExtension(d.Extension)
+					add(d.address, ext.Members[0], 'n')
 				}
 			}
 		case *tsTemplateDescriptor:
-			add(d.address, d.extension, 'e')
+			add(d.address, d.Extension, 'e')
 			add(d.address, d.namespace, 'n')
-			add(d.address, d.init, 'n')
-			add(d.address, d.lexize, 'n')
+			add(d.address, d.Init, 'n')
+			add(d.address, d.Lexize, 'n')
 		case *tsDictionaryDescriptor:
-			add(d.address, d.extension, 'e')
+			add(d.address, d.Extension, 'e')
 			add(d.address, d.namespace, 'n')
-			add(d.address, d.template, 'n')
+			add(d.address, d.Template, 'n')
 		case *collationDescriptor:
 			if !d.seeded() {
 				add(d.Address(), d.Namespace(), 'n')
@@ -121,24 +121,24 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		case *conversionDescriptor:
 			if !d.seeded() {
 				add(d.Address(), d.Namespace(), 'n')
-				add(d.Address(), d.handler, 'n')
+				add(d.Address(), d.Handler, 'n')
 			}
 		case *typeDescriptor:
 			if pgDependPinned(catalog, d.Address()) {
 				continue
 			}
-			add(d.Address(), d.extension, 'e')
-			if d.typ.IsArray() {
-				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}, 'i')
-			} else if d.owningRelation != (ids.ObjectAddress{}) && !d.typ.IsComposite() {
-				add(d.Address(), d.owningRelation, 'i')
-			} else if d.typ.IsComposite() && catalog.MustRelation(d.owningRelation).RelationKind != compositeRelation {
-				add(d.Address(), d.owningRelation, 'i')
+			add(d.Address(), d.Extension, 'e')
+			if d.SQLType.IsArray() {
+				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}, 'i')
+			} else if d.OwningRelation != (ids.ObjectAddress{}) && !d.SQLType.IsComposite() {
+				add(d.Address(), d.OwningRelation, 'i')
+			} else if d.SQLType.IsComposite() && catalog.MustRelation(d.OwningRelation).RelationKind != compositeRelation {
+				add(d.Address(), d.OwningRelation, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
-				if d.typ.IsDomain() {
-					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.DomainBase().Type.ID())}, 'n')
-					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.typ.DomainBase().Collation.ID)}, 'n')
+				if d.SQLType.IsDomain() {
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, 'n')
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Collation.ID)}, 'n')
 				}
 			}
 		case *relationDescriptor:

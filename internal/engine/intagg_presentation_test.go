@@ -67,7 +67,7 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal("unused frozen capture accepted")
 			}
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 910000}}
-			for i, address := range ext.members {
+			for i, address := range ext.Members {
 				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(910001 + i)}
 			}
 			state := cloneCatalog(e.catalog.state)

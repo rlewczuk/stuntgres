@@ -106,11 +106,11 @@ func descriptorComment(d Descriptor, sub int32) string {
 	switch d := d.(type) {
 	case *namespaceDescriptor:
 		if sub == 0 {
-			return d.comment
+			return d.Comment
 		}
 	case *typeDescriptor:
 		if sub == 0 {
-			return d.comment
+			return d.Comment
 		}
 	case *relationDescriptor:
 		if sub == 0 {

@@ -149,7 +149,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			return nil, nil, nil, err
 		}
 		parentNS := auth.catalog.MustNamespace(source.namespace)
-		if parentNS.temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
+		if parentNS.Temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.name))
 		}
 		if seen[ref.Address] {

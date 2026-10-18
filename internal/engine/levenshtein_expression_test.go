@@ -36,7 +36,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	ctx := &EvalContext{Context: context.Background()}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Integer()
-	if err != nil || readErr != nil || integer != 10 || n.ref.Address != ext.members[4] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != 10 || n.ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal(value, n.ref, err, readErr)
 	}
 	if err := n.validate(e.CatalogRead()); err != nil {
@@ -78,13 +78,13 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.result = 25 },
-		func(p *procedureDescriptor) { p.signature = "25,25" },
+		func(p *procedureDescriptor) { p.Result = 25 },
+		func(p *procedureDescriptor) { p.Signature = "25,25" },
 		func(p *procedureDescriptor) { p.name = "levenshtein" },
 		func(p *procedureDescriptor) {
-			p.implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
+			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
 		},
-		func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
+		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 	} {
 		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure
@@ -158,7 +158,7 @@ func TestLevenshteinRemap(t *testing.T) {
 	call := levenshteinUnitExpression(t, e)
 	before := e.CatalogRead()
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-	for i, address := range ext.members {
+	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)

@@ -77,7 +77,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		rights := authorization.ACLRights(table.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
-		if f.e.catalog.state.Get(table.address) != table || f.e.catalog.state.MustNamespace(table.namespace).temporary != f.op.session.token || f.e.catalog.state.defaultACLs[scoped] != nil || f.e.catalog.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
+		if f.e.catalog.state.Get(table.address) != table || f.e.catalog.state.MustNamespace(table.namespace).Temporary != f.op.session.token || f.e.catalog.state.defaultACLs[scoped] != nil || f.e.catalog.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
@@ -108,7 +108,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		state := cloneCatalog(target.e.catalog.state)
 		ns := *state.MustNamespace(target.schema)
 		ns.name = "pg_temp_collision"
-		ns.temporary = target.op.session.token
+		ns.Temporary = target.op.session.token
 		state.unbindName(descriptorNameKey(state.Get(target.schema)))
 		state.setDescriptor(target.schema, &ns)
 		state.bindName(descriptorNameKey(&ns), target.schema)
@@ -128,7 +128,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		tempSource := cloneCatalog(source.e.catalog.state)
 		tempNS := *tempSource.MustNamespace(source.schema)
 		tempNS.name = "pg_temp_source"
-		tempNS.temporary = source.op.session.token
+		tempNS.Temporary = source.op.session.token
 		tempSource.unbindName(descriptorNameKey(tempSource.Get(source.schema)))
 		tempSource.setDescriptor(source.schema, &tempNS)
 		tempSource.bindName(descriptorNameKey(&tempNS), source.schema)

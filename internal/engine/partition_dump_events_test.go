@@ -14,7 +14,7 @@ import (
 
 func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
+	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	for _, table := range []*relationDescriptor{f.root, f.leaf} {
 		table.Columns = append(slices.Clone(table.Columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.Attributes = append(slices.Clone(table.Attributes), 99)
@@ -45,7 +45,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 		f.view.state.setDescriptor(d.address, d)
 		f.view.state.bindName(descriptorNameKey(d), d.address)
 	}
-	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).typ
+	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).SQLType
 	f.leaf.CheckConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
 	values := make([]sqltype.Value, len(f.leaf.Columns))
 	for i, column := range f.leaf.Columns {

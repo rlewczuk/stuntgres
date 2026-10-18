@@ -30,7 +30,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view.state = cloneCatalog(view.state)
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &relationDescriptor{
 		address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		Columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},

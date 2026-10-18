@@ -69,7 +69,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 					t.Fatal("promoted final fence lost", err)
 				}
 			} else {
-				if err != nil || domainUnitType(t, e.CatalogRead(), "d").domainChecks[0].NotValid {
+				if err != nil || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid {
 					t.Fatal("promoted private validity not installed", err)
 				}
 				table := catalogRef(t, e, e.CatalogRead(), "stored")

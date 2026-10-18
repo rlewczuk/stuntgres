@@ -26,7 +26,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			continue
 		}
 		ns := base.MustNamespace(table.namespace)
-		if ns.temporary != op.session.token {
+		if ns.Temporary != op.session.token {
 			continue
 		}
 		if table.OnCommit == parser.OnCommitDrop {

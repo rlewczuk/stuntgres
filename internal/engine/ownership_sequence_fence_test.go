@@ -69,7 +69,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		// this is the package overlay seam, not new database SQL admission.
 		changes = newCatalogChanges()
 		database := *committed.(*databaseDescriptor)
-		database.owner, database.revision = actor, database.revision+1
+		database.Owner, database.revision = actor, database.revision+1
 		changes.descriptors[currentDatabaseAddress] = &database
 		changes.originals[currentDatabaseAddress] = committed
 	}
@@ -108,7 +108,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				dbRole := auth.roles.LookupRef("pg_database_owner")
 				old := auth.catalog.MustRelation(ref.Address)
 				selectedDB := auth.catalog.Get(currentDatabaseAddress)
-				if old.Owner != dbRole || old.Owner == actor.Ref || selectedDB.(*databaseDescriptor).owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
+				if old.Owner != dbRole || old.Owner == actor.Ref || selectedDB.(*databaseDescriptor).Owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical paired selected DB ownership authority")
 				}
 				if private && selectedDB == committed {
@@ -178,9 +178,9 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					if private {
 						// Even equal owner identities cannot excuse replacing the
 						// exact installed predecessor of a distinct private view.
-						database.owner = actor.Ref
+						database.Owner = actor.Ref
 					} else {
-						database.owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+						database.Owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.revision++
 					if err := stage.Replace(&database); err != nil {

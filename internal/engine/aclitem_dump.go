@@ -69,7 +69,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 		if !ok {
 			continue
 		}
-		if ns, ok := catalog.Namespace(relation.namespace); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := catalog.Namespace(relation.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if relation.RelationKind == catalogRelation {

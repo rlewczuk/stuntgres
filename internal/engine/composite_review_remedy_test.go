@@ -94,13 +94,13 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := stage.descriptors[original.Address()].(*typeDescriptor)
-	if len(next.domainChecks) != 1 || next.domainChecks[0].Name != "keep_check" || next.domainChecks[0].OID != original.domainChecks[1].OID || next.typ.ID() != original.typ.ID() || next.typ.DomainBase() != original.typ.DomainBase() {
+	if len(next.DomainChecks) != 1 || next.DomainChecks[0].Name != "keep_check" || next.DomainChecks[0].OID != original.DomainChecks[1].OID || next.SQLType.ID() != original.SQLType.ID() || next.SQLType.DomainBase() != original.SQLType.DomainBase() {
 		t.Fatal("wrong owner or constraint pruned")
 	}
-	if len(original.domainChecks) != 2 || next.typ == original.typ {
+	if len(original.DomainChecks) != 2 || next.SQLType == original.SQLType {
 		t.Fatal("original domain authority mutated")
 	}
-	if !next.typ.HasDomainChecks() {
+	if !next.SQLType.HasDomainChecks() {
 		t.Fatal("surviving CHECK lost codec authority")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -111,13 +111,13 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if e.CatalogRead().state != before.state {
 		t.Fatal("private pruning published")
 	}
-	if err := stage.removeDomainCheck(next, next.domainChecks[0].OID); err != nil {
+	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.descriptors[original.Address()].(*typeDescriptor).domainChecks) != 0 || len(next.domainChecks) != 1 {
+	if len(stage.descriptors[original.Address()].(*typeDescriptor).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
 		t.Fatal("last removal mutated surviving capture")
 	}
-	if stage.descriptors[original.Address()].(*typeDescriptor).typ.HasDomainChecks() {
+	if stage.descriptors[original.Address()].(*typeDescriptor).SQLType.HasDomainChecks() {
 		t.Fatal("empty CHECK owner retained codec authority")
 	}
 }

@@ -23,7 +23,7 @@ func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ids.Obje
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "protected"})
 	ns := e.catalog.domain.Ref(view.Epoch(), address)
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.MustNamespace(address).owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.MustNamespace(address).Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}

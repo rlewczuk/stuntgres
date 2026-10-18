@@ -23,8 +23,8 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
 	if extension, ok := object.(*extensionDescriptor); ok {
-		namespace, ok := view.Namespace(extension.targetNamespace)
-		if !ok || namespace.temporary != (ids.SessionToken{}) {
+		namespace, ok := view.Namespace(extension.TargetNamespace)
+		if !ok || namespace.Temporary != (ids.SessionToken{}) {
 			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
 		}
 		return extension.address.ObjectID, nil
@@ -33,7 +33,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		if operator.seeded() {
 			return 0, nil
 		}
-		if operator.function != 0 {
+		if operator.Function != 0 {
 			return operator.address.ObjectID, nil
 		}
 		if source := operatorShellGenerator(view, operator); source != nil {
@@ -42,28 +42,28 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		return operator.address.ObjectID, nil
 	}
 	if proc, ok := object.(*procedureDescriptor); ok {
-		ext, ok := view.Extension(proc.extension)
+		ext, ok := view.Extension(proc.Extension)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")
 		}
 		return ext.address.ObjectID, nil
 	}
 	if dictionary, ok := object.(*tsDictionaryDescriptor); ok {
-		return dumpPredecessor(view, dictionary.extension, consumer)
+		return dumpPredecessor(view, dictionary.Extension, consumer)
 	}
 	if typ, ok := object.(*typeDescriptor); ok {
-		if typ.typ.IsArray() {
-			return dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.typ.Element().ID())}, consumer)
+		if typ.SQLType.IsArray() {
+			return dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())}, consumer)
 		}
-		if typ.extension != (ids.ObjectAddress{}) {
-			return dumpPredecessor(view, typ.extension, consumer)
+		if typ.Extension != (ids.ObjectAddress{}) {
+			return dumpPredecessor(view, typ.Extension, consumer)
 		}
-		if typ.owningRelation == (ids.ObjectAddress{}) && typ.typ.IsUserDefined() {
+		if typ.OwningRelation == (ids.ObjectAddress{}) && typ.SQLType.IsUserDefined() {
 			return typ.Address().ObjectID, nil
 		}
 	}
-	if typ, ok := object.(*typeDescriptor); ok && typ.owningRelation != (ids.ObjectAddress{}) {
-		object, exists = view.Descriptor(typ.owningRelation)
+	if typ, ok := object.(*typeDescriptor); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
+		object, exists = view.Descriptor(typ.OwningRelation)
 		if !exists {
 			return 0, fmt.Errorf("stuntgres: missing row type dump owner")
 		}
@@ -108,7 +108,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		source = table
 	}
 	namespace, exists := view.Namespace(source.namespace)
-	if !exists || namespace.temporary != (ids.SessionToken{}) {
+	if !exists || namespace.Temporary != (ids.SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}
 	if source.address == consumer && source.RelationKind != viewRelation {

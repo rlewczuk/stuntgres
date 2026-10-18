@@ -24,7 +24,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 	userType := func(name string) *sqltype.Descriptor {
 		for _, d := range catalog.Descriptors() {
 			if typ, ok := d.(*typeDescriptor); ok && typ.Name() == name {
-				return typ.typ
+				return typ.SQLType
 			}
 		}
 		t.Fatal("missing witness type", name)

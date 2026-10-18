@@ -169,12 +169,12 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	address := base.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_cleanup_e"})
 	typ := base.MustType(address)
 	setup := e.BeginCatalogStage(base)
-	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)}} {
+	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)}} {
 		old := base.MustType(a)
 		next := *old
 		next.revision++
-		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
-		next.aclSyntheticDefault = false
+		next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
+		next.ACLSyntheticDefault = false
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
@@ -198,10 +198,10 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)}} {
+	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)}} {
 		old := base.MustType(a)
 		next := e.catalog.state.MustType(a)
-		if next.owner != owner || next.typ != old.typ || next.array != old.array || next.owningRelation != old.owningRelation || len(next.acl.Entries) != 0 || len(old.acl.Entries) != 2 {
+		if next.Owner != owner || next.SQLType != old.SQLType || next.Array != old.Array || next.OwningRelation != old.OwningRelation || len(next.ACL.Entries) != 0 || len(old.ACL.Entries) != 2 {
 			t.Fatal("type ACL cleanup broke owner/reciprocity/retained signature", a)
 		}
 	}

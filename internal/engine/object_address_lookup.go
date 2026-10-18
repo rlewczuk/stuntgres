@@ -391,7 +391,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	case 2606:
 		if kind == "domain constraint" {
 			if domain, ok := view.Type(ids.ObjectAddress{ClassID: 1247, ObjectID: ids.OID(typeID)}); ok {
-				for _, check := range domain.domainChecks {
+				for _, check := range domain.DomainChecks {
 					if check.Name == args[0] {
 						a.ObjectID = check.OID
 						return a, nil

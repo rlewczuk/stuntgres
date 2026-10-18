@@ -33,7 +33,7 @@ func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name stri
 			if d.namespace != ns {
 				continue
 			}
-			signature := operatorSignature{d.left, d.right}
+			signature := operatorSignature{d.Left, d.Right}
 			if !seen[signature] {
 				seen[signature] = true
 				result = append(result, d)
@@ -199,7 +199,7 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 		return 0, err
 	}
 	for _, d := range candidates {
-		if d.left == oids[0] && d.right == oids[1] {
+		if d.Left == oids[0] && d.Right == oids[1] {
 			return uint32(d.address.ObjectID), nil
 		}
 	}

@@ -88,12 +88,12 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("SQL-order JSON/base and physical result usages", call)
 			}
 			captured, err := expressionRoutineDescriptor(call)
-			if err != nil || captured == nil || captured.builtin == nil {
+			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
+			declaration := captured.Builtin
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.revision == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.kind != functionRoutine || declaration.result != tc.result || declaration.strict != tc.strict || declaration.volatility != expr.Stable || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.variadic != 0 || int(declaration.defaults) != tc.defaults || declaration.providers&jsonRoutineProvider == 0 {
@@ -214,7 +214,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = !captured.strict
+			replacement.Strict = !captured.Strict
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed

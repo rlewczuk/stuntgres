@@ -36,7 +36,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			return err
 		}
 		read := e.stageRead(stage)
-		if read.MustNamespace(table.namespace).temporary != (ids.SessionToken{}) {
+		if read.MustNamespace(table.namespace).Temporary != (ids.SessionToken{}) {
 			options.persistence = "temporary"
 		}
 		name := ownedSequenceName(table.name, table.Columns[slot].Name, func(name string) bool {

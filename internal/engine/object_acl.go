@@ -228,7 +228,7 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 		}
 		return authorization.ACLValue{}, nil
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.aclSyntheticDefault {
+	if typ, ok := d.(*typeDescriptor); ok && typ.ACLSyntheticDefault {
 		return authorization.ACLValue{}, nil
 	}
 	_, acl, _ := descriptorACL(d)

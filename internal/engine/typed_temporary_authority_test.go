@@ -23,7 +23,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					defer done()
 					before := e.CatalogRead()
 					oldType := before.MustType(observed)
-					oldBacking := before.Get(source.owningRelation)
+					oldBacking := before.Get(source.OwningRelation)
 					roles, sessionRevision := e.roles.revision, reader.session.authorization.revision
 					explicit := mode == "explicit_temporary"
 					if explicit {
@@ -75,7 +75,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					changed := current.MustType(observed)
-					if current.state != winner || current.Epoch() != before.Epoch() || changed.typ != oldType.typ || current.Get(source.owningRelation) != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.acl, oldType.acl) {
+					if current.state != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
 					for _, d := range current.Descriptors() {
@@ -123,13 +123,13 @@ func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func
 	sourceRelation := e.CatalogRead().MustRelation(backing.Address)
 	source := e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceRelation.RowType)})
 	reader, done := roleOperation(t, e, "typed_reader")
-	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, source.Address(), grant)
 	source = e.CatalogRead().MustType(source.Address())
 	observed := source.Address()
 	if member {
 		memberType := e.CatalogRead().MustType(memberAddress)
-		grant.Entries[0].Grantor = memberType.owner
+		grant.Entries[0].Grantor = memberType.Owner
 		typedReviewTypeACL(t, e, memberAddress, grant)
 		observed = memberAddress
 	}

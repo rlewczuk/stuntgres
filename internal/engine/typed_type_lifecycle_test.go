@@ -88,16 +88,16 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 		t.Fatal("attachment/own-row identity lost", imported)
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.RowType)})
-	if row.owningRelation != imported.address || row.typ.CompositeMember(1).Attribute != 7 || row.typ.CompositeMember(1).Name != "note" {
+	if row.OwningRelation != imported.address || row.SQLType.CompositeMember(1).Attribute != 7 || row.SQLType.CompositeMember(1).Name != "note" {
 		t.Fatal("imported own-row codec lost reciprocity", row)
 	}
-	array, ok := view.LookupArray(row.typ)
-	if !ok || !array.Concrete() || array.Element() != row.typ {
+	array, ok := view.LookupArray(row.SQLType)
+	if !ok || !array.Concrete() || array.Element() != row.SQLType {
 		t.Fatal("imported executable array lost reciprocal generation", array)
 	}
 	oldRow, _ := before.LookupType(table.RowType)
 	oldArray, _ := before.LookupArray(oldRow)
-	if !oldArray.Concrete() || array == oldArray || row.typ == oldRow {
+	if !oldArray.Concrete() || array == oldArray || row.SQLType == oldRow {
 		t.Fatal("imported composite/array borrowed foreign codec")
 	}
 	if source.CatalogRead().state != before.state || before.Get(original.address) != original || before.Get(table.address) != table {

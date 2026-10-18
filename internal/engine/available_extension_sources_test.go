@@ -53,8 +53,8 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		}
 		row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
 		array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array})
-		ownedArray, ok := e.CatalogRead().LookupArray(row.typ)
-		if !ok || ownedArray != array.typ || row.array != sqltype.ID(spec.array) || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+		ownedArray, ok := e.CatalogRead().LookupArray(row.SQLType)
+		if !ok || ownedArray != array.SQLType || row.Array != sqltype.ID(spec.array) || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
 		}
 		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
@@ -140,7 +140,7 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	state.names = maps.Clone(e.catalog.state.names)
 	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := *state.MustExtension(address)
-	ext.version = "available-unknown"
+	ext.Version = "available-unknown"
 	state.setDescriptor(address, &ext)
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 	// A private installed descriptor with no registered package is not a row.
@@ -158,7 +158,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	empty, schema := "", "fixed_control_schema"
 	metadata := extensionControl{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &empty, schema: &schema, requires: []string{"first", "quote\"name", "comma,name"}}
 	// Metadata-only projection input, not a new registry entry or provider.
-	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{version: "1.1", targetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
+	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}

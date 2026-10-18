@@ -73,10 +73,10 @@ func (e *Engine) initializeBuiltinRoutineBodies() {
 			panic("stuntgres: missing genuine SQL body declaration")
 		}
 		storage[i] = routineBodyEdge{inner, edge.demand}
-		if len(outer.body) == 0 {
-			outer.body = storage[i : i+1 : i+1]
+		if len(outer.Body) == 0 {
+			outer.Body = storage[i : i+1 : i+1]
 		} else {
-			outer.body = storage[i-len(outer.body) : i+1 : i+1]
+			outer.Body = storage[i-len(outer.Body) : i+1 : i+1]
 		}
 	}
 }
@@ -115,9 +115,9 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 		return err
 	}
 	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
-	for _, edge := range outer.body {
+	for _, edge := range outer.Body {
 		if bodyCastMatches(edge, argument) {
-			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.builtin); err != nil {
+			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.Builtin); err != nil {
 				return err
 			}
 		}
@@ -126,14 +126,14 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 }
 
 func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error {
-	for _, edge := range outer.body {
+	for _, edge := range outer.Body {
 		if edge.demand == bodyBooleanText || edge.demand == bodyNetworkText {
 			continue
 		}
-		if edge.routine == nil || edge.routine.builtin == nil {
+		if edge.routine == nil || edge.routine.Builtin == nil {
 			return fmt.Errorf("stuntgres: invalid SQL body declaration")
 		}
-		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.builtin); err != nil {
+		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.Builtin); err != nil {
 			return err
 		}
 	}
@@ -144,7 +144,7 @@ func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error 
 // invocation. Only instance-selected polymorphic cast identities participate.
 func walkRoutineBody(outer *procedureDescriptor, node expr.Expr, visit func(*procedureDescriptor) error) error {
 	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
-	for _, edge := range outer.body {
+	for _, edge := range outer.Body {
 		if (edge.demand == bodyBooleanText || edge.demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
 			continue
 		}

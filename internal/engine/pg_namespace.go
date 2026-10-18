@@ -29,7 +29,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		}
 	}
 	database, ok := catalog.Database(currentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.owner {
+	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
 	count := 0
@@ -53,21 +53,21 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if address != ns.address {
 			return nil, fmt.Errorf("stuntgres: invalid namespace address authority")
 		}
-		if _, err := roles.Descriptor(ns.owner); err != nil {
+		if _, err := roles.Descriptor(ns.Owner); err != nil {
 			return nil, err
 		}
-		if ns.owner.ID() > math.MaxUint32 {
+		if ns.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable namespace owner")
 		}
 		oid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(ns.address.ObjectID))
 		if err != nil {
 			return nil, err
 		}
-		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(ns.owner.ID()))
+		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(ns.Owner.ID()))
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, ns.acl)
+		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, ns.ACL)
 		if err != nil {
 			return nil, err
 		}

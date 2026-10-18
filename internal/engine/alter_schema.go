@@ -55,7 +55,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
 	}
-	if auth.catalog.MustNamespace(old.namespace).temporary != (ids.SessionToken{}) {
+	if auth.catalog.MustNamespace(old.namespace).Temporary != (ids.SessionToken{}) {
 		return fail(sqlError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.namespace {

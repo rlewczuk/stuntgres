@@ -64,7 +64,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical not-null namespace")
 		}
-		if namespace.temporary != (ids.SessionToken{}) {
+		if namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		old, ok := previous[address].(*relationDescriptor)

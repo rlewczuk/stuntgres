@@ -63,7 +63,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 }
 func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *extensionDescriptor) *relationDescriptor {
 	t.Helper()
-	name := e.catalog.state.Get(ext.targetNamespace).Name()
+	name := e.catalog.state.Get(ext.TargetNamespace).Name()
 	for _, q := range []string{
 		fmt.Sprintf("CREATE TABLE public.ext_survivor(id INT,txt TEXT DEFAULT %s.unaccent('Hôtel'::text),CONSTRAINT ext_check CHECK(%s.unaccent(txt)=txt))", name, name),
 		"CREATE INDEX ext_survivor_id ON public.ext_survivor(id)",
@@ -78,7 +78,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext
 func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) (*CatalogStage, *temporarySessionIndexes) {
 	t.Helper()
 	base := e.CatalogRead()
-	targets, err := namespaceChildren(base, map[ids.ObjectAddress]bool{ext.targetNamespace: true})
+	targets, err := namespaceChildren(base, map[ids.ObjectAddress]bool{ext.TargetNamespace: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,18 +104,18 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) 
 }
 func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *extensionDescriptor) {
 	t.Helper()
-	namespace, ok := e.catalog.state.Namespace(ext.targetNamespace)
+	namespace, ok := e.catalog.state.Namespace(ext.TargetNamespace)
 	if !ok {
 		t.Fatal("physical end removed retained TEMP namespace metadata")
 	}
-	assertTemporaryNamespacePair(t, e, namespace.temporary, namespace.address)
-	for _, address := range append([]ids.ObjectAddress{ext.address}, ext.members[:]...) {
+	assertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.address)
+	for _, address := range append([]ids.ObjectAddress{ext.address}, ext.Members[:]...) {
 		if e.catalog.state.Get(address) != nil {
 			t.Fatal("retired provider identity retained", address)
 		}
 	}
 	for key, address := range e.catalog.state.Names() {
-		if address == ext.address || slices.Contains(ext.members[:], address) || key.Namespace == ext.targetNamespace {
+		if address == ext.address || slices.Contains(ext.Members[:], address) || key.Namespace == ext.TargetNamespace {
 			t.Fatal("retired signature/name retained", key)
 		}
 	}
@@ -124,7 +124,7 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *extensionDescripto
 		t.Fatal(err)
 	}
 	for _, edge := range edges {
-		if edge.referenced == ext.address || edge.dependent == ext.address || slices.Contains(ext.members[:], edge.referenced) || slices.Contains(ext.members[:], edge.dependent) {
+		if edge.referenced == ext.address || edge.dependent == ext.address || slices.Contains(ext.Members[:], edge.referenced) || slices.Contains(ext.Members[:], edge.dependent) {
 			t.Fatal("dangling retirement edge", edge)
 		}
 	}
@@ -160,7 +160,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	roleExecute(t, e, installer, "CREATE VIEW public.ext_late AS SELECT v FROM public.ext_chain")
 	e.mu.Lock()
-	installed, err := e.installTemporarySessionStageLocked(owner.session, stage, []ids.ObjectAddress{ext.targetNamespace}, indexes)
+	installed, err := e.installTemporarySessionStageLocked(owner.session, stage, []ids.ObjectAddress{ext.TargetNamespace}, indexes)
 	e.mu.Unlock()
 	if err != nil || installed {
 		t.Fatal("late dependent bypassed whole-root fence", installed, err)
@@ -199,7 +199,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		closeOwner()
 		extensionTemporaryGoneUnit(t, e, ext)
 		for _, d := range e.catalog.state.Descriptors() {
-			if d.Namespace() == ext.targetNamespace {
+			if d.Namespace() == ext.TargetNamespace {
 				t.Fatal("mixed provider retirement left a child", d.Address())
 			}
 		}
@@ -278,7 +278,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		original := e.catalog.state
 		e.mu.Lock()
 		broken := cloneCatalog(original)
-		broken.removeDescriptor(ext.members[4])
+		broken.removeDescriptor(ext.Members[4])
 		e.catalog.state = broken
 		e.mu.Unlock()
 		t.Cleanup(func() { e.mu.Lock(); e.catalog.state = original; e.mu.Unlock() })
@@ -299,7 +299,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 }
 func TestExtensionTemporaryLookup(t *testing.T) {
 	e, owner, installer, ext, _ := extensionTemporaryInstalled(t)
-	namespace := e.catalog.state.MustNamespace(ext.targetNamespace)
+	namespace := e.catalog.state.MustNamespace(ext.TargetNamespace)
 	roleExecute(t, e, owner, "SET search_path TO "+namespace.name)
 	roleExecute(t, e, installer, "SET search_path TO "+namespace.name)
 	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.name}, {Text: "unaccent"}}}
@@ -436,7 +436,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if _, err := replaceWithFreshCatalog(context.Background(), target); err != nil {
 			t.Fatal(err)
 		}
-		if target.catalog.state.Get(installed.address) != installed || installed.owner != actor.Ref {
+		if target.catalog.state.Get(installed.address) != installed || installed.Owner != actor.Ref {
 			t.Fatal("replacement substituted named TEMP owner authority")
 		}
 		before := target.roles
@@ -454,16 +454,16 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		}
 	})
 	e, owner, installer, ext, _ := extensionTemporaryInstalled(t)
-	namespaceName := e.catalog.state.Get(ext.targetNamespace).Name()
+	namespaceName := e.catalog.state.Get(ext.TargetNamespace).Name()
 	roleExecute(t, e, owner, "CREATE TEMP TABLE ext_retained_local(v TEXT DEFAULT "+namespaceName+".unaccent('Hôtel'::text),CHECK("+namespaceName+".unaccent(v)=v))")
 	roleExecute(t, e, owner, "CREATE TEMP VIEW ext_retained_view AS SELECT "+namespaceName+".unaccent('Hôtel'::text) AS v")
-	localAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.targetNamespace, Name: "ext_retained_local"})
-	viewAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.targetNamespace, Name: "ext_retained_view"})
+	localAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.TargetNamespace, Name: "ext_retained_local"})
+	viewAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.TargetNamespace, Name: "ext_retained_view"})
 	local := e.catalog.state.MustRelation(localAddress)
 	retainedView := e.catalog.state.MustRelation(viewAddress)
 	var procedureRef ids.ObjectRef
 	for ref := range viewOf(retainedView).references {
-		if ref.Address == ext.members[1] {
+		if ref.Address == ext.Members[1] {
 			procedureRef = ref
 		}
 	}
@@ -474,11 +474,11 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	sourceOp, closeSource := extensionTemporaryOperation(t, source, "postgres")
 	defer closeSource()
 	source.mu.Lock()
-	source.catalog.nextOID = ext.members[1].ObjectID
+	source.catalog.nextOID = ext.Members[1].ObjectID
 	source.mu.Unlock()
 	roleExecute(t, source, sourceOp, "CREATE SCHEMA ext_imported")
 	collision := source.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ext_imported"})
-	if collision.ObjectID != ext.members[1].ObjectID {
+	if collision.ObjectID != ext.Members[1].ObjectID {
 		t.Fatal("setup did not create genuine cross-class identity collision")
 	}
 	original := e.catalog.state
@@ -499,7 +499,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal("destination TEMP overlay", err)
 	}
-	for _, address := range append([]ids.ObjectAddress{ext.address, ext.targetNamespace}, ext.members[:]...) {
+	for _, address := range append([]ids.ObjectAddress{ext.address, ext.TargetNamespace}, ext.Members[:]...) {
 		if e.catalog.state.Get(address) != original.Get(address) {
 			t.Fatal("retained provider identity changed", address)
 		}
@@ -507,7 +507,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if e.catalog.state.NameAddress(descriptorNameKey(ext)) != ext.address {
 		t.Fatal("global TEMP extension name lost")
 	}
-	for _, member := range ext.members {
+	for _, member := range ext.Members {
 		d := e.catalog.state.Get(member)
 		if e.catalog.state.NameAddress(descriptorNameKey(d)) != member {
 			t.Fatal("signature key lost", member)
@@ -532,15 +532,15 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		t.Fatal("compatible COW procedure metadata lost captured view lifetime")
 	}
 	invalidProcedure := procedureCopy
-	invalidProcedure.strict = !invalidProcedure.strict
+	invalidProcedure.Strict = !invalidProcedure.Strict
 	substituted.setDescriptor(procedureRef.Address, &invalidProcedure)
 	if storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
-	foreignNamespace := *e.catalog.state.MustNamespace(ext.targetNamespace)
-	foreignNamespace.temporary = installer.session.token
+	foreignNamespace := *e.catalog.state.MustNamespace(ext.TargetNamespace)
+	foreignNamespace.Temporary = installer.session.token
 	foreign := cloneCatalog(e.catalog.state)
-	foreign.setDescriptor(ext.targetNamespace, &foreignNamespace)
+	foreign.setDescriptor(ext.TargetNamespace, &foreignNamespace)
 	if storedViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
 		t.Fatal("foreign physical namespace token substituted retained procedure authority")
 	}
@@ -581,7 +581,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		t.Fatal("canceled replacement published")
 	}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, installer, nil)
-	name := e.catalog.state.Get(ext.targetNamespace).Name()
+	name := e.catalog.state.Get(ext.TargetNamespace).Name()
 	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
 	if err != nil {
 		t.Fatal(err)

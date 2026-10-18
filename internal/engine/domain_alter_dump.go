@@ -20,7 +20,7 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 	}
 	for oid, domain := range domains {
 		event := dumpEventKey{oid: oid, phase: dumpDomainChecks}
-		for _, check := range domain.domainChecks {
+		for _, check := range domain.DomainChecks {
 			if !check.NotValid {
 				continue
 			}
@@ -54,13 +54,13 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 }
 
 func domainInvalidDumpStatement(ctx context.Context, view CatalogRead, domain *typeDescriptor) (string, error) {
-	qualified, err := catalogTypeDeclaration(view, domain.typ.Usage())
+	qualified, err := catalogTypeDeclaration(view, domain.SQLType.Usage())
 	if err != nil {
 		return "", err
 	}
-	base := domain.typ.DomainBase()
+	base := domain.SQLType.DomainBase()
 	var text strings.Builder
-	for _, check := range domain.domainChecks {
+	for _, check := range domain.DomainChecks {
 		if !check.NotValid {
 			continue
 		}
@@ -115,18 +115,18 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 		return reject()
 	}
 	domain, ok := auth.catalog.Type(created.Address)
-	if !ok || !domain.typ.IsDomain() {
+	if !ok || !domain.SQLType.IsDomain() {
 		return reject()
 	}
 	namespace, ok := auth.catalog.Namespace(domain.namespace)
-	if !ok || namespace.temporary != (ids.SessionToken{}) {
+	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 	if err != nil {
 		return restoredDomainOwner{}, err
 	}
-	if !actor.Superuser || domain.owner != actor.Ref || owner == actor.Ref {
+	if !actor.Superuser || domain.Owner != actor.Ref || owner == actor.Ref {
 		return reject()
 	}
 	if _, err := auth.roles.Descriptor(owner); err != nil {

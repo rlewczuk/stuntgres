@@ -62,7 +62,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			next.setDescriptor(index.address, &index)
 			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
 			typeDefinition := *next.MustType(typeAddress)
-			typeDefinition.typ = current
+			typeDefinition.SQLType = current
 			next.setDescriptor(typeAddress, &typeDefinition)
 			typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == oldUsage.Type {

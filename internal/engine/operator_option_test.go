@@ -256,11 +256,11 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	staged := e.stageRead(stage)
 	next := staged.MustOperator(source.address)
 	reciprocal := staged.MustOperator(peer.address)
-	if next.commutator != peer.address.ObjectID || next.negator != peer.address.ObjectID || !next.hash || !next.merge ||
-		reciprocal.commutator != source.address.ObjectID || reciprocal.negator != source.address.ObjectID {
+	if next.Commutator != peer.address.ObjectID || next.Negator != peer.address.ObjectID || !next.Hash || !next.Merge ||
+		reciprocal.Commutator != source.address.ObjectID || reciprocal.Negator != source.address.ObjectID {
 		t.Fatal("staged roots lost one link kind", next, reciprocal)
 	}
-	if source.commutator != 0 || source.negator != 0 || peer.commutator != 0 || peer.negator != 0 || e.CatalogRead().state != auth.catalog.state {
+	if source.Commutator != 0 || source.Negator != 0 || peer.Commutator != 0 || peer.Negator != 0 || e.CatalogRead().state != auth.catalog.state {
 		t.Fatal("private reciprocal updates changed published roots")
 	}
 	collationUnitPublish(t, e, stage)
@@ -422,9 +422,9 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	staged := e.stageRead(stage)
 	source := staged.MustOperator(staged.NameAddress(key("#=#")))
 	shell := staged.MustOperator(staged.NameAddress(key("#!#")))
-	if source.commutator != shell.address.ObjectID || source.negator != shell.address.ObjectID ||
-		shell.commutator != source.address.ObjectID || shell.negator != source.address.ObjectID ||
-		shell.function != 0 || shell.result != 0 || shell.owner != auth.state.CurrentUser {
+	if source.Commutator != shell.address.ObjectID || source.Negator != shell.address.ObjectID ||
+		shell.Commutator != source.address.ObjectID || shell.Negator != source.address.ObjectID ||
+		shell.Function != 0 || shell.Result != 0 || shell.Owner != auth.state.CurrentUser {
 		t.Fatal("same forward shell lost identity, owner or one reciprocal kind", source, shell)
 	}
 	if e.CatalogRead().state != before || before.NameAddress(key("#=#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#!#")) != (ids.ObjectAddress{}) {
@@ -437,9 +437,9 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	completion.Options = append(completion.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#=#)")...)
 	stage = operatorUnitStage(t, e, op, auth, completion)
 	completed := e.stageRead(stage).MustOperator(shell.address)
-	if completed.address != shell.address || completed.function != 144 || completed.result != 16 ||
-		completed.owner != auth.state.CurrentUser || completed.commutator != completed.address.ObjectID ||
-		completed.negator != source.address.ObjectID {
+	if completed.address != shell.address || completed.Function != 144 || completed.Result != 16 ||
+		completed.Owner != auth.state.CurrentUser || completed.Commutator != completed.address.ObjectID ||
+		completed.Negator != source.address.ObjectID {
 		t.Fatal("shell completion lost stable identity or self/peer links", completed)
 	}
 	if *source != sourceBefore || *shell != shellBefore || e.CatalogRead().state != auth.catalog.state {
@@ -464,8 +464,8 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	staged = e.stageRead(stage)
 	privateSource := staged.MustOperator(staged.NameAddress(key("#?#")))
 	privateShell := staged.MustOperator(staged.NameAddress(key("#@#")))
-	if privateSource.commutator != privateShell.address.ObjectID || privateShell.commutator != privateSource.address.ObjectID ||
-		privateShell.function != 0 || privateShell.result != 0 {
+	if privateSource.Commutator != privateShell.address.ObjectID || privateShell.Commutator != privateSource.address.ObjectID ||
+		privateShell.Function != 0 || privateShell.Result != 0 {
 		t.Fatal("failure did not retain the expected private reciprocal stage", privateSource, privateShell)
 	}
 	e.DiscardCatalogStage(stage)

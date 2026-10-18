@@ -33,7 +33,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			var carried *namespaceDescriptor
 			if prior {
 				scope.catalog = newCatalogChanges()
-				carried = &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, name: "private_carried", owner: e.authorizationDomain.Principal(10), revision: 1}
+				carried = &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, name: "private_carried", Owner: e.authorizationDomain.Principal(10), revision: 1}
 				e.catalogChangeLocked(scope.catalog, carried.address, carried)
 			}
 			auth, path, err := scope.schemaInquiryPathLocked(e)
@@ -61,7 +61,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			boolType, _ := auth.catalog.LookupType(sqltype.Bool)
 			var toast ids.ObjectAddress
 			for a, d := range candidate.descriptors {
-				if n, ok := d.(*namespaceDescriptor); ok && n.temporaryToast && n.temporary == s.token {
+				if n, ok := d.(*namespaceDescriptor); ok && n.TemporaryToast && n.Temporary == s.token {
 					toast = a
 				}
 			}

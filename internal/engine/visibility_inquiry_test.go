@@ -35,8 +35,8 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	// name candidates, without admitting unsupported native collation DDL.
 	a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20001}
 	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	first := &collationDescriptor{oid: 1, name: "same", encoding: -1}
-	second := &collationDescriptor{oid: 2, name: "same", encoding: 6}
+	first := &collationDescriptor{OID: 1, name: "same", Encoding: -1}
+	second := &collationDescriptor{OID: 2, name: "same", Encoding: 6}
 	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, names: map[ids.NameKey]ids.ObjectAddress{
 		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
@@ -45,7 +45,7 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	if !visibleCollation(view, []ids.ObjectAddress{a, b}, first) || visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("later exact beat earlier fallback")
 	}
-	first.encoding = 8
+	first.Encoding = 8
 	if visibleCollation(view, []ids.ObjectAddress{a, b}, first) || !visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("wrong encoding shadowed later usable candidate")
 	}
@@ -69,7 +69,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		}
 	}
 	bad := *view.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950})
-	bad.encoding = 8
+	bad.Encoding = 8
 	if err := (collationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("invalid fixed collation accepted")
 	}

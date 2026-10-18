@@ -36,19 +36,19 @@ func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFuncti
 func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.members) != 10 {
-		t.Fatal("member count", ext.members)
+	if len(ext.Members) != 10 {
+		t.Fatal("member count", ext.Members)
 	}
-	proc := view.MustProcedure(ext.members[0])
-	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != expr.Immutable || !proc.strict || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
+	proc := view.MustProcedure(ext.Members[0])
+	if proc.namespace != ext.TargetNamespace || proc.Extension != ext.address || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
 	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
 	addresses := map[ids.ObjectAddress]bool{}
-	for _, address := range ext.members {
+	for _, address := range ext.Members {
 		member := view.MustProcedure(address)
-		key := member.name + ":" + string(member.signature)
-		if expected[key] == 0 || member.result != expected[key] || addresses[address] || member.owner != proc.owner || member.namespace != ext.targetNamespace || member.extension != ext.address || member.volatility != expr.Immutable || !member.strict || member.fuzzystrmatchProvider() != stockFuzzystrmatch {
+		key := member.name + ":" + string(member.Signature)
+		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.namespace != ext.TargetNamespace || member.Extension != ext.address || member.Volatility != expr.Immutable || !member.Strict || member.fuzzystrmatchProvider() != stockFuzzystrmatch {
 			t.Fatal("selected member identity", member)
 		}
 		delete(expected, key)
@@ -82,14 +82,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("membership edges", members)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.name = "text_soundex" }, func(p *procedureDescriptor) { p.signature = "23" },
-		func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.volatility = expr.Stable },
-		func(p *procedureDescriptor) { p.strict = false }, func(p *procedureDescriptor) { p.implementation = stockUnaccent },
-		func(p *procedureDescriptor) { p.implementation = stockIntarray }, func(p *procedureDescriptor) {
-			p.implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
+		func(p *procedureDescriptor) { p.name = "text_soundex" }, func(p *procedureDescriptor) { p.Signature = "23" },
+		func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Volatility = expr.Stable },
+		func(p *procedureDescriptor) { p.Strict = false }, func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
+		func(p *procedureDescriptor) { p.Implementation = stockIntarray }, func(p *procedureDescriptor) {
+			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
 		},
-		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
-		func(p *procedureDescriptor) { p.dictionary = ext.address }, func(p *procedureDescriptor) { p.revision = 0 },
+		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
+		func(p *procedureDescriptor) { p.Dictionary = ext.address }, func(p *procedureDescriptor) { p.revision = 0 },
 	} {
 		state := cloneCatalog(e.catalog.state)
 		bad := *proc
@@ -101,14 +101,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	}
 	for _, members := range [][]ids.ObjectAddress{nil, {proc.address, proc.address}, {{ClassID: ids.TypeClassID, ObjectID: proc.address.ObjectID}}} {
 		bad := *ext
-		bad.members = members
+		bad.Members = members
 		if err := stockFuzzystrmatch.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("invalid membership admitted", members)
 		}
 	}
 	duplicate := *ext
-	duplicate.members = append([]ids.ObjectAddress(nil), ext.members...)
-	duplicate.members[4] = duplicate.members[1]
+	duplicate.Members = append([]ids.ObjectAddress(nil), ext.Members...)
+	duplicate.Members[4] = duplicate.Members[1]
 	if err := stockFuzzystrmatch.ValidateExtension(view, &duplicate); err == nil {
 		t.Fatal("full-size duplicate inventory admitted")
 	}
@@ -172,12 +172,12 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		if err := stockFuzzystrmatch.ValidateExtension(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
-		member := ext.members[0]
+		member := ext.Members[0]
 		closeOwner()
 		if e.catalog.state.Get(ext.address) != nil || e.catalog.state.Get(member) != nil {
 			t.Fatal("TEMP provider survived owner retirement")
 		}
-		for _, address := range ext.members {
+		for _, address := range ext.Members {
 			if e.catalog.state.Get(address) != nil {
 				t.Fatal("TEMP selected member survived owner retirement", address)
 			}
@@ -205,7 +205,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
-	if n.ref.Address != ext.members[0] || n.dictionary != nil || n.template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
+	if n.ref.Address != ext.Members[0] || n.dictionary != nil || n.template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
 		t.Fatal("captured authority", n)
 	}
 	for i := range value.ArrayLen() {
@@ -234,7 +234,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	}
 	state := cloneCatalog(e.catalog.state)
 	badProcedure := *n.procedure
-	badProcedure.result = 25
+	badProcedure.Result = 25
 	state.setDescriptor(n.ref.Address, &badProcedure)
 	if err := validateGenerationProviders(e.catalog.read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
@@ -309,8 +309,8 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	}
 	imported := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 	mapped, err := remapBoundExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
-		if ref.Address == ext.members[0] {
-			ref.Address = imported.members[0]
+		if ref.Address == ext.Members[0] {
+			ref.Address = imported.Members[0]
 		}
 		ref = target.catalog.domain.Ref(ref.Epoch, ref.Address)
 		ref.Epoch = target.CatalogRead().Epoch()
@@ -333,7 +333,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	v, err := n.Eval(&EvalContext{Context: context.Background()})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
-	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.catalog.state.Get(imported.members[0]) || n.dictionary != nil || n.template != nil {
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.catalog.state.Get(imported.Members[0]) || n.dictionary != nil || n.template != nil {
 		t.Fatal("remapped provider/generations", v, err)
 	}
 	// Foreign import can share immutable builtin TEXT/text[] descriptors.

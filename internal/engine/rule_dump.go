@@ -460,7 +460,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 			continue
 		}
 		ns := view.MustNamespace(d.namespace)
-		if ns.temporary != (ids.SessionToken{}) {
+		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		owner, err := roles.Descriptor(d.Owner)
@@ -491,7 +491,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 				if provider == nil {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 					return nil, fmt.Errorf("stuntgres: dump cannot serialize a rule referencing a temporary relation")
 				}
 			}

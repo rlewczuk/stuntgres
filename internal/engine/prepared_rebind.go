@@ -206,7 +206,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
-		if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.temporary == auth.session.token {
+		if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

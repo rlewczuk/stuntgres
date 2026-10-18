@@ -47,7 +47,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			table := catalogRef(t, e, view, "stored")
 			domain := domainUnitType(t, view, "d")
 			sequence := catalogRef(t, e, view, "calls")
-			if e.sequences[sequence.Address].last != 2 || domain.domainChecks[0].NotValid || e.catalog.state != entry {
+			if e.sequences[sequence.Address].last != 2 || domain.DomainChecks[0].NotValid || e.catalog.state != entry {
 				t.Fatal("selected truth count or private publication", e.sequences[sequence.Address].last)
 			}
 			if kind == "private_create" && (changes.originals[domain.Address()] != nil || changes.storage[table.Address].original != nil) {
@@ -161,10 +161,10 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				}
 				current := domainUnitType(t, e.CatalogRead(), "d")
 				if kind == "own_drop" {
-					if len(current.domainChecks) != 0 {
+					if len(current.DomainChecks) != 0 {
 						t.Fatal("own later DROP lost")
 					}
-				} else if len(current.domainChecks) != 1 || current.domainChecks[0].NotValid {
+				} else if len(current.DomainChecks) != 1 || current.DomainChecks[0].NotValid {
 					t.Fatal("message lost certified flag")
 				}
 				if len(e.storage[table.Address].versions) != 2 {

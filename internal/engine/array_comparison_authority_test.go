@@ -41,7 +41,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	for _, attribute := range table.Attributes {
 		original := table.Defaults[attribute].expression.(scalarArrayComparisonExpression)
 		input, conflict := original.predicate.InputCollation()
-		if input.ID != uint32(source.oid) || conflict || original.ResultUsage().Collation.ID != 0 {
+		if input.ID != uint32(source.OID) || conflict || original.ResultUsage().Collation.ID != 0 {
 			t.Fatal("BOOL result leaked or hid input authority", input, conflict, original.ResultUsage())
 		}
 		mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, remap)
@@ -50,7 +50,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		}
 		node := mapped.(scalarArrayComparisonExpression)
 		input, conflict = node.predicate.InputCollation()
-		if input.ID != uint32(destination.oid) || !input.Valid() || conflict {
+		if input.ID != uint32(destination.OID) || !input.Valid() || conflict {
 			t.Fatal("predicate retained stale collation", input, conflict)
 		}
 		value, err := node.Eval(&EvalContext{Context: context.Background()})

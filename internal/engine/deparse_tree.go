@@ -225,18 +225,18 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		}
 		err = args(n.args)
 	case installedSoundexFunctionExpression:
-		fmt.Fprintf(out, "InstalledSoundex %d %s", n.ref.Address.ObjectID, n.procedure.signature)
+		fmt.Fprintf(out, "InstalledSoundex %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
 	case installedMetaphoneFunctionExpression:
-		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.ref.Address.ObjectID, n.procedure.signature)
+		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
 	case installedLevenshteinFunctionExpression:
-		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.ref.Address.ObjectID, n.procedure.signature)
+		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
 	case installedUUIDOsspFunctionExpression:
 		fmt.Fprintf(out, "InstalledUUIDOssp %d", n.ref.Address.ObjectID)
 	case installedCryptoFunctionExpression:
-		fmt.Fprintf(out, "InstalledCrypto %d %s", n.ref.Address.ObjectID, n.procedure.signature)
+		fmt.Fprintf(out, "InstalledCrypto %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)

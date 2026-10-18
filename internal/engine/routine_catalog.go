@@ -54,9 +54,9 @@ func (e *Engine) initializeBuiltinRoutines() {
 		*d = procedureDescriptor{
 			address:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id},
 			namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.identity.namespace},
-			revision:  1, name: declaration.identity.name, signature: declaration.identity.signature,
-			routineKind: declaration.kind, builtin: declaration, owner: owner,
-			result: declaration.result, volatility: declaration.volatility, strict: declaration.strict,
+			revision:  1, name: declaration.identity.name, Signature: declaration.identity.signature,
+			RoutineKind: declaration.kind, Builtin: declaration, Owner: owner,
+			Result: declaration.result, Volatility: declaration.volatility, Strict: declaration.strict,
 		}
 		e.catalog.state.setDescriptor(d.address, d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.address)
@@ -113,7 +113,7 @@ func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtin
 	view := b.bindingCatalog()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id}
 	d, ok := view.Procedure(address)
-	if !ok || d.builtin != declaration {
+	if !ok || d.Builtin != declaration {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
 	}
 	ref := view.owner.domain.Ref(view.Epoch(), address)

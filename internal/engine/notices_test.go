@@ -444,7 +444,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			if !ok {
 				t.Fatal("public namespace missing")
 			}
-			prior, err := e.Roles().Descriptor(descriptor.(*namespaceDescriptor).owner)
+			prior, err := e.Roles().Descriptor(descriptor.(*namespaceDescriptor).Owner)
 			if err != nil {
 				t.Fatal(err)
 			}

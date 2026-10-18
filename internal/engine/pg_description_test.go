@@ -133,7 +133,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &relationDescriptor{address: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
-	oldState.setDescriptor(namespace, &namespaceDescriptor{address: namespace, comment: "namespace"})
+	oldState.setDescriptor(namespace, &namespaceDescriptor{address: namespace, Comment: "namespace"})
 	oldState.setDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)

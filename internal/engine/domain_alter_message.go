@@ -87,7 +87,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
 				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				shape.fills[attribute], err = reownDomainDatum(value, target.typ, nil, next.scalarImports, next.aclItemImport)
+				shape.fills[attribute], err = reownDomainDatum(value, target.SQLType, nil, next.scalarImports, next.aclItemImport)
 				if err != nil {
 					return err
 				}

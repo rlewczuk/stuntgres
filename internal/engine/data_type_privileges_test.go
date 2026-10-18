@@ -90,7 +90,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	domainUnitPublish(t, f.e, domainUnitStage(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer"))
 	state := cloneCatalog(f.e.catalog.state)
 	domain := *domainUnitType(t, f.e.catalog.read(state), "dtp_ownerless")
-	domain.owner = authorization.PrincipalRef{}
+	domain.Owner = authorization.PrincipalRef{}
 	state.setDescriptor(domain.Address(), &domain)
 	badCatalog := f.e.catalog.read(state)
 	if rows, err := dtpUnitCapture(context.Background(), badCatalog, dtpUnitAuthority(t, f, badCatalog)); rows != nil || err == nil {

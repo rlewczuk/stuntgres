@@ -192,8 +192,8 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if parent.RelationKind != tableRelation {
 		return sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, parent.name))
 	}
-	childTemp := view.MustNamespace(child.namespace).temporary
-	parentTemp := view.MustNamespace(parent.namespace).temporary
+	childTemp := view.MustNamespace(child.namespace).Temporary
+	parentTemp := view.MustNamespace(parent.namespace).Temporary
 	if childTemp != (ids.SessionToken{}) && parentTemp == (ids.SessionToken{}) {
 		return sqlError("42P16", "constraints on temporary tables may reference only temporary tables")
 	}
@@ -363,7 +363,7 @@ func validateForeignKeys(view CatalogRead, child *relationDescriptor, names map[
 		if !eligible {
 			return fmt.Errorf("stuntgres: foreign-key index authority mismatch")
 		}
-		if view.MustNamespace(parent.namespace).temporary != view.MustNamespace(child.namespace).temporary {
+		if view.MustNamespace(parent.namespace).Temporary != view.MustNamespace(child.namespace).Temporary {
 			return fmt.Errorf("stuntgres: foreign-key temporary provenance mismatch")
 		}
 		if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {

@@ -14,13 +14,13 @@ type foreignDescriptor struct {
 	address                             ids.ObjectAddress
 	revision                            ids.DefinitionRevision
 	name                                string
-	owner                               authorization.PrincipalRef
-	acl                                 authorization.ACLValue
-	options                             []ForeignOption
-	wrapper, server, handler, validator ids.ObjectAddress
-	mappedRole                          authorization.PrincipalRef // zero is PUBLIC
-	mappedName                          string                     // diagnostic spelling only; identity is mappedRole
-	serverType, version                 *string
+	Owner                               authorization.PrincipalRef
+	ACL                                 authorization.ACLValue
+	Options                             []ForeignOption
+	Wrapper, Server, Handler, Validator ids.ObjectAddress
+	MappedRole                          authorization.PrincipalRef // zero is PUBLIC
+	MappedName                          string                     // diagnostic spelling only; identity is mappedRole
+	ServerType, Version                 *string
 }
 
 func (d *foreignDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -58,7 +58,7 @@ func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) e
 	}
 	switch p.class {
 	case ids.ForeignWrapperClassID:
-		for _, a := range []ids.ObjectAddress{d.handler, d.validator} {
+		for _, a := range []ids.ObjectAddress{d.Handler, d.Validator} {
 			if a != (ids.ObjectAddress{}) {
 				if _, ok := v.Procedure(a); !ok {
 					return fmt.Errorf("stuntgres: missing SQL/MED procedure identity")
@@ -66,13 +66,13 @@ func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) e
 			}
 		}
 	case ids.ForeignServerClassID:
-		w, ok := v.Foreign(d.wrapper)
+		w, ok := v.Foreign(d.Wrapper)
 		if !ok || w.address.ClassID != ids.ForeignWrapperClassID {
 			return fmt.Errorf("stuntgres: missing foreign-data wrapper")
 		}
 	case ids.ForeignMappingClassID:
-		s, ok := v.Foreign(d.server)
-		if !ok || s.address.ClassID != ids.ForeignServerClassID || d.name != foreignMappingName(d.server, d.mappedRole) {
+		s, ok := v.Foreign(d.Server)
+		if !ok || s.address.ClassID != ids.ForeignServerClassID || d.name != foreignMappingName(d.Server, d.MappedRole) {
 			return fmt.Errorf("stuntgres: invalid user mapping identity")
 		}
 	default:

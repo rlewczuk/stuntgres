@@ -48,11 +48,11 @@ type namespaceDescriptor struct {
 	address        ids.ObjectAddress
 	name           string
 	revision       ids.DefinitionRevision
-	owner          authorization.PrincipalRef
-	acl            authorization.ACLValue
-	comment        string
-	temporary      ids.SessionToken
-	temporaryToast bool
+	Owner          authorization.PrincipalRef
+	ACL            authorization.ACLValue
+	Comment        string
+	Temporary      ids.SessionToken
+	TemporaryToast bool
 }
 
 func (d *namespaceDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -196,10 +196,10 @@ type namespaceProvider struct{}
 func (namespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := d.(*namespaceDescriptor)
-	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.address) != ns {
+	if !ok || ns == nil || ns.TemporaryToast && ns.Temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.address) != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.temporary != (ids.SessionToken{}) && (ns.temporary.Domain() != v.Domain() || ns.temporary.ID() == 0 || privateSessionOf(ns.temporary) != nil) {
+	if ns.Temporary != (ids.SessionToken{}) && (ns.Temporary.Domain() != v.Domain() || ns.Temporary.ID() == 0 || privateSessionOf(ns.Temporary) != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()
@@ -223,7 +223,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
 	}
-	if r.OnCommit > parser.OnCommitDrop || r.OnCommit != parser.OnCommitUnspecified && (r.RelationKind != tableRelation || ns.(*namespaceDescriptor).temporary == (ids.SessionToken{})) {
+	if r.OnCommit > parser.OnCommitDrop || r.OnCommit != parser.OnCommitUnspecified && (r.RelationKind != tableRelation || ns.(*namespaceDescriptor).Temporary == (ids.SessionToken{})) {
 		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
 	found := v.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: r.namespace, Name: r.name})
@@ -255,7 +255,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		types := v.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.Type(types[0])
-			if len(types) != 1 || !ok || row.owningRelation != r.address || row.typ.ID() != r.RowType {
+			if len(types) != 1 || !ok || row.OwningRelation != r.address || row.SQLType.ID() != r.RowType {
 				return CatalogConflict{}
 			}
 		}
@@ -808,7 +808,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		}
 	case *typeDescriptor:
 		t := d.(*typeDescriptor)
-		if t.owningRelation == (ids.ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
+		if t.OwningRelation == (ids.ObjectAddress{}) && !t.SQLType.IsUserDefined() && !(t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
 	case *collationDescriptor:
@@ -861,8 +861,8 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return err
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
-		if backing, ok := provider.retirementDescriptor(typ.owningRelation).(*relationDescriptor); ok && backing.RelationKind == compositeRelation {
+	if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsComposite() {
+		if backing, ok := provider.retirementDescriptor(typ.OwningRelation).(*relationDescriptor); ok && backing.RelationKind == compositeRelation {
 			if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
 				return err
 			}
@@ -875,11 +875,11 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.RowType != 0 {
 		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}).(*typeDescriptor)
-		if !ok || row.owningRelation != r.address {
+		if !ok || row.OwningRelation != r.address {
 			return CatalogConflict{}
 		}
 		provider.removedRowType(row.Address())
-		for _, id := range []sqltype.ID{r.RowType, row.array} {
+		for _, id := range []sqltype.ID{r.RowType, row.Array} {
 			if id != 0 {
 				if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
 					return err
@@ -948,11 +948,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	}
 	for address, descriptor := range s.descriptors {
 		typ, ok := descriptor.(*typeDescriptor)
-		if !ok || !typ.typ.IsComposite() && !typ.typ.IsDomain() {
+		if !ok || !typ.SQLType.IsComposite() && !typ.SQLType.IsDomain() {
 			continue
 		}
 		old, _ := s.base.Type(address)
-		if old == nil || old.typ != typ.typ {
+		if old == nil || old.SQLType != typ.SQLType {
 			if err := e.reownStagedTypeGenerationsLocked(s); err != nil {
 				e.mu.Unlock()
 				return nil, err
@@ -1089,7 +1089,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
-			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.temporary != (ids.SessionToken{}) {
+			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
 				for address, d := range current.Descriptors() {
 					if _, removed := s.removals[address]; d.Namespace() == ns.address && (!removed || d != s.base.Get(address)) {
 						e.mu.Unlock()
@@ -1347,7 +1347,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		domainChanged := len(s.domainTargets) != 0
 		for _, d := range s.descriptors {
-			if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() {
+			if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsUserDefined() {
 				domainChanged = true
 				break
 			}

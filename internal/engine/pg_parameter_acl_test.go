@@ -100,8 +100,8 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	}
 	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
-	ownedArray, ok := catalog.LookupArray(row.typ)
-	if !ok || d.RowType != 10097 || row.array != 10096 || ownedArray != array.typ || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	ownedArray, ok := catalog.LookupArray(row.SQLType)
+	if !ok || d.RowType != 10097 || row.Array != 10096 || ownedArray != array.SQLType || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
@@ -177,15 +177,15 @@ func TestPGParameterACLCapture(t *testing.T) {
 	}
 	address := catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
 	corrupt := *catalog.MustParameter(address)
-	corrupt.owner = authorization.PrincipalRef{}
+	corrupt.Owner = authorization.PrincipalRef{}
 	broken := cloneCatalog(catalog.state)
 	broken.setDescriptor(address, &corrupt)
 	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
-	corrupt.owner = e.authorizationDomain.Principal(10)
-	corrupt.acl.Entries = append([]authorization.ACLEntry(nil), corrupt.acl.Entries...)
-	corrupt.acl.Entries[0].Grantor = New().authorizationDomain.Principal(10)
+	corrupt.Owner = e.authorizationDomain.Principal(10)
+	corrupt.ACL.Entries = append([]authorization.ACLEntry(nil), corrupt.ACL.Entries...)
+	corrupt.ACL.Entries[0].Grantor = New().authorizationDomain.Principal(10)
 	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("foreign grantor accepted", err)
 	}
@@ -287,7 +287,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	pgParameterACLUnitEntries(t, e, current.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 12288, 12288}})
 	oldID, _ := captured.anonymous[0][0].OID()
 	newID, _ := current.anonymous[0][0].OID()
-	if oldID != newID || before.Get(address) != old || old.name != "pacl_unit.snapshot" || len(old.acl.Entries) != 2 {
+	if oldID != newID || before.Get(address) != old || old.name != "pacl_unit.snapshot" || len(old.ACL.Entries) != 2 {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &finalRows{}

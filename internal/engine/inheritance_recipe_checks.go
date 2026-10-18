@@ -304,7 +304,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 		return reject()
 	}
 	namespace, namespaceOK := auth.catalog.Namespace(table.namespace)
-	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
+	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	slot, exists := table.Index[raw.Actions[0].Column.Text]
@@ -387,7 +387,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		return reject()
 	}
 	namespace, namespaceOK := auth.catalog.Namespace(target.namespace)
-	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
+	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if validateInheritance(auth.catalog, target) != nil {
@@ -459,7 +459,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.Inheritance != nil && len(table.Generations) != 0 {
-			if namespace, ok := view.Namespace(table.namespace); ok && namespace.temporary == (ids.SessionToken{}) {
+			if namespace, ok := view.Namespace(table.namespace); ok && namespace.Temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
 			}
@@ -474,7 +474,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 		if !ok || table.RelationKind != tableRelation || table.Partition != nil || table.Membership != nil {
 			continue
 		}
-		if namespace, ok := view.Namespace(table.namespace); !ok || namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := view.Namespace(table.namespace); !ok || namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if !inheritanceParticipant(view, table) {

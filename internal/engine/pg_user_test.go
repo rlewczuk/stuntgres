@@ -88,7 +88,7 @@ func TestPGUserDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015})
-	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12015 || row.typ.Concrete() {
+	if row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 12015 || row.SQLType.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
 	if representedSummaryTable(12014) || representedSummaryViewDefinition(12014) == "" {

@@ -17,14 +17,14 @@ func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 			continue
 		}
 		namespace := e.catalog.state.MustNamespace(table.namespace)
-		if namespace.temporary == (ids.SessionToken{}) {
+		if namespace.Temporary == (ids.SessionToken{}) {
 			continue
 		}
 		source, ok := e.catalog.state.Type(table.OfType)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing typed source")
 		}
-		if e.catalog.state.MustNamespace(source.namespace).temporary == (ids.SessionToken{}) {
+		if e.catalog.state.MustNamespace(source.namespace).Temporary == (ids.SessionToken{}) {
 			return fmt.Errorf("%s", temporaryTypedReplacementError)
 		}
 	}

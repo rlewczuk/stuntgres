@@ -125,7 +125,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 						t.Fatal("valid own temporary creation", err)
 					}
 					ns := e.catalog.state.MustNamespace(a.temporaryNamespace)
-					if ns.temporary != a.token || ns.temporaryToast || ns.owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.address != namespace) {
+					if ns.Temporary != a.token || ns.TemporaryToast || ns.Owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.address != namespace) {
 						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
 					assertTemporaryNamespacePair(t, e, a.token, ns.address)

@@ -43,10 +43,10 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
 		t := v.catalog.MustType(address)
-		if kind == "domain" && !t.typ.IsDomain() {
+		if kind == "domain" && !t.SQLType.IsDomain() {
 			return ids.ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
-		if t.typ.IsArray() {
+		if t.SQLType.IsArray() {
 			diagnostic := sqlError("0LP01", "cannot set privileges of array types").(*sqlstate.Error)
 			diagnostic.Hint = "Set the privileges of the element type instead."
 			return ids.ObjectRef{}, diagnostic
@@ -62,7 +62,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 		return nil, err
 	}
 	owner, old, _ := descriptorACL(d)
-	if typ, ok := d.(*typeDescriptor); ok && typ.aclSyntheticDefault {
+	if typ, ok := d.(*typeDescriptor); ok && typ.ACLSyntheticDefault {
 		old = authorization.ACLValue{} // Effective baseline is still raw NULL.
 	}
 	class := authorization.DefaultTypes
@@ -104,24 +104,24 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 	switch d := d.(type) {
 	case *namespaceDescriptor:
 		n := *d
-		n.acl = nextACL
+		n.ACL = nextACL
 		next = &n
 	case *typeDescriptor:
 		n := *d
-		n.acl = nextACL
-		n.aclSyntheticDefault = false
+		n.ACL = nextACL
+		n.ACLSyntheticDefault = false
 		next = &n
 	case *procedureDescriptor:
 		n := *d
-		n.acl = nextACL
+		n.ACL = nextACL
 		next = &n
 	case *parameterDescriptor:
 		n := *d
-		n.acl = nextACL
+		n.ACL = nextACL
 		next = &n
 	case *tablespaceDescriptor:
 		n := *d
-		n.acl = nextACL
+		n.ACL = nextACL
 		next = &n
 	}
 	if err := validateACL(v.roles, next); err != nil {

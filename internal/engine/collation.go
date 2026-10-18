@@ -15,7 +15,7 @@ func collationName(view CatalogRead, id uint32) string {
 		}
 	}
 	for i := range builtinCollations {
-		if uint32(builtinCollations[i].oid) == id {
+		if uint32(builtinCollations[i].OID) == id {
 			return builtinCollations[i].name
 		}
 	}
@@ -44,7 +44,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 		a := auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.at(i), Name: name})
 		descriptor, _ := auth.definitionDescriptor(a)
 		if d, ok := descriptor.(*collationDescriptor); ok {
-			one := [1]collationCandidate{{a, d.encoding}}
+			one := [1]collationCandidate{{a, d.Encoding}}
 			if selectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return d, nil
 			}
@@ -90,5 +90,5 @@ func (e *Engine) lookupCollation(raw parser.ObjectName, op *Operation) (uint32, 
 	if _, err = d.usage(); err != nil {
 		return 0, expr.ErrorAt("0A000", "collation is unsupported", raw.Parts[0].Pos)
 	}
-	return uint32(d.oid), nil
+	return uint32(d.OID), nil
 }

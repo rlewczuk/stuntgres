@@ -19,7 +19,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	}
 	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027})
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026})
-	if row.owningRelation != address || array.owningRelation != address || row.array != 10026 || array.typ.Element() != row.typ || row.owner != source.Owner || array.owner != source.Owner {
+	if row.OwningRelation != address || array.OwningRelation != address || row.Array != 10026 || array.SQLType.Element() != row.SQLType || row.Owner != source.Owner || array.Owner != source.Owner {
 		t.Fatal("aggregate row/array ownership")
 	}
 	nextOID, nextRevision := e.catalog.nextOID, e.catalog.nextRevision

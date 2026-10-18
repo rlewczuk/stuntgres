@@ -5,41 +5,41 @@ package engine
 // nil check still asks "was this installed by that extension".
 
 func (d *procedureDescriptor) unaccentProvider() *unaccentProvider {
-	p, _ := d.implementation.(*unaccentProvider)
+	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
 func (d *procedureDescriptor) intarrayProvider() *intarrayProvider {
-	p, _ := d.implementation.(*intarrayProvider)
+	p, _ := d.Implementation.(*intarrayProvider)
 	return p
 }
 
 func (d *procedureDescriptor) fuzzystrmatchProvider() *fuzzystrmatchProvider {
-	p, _ := d.implementation.(*fuzzystrmatchProvider)
+	p, _ := d.Implementation.(*fuzzystrmatchProvider)
 	return p
 }
 
 func (d *procedureDescriptor) pgcryptoProvider() *pgcryptoProvider {
-	p, _ := d.implementation.(*pgcryptoProvider)
+	p, _ := d.Implementation.(*pgcryptoProvider)
 	return p
 }
 
 func (d *procedureDescriptor) intaggProvider() *intaggProvider {
-	p, _ := d.implementation.(*intaggProvider)
+	p, _ := d.Implementation.(*intaggProvider)
 	return p
 }
 
 func (d *procedureDescriptor) uuidOsspProvider() *uuidOsspProvider {
-	p, _ := d.implementation.(*uuidOsspProvider)
+	p, _ := d.Implementation.(*uuidOsspProvider)
 	return p
 }
 
 func (d *tsTemplateDescriptor) unaccentProvider() *unaccentProvider {
-	p, _ := d.implementation.(*unaccentProvider)
+	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
 func (d *tsDictionaryDescriptor) unaccentProvider() *unaccentProvider {
-	p, _ := d.implementation.(*unaccentProvider)
+	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }

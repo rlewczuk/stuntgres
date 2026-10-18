@@ -172,7 +172,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 				other = d
 			}
 		}
-		if other == nil || other.semantics == provider.semantics {
+		if other == nil || other.Semantics == provider.Semantics {
 			t.Fatal("distinct owned collation capabilities required")
 		}
 		if err := validatePartitionDescriptor(view, relation); err != nil {
@@ -185,7 +185,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		}
 		mismatch := cloneCatalog(view.state)
 		changed := *provider
-		changed.semantics = other.semantics
+		changed.Semantics = other.Semantics
 		mismatch.setDescriptor(address, &changed)
 		if err := validatePartitionDescriptor(e.catalog.read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
@@ -193,7 +193,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		candidate := *relation
 		definition := *relation.Partition
 		definition.keys = slices.Clone(definition.keys)
-		definition.keys[0].collation = uint32(other.oid)
+		definition.keys[0].collation = uint32(other.OID)
 		candidate.Partition = &definition
 		if err := validatePartitionDescriptor(view, &candidate); err == nil {
 			t.Fatal("admitted raw explicit identity inconsistent with effective authority")

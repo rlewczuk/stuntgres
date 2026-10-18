@@ -95,7 +95,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		if !exists {
 			return missing()
 		}
-		if ns.temporary != (ids.SessionToken{}) && ns.temporary != r.token {
+		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != r.token {
 			actor, exists := r.auth.roles.Find(r.auth.state.CurrentUser)
 			if !exists || !actor.Superuser {
 				return 0, sqlError("42501", "permission denied for schema "+ns.name)
@@ -110,7 +110,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.at(i), Name: parts[len(parts)-1].Text})
 		descriptor, _ := r.auth.definitionDescriptor(address)
 		if d, exists := descriptor.(*collationDescriptor); exists {
-			one := [1]collationCandidate{{address, d.encoding}}
+			one := [1]collationCandidate{{address, d.Encoding}}
 			if selectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return uint32(address.ObjectID), nil
 			}

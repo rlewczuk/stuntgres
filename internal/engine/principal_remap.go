@@ -57,7 +57,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *extensionDescriptor:
 			n := *d
 			var err error
-			n.owner, err = remap(d.owner)
+			n.Owner, err = remap(d.Owner)
 			if err != nil {
 				return nil, err
 			}
@@ -65,24 +65,24 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *foreignDescriptor:
 			n := *d
 			var err error
-			if d.owner != (authorization.PrincipalRef{}) {
-				n.owner, err = remap(d.owner)
+			if d.Owner != (authorization.PrincipalRef{}) {
+				n.Owner, err = remap(d.Owner)
 				if err != nil {
 					return nil, err
 				}
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
-			if d.mappedRole != (authorization.PrincipalRef{}) {
-				n.mappedRole, err = remap(d.mappedRole)
+			if d.MappedRole != (authorization.PrincipalRef{}) {
+				n.MappedRole, err = remap(d.MappedRole)
 				if err != nil {
 					return nil, err
 				}
 			}
 			if d.address.ClassID == ids.ForeignMappingClassID {
-				n.name = foreignMappingName(n.server, n.mappedRole)
+				n.name = foreignMappingName(n.Server, n.MappedRole)
 				state.unbindName(descriptorNameKey(d))
 				state.bindName(descriptorNameKey(&n), n.address)
 			}
@@ -90,11 +90,11 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *procedureDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, d.seeded() || d.foreign != nil)
+			n.Owner, err = seedOwner(d.Owner, d.seeded() || d.Foreign != nil)
 			if err != nil {
 				return nil, err
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
@@ -102,11 +102,11 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *parameterDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, true)
+			n.Owner, err = seedOwner(d.Owner, true)
 			if err != nil {
 				return nil, err
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
@@ -114,11 +114,11 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *tablespaceDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, true)
+			n.Owner, err = seedOwner(d.Owner, true)
 			if err != nil {
 				return nil, err
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
@@ -126,7 +126,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *tsDictionaryDescriptor:
 			n := *d
 			var err error
-			n.owner, err = remap(d.owner)
+			n.Owner, err = remap(d.Owner)
 			if err != nil {
 				return nil, err
 			}
@@ -134,12 +134,12 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *typeDescriptor:
 			n := *d
 			var err error
-			seeded := d.owningRelation == (ids.ObjectAddress{}) && !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsUserDefined())
-			n.owner, err = seedOwner(d.owner, seeded)
+			seeded := d.OwningRelation == (ids.ObjectAddress{}) && !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && d.SQLType.Element().IsUserDefined())
+			n.Owner, err = seedOwner(d.Owner, seeded)
 			if err != nil {
 				return nil, err
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
@@ -147,7 +147,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *collationDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, d.seeded())
+			n.Owner, err = seedOwner(d.Owner, d.seeded())
 			if err != nil {
 				return nil, err
 			}
@@ -155,7 +155,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *conversionDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, d.seeded())
+			n.Owner, err = seedOwner(d.Owner, d.seeded())
 			if err != nil {
 				return nil, err
 			}
@@ -163,7 +163,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *operatorDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, d.seeded())
+			n.Owner, err = seedOwner(d.Owner, d.seeded())
 			if err != nil {
 				return nil, err
 			}
@@ -171,11 +171,11 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *namespaceDescriptor:
 			n := *d
 			var err error
-			n.owner, err = remap(d.owner)
+			n.Owner, err = remap(d.Owner)
 			if err != nil {
 				return nil, err
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
@@ -284,10 +284,10 @@ func (e *Engine) restoreStage() *Engine {
 	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.root.Read(authorization.PrincipalRef{}).RoleCount())
 	roles := sourceRoles.root.Reprovenance(&stage.authorizationDomain, stage.importTargets)
 	retainedDatabase := *database
-	retainedDatabase.owner = stage.authorizationDomain.Principal(database.owner.ID())
-	retainedDatabase.acl.Entries = append([]authorization.ACLEntry(nil), database.acl.Entries...)
-	for i := range retainedDatabase.acl.Entries {
-		entry := &retainedDatabase.acl.Entries[i]
+	retainedDatabase.Owner = stage.authorizationDomain.Principal(database.Owner.ID())
+	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
+	for i := range retainedDatabase.ACL.Entries {
+		entry := &retainedDatabase.ACL.Entries[i]
 		entry.Grantor = stage.authorizationDomain.Principal(entry.Grantor.ID())
 		if !entry.Grantee.Public {
 			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())

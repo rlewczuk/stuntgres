@@ -17,10 +17,10 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.
 		refs = append(refs, a)
 	}
 	add(d.namespace)
-	for _, id := range [...]ids.OID{d.left, d.right, d.result} {
+	for _, id := range [...]ids.OID{d.Left, d.Right, d.Result} {
 		add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 	}
-	for _, id := range [...]ids.OID{d.function, d.restriction, d.join} {
+	for _, id := range [...]ids.OID{d.Function, d.Restriction, d.Join} {
 		a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 		if _, ok := view.Find(a); ok {
 			add(a)
@@ -37,15 +37,15 @@ func (p *dropProvider) clearOperatorLinks(d *operatorDescriptor) error {
 		if current, ok := p.replacement(address).(*operatorDescriptor); ok {
 			peer = current
 		}
-		if peer.commutator != d.address.ObjectID && peer.negator != d.address.ObjectID {
+		if peer.Commutator != d.address.ObjectID && peer.Negator != d.address.ObjectID {
 			continue
 		}
 		next := *peer
-		if next.commutator == d.address.ObjectID {
-			next.commutator = 0
+		if next.Commutator == d.address.ObjectID {
+			next.Commutator = 0
 		}
-		if next.negator == d.address.ObjectID {
-			next.negator = 0
+		if next.Negator == d.address.ObjectID {
+			next.Negator = 0
 		}
 		revision, err := p.revision(peer.revision)
 		if err != nil {

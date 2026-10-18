@@ -15,7 +15,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	}
 	table := func(a ids.ObjectAddress) bool {
 		ns, ok := auth.catalog.Namespace(a)
-		return ok && !ns.temporaryToast && ns.temporary == auth.session.token
+		return ok && !ns.TemporaryToast && ns.Temporary == auth.session.token
 	}
 	if table(auth.stagedTemporary) {
 		return auth.stagedTemporary
@@ -25,7 +25,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	}
 	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
 		for a, d := range auth.catalog.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == auth.session.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				return a
 			}
 		}
@@ -34,7 +34,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 }
 
 func ownTemporaryNamespace(auth AuthorizationView, ns *namespaceDescriptor) bool {
-	return ns != nil && !ns.temporaryToast && ns.temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.address
+	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.address
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
@@ -92,8 +92,8 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	owner := e.authorizationDomain.Principal(10)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), revision: rev, owner: owner, temporary: auth.session.token}
-	toast := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), revision: toastRevision, owner: owner, temporary: auth.session.token, temporaryToast: true}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), revision: rev, Owner: owner, Temporary: auth.session.token}
+	toast := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), revision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
 	if c.originals == nil {
 		c.originals = make(map[ids.ObjectAddress]Descriptor)
 		c.descriptors = make(map[ids.ObjectAddress]Descriptor)
@@ -108,7 +108,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 // Callers supply the coherent catalog containing any privately staged namespace.
 func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef, requested string) (string, error) {
 	ns := auth.catalog.MustNamespace(ref.Address)
-	temporary := ns.temporary != (ids.SessionToken{})
+	temporary := ns.Temporary != (ids.SessionToken{})
 	own := ownTemporaryNamespace(auth, ns)
 	switch requested {
 	case "temporary":
@@ -150,7 +150,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 			if _, ok := d.(*collationDescriptor); !ok {
 				continue
 			}
-			if ns, ok := base.Namespace(d.Namespace()); ok && ns.temporary == s.token {
+			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.token {
 				e.mu.Unlock()
 				return nil
 			}
@@ -158,7 +158,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		var namespaces []ids.ObjectAddress
 		owned := make(map[ids.ObjectAddress]bool)
 		for a, d := range base.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == s.token {
 				namespaces = append(namespaces, a)
 				owned[a] = true
 			}
@@ -253,7 +253,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	}
 	for _, address := range namespaces {
 		namespace, ok := e.catalog.state.Namespace(address)
-		if !ok || namespace.temporary != s.token {
+		if !ok || namespace.Temporary != s.token {
 			return false, nil
 		}
 	}

@@ -28,11 +28,11 @@ func (e *Engine) capturePGTablespace(ctx context.Context, catalog CatalogRead, r
 		if err != nil {
 			return nil, err
 		}
-		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(d.owner.ID()))
+		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(d.Owner.ID()))
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, d.acl)
+		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, d.ACL)
 		if err != nil {
 			return nil, err
 		}

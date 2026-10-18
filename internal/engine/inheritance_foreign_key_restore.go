@@ -182,7 +182,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != tableRelation || target.RelationKind != tableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.catalog, target, source.address) {
 		return reject()
 	}
-	if auth.catalog.MustNamespace(source.namespace).temporary != (ids.SessionToken{}) || auth.catalog.MustNamespace(target.namespace).temporary != (ids.SessionToken{}) {
+	if auth.catalog.MustNamespace(source.namespace).Temporary != (ids.SessionToken{}) || auth.catalog.MustNamespace(target.namespace).Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if err := auth.Check(AccessRequirement{Object: sourceRef, OwnerOnly: true}); err != nil {

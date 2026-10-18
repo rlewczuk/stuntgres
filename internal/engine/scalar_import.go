@@ -12,10 +12,10 @@ import (
 func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*typeDescriptor)
-		if !ok || !d.typ.IsEnum() && !d.typ.IsQueryInt() {
+		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() {
 			continue
 		}
-		source := d.typ
+		source := d.SQLType
 		target := address
 		if destination, ok := mapping[address]; ok {
 			target = destination
@@ -39,7 +39,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 			return err
 		}
 		copy := *d
-		copy.typ = typ
+		copy.SQLType = typ
 		next.setDescriptor(address, &copy)
 		if next.scalarImports == nil {
 			next.scalarImports = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
@@ -54,7 +54,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 func refreshScalarImportDestinations(next *catalogState) {
 	for source := range next.scalarImports {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.ID())}); ok {
-			next.scalarImports[source] = d.typ
+			next.scalarImports[source] = d.SQLType
 		}
 	}
 }

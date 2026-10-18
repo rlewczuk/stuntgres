@@ -52,10 +52,10 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("actual network operator selection", err)
 			}
 			outer, err := expressionRoutineDescriptor(node)
-			if err != nil || outer == nil || outer.builtin == nil {
+			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing selected declaration", outer, err)
 			}
-			declaration := outer.builtin
+			declaration := outer.Builtin
 			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, procedureSignature(test.formals)}
 			if declaration.identity != wantIdentity || declaration.result != test.result || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
@@ -65,11 +65,11 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				// RETURN $2 + $1: the existing provider commutes the two inputs;
 				// this real SQL occurrence selects inetpl(INET,INT8), not itself.
 				want[2630] = true
-				if len(outer.body) != 1 || outer.body[0].routine.address.ObjectID != 2630 || outer.body[0].demand != bodyAlways {
-					t.Fatal("real reversed SQL body edge", outer.body)
+				if len(outer.Body) != 1 || outer.Body[0].routine.address.ObjectID != 2630 || outer.Body[0].demand != bodyAlways {
+					t.Fatal("real reversed SQL body edge", outer.Body)
 				}
-			} else if len(outer.body) != 0 {
-				t.Fatal("INTERNAL operator acquired SQL helper edges", outer.body)
+			} else if len(outer.Body) != 0 {
+				t.Fatal("INTERNAL operator acquired SQL helper edges", outer.Body)
 			}
 			found := make(map[ids.OID]bool)
 			for _, dependency := range binder.dependencies {

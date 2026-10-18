@@ -52,12 +52,12 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	wrapper := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, revision: 1, name: "unit_wrapper", owner: owner, options: []ForeignOption{{"a", "1"}}}
-	server := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, revision: 1, name: "unit_server", owner: owner, wrapper: wrapper.address}
-	server.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
-	mapping := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, revision: 1, server: server.address, mappedRole: owner, mappedName: "postgres"}
+	wrapper := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, revision: 1, name: "unit_wrapper", Owner: owner, Options: []ForeignOption{{"a", "1"}}}
+	server := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, revision: 1, name: "unit_server", Owner: owner, Wrapper: wrapper.address}
+	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
+	mapping := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, revision: 1, Server: server.address, MappedRole: owner, MappedName: "postgres"}
 	mapping.name = foreignMappingName(server.address, owner)
-	public := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, revision: 1, server: server.address}
+	public := &foreignDescriptor{address: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, revision: 1, Server: server.address}
 	public.name = foreignMappingName(server.address, authorization.PrincipalRef{})
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -140,12 +140,12 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	alter := e.BeginCatalogStage(e.CatalogRead())
 	next := *wrapper
 	next.revision++
-	next.options = []ForeignOption{{"a", "candidate"}}
+	next.Options = []ForeignOption{{"a", "candidate"}}
 	if err = alter.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(alter)
-	if committed, _ := e.CatalogRead().Descriptor(wrapper.address); committed.(*foreignDescriptor).options[0].Value != "1" {
+	if committed, _ := e.CatalogRead().Descriptor(wrapper.address); committed.(*foreignDescriptor).Options[0].Value != "1" {
 		t.Fatal("discard mutated committed options")
 	}
 }
@@ -218,7 +218,7 @@ func TestFDWRegistry(t *testing.T) {
 	}
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)})
 	procedure := e.catalog.state.MustProcedure(address)
-	if procedure.foreign.wrapper != w || procedure.result != 3115 || procedure.signature != foreignHandlerSignature {
+	if procedure.Foreign.wrapper != w || procedure.Result != 3115 || procedure.Signature != foreignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
 	if err = e.catalog.providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
@@ -235,7 +235,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}
 	oldAddress := e.catalog.state.NameAddress(key)
-	wrapper := &foreignDescriptor{name: "wrapper", handler: oldAddress}
+	wrapper := &foreignDescriptor{name: "wrapper", Handler: oldAddress}
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.wrapper != w {
 		t.Fatal(token, err)
 	}
@@ -253,7 +253,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	}
 	uncallable := cloneCatalog(e.catalog.state)
 	procedure := *uncallable.MustProcedure(oldAddress)
-	procedure.foreign = nil
+	procedure.Foreign = nil
 	uncallable.setDescriptor(oldAddress, &procedure)
 	_, err = foreignHandlerFor(e.catalog.read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -302,7 +302,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			}
 			materializedCatalog := e.CatalogRead()
 			materialized := materializedCatalog.MustProcedure(ref.Address)
-			if materialized == original || !materialized.acl.Explicit || original.acl.Explicit {
+			if materialized == original || !materialized.ACL.Explicit || original.ACL.Explicit {
 				t.Fatal("default-equivalent edit did not privately materialize ACL")
 			}
 			request.Revoke = true
@@ -312,7 +312,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			}
 			current := e.CatalogRead()
 			next := current.MustProcedure(ref.Address)
-			if next == materialized || next.foreign != original.foreign || next.revision != original.revision || next.owner != original.owner || next.namespace != original.namespace || next.signature != original.signature {
+			if next == materialized || next.Foreign != original.Foreign || next.revision != original.revision || next.Owner != original.Owner || next.namespace != original.namespace || next.Signature != original.Signature {
 				t.Fatal("ACL publication replaced foreign capability or definition identity")
 			}
 			if err := e.catalog.providers[ids.ProcedureClassID].Validate(current, next); err != nil {

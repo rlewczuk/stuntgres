@@ -26,7 +26,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	before := cloneCatalog(auth.catalog.state)
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	namespace := *before.MustNamespace(address)
-	namespace.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.owner, Grantee: authorization.ACLGrantee{Role: namespace.owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
+	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.Owner, Grantee: authorization.ACLGrantee{Role: namespace.Owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	before.setDescriptor(address, &namespace)
 	auth.roleRecord = roles
 	auth.recaptureCatalog(e.catalog.read(before))
@@ -37,7 +37,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	key := op.session.sequencePath.key
 	after := cloneCatalog(before)
 	database := *after.MustDatabase(currentDatabaseAddress)
-	database.owner = successor
+	database.Owner = successor
 	after.setDescriptor(currentDatabaseAddress, &database)
 	fresh := auth
 	fresh.catalog = e.catalog.read(after)

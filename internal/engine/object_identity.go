@@ -108,7 +108,7 @@ func objectAddressClassKind(class ids.OID) (string, bool) {
 func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, canonical string) {
 	if ns, ok := view.Namespace(namespace); ok {
 		actual, canonical = ns.name, ns.name
-		if ns.temporary != (ids.SessionToken{}) {
+		if ns.Temporary != (ids.SessionToken{}) {
 			canonical = "pg_temp"
 		}
 	}
@@ -301,12 +301,12 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 	case *operatorDescriptor:
 		r.name = ""
 		left, right := "NONE", "NONE"
-		if d.left != 0 {
-			left = objectQualifiedType(view, d.left)
+		if d.Left != 0 {
+			left = objectQualifiedType(view, d.Left)
 			r.args = append(r.args, left)
 		}
-		if d.right != 0 {
-			right = objectQualifiedType(view, d.right)
+		if d.Right != 0 {
+			right = objectQualifiedType(view, d.Right)
 			r.args = append(r.args, right)
 		}
 		r.identity = pgIdentifier(canonical) + "." + d.name + "(" + left + "," + right + ")"
@@ -315,11 +315,11 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 			display = pgIdentifier(canonical) + "." + display
 		}
 		humanLeft, humanRight := "NONE", "NONE"
-		if d.left != 0 {
-			humanLeft = regtypeSpelling(view, path, d.left)
+		if d.Left != 0 {
+			humanLeft = regtypeSpelling(view, path, d.Left)
 		}
-		if d.right != 0 {
-			humanRight = regtypeSpelling(view, path, d.right)
+		if d.Right != 0 {
+			humanRight = regtypeSpelling(view, path, d.Right)
 		}
 		display += "(" + humanLeft + "," + humanRight + ")"
 	}
@@ -332,7 +332,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*typeDescriptor); ok && a.ClassID == 2606 {
-			for _, check := range domain.domainChecks {
+			for _, check := range domain.DomainChecks {
 				if check.OID != a.ObjectID {
 					continue
 				}
@@ -340,7 +340,7 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 				r.kind = "domain constraint"
 				ns, _ := objectNamespace(view, domain.Namespace())
 				r.schema = pgIdentifier(ns)
-				typeName := objectQualifiedType(view, ids.OID(domain.typ.ID()))
+				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
 				r.identity = pgIdentifier(check.Name) + " on " + typeName
 				r.names = []string{typeName}
 				r.args = []string{check.Name}

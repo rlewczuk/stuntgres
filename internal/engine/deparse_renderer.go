@@ -119,7 +119,7 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		return text, err
 	}
 	d, ok := r.view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
-	if !ok || d.typ != u.Type {
+	if !ok || d.SQLType != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
 	}
 	if r.output.QuoteAllIdentifiers {
@@ -624,7 +624,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 				count++
 			}
 		})
-		if d.left == 0 {
+		if d.Left == 0 {
 			if count != 1 {
 				return "", fmt.Errorf("stuntgres: invalid selected prefix operands")
 			}

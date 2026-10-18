@@ -251,7 +251,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	e.mu.Lock()
 	node := e.serializable.nodes[session.transactions.ref]
 	namespace := e.catalog.state.MustNamespace(session.temporaryNamespace)
-	if namespace.temporary != session.token {
+	if namespace.Temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
 	scope := &StatementScope{owner: session.transactions, txRef: session.transactions.ref}

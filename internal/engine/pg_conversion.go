@@ -15,14 +15,14 @@ func capturePGConversion(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			definitions = append(definitions, d)
 		}
 	}
-	sort.Slice(definitions, func(i, j int) bool { return definitions[i].oid < definitions[j].oid })
+	sort.Slice(definitions, func(i, j int) bool { return definitions[i].OID < definitions[j].OID })
 	rows := make([][]sqltype.Value, 0, len(definitions))
 	for _, d := range definitions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		row := make([]sqltype.Value, 8)
-		for i, n := range [4]uint32{uint32(d.oid), 0, uint32(d.Namespace().ObjectID), uint32(d.owner.ID())} {
+		for i, n := range [4]uint32{uint32(d.OID), 0, uint32(d.Namespace().ObjectID), uint32(d.Owner.ID())} {
 			if i == 1 {
 				continue
 			}
@@ -33,19 +33,19 @@ func capturePGConversion(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			row[i] = value
 		}
 		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.name)
-		for i, n := range [2]int{d.source, d.destination} {
+		for i, n := range [2]int{d.Source, d.Destination} {
 			value, err := sqltype.Integer(source.Columns[i+4].Usage.Type, int64(n))
 			if err != nil {
 				return nil, err
 			}
 			row[i+4] = value
 		}
-		value, err := sqltype.RegprocValue(source.Columns[6].Usage.Type, uint32(d.handler.ObjectID))
+		value, err := sqltype.RegprocValue(source.Columns[6].Usage.Type, uint32(d.Handler.ObjectID))
 		if err != nil {
 			return nil, err
 		}
 		row[6] = value
-		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, d.defaultConversion)
+		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, d.DefaultConversion)
 		rows = append(rows, row)
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

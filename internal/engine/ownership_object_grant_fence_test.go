@@ -111,9 +111,9 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 					if private {
-						database.owner = actor.Ref
+						database.Owner = actor.Ref
 					} else {
-						database.owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+						database.Owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.revision++
 					if err := stage.Replace(&database); err != nil {

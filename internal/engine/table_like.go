@@ -174,7 +174,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.expression
-					temporary := auth.catalog.MustNamespace(destination.namespace).temporary
+					temporary := auth.catalog.MustNamespace(destination.namespace).Temporary
 					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
@@ -190,7 +190,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 							continue
 						}
 						sourceNamespace := auth.catalog.MustNamespace(in.source.namespace)
-						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.temporary || temporary.Domain() != domainOf(e) {
+						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.Temporary || temporary.Domain() != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
 					}

@@ -30,7 +30,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if carrier, err := expressionRoutineDescriptor(n); err != nil || carrier != n.procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.ref.Address != ext.members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Volatile || !n.validShape() || !closedUUIDDefault(n) || generationImmutable(n) {
+	if n.ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Volatile || !n.validShape() || !closedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
 	if generationHasTableOID(n) {
@@ -77,7 +77,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if proc.uuidOsspProvider() != stockUUIDOssp || proc.signature != "" || proc.result != 2950 || proc.address == n.procedure.address {
+	if proc.uuidOsspProvider() != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.address == n.procedure.address {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -216,7 +216,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := expressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.address != ext.members[0] || captured.routineKind != functionRoutine || captured.result != 2950 || captured.signature != "" || !captured.strict || captured.volatility != expr.Volatile || len(captured.body) != 0 || n.ref.Domain() != e.catalog.domain {
+	if err != nil || captured != n.procedure || captured.address != ext.Members[0] || captured.RoutineKind != functionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
@@ -268,11 +268,11 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		})
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(d *procedureDescriptor) { d.implementation = nil },
+		func(d *procedureDescriptor) { d.Implementation = nil },
 		func(d *procedureDescriptor) {
-			d.implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
+			d.Implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
 		},
-		func(d *procedureDescriptor) { d.routineKind = procedureRoutine },
+		func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority
 		auth.catalog.state = cloneCatalog(auth.catalog.state)
@@ -369,7 +369,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
-	if !reflect.DeepEqual(binder.dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.procedure != captured || n.ref.Address != ext.members[0] {
+	if !reflect.DeepEqual(binder.dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.procedure != captured || n.ref.Address != ext.Members[0] {
 		t.Fatal("authority probes mutated original")
 	}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
@@ -384,10 +384,10 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 	roleExecute(t, e, op, "CREATE ROLE uuid_acl_reader LOGIN")
 	reader, readerDone := roleOperation(t, e, "uuid_acl_reader")
 	t.Cleanup(readerDone)
-	address := ext.members[0]
+	address := ext.Members[0]
 	original := e.CatalogRead().MustProcedure(address)
-	if original.acl.Explicit || original.acl.Entries != nil {
-		t.Fatal("installed raw ACL must be NULL/default", original.acl)
+	if original.ACL.Explicit || original.ACL.Entries != nil {
+		t.Fatal("installed raw ACL must be NULL/default", original.ACL)
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
@@ -414,8 +414,8 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		current := auth.catalog.MustProcedure(address)
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
-		if err != nil || current.acl.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
-			t.Fatal("default/explicit current EXECUTE", tc.sql, current.acl, rights, err)
+		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
+			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
 		evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
 		err = admitRoutineCall(&evaluation, node, true, false)
@@ -426,7 +426,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		} else if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42501" {
 			t.Fatal("original carrier bypassed current revoke", err)
 		}
-		if original.acl.Explicit || original.acl.Entries != nil {
+		if original.ACL.Explicit || original.ACL.Entries != nil {
 			t.Fatal("COW changed original raw NULL ACL")
 		}
 	}

@@ -156,11 +156,11 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("missing cursor row type")
 	}
 	row, ok := rowDescriptor.(*typeDescriptor)
-	if !ok || row.owningRelation != d.address || row.array != sqltype.ID(12078) {
+	if !ok || row.OwningRelation != d.address || row.Array != sqltype.ID(12078) {
 		t.Fatal("cursor row ownership/array association", rowDescriptor)
 	}
-	arrayType, ok := catalog.LookupArray(row.typ)
-	if !ok || arrayType.ID() != sqltype.ID(12078) || arrayType.Element() != row.typ {
+	arrayType, ok := catalog.LookupArray(row.SQLType)
+	if !ok || arrayType.ID() != sqltype.ID(12078) || arrayType.Element() != row.SQLType {
 		t.Fatal("cursor array does not resolve reciprocally", arrayType)
 	}
 	arrayDescriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12078})
@@ -168,7 +168,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("missing cursor associated array")
 	}
 	array, ok := arrayDescriptor.(*typeDescriptor)
-	if !ok || array.typ != arrayType || array.owningRelation != d.address {
+	if !ok || array.SQLType != arrayType || array.OwningRelation != d.address {
 		t.Fatal("cursor array owner differs from view", arrayDescriptor)
 	}
 	for _, descriptor := range []Descriptor{row, array} {
@@ -177,7 +177,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		}
 	}
 	invalidRow := *row
-	invalidRow.owningRelation = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}
+	invalidRow.OwningRelation = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}
 	if err := (typeProvider{}).Validate(catalog, &invalidRow); err == nil {
 		t.Fatal("cursor row type accepted another backing relation")
 	}

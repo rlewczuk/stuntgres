@@ -270,9 +270,9 @@ func generationImmutable(node expr.Expr) bool {
 	case installedUUIDOsspFunctionExpression:
 		return false
 	case installedCryptoFunctionExpression:
-		return n.procedure != nil && n.procedure.volatility == expr.Immutable && args(n.Args)
+		return n.procedure != nil && n.procedure.Volatility == expr.Immutable && args(n.Args)
 	case installedFunctionExpression:
-		return n.procedure != nil && n.procedure.volatility == expr.Immutable && args([]expr.Expr{n.Arg})
+		return n.procedure != nil && n.procedure.Volatility == expr.Immutable && args([]expr.Expr{n.Arg})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. A
 		// provider is admitted by its own volatility and its children.

@@ -19,7 +19,7 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE retained_routine_pair AS (p regprocedure, r regrole, t regtype)"))
-	pair := domainUnitType(t, e.CatalogRead(), "retained_routine_pair").typ
+	pair := domainUnitType(t, e.CatalogRead(), "retained_routine_pair").SQLType
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	value, err := text.Input(context.Background(), `("abs(integer)",postgres,integer)`, -1)
 	if err != nil {
@@ -103,7 +103,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	ns := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "routine_types"})
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"})
 	typ := e.CatalogRead().MustType(address)
-	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.typ.ID()), 23)
+	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
 	sessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
 	if d.regtypes == nil || len(d.regtypes.constants) != 3 {

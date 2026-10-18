@@ -126,7 +126,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044})
-	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.Owner || array.owner != d.Owner {
+	if row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 10044 || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -190,9 +190,9 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		order, _ := values[2].Float()
 		label, _ := values[3].Text()
 		matched := false
-		for i := range mood.typ.EnumMemberCount() {
-			m, _ := mood.typ.EnumMemberAt(i)
-			if uint32(m.ID) == memberID && m.Label == label && float64(m.SortOrder) == order && owner == uint32(mood.typ.ID()) {
+		for i := range mood.SQLType.EnumMemberCount() {
+			m, _ := mood.SQLType.EnumMemberAt(i)
+			if uint32(m.ID) == memberID && m.Label == label && float64(m.SortOrder) == order && owner == uint32(mood.SQLType.ID()) {
 				matched = true
 			}
 		}
@@ -200,14 +200,14 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 			t.Fatal("row is not actual owner metadata", values)
 		}
 	}
-	members := mood.typ.EnumMembers()
+	members := mood.SQLType.EnumMembers()
 	members[1].Label = "renamed"
-	typ, err := sqltype.EnumWithMembers(mood.typ.ID(), mood.Name(), mood.typ.SQLName(), members)
+	typ, err := sqltype.EnumWithMembers(mood.SQLType.ID(), mood.Name(), mood.SQLType.SQLName(), members)
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *mood
-	next.typ, next.revision = typ, mood.revision+1
+	next.SQLType, next.revision = typ, mood.revision+1
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {

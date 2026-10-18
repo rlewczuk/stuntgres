@@ -238,19 +238,19 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if ns.oid == ids.PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
+		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
-			d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 			}}
 		}
-		d.comment = namespaceCommentBaseline(ns.oid)
+		d.Comment = namespaceCommentBaseline(ns.oid)
 		e.catalog.state.setDescriptor(d.address, d)
 		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}, d.address)
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &typeDescriptor{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.revision = 1
 		}
@@ -263,7 +263,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
-		d.owner = e.authorizationDomain.Principal(10)
+		d.Owner = e.authorizationDomain.Principal(10)
 		e.catalog.state.setDescriptor(d.Address(), d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
@@ -273,7 +273,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for i := range builtinConversions {
 		d := new(conversionDescriptor)
 		*d = builtinConversions[i]
-		d.owner = e.authorizationDomain.Principal(10)
+		d.Owner = e.authorizationDomain.Principal(10)
 		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.revision = 1
 		e.catalog.state.setDescriptor(d.Address(), d)
@@ -641,7 +641,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
-					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.RowType {
+					if !ok || sourceType.OwningRelation != source.address || sourceType.SQLType.ID() != source.RowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
 					if err := auth.CanUse(typeRef); err != nil {
@@ -765,7 +765,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) {
+			if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}
@@ -914,7 +914,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	}
 	if auth.session != nil {
 		namespace, _ := auth.definitionDescriptor(d.namespace)
-		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
+		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

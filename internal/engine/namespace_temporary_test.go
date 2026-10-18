@@ -12,7 +12,7 @@ import (
 func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
 	ns, ok := e.catalog.state.Namespace(table)
-	if !ok || ns.temporary != token || ns.temporaryToast || ns.owner.ID() != 10 || ns.acl.Explicit || len(ns.acl.Entries) != 0 {
+	if !ok || ns.Temporary != token || ns.TemporaryToast || ns.Owner.ID() != 10 || ns.ACL.Explicit || len(ns.ACL.Entries) != 0 {
 		t.Fatal("real table TEMP authority", ns)
 	}
 	suffix, ok := strings.CutPrefix(ns.name, "pg_temp_")
@@ -23,12 +23,12 @@ func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToke
 	count := 0
 	for a, d := range e.catalog.state.Descriptors() {
 		other, ok := d.(*namespaceDescriptor)
-		if !ok || other.temporary != token {
+		if !ok || other.Temporary != token {
 			continue
 		}
 		count++
-		if other.temporaryToast {
-			if other.name != "pg_toast_temp_"+suffix || other.owner != ns.owner || other.acl.Explicit || len(other.acl.Entries) != 0 || other.address == table {
+		if other.TemporaryToast {
+			if other.name != "pg_toast_temp_"+suffix || other.Owner != ns.Owner || other.ACL.Explicit || len(other.ACL.Entries) != 0 || other.address == table {
 				t.Fatal("real toast TEMP authority", other)
 			}
 			toast = a
@@ -125,7 +125,7 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 		committed := namespaceUnitCapture(t, e, e.CatalogRead())
 		count := 0
 		for _, d := range auth.catalog.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == creator.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == creator.token {
 				count++
 				namespaceUnitRow(t, private, uint32(ns.address.ObjectID))
 				if e.catalog.state.Get(ns.address) != nil {

@@ -80,7 +80,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	if callback {
 		// A new independent peer consumer does not borrow a held survivor/view
 		// relation lock: it binds the still-committed genuine procedure directly.
-		namespace := e.catalog.state.Get(ext.targetNamespace).Name()
+		namespace := e.catalog.state.Get(ext.TargetNamespace).Name()
 		stmt := statement(t, "CREATE VIEW public.ext_stale_late AS SELECT "+namespace+".unaccent('Hôtel'::text) AS v")
 		peerCtx, cancelPeer := context.WithTimeout(context.Background(), 5*time.Second)
 		peer, err := e.StartSession(peerCtx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.authorizationDomain.Principal(10)})

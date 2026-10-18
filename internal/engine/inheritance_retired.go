@@ -140,7 +140,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 			continue
 		}
 		namespace, ok := next.Namespace(table.namespace)
-		if !ok || namespace.temporary != (ids.SessionToken{}) {
+		if !ok || namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		has := false

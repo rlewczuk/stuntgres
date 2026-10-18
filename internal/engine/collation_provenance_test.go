@@ -103,7 +103,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	invalidSeed := *view.MustCollation(seedAddress)
-	invalidSeed.semantics = 811
+	invalidSeed.Semantics = 811
 	if err := stage.Replace(&invalidSeed); err != nil {
 		t.Fatal(err)
 	}

@@ -290,7 +290,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.name == "retained_ci_temp_index" {
 			namespace := e.catalog.state.MustNamespace(index.namespace)
-			if namespace.temporary == s.token {
+			if namespace.Temporary == s.token {
 				original = index
 			}
 		}

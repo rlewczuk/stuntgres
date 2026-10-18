@@ -46,9 +46,9 @@ func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	view := e.CatalogRead()
 	typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
-	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)})
 	holder := inheritanceUnitRelation(e, "holder", 22003, "v")
-	holder.Columns[0].Usage = array.typ.Usage()
+	holder.Columns[0].Usage = array.SQLType.Usage()
 	state := cloneCatalog(view.state)
 	state.setDescriptor(holder.address, holder)
 	var diagnostic *sqlstate.Error

@@ -105,7 +105,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ := &typeDescriptor{typ: domain, namespace: d.namespace, domainChecks: []domainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
+	typ := &typeDescriptor{SQLType: domain, namespace: d.namespace, DomainChecks: []domainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
 	view.state.setDescriptor(typ.Address(), typ)
 	identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{2606, 48021, 0})
 	if err != nil || !identity.found || identity.kind != "domain constraint" || !reflect.DeepEqual(identity.args, []string{"domain_ck"}) {

@@ -111,7 +111,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12011})
-	if d.RowType != 12012 || row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12011 || row.owner != d.Owner || array.owner != d.Owner || row.typ.Concrete() {
+	if d.RowType != 12012 || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 12011 || row.Owner != d.Owner || array.Owner != d.Owner || row.SQLType.Concrete() {
 		t.Fatal("existing row/array ownership links")
 	}
 	if representedSummaryTable(12008) || representedSummaryViewDefinition(12008) == "" {

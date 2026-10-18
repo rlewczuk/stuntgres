@@ -25,8 +25,8 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
-	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: session.token}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, Owner: namespace.owner, OnCommit: action, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.address, namespace)
 	e.catalogChangeLocked(c, table.address, table)
@@ -131,10 +131,10 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.MustNamespace(table.namespace)
-	foreign.temporary = e.catalog.domain.Session(op.session.token.ID() + 1)
+	foreign.Temporary = e.catalog.domain.Session(op.session.token.ID() + 1)
 	consumer := *table
 	consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	advanced.setDescriptor(consumer.namespace, &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token})
+	advanced.setDescriptor(consumer.namespace, &namespaceDescriptor{address: consumer.namespace, Temporary: op.session.token})
 	advanced.setDescriptor(table.namespace, &foreign)
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
@@ -272,7 +272,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 				continue
 			}
 			ns := view.MustNamespace(d.namespace)
-			if ns.temporary == namespace {
+			if ns.Temporary == namespace {
 				return d
 			}
 		}
@@ -353,7 +353,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	domainView := e.CatalogRead()
 	domain := domainUnitType(t, domainView, "live_domain")
 	domainRef := e.catalog.domain.Ref(domainView.Epoch(), domain.Address())
-	array, ok := domainView.LookupArray(domain.typ)
+	array, ok := domainView.LookupArray(domain.SQLType)
 	if !ok {
 		t.Fatal("missing actual domain array")
 	}

@@ -75,16 +75,16 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			captured, err := expressionRoutineDescriptor(call)
-			if err != nil || captured == nil || captured.builtin == nil {
+			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing selected original declaration", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			declaration := captured.builtin
+			declaration := captured.Builtin
 			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.signature)}
 			if declaration.identity != identity || declaration.kind != functionRoutine || declaration.result != tc.result || !declaration.strict || declaration.volatility != tc.volatility || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.defaults != 0 || declaration.variadic != 0 || declaration.providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.Get(address) != captured {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.revision == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -167,7 +167,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = false
+			replacement.Strict = false
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed

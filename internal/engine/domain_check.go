@@ -54,7 +54,7 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 	}
 	auth := AuthorizationView{
 		engine: e, pairedCatalog: view, roleRecord: e.roles, catalog: view,
-		roles: e.roleRead(view, e.roles), state: authorization.RoleState{CurrentUser: d.owner},
+		roles: e.roleRead(view, e.roles), state: authorization.RoleState{CurrentUser: d.Owner},
 	}
 	return e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{})
 }
@@ -62,11 +62,11 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := constraintNames(auth.catalog, d.namespace, nil)
 	installed := make(map[string]bool)
-	for _, check := range d.domainChecks {
+	for _, check := range d.DomainChecks {
 		installed[check.Name] = true
 	}
-	firstOrdinal := len(d.domainChecks)
-	for _, check := range d.domainChecks {
+	firstOrdinal := len(d.DomainChecks)
+	for _, check := range d.DomainChecks {
 		firstOrdinal = max(firstOrdinal, check.ordinal+1)
 	}
 	for ordinal, column := range raw {
@@ -89,7 +89,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		b.queryAuth = &auth
 		b.queryNamespace = &queryNamespace{}
 		b.checkConsumer, b.noParameters = true, true
-		base := d.typ.DomainBase()
+		base := d.SQLType.DomainBase()
 		b.domainValueUsage = &base
 		node, err := b.bindBoolean(check.Expression, projectionContext, "CHECK")
 		if err != nil {
@@ -116,9 +116,9 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 				stage.domainBases = append(stage.domainBases, provider)
 			}
 		}
-		d.domainChecks = append(d.domainChecks, definition)
+		d.DomainChecks = append(d.DomainChecks, definition)
 	}
-	slices.SortFunc(d.domainChecks, func(a, b domainCheckConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(d.DomainChecks, func(a, b domainCheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 		return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 	}
 	d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
-	if !ok || d.typ != target {
+	if !ok || d.SQLType != target {
 		return fmt.Errorf("stuntgres: foreign domain CHECK generation")
 	}
 	oldValue, oldUsage, oldActive, oldInput := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
@@ -160,7 +160,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 			return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 		}
 		d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
-		if !ok || d.typ != target {
+		if !ok || d.SQLType != target {
 			return fmt.Errorf("stuntgres: foreign domain CHECK generation")
 		}
 		if err := c.prepareDomainChecks(d); err != nil {
@@ -177,9 +177,9 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 }
 
 func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
-	if base := d.typ.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
+	if base := d.SQLType.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
 		parent, ok := c.domainCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
-		if !ok || parent.typ != base {
+		if !ok || parent.SQLType != base {
 			return fmt.Errorf("stuntgres: missing parent domain CHECK generation")
 		}
 		if err := c.prepareDomainChecks(parent); err != nil {
@@ -197,7 +197,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 		c.preparedDomainChecks = scope.domainPreparedChecks
 		c.domainPhase = domainCheckIdentity{transaction: scope.txRef, command: scope.command}
 	}
-	if len(d.domainChecks) == 0 {
+	if len(d.DomainChecks) == 0 {
 		return nil
 	}
 	var auth AuthorizationView
@@ -222,7 +222,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 			return err
 		}
 	} else {
-		for i, check := range d.domainChecks {
+		for i, check := range d.DomainChecks {
 			checkEvaluation := *c
 			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
 			checkEvaluation.routineChecks = check.dependencies
@@ -238,9 +238,9 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 			}
 			if changed {
 				if programme.expressions == nil {
-					programme.expressions = make([]expr.Expr, len(d.domainChecks))
-					for j := range d.domainChecks {
-						programme.expressions[j] = d.domainChecks[j].expression
+					programme.expressions = make([]expr.Expr, len(d.DomainChecks))
+					for j := range d.DomainChecks {
+						programme.expressions[j] = d.DomainChecks[j].expression
 					}
 				}
 				programme.expressions[i] = node
@@ -275,7 +275,7 @@ func (c *EvalContext) domainCatalog() CatalogRead {
 }
 
 func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDescriptor, candidate sqltype.Value) error {
-	base := d.typ.DomainBase()
+	base := d.SQLType.DomainBase()
 	if base.Type.IsDomain() && base.Type.HasDomainChecks() {
 		parent := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 		if err := c.evaluateDomainChecks(view, target, parent, candidate); err != nil {
@@ -286,8 +286,8 @@ func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDesc
 }
 
 func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeDescriptor, candidate sqltype.Value, violation error) error {
-	base := d.typ.DomainBase()
-	if len(d.domainChecks) == 0 {
+	base := d.SQLType.DomainBase()
+	if len(d.DomainChecks) == 0 {
 		return nil
 	}
 	value, err := candidate.DomainValue(base.Type)
@@ -302,7 +302,7 @@ func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeD
 		c.routineRecipe, c.routineGraft = oldRecipe, oldGraft
 		c.routineChecks, c.routineReferences, c.routineConsumer = oldChecks, oldReferences, oldConsumer
 	}()
-	for i, check := range d.domainChecks {
+	for i, check := range d.DomainChecks {
 		// Preserve the original CHECK recipe for lazily demanded bodies,
 		// without changing the phase's actual invoker/RI authority.
 		c.routineRecipe, c.routineGraft = true, false
@@ -323,9 +323,9 @@ func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeD
 			if violation != nil {
 				return violation
 			}
-			name := target.typ.SQLName()
+			name := target.SQLType.SQLName()
 			if c.Input.TypeDiagnosticName != nil {
-				if captured := c.Input.TypeDiagnosticName(target.typ.ID()); captured != "" {
+				if captured := c.Input.TypeDiagnosticName(target.SQLType.ID()); captured != "" {
 					name = captured
 				}
 			}
@@ -362,12 +362,12 @@ func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 }
 
 func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) error {
-	base := domain.typ.DomainBase()
-	if domain.typ.HasDomainChecks() != (len(domain.domainChecks) != 0 || base.Type.HasDomainChecks()) {
+	base := domain.SQLType.DomainBase()
+	if domain.SQLType.HasDomainChecks() != (len(domain.DomainChecks) != 0 || base.Type.HasDomainChecks()) {
 		return fmt.Errorf("stuntgres: inconsistent domain CHECK ancestry")
 	}
 	previous := ""
-	for _, check := range domain.domainChecks {
+	for _, check := range domain.DomainChecks {
 		if check.OID == 0 || check.Name == "" || len(check.Name) > 63 || !utf8.ValidString(check.Name) || strings.IndexByte(check.Name, 0) >= 0 || previous != "" && previous >= check.Name || check.ordinal < 0 || check.expression == nil || check.expression.ResultUsage().Type == nil || check.expression.ResultUsage().Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid domain CHECK definition")
 		}

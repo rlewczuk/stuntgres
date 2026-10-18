@@ -42,12 +42,12 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			auth, err := e.authorizationLocked(op)
 			stage := e.BeginCatalogStage(auth.catalog)
 			next := *d
-			next.domainChecks = slices.Clone(d.domainChecks)
+			next.DomainChecks = slices.Clone(d.DomainChecks)
 			if err == nil {
 				err = e.bindDomainChecks(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
 			}
 			if err == nil {
-				next.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), true)
+				next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)
 			}
 			if err == nil {
 				next.revision, err = e.catalog.revisionLocked()

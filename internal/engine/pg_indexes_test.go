@@ -74,7 +74,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
-	if row.owningRelation != d.address {
+	if row.OwningRelation != d.address {
 		t.Fatal("row type linkage", row)
 	}
 	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {

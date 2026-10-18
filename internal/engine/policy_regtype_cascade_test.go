@@ -30,7 +30,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					provider := base.MustRelation(providerRef.Address)
 					rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(provider.RowType)}
 					row := base.MustType(rowAddress)
-					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}
+					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}
 					storage := e.storage[old.address]
 					retained := old.Policies[1]
 					stage := e.BeginCatalogStage(base)

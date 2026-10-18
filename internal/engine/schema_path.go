@@ -132,7 +132,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.definitionNamespace(a); ok && ns.temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
+		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -184,7 +184,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress,
 		filtered := path[:0]
 		for _, a := range path {
 			ns, _ := auth.definitionNamespace(a)
-			if ns.temporary == (ids.SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
+			if ns.Temporary == (ids.SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -265,7 +265,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, nil
 	}
 	ns, _ := auth.definitionNamespace(a)
-	foreignTemporary := ns.temporary != (ids.SessionToken{}) && !ns.temporaryToast && !ownTemporaryNamespace(auth, ns)
+	foreignTemporary := ns.Temporary != (ids.SessionToken{}) && !ns.TemporaryToast && !ownTemporaryNamespace(auth, ns)
 	if foreignTemporary {
 		actor, exists := auth.roles.Find(auth.state.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser

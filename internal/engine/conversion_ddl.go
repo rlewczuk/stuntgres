@@ -72,7 +72,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if procedure == nil {
 		return sqlError("42883", "function "+functionName+"(integer, integer, cstring, internal, integer, boolean) does not exist")
 	}
-	if procedure.result != 23 {
+	if procedure.Result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
 	if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), procedure.address), Privileges: authorization.ExecutePrivilege}); err != nil {
@@ -81,10 +81,10 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 		}
 		return err
 	}
-	if procedure.conversion.Name() == "" {
+	if procedure.Conversion.Name() == "" {
 		return sqlError("0A000", "encoding conversion routine has no registered provider")
 	}
-	_, consumed, err := procedure.conversion.Convert(op.Context(), "", source, destination)
+	_, consumed, err := procedure.Conversion.Convert(op.Context(), "", source, destination)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	}
 	if s.Default {
 		for _, descriptor := range e.stageRead(stage).Descriptors() {
-			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.source == source && d.destination == destination && d.defaultConversion {
+			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.Source == source && d.Destination == destination && d.DefaultConversion {
 				return sqlError("42710", "default conversion for "+sqltype.EncodingName(source)+" to "+sqltype.EncodingName(destination)+" already exists")
 			}
 		}
@@ -111,7 +111,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if err != nil {
 		return err
 	}
-	return stage.Create(&conversionDescriptor{oid: oid, name: object, namespace: namespace.Address, revision: revision, owner: auth.state.CurrentUser, source: source, destination: destination, handler: procedure.address, defaultConversion: s.Default})
+	return stage.Create(&conversionDescriptor{OID: oid, name: object, namespace: namespace.Address, revision: revision, Owner: auth.state.CurrentUser, Source: source, Destination: destination, Handler: procedure.address, DefaultConversion: s.Default})
 }
 
 func conversionProbeResult(name string, consumed int) error {
@@ -132,7 +132,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		if target == d.owner {
+		if target == d.Owner {
 			return nil
 		}
 	}
@@ -147,7 +147,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		}
 		sourceNamespace := auth.catalog.MustNamespace(d.Namespace())
 		targetNamespace := auth.catalog.MustNamespace(destination.Address)
-		if sourceNamespace.temporary != (ids.SessionToken{}) || targetNamespace.temporary != (ids.SessionToken{}) {
+		if sourceNamespace.Temporary != (ids.SessionToken{}) || targetNamespace.Temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}
@@ -171,7 +171,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		if err = ownershipEligibility(auth, target, d.Namespace()); err != nil {
 			return err
 		}
-		next.owner = target
+		next.Owner = target
 	default:
 		return fmt.Errorf("stuntgres: invalid conversion alteration")
 	}

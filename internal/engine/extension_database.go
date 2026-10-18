@@ -15,8 +15,8 @@ type databaseDescriptor struct {
 	address  ids.ObjectAddress
 	revision ids.DefinitionRevision
 	name     string
-	owner    authorization.PrincipalRef
-	acl      authorization.ACLValue
+	Owner    authorization.PrincipalRef
+	ACL      authorization.ACLValue
 }
 
 func (d *databaseDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -45,7 +45,7 @@ func (e *Engine) initializeDatabase(name string) {
 		e.databaseName, _ = value.Text()
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner}
+	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, Owner: owner}
 	e.catalog.state.setDescriptor(db.address, db)
 	e.catalog.state.bindName(descriptorNameKey(db), db.address)
 }
@@ -125,24 +125,24 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, err
 	}
 	db := v.catalog.MustDatabase(currentDatabaseAddress)
-	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
-	source, available, err := authorization.ObjectGrantSource(op.Context(), db.owner, db.acl, authorization.ACLValue{}, principals, actor.Superuser, requested)
+	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
+	source, available, err := authorization.ObjectGrantSource(op.Context(), db.Owner, db.ACL, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {
 		return Result{}, err
 	}
-	if available == 0 && authorization.ACLRights(baseline, db.owner, principals, authorization.DatabasePrivileges, false) == 0 {
+	if available == 0 && authorization.ACLRights(baseline, db.Owner, principals, authorization.DatabasePrivileges, false) == 0 {
 		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.name))
 	}
 	grantWarning(op, db.name, "", requested, available, all, s.Revoke)
 	if available == 0 {
 		return Result{}, nil
 	}
-	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, baseline, db.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
-	if err != nil || !changed && db.acl.Explicit {
+	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, baseline, db.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+	if err != nil || !changed && db.ACL.Explicit {
 		return Result{}, err
 	}
 	next := *db
-	next.acl = acl
+	next.ACL = acl
 	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return Result{}, err

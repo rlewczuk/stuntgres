@@ -268,7 +268,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		found := false
 		for _, descriptor := range view.Descriptors() {
 			if domain, ok := descriptor.(*typeDescriptor); ok {
-				for _, def := range domain.domainChecks {
+				for _, def := range domain.DomainChecks {
 					if def.OID != ids.OID(id) {
 						continue
 					}

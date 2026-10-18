@@ -88,7 +88,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		e.mu.Unlock()
 		a := private.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 		ext := private.MustExtension(a)
-		for _, a := range ext.members {
+		for _, a := range ext.Members {
 			d := private.Get(a)
 			if private.NameAddress(descriptorNameKey(d)) != a {
 				t.Fatal("private signature identity lost")
@@ -101,7 +101,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		e.mu.Lock()
 		private = e.privateCatalogLocked(txOwnerOf(tx).catalog)
 		e.mu.Unlock()
-		for _, a := range ext.members {
+		for _, a := range ext.Members {
 			if private.Get(a) != nil {
 				t.Fatal("savepoint member retained")
 			}
@@ -116,7 +116,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		if installed.address == ext.address {
 			t.Fatal("rolled-back identity reused")
 		}
-		for _, a := range installed.members {
+		for _, a := range installed.Members {
 			d := e.catalog.state.Get(a)
 			if e.catalog.state.NameAddress(descriptorNameKey(d)) != a {
 				t.Fatal("committed signature identity lost")
@@ -177,7 +177,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	if len(dependencies) != 1 || dependencies[0].address != ext.address || dependencies[0].kind != 'o' || !descriptorRoleDependencies(ext, owner, nil) {
 		t.Fatal("extension owner dependency", dependencies)
 	}
-	for _, a := range ext.members {
+	for _, a := range ext.Members {
 		d := e.catalog.state.Get(a)
 		refs := descriptorReferences(d)
 		if a.ClassID == ids.TSTemplateClassID {

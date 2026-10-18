@@ -43,7 +43,7 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (authorizat
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
 func checkPersistentCreationNamespace(catalog CatalogRead, namespace ids.ObjectAddress) error {
-	if catalog.MustNamespace(namespace).temporary != (ids.SessionToken{}) {
+	if catalog.MustNamespace(namespace).Temporary != (ids.SessionToken{}) {
 		return sqlError("0A000", "temporary schema creation is unsupported")
 	}
 	return nil
@@ -52,7 +52,7 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ids.ObjectA
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.catalog = stage.base
 	auth.recaptureCatalog(auth.catalog)
-	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.temporaryToast && auth.session != nil && namespace.temporary == auth.session.token {
+	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
@@ -134,7 +134,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	input.TypeDiagnosticName = nil
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.catalog.MustNamespace(d.namespace).temporary
+	binder.defaultTemporary = auth.catalog.MustNamespace(d.namespace).Temporary
 	for slot, declaration := range b.createDeclarations {
 		if declaration.defaultExpr != nil {
 			delete(d.Defaults, d.Attributes[slot])
@@ -260,7 +260,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	var created ids.ObjectRef
 	if _, domain := stmt.(*parser.CreateDomain); domain {
 		for address, descriptor := range stage.descriptors {
-			if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.IsDomain() && stage.base.Get(address) == nil {
+			if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.IsDomain() && stage.base.Get(address) == nil {
 				created = e.catalog.domain.Ref(stage.base.Epoch(), address)
 				break
 			}
@@ -331,7 +331,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err == nil {
 		for _, descriptor := range stage.descriptors {
-			if ns, ok := descriptor.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == op.session.token {
+			if ns, ok := descriptor.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == op.session.token {
 				op.session.temporaryNamespace = ns.address
 			}
 		}
@@ -488,8 +488,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		if err != nil {
 			return nil, err
 		}
-		ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: name, revision: rev, owner: owner}
-		ns.acl = stage.creationACL(owner, ids.ObjectAddress{}, authorization.DefaultSchemas)
+		ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: name, revision: rev, Owner: owner}
+		ns.ACL = stage.creationACL(owner, ids.ObjectAddress{}, authorization.DefaultSchemas)
 		if err = stage.Create(ns); err != nil {
 			return nil, err
 		}
@@ -536,7 +536,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err != nil {
 				return nil, err
 			}
-			if target == old.owner {
+			if target == old.Owner {
 				return nil, nil
 			}
 			if err = own(old); err != nil {
@@ -548,8 +548,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = ownershipDatabaseCreate(auth); err != nil {
 				return nil, err
 			}
-			next.owner = target
-			next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
+			next.Owner = target
+			next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		}
 		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
@@ -598,7 +598,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 					continue
 				}
 				dependent = append(dependent, r)
-			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ids.ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.MustRelation(t.owningRelation).RelationKind == compositeRelation) {
+			} else if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsUserDefined() && (t.OwningRelation == (ids.ObjectAddress{}) || t.SQLType.IsComposite() && auth.catalog.MustRelation(t.OwningRelation).RelationKind == compositeRelation) {
 				domains = append(domains, t)
 			} else if c, ok := d.(*collationDescriptor); ok {
 				domains = append(domains, c)
@@ -608,9 +608,9 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				domains = append(domains, operator)
 			} else if extension, ok := d.(*extensionDescriptor); ok {
 				domains = append(domains, extension)
-			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.foreign != nil {
+			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.Foreign != nil {
 				domains = append(domains, procedure)
-			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ids.ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
+			} else if t, ok := d.(*typeDescriptor); ok && (t.OwningRelation != (ids.ObjectAddress{}) || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")

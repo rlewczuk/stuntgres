@@ -190,8 +190,8 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	root := cloneCatalog(catalog.state)
 	original := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	changed := *original
-	changed.acl = authorization.ACLValue{Explicit: true}
-	changed.aclSyntheticDefault = false
+	changed.ACL = authorization.ACLValue{Explicit: true}
+	changed.ACLSyntheticDefault = false
 	root.setDescriptor(changed.Address(), &changed)
 	s, err = e.capturePGType(t.Context(), e.catalog.read(root), roles, ref, d)
 	if err != nil {
@@ -267,8 +267,8 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	oldRows := pgTypeUnitBag(t, captured, source)
 	array := func(t *testing.T, view CatalogRead, d *typeDescriptor) *typeDescriptor {
 		t.Helper()
-		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)})
-		if !ok || a.typ.Element() != d.typ {
+		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)})
+		if !ok || a.SQLType.Element() != d.SQLType {
 			t.Fatal("missing canonical domain array", d)
 		}
 		return a
@@ -278,21 +278,21 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		base := domainUnitType(t, view, "query_int")
 		domain := domainUnitType(t, view, "pt18_query_domain")
 		nested := domainUnitType(t, view, "pt18_query_nested")
-		ext, ok := view.Extension(base.extension)
-		if !ok || len(ext.members) != 3 {
+		ext, ok := view.Extension(base.Extension)
+		if !ok || len(ext.Members) != 3 {
 			t.Fatal("missing actual intarray installation")
 		}
 		if err := stockIntarray.ValidateExtension(view, ext); err != nil {
 			t.Fatal(err)
 		}
-		output := uint32(ext.members[2].ObjectID)
+		output := uint32(ext.Members[2].ObjectID)
 		for _, pair := range []struct{ d, base *typeDescriptor }{{domain, base}, {nested, domain}} {
-			if pair.d.typ.DomainBase().Type != pair.base.typ {
+			if pair.d.SQLType.DomainBase().Type != pair.base.SQLType {
 				t.Fatal("wrong immediate base generation")
 			}
 			want := sqltype.PGTypeMetadata{
 				PostgreSQLAttributeFacts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "p"},
-				Kind:                     "d", Category: "U", Base: pair.base.typ.ID(),
+				Kind:                     "d", Category: "U", Base: pair.base.SQLType.ID(),
 				Input: 2597, Output: output, Receive: 2598, Modifier: -1,
 			}
 			got, err := pgTypeFacts(view, pair.d)
@@ -302,25 +302,25 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 			a := array(t, view, pair.d)
 			wantArray := sqltype.PGTypeMetadata{
 				PostgreSQLAttributeFacts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "x"},
-				Kind:                     "b", Category: "A", Element: pair.d.typ.ID(), Subscript: 6179,
+				Kind:                     "b", Category: "A", Element: pair.d.SQLType.ID(), Subscript: 6179,
 				Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1,
 			}
 			gotArray, err := pgTypeFacts(view, a)
 			if err != nil || gotArray != wantArray {
 				t.Fatal("installed domain companion facts", gotArray, wantArray, err)
 			}
-			row, companion := rows[uint32(pair.d.typ.ID())], rows[uint32(a.typ.ID())]
+			row, companion := rows[uint32(pair.d.SQLType.ID())], rows[uint32(a.SQLType.ID())]
 			if len(row) != 32 || len(companion) != 32 {
 				t.Fatal("missing captured installed domain pair")
 			}
 			if value, err := row[16].ProcedureOID(); err != nil || value != output {
 				t.Fatal("captured inherited output", value, output, err)
 			}
-			if value, err := row[25].OID(); err != nil || value != uint32(pair.base.typ.ID()) {
-				t.Fatal("captured immediate base", value, pair.base.typ.ID(), err)
+			if value, err := row[25].OID(); err != nil || value != uint32(pair.base.SQLType.ID()) {
+				t.Fatal("captured immediate base", value, pair.base.SQLType.ID(), err)
 			}
-			if value, err := companion[13].OID(); err != nil || value != uint32(pair.d.typ.ID()) {
-				t.Fatal("captured canonical element", value, pair.d.typ.ID(), err)
+			if value, err := companion[13].OID(); err != nil || value != uint32(pair.d.SQLType.ID()) {
+				t.Fatal("captured canonical element", value, pair.d.SQLType.ID(), err)
 			}
 		}
 	}
@@ -340,9 +340,9 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				} else {
 					// Same ID and family, deliberately a different immutable
 					// descriptor generation: numeric equality is not authority.
-					foreign := *original.typ
+					foreign := *original.SQLType
 					replacement := *original
-					replacement.typ = &foreign
+					replacement.SQLType = &foreign
 					root.setDescriptor(original.Address(), &replacement)
 				}
 				bad := e.catalog.read(root)
@@ -371,7 +371,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(fresh, pgTypeUnitBag(t, newCapture, freshSource))
-	if domainUnitType(t, fresh, "query_int").typ == oldBase.typ {
+	if domainUnitType(t, fresh, "query_int").SQLType == oldBase.SQLType {
 		t.Fatal("reinstallation retained old type generation")
 	}
 	// Old rows and old catalog-aware inheritance retain their original actual

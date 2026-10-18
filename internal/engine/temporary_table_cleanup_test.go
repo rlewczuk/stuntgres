@@ -20,7 +20,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	class, _ := sqltype.DefaultIndexClass(table.Columns[0].Usage.Type)
 	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: table.address, keys: []indexKey{{attribute: 1, class: class}}}}
 	peer := sessionStart(t, e, nil)
-	peerNamespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, owner: table.Owner, temporary: peer.token}
+	peerNamespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, Owner: table.Owner, Temporary: peer.token}
 	peerTable := *table
 	peerTable.address.ObjectID = 20006
 	peerTable.namespace = peerNamespace.address
@@ -47,7 +47,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 			t.Fatal("orphan owner dependency", a)
 		}
 	}
-	if ns, ok := e.catalog.state.Namespace(table.namespace); !ok || ns.temporary != op.session.token {
+	if ns, ok := e.catalog.state.Namespace(table.namespace); !ok || ns.Temporary != op.session.token {
 		t.Fatal("cleanup lost retained namespace identity")
 	}
 	if e.catalog.state.Get(peerTable.address) != &peerTable || e.storage[peerTable.address] != peerStore || e.catalog.state.epoch != epoch {

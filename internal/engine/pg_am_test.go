@@ -89,7 +89,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})
 		ownedRow, rowOK := catalog.LookupType(10015)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10014 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.Owner || array.owner != d.Owner {
+		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10014 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
 		if err := (relationProvider{}).Validate(catalog, d); err != nil {

@@ -19,7 +19,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	// its real six-argument identity/provider, to exercise return-type admission.
 	candidate := cloneCatalog(view.state)
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
-	procedure.result = 25
+	procedure.Result = 25
 	candidate.setDescriptor(procedure.address, &procedure)
 	auth.recaptureCatalog(e.catalog.read(candidate))
 	stage := e.BeginCatalogStage(auth.catalog)

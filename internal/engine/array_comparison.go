@@ -146,7 +146,7 @@ func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, 
 		if err := requireBuiltinComparison(selected, raw.Pos); err != nil {
 			return nil, nil, err
 		}
-		return b.comparisonInputType(sqltype.ID(selected.left), lt, rt), b.comparisonInputType(sqltype.ID(selected.right), rt, lt), nil
+		return b.comparisonInputType(sqltype.ID(selected.Left), lt, rt), b.comparisonInputType(sqltype.ID(selected.Right), rt, lt), nil
 	}
 	signature, err := sqltype.ResolveComparison(operator, lt, rt)
 	if !set.available {
@@ -210,14 +210,14 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 		if err != nil {
 			return nil, err
 		}
-		if selected.result != ids.OID(sqltype.Bool) {
+		if selected.Result != ids.OID(sqltype.Bool) {
 			return nil, expr.ErrorAt("42809", "op ANY/ALL (array) requires operator to yield boolean", raw.Pos)
 		}
 		if err := requireBuiltinComparison(selected, raw.Pos); err != nil {
 			return nil, err
 		}
-		lt = b.comparisonInputType(sqltype.ID(selected.left), left.descriptor(), element)
-		rt = b.comparisonInputType(sqltype.ID(selected.right), element, left.descriptor())
+		lt = b.comparisonInputType(sqltype.ID(selected.Left), left.descriptor(), element)
+		rt = b.comparisonInputType(sqltype.ID(selected.Right), element, left.descriptor())
 		if !ok {
 			return nil, functions.ComparisonError(b, sqlError("42883", "operator does not exist"), left.descriptor(), element, operatorRaw)
 		}

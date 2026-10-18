@@ -16,19 +16,19 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 		// in both kinds. Allocation order must not become link-establishment order.
 		d, c, a, b := oids[0], oids[1], oids[2], oids[3]
 		operators := []*operatorDescriptor{
-			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d}, name: "#!#", function: 144, result: 16, negator: c},
-			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: c}, name: "#?#", function: 65, result: 16, commutator: b, negator: b},
-			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, name: "#~#", function: 65, result: 16, commutator: b},
-			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, name: "#@#", function: 65, result: 16, commutator: c, negator: c},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d}, name: "#!#", Function: 144, Result: 16, Negator: c},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: c}, name: "#?#", Function: 65, Result: 16, Commutator: b, Negator: b},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, name: "#~#", Function: 65, Result: 16, Commutator: b},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, name: "#@#", Function: 65, Result: 16, Commutator: c, Negator: c},
 		}
 		before := make([]operatorDescriptor, len(operators))
 		graph := make(map[dumpEventKey][]dumpEventKey)
 		for i, op := range operators {
 			op.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			op.revision = 1
-			op.left = 23
-			op.right = 23
-			op.owner = e.authorizationDomain.Principal(10)
+			op.Left = 23
+			op.Right = 23
+			op.Owner = e.authorizationDomain.Principal(10)
 			if err := stage.Create(op); err != nil {
 				t.Fatal(err)
 			}
@@ -91,17 +91,17 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	a, b := ids.OID(90001), ids.OID(90003)
 	operators := []*operatorDescriptor{
-		{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, name: "#~#", commutator: b},
-		{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, name: "#@#", commutator: a},
+		{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, name: "#~#", Commutator: b},
+		{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, name: "#@#", Commutator: a},
 	}
 	for _, op := range operators {
 		op.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		op.revision = 1
-		op.left = 23
-		op.right = 23
-		op.owner = e.authorizationDomain.Principal(10)
-		op.function = 65
-		op.result = 16
+		op.Left = 23
+		op.Right = 23
+		op.Owner = e.authorizationDomain.Principal(10)
+		op.Function = 65
+		op.Result = 16
 		if err := stage.Create(op); err != nil {
 			t.Fatal(err)
 		}

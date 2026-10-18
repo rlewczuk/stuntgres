@@ -46,10 +46,10 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 		if !ok {
 			return ""
 		}
-		if descriptor.typ.NamespaceName() == "pg_catalog" {
+		if descriptor.SQLType.NamespaceName() == "pg_catalog" {
 			// Released diagnostics use SQL aliases, not catalog spellings such
 			// as int4, and do not identifier-quote builtin names such as json.
-			return descriptor.typ.DiagnosticName()
+			return descriptor.SQLType.DiagnosticName()
 		}
 		return typeDiagnosticNameAt(catalog, descriptor, path)
 	}, nil

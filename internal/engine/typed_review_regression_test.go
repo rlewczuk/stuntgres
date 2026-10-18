@@ -220,8 +220,8 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl 
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	next := *stage.base.MustType(address)
-	next.acl, next.revision = acl, next.revision+1
-	next.aclSyntheticDefault = false
+	next.ACL, next.revision = acl, next.revision+1
+	next.ACLSyntheticDefault = false
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 		t.Fatal("denied member/grouped DROP changed graph")
 	}
 	memberDescriptor := e.CatalogRead().MustType(member)
-	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: memberDescriptor.owner, Grantee: authorization.ACLGrantee{Role: owner.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: memberDescriptor.Owner, Grantee: authorization.ACLGrantee{Role: owner.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, member, grant)
 	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE")
 	mineDescriptor = e.CatalogRead().MustRelation(mine.Address)
@@ -322,7 +322,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	}
 	current := e.CatalogRead()
 	changed := current.MustType(member)
-	if current.state != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.storage[table.Address] != oldStorage || changed.typ != originalMember.typ || reflect.DeepEqual(changed.acl, originalMember.acl) {
+	if current.state != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.storage[table.Address] != oldStorage || changed.SQLType != originalMember.SQLType || reflect.DeepEqual(changed.ACL, originalMember.ACL) {
 		t.Fatal("ACL conflict was not type-descriptor-only and atomic")
 	}
 	lockEmpty(t, e)

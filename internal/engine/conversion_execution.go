@@ -22,14 +22,14 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*procedur
 		for _, namespace := range s.visibilityOtherPath {
 			for _, descriptor := range s.visibilityCatalog.Descriptors() {
 				d, ok := descriptor.(*conversionDescriptor)
-				if !ok || !d.defaultConversion || d.Namespace() != namespace {
+				if !ok || !d.DefaultConversion || d.Namespace() != namespace {
 					continue
 				}
-				key := [2]int{d.source, d.destination}
+				key := [2]int{d.Source, d.Destination}
 				old := defaults[key].conversion
-				if old == nil || old.Namespace() == namespace && d.oid < old.oid {
-					procedure, ok := s.visibilityCatalog.Procedure(d.handler)
-					if !ok || procedure.conversion.Name() == "" || procedure.signature != conversionSignature || procedure.result != 23 {
+				if old == nil || old.Namespace() == namespace && d.OID < old.OID {
+					procedure, ok := s.visibilityCatalog.Procedure(d.Handler)
+					if !ok || procedure.Conversion.Name() == "" || procedure.Signature != conversionSignature || procedure.Result != 23 {
 						return nil, fmt.Errorf("stuntgres: invalid conversion execution capability")
 					}
 					defaults[key] = conversionDefault{d, procedure}

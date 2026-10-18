@@ -74,7 +74,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	}
 	for _, id := range []ids.OID{10047, 10046} {
 		typ := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.owningRelation != d.address || typ.owner != d.Owner {
+		if typ.OwningRelation != d.address || typ.Owner != d.Owner {
 			t.Fatal("row/array reciprocal owner", id, typ)
 		}
 	}
@@ -82,7 +82,7 @@ func TestPGNamespaceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	toast := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
-	if toast.comment != "reserved schema for TOAST tables" || !pgDependPinned(c, toast.address) || ownershipRoot(c, toast) || !bootstrapNamespaceDumpable(toast) {
+	if toast.Comment != "reserved schema for TOAST tables" || !pgDependPinned(c, toast.address) || ownershipRoot(c, toast) || !bootstrapNamespaceDumpable(toast) {
 		t.Fatal("actual toast seed/protected root/control baseline", toast)
 	}
 }
@@ -155,7 +155,7 @@ func TestPGNamespaceACL(t *testing.T) {
 	stage := e.BeginCatalogStage(c)
 	defer e.DiscardCatalogStage(stage)
 	empty := *c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
-	empty.acl = authorization.ACLValue{Explicit: true}
+	empty.ACL = authorization.ACLValue{Explicit: true}
 	empty.revision++
 	if err := stage.Replace(&empty); err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
 		next := cloneCatalog(c.state)
 		invalid := *ns
-		invalid.owner = owner
+		invalid.Owner = owner
 		next.setDescriptor(ns.address, &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, d)
 	}
@@ -279,7 +279,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	invalid = *ns
-	invalid.temporaryToast = true
+	invalid.TemporaryToast = true
 	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
@@ -287,14 +287,14 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
-	invalid.temporary = foreign.catalog.domain.Session(1)
+	invalid.Temporary = foreign.catalog.domain.Session(1)
 	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	next.setDescriptor(currentDatabaseAddress, (*databaseDescriptor)(nil))
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	database := *c.MustDatabase(currentDatabaseAddress)
-	database.owner = e.Roles().LookupRef("pg_read_all_data")
+	database.Owner = e.Roles().LookupRef("pg_read_all_data")
 	next = cloneCatalog(c.state)
 	next.setDescriptor(currentDatabaseAddress, &database)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
@@ -347,7 +347,7 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 	identity := op.RoleState()
 	withPublicSchemaUnitOwner(t, e, "namespace_fixture_actor", func() {
 		current := e.CatalogRead().MustNamespace(address)
-		if current.owner != actor || current.address != original.address || op.RoleState() != identity {
+		if current.Owner != actor || current.address != original.address || op.RoleState() != identity {
 			t.Fatal("fixture bypassed real namespace/caller authority")
 		}
 		roleExecute(t, e, op, "CREATE TABLE namespace_fixture_table(i INT)")
@@ -356,7 +356,7 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 	check := func() {
 		t.Helper()
 		current := e.CatalogRead().MustNamespace(address)
-		if current.owner != original.owner || current.address != original.address || current.acl.Explicit != original.acl.Explicit || !slices.Equal(current.acl.Entries, original.acl.Entries) || op.RoleState() != identity {
+		if current.Owner != original.Owner || current.address != original.address || current.ACL.Explicit != original.ACL.Explicit || !slices.Equal(current.ACL.Entries, original.ACL.Entries) || op.RoleState() != identity {
 			t.Fatal("fixture did not restore exact owner/ACL/caller authority")
 		}
 	}
@@ -376,7 +376,7 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 		withPublicSchemaUnitOwner(t, e, "namespace_fixture_actor", func() { panic(marker) })
 	}()
 	check()
-	if before.Get(address) != original || original.owner.ID() != 6171 {
+	if before.Get(address) != original || original.Owner.ID() != 6171 {
 		t.Fatal("fixture changed immutable pristine snapshot")
 	}
 }

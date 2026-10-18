@@ -44,13 +44,13 @@ func TestNominalTypeRestorePublicNamespaceAuthority(t *testing.T) {
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	address := catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: public, Name: "namespace_domain"})
 	domain, ok := catalog.Type(address)
-	if !ok || domain.owner != e.Roles().LookupRef("namespace_domain_owner") || !domain.typ.IsDomain() {
+	if !ok || domain.Owner != e.Roles().LookupRef("namespace_domain_owner") || !domain.SQLType.IsDomain() {
 		t.Fatal("restore changed domain owner or identity", domain)
 	}
 	for _, name := range []string{"namespace_enum", "namespace_record"} {
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: public, Name: name})
 		typ, ok := catalog.Type(address)
-		if !ok || typ.owner != e.Roles().LookupRef("namespace_domain_owner") {
+		if !ok || typ.Owner != e.Roles().LookupRef("namespace_domain_owner") {
 			t.Fatal("restore changed nominal type owner or identity", name, typ)
 		}
 	}

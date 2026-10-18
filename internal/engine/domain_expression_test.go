@@ -27,14 +27,14 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 		isNull    bool
 		parameter sqltype.ID
 	}{
-		{"7::public.a", a.typ.ID(), false, 0},
+		{"7::public.a", a.SQLType.ID(), false, 0},
 		{"(7::public.a)+1", sqltype.Int4, false, 0},
-		{"((7::public.a)+1)::public.a", a.typ.ID(), false, 0},
+		{"((7::public.a)+1)::public.a", a.SQLType.ID(), false, 0},
 		{"btrim(' hi '::public.label)", sqltype.Text, false, 0},
-		{"COALESCE(NULL::public.a,7::public.a)", a.typ.ID(), false, 0},
+		{"COALESCE(NULL::public.a,7::public.a)", a.SQLType.ID(), false, 0},
 		{"COALESCE(NULL::public.a,7)", sqltype.Int4, false, 0},
 		{"COALESCE(NULL::public.a,NULL::public.b)", sqltype.Int4, true, 0},
-		{"CASE WHEN TRUE THEN NULL::public.a ELSE NULL::public.a END", a.typ.ID(), true, 0},
+		{"CASE WHEN TRUE THEN NULL::public.a ELSE NULL::public.a END", a.SQLType.ID(), true, 0},
 		{"7::public.a=$1", sqltype.Bool, false, sqltype.Int4},
 		{"TRUE::public.flag AND TRUE", sqltype.Bool, false, 0},
 	} {
@@ -159,7 +159,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.short AS varchar(3)"))
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
-	target := domainUnitType(t, e.CatalogRead(), "short").typ.Usage()
+	target := domainUnitType(t, e.CatalogRead(), "short").SQLType.Usage()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT 'abcd' FROM public.one").(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: assignmentContext, expected: target, mode: sqltype.Assignment})
@@ -223,7 +223,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 	domain := domainUnitType(t, e.CatalogRead(), "relation_name")
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.relation_name)")
 	regclass, _ := e.CatalogRead().LookupType(sqltype.Regclass)
-	value, err := domain.typ.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(table.address.ObjectID), 10)))
+	value, err := domain.SQLType.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(table.address.ObjectID), 10)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 			case "anonymous":
 				rows.anonymous = [][]sqltype.Value{{value}}
 			case "selected source":
-				rows.source = &querySource{committed: []rowVersion{{values: []sqltype.Value{sqltype.Null(domain.typ)}}, {values: []sqltype.Value{value}}}}
+				rows.source = &querySource{committed: []rowVersion{{values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {values: []sqltype.Value{value}}}}
 				rows.selection = []int{1}
 				rows.slots = []int{0}
 			}
@@ -302,7 +302,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 		{"chain", "public.days", "1", "1 day"},
 	} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public."+tc.name+" AS "+tc.base))
-		target := domainUnitType(t, e.CatalogRead(), tc.name).typ.Usage()
+		target := domainUnitType(t, e.CatalogRead(), tc.name).SQLType.Usage()
 		for _, expression := range []string{"'" + tc.input + "'::public." + tc.name, "CAST('" + tc.input + "' AS public." + tc.name + ")"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+expression+" FROM public.one").(*parser.Select).Targets[0]

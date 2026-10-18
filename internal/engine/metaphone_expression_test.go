@@ -41,7 +41,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		unary := node.(installedMetaphoneFunctionExpression)
-		if unary.ref.Address != ext.members[tc.member] {
+		if unary.ref.Address != ext.Members[tc.member] {
 			t.Fatal("unary procedure identity", unary.ref)
 		}
 		if err := unary.validate(e.CatalogRead()); err != nil {
@@ -55,7 +55,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Text()
-	if err != nil || readErr != nil || integer != "KM" || n.ref.Address != ext.members[5] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != "KM" || n.ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal(value, n.ref, err, readErr)
 	}
 	if err := n.validate(e.CatalogRead()); err != nil {
@@ -91,13 +91,13 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.result = 23 },
-		func(p *procedureDescriptor) { p.signature = "25,25" },
+		func(p *procedureDescriptor) { p.Result = 23 },
+		func(p *procedureDescriptor) { p.Signature = "25,25" },
 		func(p *procedureDescriptor) { p.name = "dmetaphone" },
 		func(p *procedureDescriptor) {
-			p.implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
+			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
 		},
-		func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
+		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 	} {
 		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure
@@ -178,7 +178,7 @@ func TestMetaphoneRemap(t *testing.T) {
 	call := metaphoneUnitExpression(t, e)
 	before := e.CatalogRead()
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-	for i, address := range ext.members {
+	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)

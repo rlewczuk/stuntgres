@@ -60,7 +60,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	}
 	for _, id := range []ids.OID{12075, 12074} {
 		typ := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.owningRelation != d.address {
+		if typ.OwningRelation != d.address {
 			t.Fatal("type owner", typ)
 		}
 		if err := (typeProvider{}).Validate(catalog, typ); err != nil {

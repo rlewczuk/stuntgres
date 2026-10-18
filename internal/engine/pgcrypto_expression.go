@@ -44,7 +44,7 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 		}
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || proc.pgcryptoProvider() != stockPgcrypto || proc.name != n.Plan.Name() || proc.signature != cryptoExpressionSignature(n) {
+	if !ok || proc != n.procedure || proc.pgcryptoProvider() != stockPgcrypto || proc.name != n.Plan.Name() || proc.Signature != cryptoExpressionSignature(n) {
 		return fmt.Errorf("stuntgres: invalid stored crypto identity")
 	}
 	if err := stockPgcrypto.validateProcedure(v, proc); err != nil {
@@ -104,7 +104,7 @@ func closedPgcryptoDefault(node expr.Expr) bool {
 			return false
 		}
 		member, ok := functions.PgcryptoLookup(n.procedure.name, string(cryptoExpressionSignature(n)))
-		if !ok || string(n.procedure.signature) != member.Signature || n.procedure.result != member.Result || n.procedure.volatility != member.Volatility || n.procedure.strict != member.Strict {
+		if !ok || string(n.procedure.Signature) != member.Signature || n.procedure.Result != member.Result || n.procedure.Volatility != member.Volatility || n.procedure.Strict != member.Strict {
 			return false
 		}
 	case coercionExpression, collationExpression, rowExpression, fieldExpression,

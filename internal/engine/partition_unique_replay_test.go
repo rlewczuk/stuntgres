@@ -210,7 +210,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	}
 	graph[dumpEventKey{oid: local.address.ObjectID}] = []dumpEventKey{{oid: mid.address.ObjectID}}
 	indices[local.address.ObjectID] = len(indices)
-	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
+	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, namespace: mid.namespace, Owner: mid.Owner, name: "unique_replay_consumer", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.address.ObjectID), 10))

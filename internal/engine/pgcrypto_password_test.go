@@ -59,7 +59,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		}
 		foreign := n
 		proc := *n.procedure
-		proc.implementation = &pgcryptoProvider{control: extensionControl{version: "1.4"}}
+		proc.Implementation = &pgcryptoProvider{control: extensionControl{version: "1.4"}}
 		foreign.procedure = &proc
 		if closedPgcryptoDefault(foreign) {
 			t.Fatal("foreign crypto DEFAULT provider admitted")

@@ -144,8 +144,8 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.wrapped AS public.pair"))
 	before := e.CatalogRead()
 	domain := domainUnitType(t, before, "wrapped")
-	array, ok := before.LookupArray(domain.typ)
-	if !ok || !array.Concrete() || array.Element() != domain.typ || !array.Usage().Valid() {
+	array, ok := before.LookupArray(domain.SQLType)
+	if !ok || !array.Concrete() || array.Element() != domain.SQLType || !array.Usage().Valid() {
 		t.Fatal("domain did not publish an executable reciprocal array", array)
 	}
 	holder := domainUnitTable(t, e, op, "CREATE TABLE public.domain_holder(v public.wrapped[])")
@@ -169,8 +169,8 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 			t.Fatal("composite lost renamed stable member")
 		}
 		wrapped := domainUnitType(t, view, "wrapped")
-		current, ok := view.LookupArray(wrapped.typ)
-		if !ok || !current.Concrete() || current.Element() != wrapped.typ || wrapped.typ.DomainBase().Type != row || current.ID() != array.ID() || wrapped.typ.ID() != domain.typ.ID() {
+		current, ok := view.LookupArray(wrapped.SQLType)
+		if !ok || !current.Concrete() || current.Element() != wrapped.SQLType || wrapped.SQLType.DomainBase().Type != row || current.ID() != array.ID() || wrapped.SQLType.ID() != domain.SQLType.ID() {
 			t.Fatal("domain-array generation lost identity or reciprocity", current)
 		}
 		owned := view.MustRelation(holder.address)
@@ -178,7 +178,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		if !ok || owned.Columns[0].Usage.Type != current || ownRow.CompositeMember(0).Usage.Type != current {
 			t.Fatal("holder and own-row member borrowed stale domain-array codec")
 		}
-		if current == array || wrapped.typ == domain.typ || row == domain.typ.DomainBase().Type {
+		if current == array || wrapped.SQLType == domain.SQLType || row == domain.SQLType.DomainBase().Type {
 			t.Fatal("new generation reused retained source codecs")
 		}
 		if evolvedArray == nil {
@@ -197,7 +197,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		_, err = current.Input(context.Background(), `{"(bad,x)"}`, -1)
 		domainUnitDiagnostic(t, err, "22P02", `invalid input syntax for type integer: "bad"`)
 	}
-	if domain.typ.DomainBase().Type.CompositeMember(1).Name != "note" || array.Element() != domain.typ || holder.Columns[0].Usage.Type != array || source.Columns[1].Name != "note" {
+	if domain.SQLType.DomainBase().Type.CompositeMember(1).Name != "note" || array.Element() != domain.SQLType || holder.Columns[0].Usage.Type != array || source.Columns[1].Name != "note" {
 		t.Fatal("generation reownership mutated retained catalog roots")
 	}
 	text, err := array.Output(context.Background(), original)

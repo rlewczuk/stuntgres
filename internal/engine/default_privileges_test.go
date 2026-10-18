@@ -13,11 +13,11 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	table := defaultUnitTable(t, f, stage, "dependent", f.owner)
 	row := stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}].(*typeDescriptor)
-	if !authorization.MatchesDefaultBaseline(row.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(row, f.reader, nil) {
+	if !authorization.MatchesDefaultBaseline(row.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(row, f.reader, nil) {
 		t.Fatal("dependent rowtype consumed TYPES defaults")
 	}
-	array := stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
-	if !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
+	array := stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*typeDescriptor)
+	if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
 		t.Fatal("dependent array consumed TYPES defaults")
 	}
 	// Only the independent base consumes TYPES: its generated array must not
@@ -34,8 +34,8 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 		t.Fatal(err)
 	}
 	row = stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.RowType)}].(*typeDescriptor)
-	array = stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
-	if !descriptorRoleDependencies(row, f.reader, nil) || descriptorRoleDependencies(array, f.reader, nil) || !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) {
+	array = stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*typeDescriptor)
+	if !descriptorRoleDependencies(row, f.reader, nil) || descriptorRoleDependencies(array, f.reader, nil) || !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) {
 		t.Fatal("standalone/associated ACL distinction")
 	}
 }

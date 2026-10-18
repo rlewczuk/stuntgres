@@ -173,7 +173,7 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			// seam; exhaustion must not wrap, reuse or publish anything.
 			e.catalog.state = cloneCatalog(e.catalog.state)
 			if class == ids.NamespaceClassID {
-				e.catalog.state.setDescriptor(address, &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
+				e.catalog.state.setDescriptor(address, &namespaceDescriptor{address: address, name: "last", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
 				e.catalog.state.setDescriptor(address, &relationDescriptor{address: address, name: "last", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
 			}
@@ -519,7 +519,7 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 		address:  ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1},
 		name:     "feature",
 		revision: 1,
-		owner:    owner,
+		Owner:    owner,
 	}
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -536,7 +536,7 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 	}
 	for _, invalidOwner := range []authorization.PrincipalRef{{}, foreignOwner} {
 		invalid := *descriptor
-		invalid.owner = invalidOwner
+		invalid.Owner = invalidOwner
 		invalidStage := e.BeginCatalogStage(e.CatalogRead())
 		if err := invalidStage.Create(&invalid); err != nil {
 			t.Fatal(err)
@@ -734,7 +734,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "private", revision: 1}
+	d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "private", revision: 1}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}

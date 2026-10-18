@@ -99,7 +99,7 @@ func TestSchemaNamesNestedAtomicity(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "dot.schema")
 	owner, _ := e.Roles().Lookup("owner")
-	if e.catalog.state.MustNamespace(ns.Address).owner != owner.Ref {
+	if e.catalog.state.MustNamespace(ns.Address).Owner != owner.Ref {
 		t.Fatal("wrong schema owner")
 	}
 	for _, q := range []string{`"dot.schema"."t,quote"`, `"dot.schema".u`} {
@@ -287,7 +287,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	rolesBefore := e.roles
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET search_path TO mixed")
-	if d := e.catalog.state.MustNamespace(ns.Address); d.owner != owner.Ref || d.acl.Explicit {
+	if d := e.catalog.state.MustNamespace(ns.Address); d.Owner != owner.Ref || d.ACL.Explicit {
 		t.Fatal("schema authority/ACL", d)
 	}
 	if d := e.catalog.state.MustRelation(table.Address); d.Owner != tableOwner.Ref || d.ACL.Explicit {
@@ -308,7 +308,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		empty := schemaRef(t, e, "empty")
 		for _, a := range []ids.ObjectAddress{ns.Address, empty.Address} {
 			d := e.catalog.state.MustNamespace(a)
-			if d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+			if d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 				t.Fatal("namespace owner/ACL", d)
 			}
 		}
@@ -356,7 +356,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	if fresh.Epoch == table.Epoch {
 		t.Fatal("replacement reused epoch")
 	}
-	if d := e.catalog.state.MustNamespace(schemaRef(t, e, "mixed").Address); d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+	if d := e.catalog.state.MustNamespace(schemaRef(t, e, "mixed").Address); d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 		t.Fatal("roundtrip schema owner/ACL", d)
 	}
 	for _, tc := range []struct {

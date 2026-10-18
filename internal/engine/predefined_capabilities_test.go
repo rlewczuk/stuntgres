@@ -26,7 +26,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		d    Descriptor
 		want authorization.Privileges
 	}{
-		{&namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, name: "private", owner: owner, acl: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
+		{&namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, name: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
 		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, name: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: tableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
 		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, name: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
 		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, name: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
@@ -196,11 +196,11 @@ func TestPredefinedRoleControls(t *testing.T) {
 			t.Fatal("control reseeded shared graph")
 		}
 		public := e.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-		if public.owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
+		if public.Owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
-		for _, entry := range public.acl.Entries {
-			if entry.Grantor != public.owner || !entry.Grantee.Public && entry.Grantee.Role != public.owner {
+		for _, entry := range public.ACL.Entries {
+			if entry.Grantor != public.Owner || !entry.Grantee.Public && entry.Grantee.Role != public.Owner {
 				t.Fatal("public ACL provenance", entry)
 			}
 		}
@@ -210,8 +210,8 @@ func TestPredefinedRoleControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	public := target.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if public.owner != (target.authorizationDomain.Principal(6171)) {
-		t.Fatal("foreign public owner escaped remapping", public.owner)
+	if public.Owner != (target.authorizationDomain.Principal(6171)) {
+		t.Fatal("foreign public owner escaped remapping", public.Owner)
 	}
 	if len(target.Roles().Memberships()) != 3 {
 		t.Fatal("import replaced independent target graph")

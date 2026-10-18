@@ -64,7 +64,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			ownerAuth := foreignActionOwner(auth, child.Owner)
 			e.mu.Unlock()
 			domain := domainUnitType(t, view, "phase_checked")
-			value, err := sqltype.Integer(domain.typ.DomainBase().Type, 1)
+			value, err := sqltype.Integer(domain.SQLType.DomainBase().Type, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					scope.foreignActionAuth = &ownerAuth
 					defer func() { scope.foreignActionAuth = nil }()
 				}
-				return evaluation.CheckDomain(context.Background(), domain.typ, value)
+				return evaluation.CheckDomain(context.Background(), domain.SQLType, value)
 			}
 			first, second := &invoker, &local
 			if firstRI {

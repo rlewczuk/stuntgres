@@ -82,7 +82,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.Attributes[slot])
 		}
-		if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
+		if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.Temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}

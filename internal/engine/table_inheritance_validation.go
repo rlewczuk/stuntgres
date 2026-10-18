@@ -41,7 +41,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		}
 		seen[address] = true
 		parentNS, ok := v.Namespace(parent.namespace)
-		if !ok || parentNS.temporary != (ids.SessionToken{}) && parentNS.temporary != childNS.temporary {
+		if !ok || parentNS.Temporary != (ids.SessionToken{}) && parentNS.Temporary != childNS.Temporary {
 			return invalid()
 		}
 	}

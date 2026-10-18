@@ -89,17 +89,17 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			if kind == "c" {
 				objectType = "USER-DEFINED TYPE"
 				typ, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
-				if !ok || !typ.typ.IsComposite() || typ.owningRelation != d.address {
+				if !ok || !typ.SQLType.IsComposite() || typ.OwningRelation != d.address {
 					return nil, fmt.Errorf("stuntgres: invalid composite privilege identity")
 				}
-				allowed, err := visible(typ.Address(), typ.owner, authorization.UsagePrivilege)
+				allowed, err := visible(typ.Address(), typ.Owner, authorization.UsagePrivilege)
 				if err != nil {
 					return nil, err
 				}
 				if !allowed {
 					continue
 				}
-			} else if ns.temporary != (ids.SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
+			} else if ns.Temporary != (ids.SessionToken{}) && (auth.session == nil || ns.Temporary != auth.session.token) {
 				continue
 			}
 			ownerVisible := kind == "c"
@@ -132,25 +132,25 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 				emit(ns.name, d.name, objectType, strconv.FormatInt(int64(attribute), 10))
 			}
 		case *typeDescriptor:
-			if !d.typ.IsDomain() {
+			if !d.SQLType.IsDomain() {
 				continue
 			}
 			ns, ok := catalog.Namespace(d.Namespace())
-			base := d.typ.DomainBase().Type
+			base := d.SQLType.DomainBase().Type
 			if !ok || base == nil {
 				return nil, fmt.Errorf("stuntgres: invalid domain privilege identity")
 			}
 			actual, exists := catalog.LookupType(base.ID())
-			identity, present := catalog.LookupType(d.typ.ID())
-			if !exists || actual != base || !present || identity != d.typ {
+			identity, present := catalog.LookupType(d.SQLType.ID())
+			if !exists || actual != base || !present || identity != d.SQLType {
 				return nil, fmt.Errorf("stuntgres: inconsistent domain privilege identity")
 			}
 			// Genuine seeded domains retain PUBLIC USAGE by stable namespace
 			// identity even after a schema rename. Display names are not authority;
 			// this exception never extends to ownerless user objects.
-			seeded := d.typ.IsBuiltin() && d.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229})
+			seeded := d.SQLType.IsBuiltin() && d.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229})
 			if !seeded {
-				allowed, err := visible(d.Address(), d.owner, authorization.UsagePrivilege)
+				allowed, err := visible(d.Address(), d.Owner, authorization.UsagePrivilege)
 				if err != nil {
 					return nil, err
 				}

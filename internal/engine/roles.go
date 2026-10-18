@@ -176,13 +176,13 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 			}
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ids.ObjectAddress{}) {
+	if typ, ok := d.(*typeDescriptor); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
 		// Dependent row/array ownership belongs to the relation; independent
 		// composite types still carry their own named ACL dependency.
-		if !typ.typ.IsComposite() {
+		if !typ.SQLType.IsComposite() {
 			return false
 		}
-		if typ.owner == ref {
+		if typ.Owner == ref {
 			return false
 		}
 	}
@@ -192,7 +192,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 	}
 	owner, acl, columns := descriptorACL(d)
 	if owner == ref {
-		if typ, array := d.(*typeDescriptor); array && typ.typ.IsArray() {
+		if typ, array := d.(*typeDescriptor); array && typ.SQLType.IsArray() {
 			// Associated array ownership is represented by its parent.
 			return false
 		}
@@ -331,8 +331,8 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = foreignLabel(foreign.address.ClassID) + " "
 		if foreign.address.ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
-			mapped, _ := auth.roles.Descriptor(foreign.mappedRole)
-			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.server).Name())
+			mapped, _ := auth.roles.Descriptor(foreign.MappedRole)
+			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.Server).Name())
 		}
 	}
 	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
@@ -358,7 +358,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && (typ.typ.IsUserDefined() || typ.typ.IsArray() && typ.typ.Element().IsDomain()) {
+	if typ, ok := d.(*typeDescriptor); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "type "
 		name = typeDiagnosticNameAt(view, typ, path)

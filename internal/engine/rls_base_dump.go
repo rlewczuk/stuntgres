@@ -21,7 +21,7 @@ func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authoriz
 			return nil, err
 		}
 		ns := view.MustNamespace(d.namespace)
-		if ns.temporary != (ids.SessionToken{}) {
+		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		owner, err := roles.Descriptor(d.Owner)

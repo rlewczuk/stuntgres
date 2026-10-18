@@ -380,11 +380,11 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	initializeCatalogAttributes(d)
 	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}); ok {
 		row := e.catalog.state.MustType(address)
-		row.owningRelation, row.owner = d.address, d.Owner
-		d.RowType = row.typ.ID()
-		if row.array != 0 {
-			array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
-			array.owningRelation, array.owner = d.address, d.Owner
+		row.OwningRelation, row.Owner = d.address, d.Owner
+		d.RowType = row.SQLType.ID()
+		if row.Array != 0 {
+			array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+			array.OwningRelation, array.Owner = d.address, d.Owner
 		}
 	}
 	e.catalog.state.setDescriptor(d.address, d)

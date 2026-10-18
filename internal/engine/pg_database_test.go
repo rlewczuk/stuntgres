@@ -62,7 +62,7 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
 	ownedRow, ok := catalog.LookupType(1248)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if d.RowType != 1248 || !ok || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10052 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	if d.RowType != 1248 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10052 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 }
@@ -98,8 +98,8 @@ func TestPGDatabaseCapture(t *testing.T) {
 	if got, err := row[7].Boolean(); err != nil || got {
 		t.Fatal("login events", got, err)
 	}
-	if !row[17].IsNull() || database.acl.Explicit || len(database.acl.Entries) != 0 {
-		t.Fatal("absent database ACL baseline", row[17], database.acl)
+	if !row[17].IsNull() || database.ACL.Explicit || len(database.ACL.Entries) != 0 {
+		t.Fatal("absent database ACL baseline", row[17], database.ACL)
 	}
 	unchanged := func() {
 		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
@@ -149,12 +149,12 @@ func TestPGDatabaseCapture(t *testing.T) {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
-	invalidDB.owner = foreign.authorizationDomain.Principal(10)
+	invalidDB.Owner = foreign.authorizationDomain.Principal(10)
 	private.setDescriptor(currentDatabaseAddress, &invalidDB)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
-	invalidDB.owner = e.authorizationDomain.Principal(999999)
+	invalidDB.Owner = e.authorizationDomain.Principal(999999)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got != nil || err == nil {
 		t.Fatal("stale owner admitted", got, err)
 	}
@@ -172,8 +172,8 @@ func TestPGDatabasePublication(t *testing.T) {
 		t.Fatal("missing predefined principal")
 	}
 	next := *original
-	next.owner, next.revision = successor.Ref, original.revision+1
-	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
+	next.Owner, next.revision = successor.Ref, original.revision+1
+	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {

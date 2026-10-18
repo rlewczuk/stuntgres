@@ -48,13 +48,13 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("owned row type", d.RowType)
 	}
-	array, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
+	array, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
 	if !ok {
-		t.Fatal("owned row array", row.array)
+		t.Fatal("owned row array", row.Array)
 	}
 	ownedRow, rowOK := catalog.LookupType(d.RowType)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
 		t.Fatal("relational row/array ownership", row, array)
 	}
 }
@@ -99,23 +99,23 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 				t.Fatal("concrete carrier", i, value)
 			}
 		}
-		for i, want := range map[int]uint32{0: uint32(definition.oid), 2: uint32(definition.Namespace().ObjectID), 3: uint32(definition.owner.ID())} {
+		for i, want := range map[int]uint32{0: uint32(definition.OID), 2: uint32(definition.Namespace().ObjectID), 3: uint32(definition.Owner.ID())} {
 			if got, err := row[i].OID(); err != nil || got != want {
 				t.Fatal("OID field", i, got, want, err)
 			}
 		}
-		for i, want := range map[int]string{1: definition.name, 4: definition.provider} {
+		for i, want := range map[int]string{1: definition.name, 4: definition.Provider} {
 			if got, err := row[i].Text(); err != nil || got != want {
 				t.Fatal("identity field", i, got, want, err)
 			}
 		}
-		if got, err := row[5].Boolean(); err != nil || got != definition.deterministic {
+		if got, err := row[5].Boolean(); err != nil || got != definition.Deterministic {
 			t.Fatal("deterministic", got, err)
 		}
-		if got, err := row[6].Integer(); err != nil || got != int64(definition.encoding) {
+		if got, err := row[6].Integer(); err != nil || got != int64(definition.Encoding) {
 			t.Fatal("encoding", got, err)
 		}
-		for i, want := range []*string{definition.collate, definition.ctype, definition.locale, definition.rules, definition.version} {
+		for i, want := range []*string{definition.Collate, definition.CType, definition.Locale, definition.Rules, definition.Version} {
 			v := row[7+i]
 			if v.IsNull() != (want == nil) {
 				t.Fatal("NULL knownness", i, v, want)
@@ -152,7 +152,7 @@ func TestPGCollationCapture(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	c := collationUnitDefinition(e, 90000, "pgc_capture")
 	b := collationUnitDefinition(e, 90001, "pgc_empty_version")
-	b.provider, b.encoding, b.collate, b.ctype, b.locale, b.version, b.semantics = "b", 6, nil, nil, collationText("C.UTF-8"), collationText(""), 811
+	b.Provider, b.Encoding, b.Collate, b.CType, b.Locale, b.Version, b.Semantics = "b", 6, nil, nil, collationText("C.UTF-8"), collationText(""), 811
 	for _, d := range []*collationDescriptor{c, b} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)

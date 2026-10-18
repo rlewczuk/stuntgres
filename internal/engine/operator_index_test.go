@@ -61,7 +61,7 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 }
 
 func indexUnitOperator(id ids.OID, namespace ids.ObjectAddress, name string) *operatorDescriptor {
-	return &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, namespace: namespace, name: name, revision: 1, left: 23, right: 23}
+	return &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, namespace: namespace, name: name, revision: 1, Left: 23, Right: 23}
 }
 
 func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
@@ -79,14 +79,14 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	e := &Engine{catalog: catalogStore{state: base}}
 	stage := e.BeginCatalogStage(e.catalog.read(base))
 	second := indexUnitOperator(90003, namespace, first.name)
-	second.left = 0
+	second.Left = 0
 	if err := stage.Create(second); err != nil {
 		t.Fatal(err)
 	}
 	child := e.stageRead(stage).state
 	sibling := cloneCatalog(base)
 	third := indexUnitOperator(90004, namespace, first.name)
-	third.left, third.right = 20, 20
+	third.Left, third.Right = 20, 20
 	stage = e.BeginCatalogStage(e.catalog.read(sibling))
 	if err := stage.Create(third); err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	fourth := indexUnitOperator(90005, namespace, first.name)
-	fourth.right = 20
+	fourth.Right = 20
 	if err := stage.Create(fourth); err != nil {
 		t.Fatal(err)
 	}
@@ -137,10 +137,10 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 	oldIndex := base.state.operatorNames
 	for _, update := range []func(*operatorDescriptor){
 		func(d *operatorDescriptor) { d.revision++ },
-		func(d *operatorDescriptor) { d.owner = e.authorizationDomain.Principal(10) },
-		func(d *operatorDescriptor) { d.left, d.right = 0, 20 },
-		func(d *operatorDescriptor) { d.result, d.function = 20, 463 },
-		func(d *operatorDescriptor) { d.hash, d.merge, d.negator = true, true, 90002 },
+		func(d *operatorDescriptor) { d.Owner = e.authorizationDomain.Principal(10) },
+		func(d *operatorDescriptor) { d.Left, d.Right = 0, 20 },
+		func(d *operatorDescriptor) { d.Result, d.Function = 20, 463 },
+		func(d *operatorDescriptor) { d.Hash, d.Merge, d.Negator = true, true, 90002 },
 	} {
 		previous := base.MustOperator(first.address)
 		next := *previous
@@ -178,7 +178,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
 	d := indexUnitOperator(90001, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "#~#")
-	d.owner, d.result, d.function = e.authorizationDomain.Principal(10), 23, 177
+	d.Owner, d.Result, d.Function = e.authorizationDomain.Principal(10), 23, 177
 	stage := e.BeginCatalogStage(before)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	changes = newCatalogChanges()
 	refreshed := moved
 	refreshed.revision++
-	refreshed.hash = true
+	refreshed.Hash = true
 	e.mu.Lock()
 	e.catalogChangeLocked(changes, moved.address, &refreshed)
 	metadata := e.privateCatalogLocked(changes)
@@ -268,7 +268,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 96}
 	left := source.catalog.state.MustOperator(address)
 	right := target.catalog.state.MustOperator(address)
-	if left == right || left.owner == right.owner {
+	if left == right || left.Owner == right.Owner {
 		t.Fatal("engine-owned seed descriptors/principals shared")
 	}
 	candidate := cloneCatalog(source.catalog.state)
@@ -279,7 +279,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if remapped.operatorNames != source.catalog.state.operatorNames || remapped.Get(address) == left || remapped.MustOperator(address).owner != right.owner {
+	if remapped.operatorNames != source.catalog.state.operatorNames || remapped.Get(address) == left || remapped.MustOperator(address).Owner != right.Owner {
 		t.Fatal("principal remap failed fresh provenance/shared membership")
 	}
 	assertOperatorIndex(t, remapped)
@@ -289,9 +289,9 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	source, target := New(), New()
 	owner := source.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, name: "imported_operators", revision: 1, owner: owner}
+	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, name: "imported_operators", revision: 1, Owner: owner}
 	operator := indexUnitOperator(90001, namespace.address, "#~#")
-	operator.owner = owner
+	operator.Owner = owner
 	stage := source.BeginCatalogStage(source.CatalogRead())
 	for _, descriptor := range []Descriptor{namespace, operator} {
 		if err := stage.Create(descriptor); err != nil {
@@ -301,9 +301,9 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	// Synthetic descriptor-only fixture: TEMP operators have no SQL creation
 	// route, but replacement's whole-catalog projection must remain exact.
 	source.catalog.state = source.stageRead(stage).state
-	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, owner: target.authorizationDomain.Principal(10), temporary: target.catalog.domain.Session(99)}
+	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, Owner: target.authorizationDomain.Principal(10), Temporary: target.catalog.domain.Session(99)}
 	temp := indexUnitOperator(operator.address.ObjectID, tempNamespace.address, "#?#")
-	temp.owner = tempNamespace.owner
+	temp.Owner = tempNamespace.Owner
 	stage = target.BeginCatalogStage(target.CatalogRead())
 	for _, descriptor := range []Descriptor{tempNamespace, temp} {
 		if err := stage.Create(descriptor); err != nil {

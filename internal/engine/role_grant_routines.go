@@ -63,8 +63,8 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		for i := range path.count() {
 			for _, descriptor := range v.catalog.Descriptors() {
 				p, ok := descriptor.(*procedureDescriptor)
-				if ok && p.namespace == path.at(i) && p.name == name && p.routineKind == procedureRoutine {
-					selected = routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}
+				if ok && p.namespace == path.at(i) && p.name == name && p.RoutineKind == procedureRoutine {
+					selected = routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.Signature}
 					count++
 				}
 			}
@@ -98,7 +98,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		// an execution capability.
 		return ids.ObjectRef{}, sqlError("0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
 	}
-	if !grantRoutineKindMatches(kind, p.routineKind) {
+	if !grantRoutineKindMatches(kind, p.RoutineKind) {
 		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v, inputTypes[:inputCount])+") is not a "+noun)
 	}
 	return e.catalog.domain.Ref(v.catalog.Epoch(), address), nil
@@ -112,10 +112,10 @@ func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
 			display.WriteString(", ")
 		}
 		typ := v.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.typ.IsUserDefined() {
+		if typ.SQLType.IsUserDefined() {
 			display.WriteString(typeDiagnosticNameAt(v.catalog, typ, path))
 		} else {
-			display.WriteString(typ.typ.DiagnosticName())
+			display.WriteString(typ.SQLType.DiagnosticName())
 		}
 	}
 	return display.String()

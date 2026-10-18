@@ -20,12 +20,12 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	e.roles = graph
 	current := cloneCatalog(e.catalog.state)
 	database := *current.MustDatabase(currentDatabaseAddress)
-	database.owner = source.Ref
-	database.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}, {Grantor: member.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
+	database.Owner = source.Ref
+	database.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}, {Grantor: member.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
 	current.setDescriptor(currentDatabaseAddress, &database)
 	e.catalog.state = current
 	edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
-	entries := append([]authorization.ACLEntry(nil), database.acl.Entries...)
+	entries := append([]authorization.ACLEntry(nil), database.ACL.Entries...)
 	stage := e.restoreStage()
 	if stage.roles.revision != graph.revision || len(fixtureEdges(stage.roles)) != len(edges) {
 		t.Fatal("restore reseeded or dropped membership graph")
@@ -39,7 +39,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 		}
 	}
 	imported := stage.catalog.state.MustDatabase(currentDatabaseAddress)
-	if imported.owner != (stage.authorizationDomain.Principal(source.Ref.ID())) || imported.acl.Explicit != database.acl.Explicit || len(imported.acl.Entries) != len(entries) {
+	if imported.Owner != (stage.authorizationDomain.Principal(source.Ref.ID())) || imported.ACL.Explicit != database.ACL.Explicit || len(imported.ACL.Entries) != len(entries) {
 		t.Fatal("restore isolated database authority")
 	}
 	for i, expected := range entries {
@@ -47,8 +47,8 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 		if !expected.Grantee.Public {
 			expected.Grantee.Role = stage.authorizationDomain.Principal(expected.Grantee.Role.ID())
 		}
-		if imported.acl.Entries[i] != expected {
-			t.Fatal("restore CREATE ACL provenance", imported.acl.Entries[i], expected)
+		if imported.ACL.Entries[i] != expected {
+			t.Fatal("restore CREATE ACL provenance", imported.ACL.Entries[i], expected)
 		}
 	}
 	sourceRead, ok := stage.Roles().Lookup("source")
@@ -61,15 +61,15 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	if allowed, err := stage.Roles().InheritsRole(stage.authorizationDomain.Principal(member.Ref.ID()), sourceRead.Ref); err != nil || allowed {
 		t.Fatal("restore invented INHERIT", allowed, err)
 	}
-	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.acl.Entries) || e.catalog.state != current {
+	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.ACL.Entries) || e.catalog.state != current {
 		t.Fatal("restore changed source shared state")
 	}
 	changedEdges := fixtureEdges(stage.roles)
 	changedEdges[0].Inherit = !changedEdges[0].Inherit
 	stage.roles = cloneRoleFixture(stage.roles)
 	setFixtureEdges(stage.roles, changedEdges)
-	imported.acl.Entries[0].Privileges = 0
-	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.acl.Entries) {
+	imported.ACL.Entries[0].Privileges = 0
+	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.ACL.Entries) {
 		t.Fatal("isolated restore aliases source membership/ACL arrays")
 	}
 }

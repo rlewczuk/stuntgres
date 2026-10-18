@@ -25,8 +25,8 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	namespace := *stage.base.MustNamespace(ns)
-	namespace.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	namespace.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.owner, namespace.owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
+	namespace.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.Owner, namespace.Owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
 	namespace.revision++
 	if err := stage.Replace(&namespace); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 		t.Fatal(err)
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil || actor.Superuser || !actor.Login || auth.pairedCatalog != auth.catalog || auth.catalog.MustDatabase(currentDatabaseAddress).owner != actor.Ref {
+	if err != nil || actor.Superuser || !actor.Login || auth.pairedCatalog != auth.catalog || auth.catalog.MustDatabase(currentDatabaseAddress).Owner != actor.Ref {
 		t.Fatal("manual utility fixture lacks ordinary paired selected DB authority", err)
 	}
 	result, err := message.step(statement(t, "SELECT nextval('ownership_fence_seq')"))
@@ -122,9 +122,9 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 	if private {
-		database.owner = session.authorization.state.CurrentUser
+		database.Owner = session.authorization.state.CurrentUser
 	} else {
-		database.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		database.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	database.revision++
 	if err := stage.Replace(&database); err != nil {
@@ -255,20 +255,20 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						}
 					case "create-enum":
 						for _, descriptor := range candidate.descriptors {
-							if d, ok := descriptor.(*typeDescriptor); ok && d.typ.IsEnum() && d.Name() == "new_enum" {
+							if d, ok := descriptor.(*typeDescriptor); ok && d.SQLType.IsEnum() && d.Name() == "new_enum" {
 								enum = d
 							}
 						}
 						if enum == nil {
 							t.Fatal("CREATE ENUM did not stage actual enum descriptor")
 						}
-						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.array)}].(*typeDescriptor)
-						members := enum.typ.EnumMembers()
+						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.Array)}].(*typeDescriptor)
+						members := enum.SQLType.EnumMembers()
 						wantTypeACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 							objectACLUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, authorization.UsagePrivilege, 0),
 							{Grantor: auth.state.CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 						}}
-						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.namespace != ns || enum.owner != auth.state.CurrentUser || !candidate.enumCreated[enum.Address()] || array.namespace != ns || array.owner != enum.owner || !array.typ.IsArray() || array.typ.Element().ID() != enum.typ.ID() || !reflect.DeepEqual(enum.acl, wantTypeACL) || !reflect.DeepEqual(array.acl, wantTypeACL) {
+						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.namespace != ns || enum.Owner != auth.state.CurrentUser || !candidate.enumCreated[enum.Address()] || array.namespace != ns || array.Owner != enum.Owner || !array.SQLType.IsArray() || array.SQLType.Element().ID() != enum.SQLType.ID() || !reflect.DeepEqual(enum.ACL, wantTypeACL) || !reflect.DeepEqual(array.ACL, wantTypeACL) {
 							t.Fatal("CREATE ENUM lost actual members/array linkage/ACL/safety bookkeeping")
 						}
 					}

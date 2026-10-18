@@ -16,16 +16,16 @@ func conversionSQLName(view CatalogRead, d *conversionDescriptor) string {
 }
 
 func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string) (string, error) {
-	procedure, ok := view.Procedure(d.handler)
-	if !ok || procedure.conversion.Name() == "" {
+	procedure, ok := view.Procedure(d.Handler)
+	if !ok || procedure.Conversion.Name() == "" {
 		return "", fmt.Errorf("stuntgres: unavailable dump conversion provider")
 	}
 	prefix := "CREATE CONVERSION "
-	if d.defaultConversion {
+	if d.DefaultConversion {
 		prefix = "CREATE DEFAULT CONVERSION "
 	}
 	routine := quoteIdentifier(view.Get(procedure.Namespace()).Name()) + "." + quoteIdentifier(procedure.name)
-	return prefix + name + " FOR '" + sqltype.EncodingName(d.source) + "' TO '" + sqltype.EncodingName(d.destination) + "' FROM " + routine + ";\n", nil
+	return prefix + name + " FOR '" + sqltype.EncodingName(d.Source) + "' TO '" + sqltype.EncodingName(d.Destination) + "' FROM " + routine + ";\n", nil
 }
 
 // Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
@@ -44,8 +44,8 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 	}
 	occupiedPairs := make(map[pair]bool)
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok && d.seeded() && d.defaultConversion {
-			occupiedPairs[pair{d.Namespace(), d.source, d.destination}] = true
+		if d, ok := descriptor.(*conversionDescriptor); ok && d.seeded() && d.DefaultConversion {
+			occupiedPairs[pair{d.Namespace(), d.Source, d.Destination}] = true
 		}
 	}
 	occupiedSchemas := make(map[string]bool)
@@ -61,14 +61,14 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 		if err = (conversionProvider{}).Validate(view, d); err != nil {
 			return nil, nil, err
 		}
-		owner, ownerErr := roles.Descriptor(d.owner)
+		owner, ownerErr := roles.Descriptor(d.Owner)
 		if ownerErr != nil {
 			return nil, nil, ownerErr
 		}
 		name := conversionSQLName(view, d)
-		key := pair{d.Namespace(), d.source, d.destination}
+		key := pair{d.Namespace(), d.Source, d.Destination}
 		helper := ""
-		if d.defaultConversion && occupiedPairs[key] {
+		if d.DefaultConversion && occupiedPairs[key] {
 			base := "__stuntgres_conversion_" + strconv.Itoa(i)
 			helper = base
 			for n := 0; occupiedSchemas[helper]; n++ {
@@ -85,7 +85,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 		if helper != "" {
 			definition += "ALTER CONVERSION " + name + " SET SCHEMA " + quoteIdentifier(view.Get(d.Namespace()).Name()) + ";\nDROP SCHEMA " + quoteIdentifier(helper) + ";\n"
 		}
-		if d.defaultConversion {
+		if d.DefaultConversion {
 			occupiedPairs[key] = true
 		}
 		statements = append(statements, dumpDomain{owner: owner.Name, sql: definition})
@@ -119,7 +119,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 		if err := (conversionProvider{}).Validate(view, d); err != nil {
 			return nil, err
 		}
-		owner, err := roles.Descriptor(d.owner)
+		owner, err := roles.Descriptor(d.Owner)
 		if err != nil {
 			return nil, err
 		}
@@ -136,14 +136,14 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 					occupied[seed.name] = true
 				}
 			}
-			base := "__stuntgres_conversion_seed_" + strconv.FormatUint(uint64(d.oid), 10)
+			base := "__stuntgres_conversion_seed_" + strconv.FormatUint(uint64(d.OID), 10)
 			change.temporary = base
 			for n := 0; occupied[change.temporary]; n++ {
 				change.temporary = base + "_" + strconv.Itoa(n)
 			}
 			occupied[change.temporary] = true
 		}
-		if change.temporary != "" || change.owner != "postgres" || d.owner.ID() != authorization.BootstrapPrincipalID {
+		if change.temporary != "" || change.owner != "postgres" || d.Owner.ID() != authorization.BootstrapPrincipalID {
 			changes = append(changes, change)
 		}
 	}
@@ -166,7 +166,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 		statements = append(statements, "ALTER CONVERSION "+from+" RENAME TO "+quoteIdentifier(change.d.name)+";\n")
 	}
 	for _, change := range changes {
-		if change.owner != "postgres" || change.d.owner.ID() != authorization.BootstrapPrincipalID {
+		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {
 			statements = append(statements, "ALTER CONVERSION "+conversionSQLName(view, change.d)+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
 		}
 	}

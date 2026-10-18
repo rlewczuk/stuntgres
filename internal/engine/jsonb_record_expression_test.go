@@ -132,17 +132,17 @@ func TestJSONBRecordDomainErrors(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	eval := &EvalContext{Context: context.Background(), catalog: view}
-	parent := domainUnitType(t, view, "jbr_parent").typ
-	child := domainUnitType(t, view, "jbr_child").typ
+	parent := domainUnitType(t, view, "jbr_parent").SQLType
+	child := domainUnitType(t, view, "jbr_child").SQLType
 	castDefinition := domainUnitType(t, view, "jbr_cast")
-	cast := castDefinition.typ
-	nested := domainUnitType(t, view, "jbr_nested").typ
+	cast := castDefinition.SQLType
+	nested := domainUnitType(t, view, "jbr_nested").SQLType
 	integer, _ := view.LookupType(sqltype.Int4)
-	array, ok := view.LookupType(castDefinition.array)
+	array, ok := view.LookupType(castDefinition.Array)
 	if !ok {
 		t.Fatal("missing captured domain array")
 	}
-	record := domainUnitType(t, view, "jbr_record").typ
+	record := domainUnitType(t, view, "jbr_record").SQLType
 	for _, tc := range []struct {
 		name, input, code, dataType string
 		target                      *sqltype.Descriptor

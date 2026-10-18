@@ -13,8 +13,8 @@ type parameterDescriptor struct {
 	address  ids.ObjectAddress
 	revision ids.DefinitionRevision
 	name     string
-	owner    authorization.PrincipalRef
-	acl      authorization.ACLValue
+	Owner    authorization.PrincipalRef
+	ACL      authorization.ACLValue
 }
 
 func (d *parameterDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -81,14 +81,14 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	return &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
+	return &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, revision: revision, name: key, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
 }
 
 // installParameterGrant changes only the detached central catalog candidate.
 // Both the descriptor and name entry disappear when the ACL returns to sA for
 // the owner alone. Explicit empty ACLs are not the default baseline.
 func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
-	if !d.acl.Explicit || authorization.MatchesDefaultBaseline(d.acl, d.owner, authorization.DefaultParameters, false) {
+	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
 		candidate.removeDescriptor(d.address)
 		candidate.unbindName(descriptorNameKey(d))
 		return

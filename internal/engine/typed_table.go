@@ -26,15 +26,15 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 }
 
 func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
-	name := typ.typ.DiagnosticName()
-	if typ.typ.IsUserDefined() {
+	name := typ.SQLType.DiagnosticName()
+	if typ.SQLType.IsUserDefined() {
 		name = typeDiagnosticNameAt(catalog, typ, path)
 	}
-	if !typ.typ.IsComposite() {
+	if !typ.SQLType.IsComposite() {
 		return nil, sqlError("42809", "type "+name+" is not a composite type")
 	}
-	source, ok := catalog.Relation(typ.owningRelation)
-	if !ok || source.RowType != typ.typ.ID() {
+	source, ok := catalog.Relation(typ.OwningRelation)
+	if !ok || source.RowType != typ.SQLType.ID() {
 		return nil, fmt.Errorf("stuntgres: missing composite type authority")
 	}
 	if source.RelationKind != compositeRelation {
@@ -281,7 +281,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if !ok {
 			continue
 		}
-		if err := scope.acquireSequence(stage.owner.catalog.domain.Ref(stage.base.Epoch(), typ.owningRelation), mode, true); err != nil {
+		if err := scope.acquireSequence(stage.owner.catalog.domain.Ref(stage.base.Epoch(), typ.OwningRelation), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep
@@ -289,7 +289,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.owner
 		e.mu.Lock()
-		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.owningRelation) == stage.base.Get(typ.owningRelation)
+		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.OwningRelation) == stage.base.Get(typ.OwningRelation)
 		e.mu.Unlock()
 		if !valid {
 			return CatalogConflict{}

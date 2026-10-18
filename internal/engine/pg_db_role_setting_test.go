@@ -76,7 +76,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053})
 	ownedRow, ok := catalog.LookupType(10054)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if d.RowType != 10054 || !ok || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10053 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	if d.RowType != 10054 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10053 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {

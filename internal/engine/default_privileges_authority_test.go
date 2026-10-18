@@ -33,9 +33,9 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		base := auth.catalog.MustType(auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}))
-		array := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)})
-		if !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
-			t.Fatal("associated enum array consumed selected TYPES ACL", array.acl)
+		array := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
+		if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
+			t.Fatal("associated enum array consumed selected TYPES ACL", array.ACL)
 		}
 		auth.state.CurrentUser = f.reader
 		return auth, base, array
@@ -90,7 +90,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	state := cloneCatalog(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
-	namespace.acl = authorization.ACLValue{Explicit: true}
+	namespace.ACL = authorization.ACLValue{Explicit: true}
 	state.setDescriptor(f.schema, &namespace)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
@@ -126,7 +126,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	for _, token := range []ids.SessionToken{{}, New().catalog.domain.Session(1), f.e.catalog.domain.PrivateSession(f.op.session)} {
 		candidate := cloneCatalog(state)
 		invalidNamespace := namespace
-		invalidNamespace.temporary = token
+		invalidNamespace.Temporary = token
 		candidate.setDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
 		invalid.catalog = f.e.catalog.read(candidate)
@@ -139,7 +139,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	defaultUnitDiagnostic(t, withoutSession.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	ordinary := cloneCatalog(state)
 	permanent := namespace
-	permanent.temporary = ids.SessionToken{}
+	permanent.Temporary = ids.SessionToken{}
 	ordinary.setDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = f.e.catalog.read(ordinary)

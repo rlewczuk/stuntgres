@@ -25,7 +25,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &typeDescriptor{typ: typ, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &typeDescriptor{SQLType: typ, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	sized := testUsage(e, sqltype.VarChar)
 	sized.Typmod = 8
 	sized.Collation.ID = 950
-	schema := querySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.typ.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
+	schema := querySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.SQLType.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
 	expressions := make([]expr.Expr, len(schema))
 	for i, column := range schema {
 		usage := column.Usage
@@ -66,7 +66,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal(err, skipped)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if len(d.Columns) != 2 || d.Columns[0].Name != "renamed" || d.Columns[1].Name != "d" || d.Columns[0].Usage != sized || d.Columns[1].Usage != domain.typ.Usage() {
+	if len(d.Columns) != 2 || d.Columns[0].Name != "renamed" || d.Columns[1].Name != "d" || d.Columns[0].Usage != sized || d.Columns[1].Usage != domain.SQLType.Usage() {
 		t.Fatal(d.Columns)
 	}
 	if &d.Columns[0] == &schema[0] || schema[0].Name != "old" || schema[0].Nullable || schema[0].OriginTable != 19000 {

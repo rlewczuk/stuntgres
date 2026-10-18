@@ -186,8 +186,8 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
 			}
 			if d, ok := auth.definitionRelation(ref.Address); ok {
-				if ns, ok := auth.definitionNamespace(d.namespace); ok && ns.temporary == b.op.session.token {
-					temporary = ns.temporary
+				if ns, ok := auth.definitionNamespace(d.namespace); ok && ns.Temporary == b.op.session.token {
+					temporary = ns.Temporary
 				}
 			}
 		}
@@ -377,7 +377,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			path = nil
 		} else {
 			namespace, _ := r.auth.definitionNamespace(ns)
-			if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != r.token {
+			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
 			}
 			if err := r.auth.CanUse(r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
@@ -493,7 +493,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err = sequenceKind(d); err != nil {
 		return sqltype.Value{}, err
 	}
-	if ns, ok := auth.catalog.Namespace(d.namespace); ok && ns.temporary == scope.op.session.token {
+	if ns, ok := auth.catalog.Namespace(d.namespace); ok && ns.Temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
@@ -510,7 +510,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if scope.owner.readOnly && (x.name == "nextval" || x.name == "setval") {
 		ns, _ := auth.catalog.Namespace(d.namespace)
-		if ns == nil || ns.temporary != scope.op.session.token {
+		if ns == nil || ns.Temporary != scope.op.session.token {
 			return sqltype.Value{}, sqlError("25006", "cannot execute "+x.name+"() in a read-only transaction")
 		}
 	}

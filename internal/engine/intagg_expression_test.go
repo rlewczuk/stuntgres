@@ -46,7 +46,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	array, _ := e.CatalogRead().LookupArray(integer)
 	provider := call.provider.(*functions.ArrayAggregateProvider)
-	if call.procedure != e.catalog.state.Get(ext.members[0]) || call.ref.Address != ext.members[0] || !call.includeNulls || call.operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
+	if call.procedure != e.catalog.state.Get(ext.Members[0]) || call.ref.Address != ext.Members[0] || !call.includeNulls || call.operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
 	if !b.sameAggregateCall(call, call) {
@@ -113,7 +113,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 func TestIntaggEnumerationIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	n := intaggUnitEnum(t, e, "{2,2,NULL}")
-	if n.procedure != e.catalog.state.Get(ext.members[1]) || n.ref.Address != ext.members[1] || n.Usage.Type.ID() != sqltype.Int4 {
+	if n.procedure != e.catalog.state.Get(ext.Members[1]) || n.ref.Address != ext.Members[1] || n.Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixed enum identity", n)
 	}
 	builtin := n
@@ -206,11 +206,11 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	enum := intaggUnitEnum(t, e, "{2,2,NULL}")
 	before := e.CatalogRead()
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-	for i, address := range ext.members {
+	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
-	aggregate := before.MustProcedure(ext.members[0])
-	for i, helper := range aggregate.aggregate.helpers {
+	aggregate := before.MustProcedure(ext.Members[0])
+	for i, helper := range aggregate.Aggregate.helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
 	next := cloneCatalog(before.state)

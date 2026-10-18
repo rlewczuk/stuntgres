@@ -26,7 +26,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	before := e.catalog.read(e.catalog.state)
 	candidate := cloneCatalog(e.catalog.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
-	database.owner = next
+	database.Owner = next
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	after := e.catalog.read(candidate)
 	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
@@ -72,7 +72,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(currentDatabaseAddress).owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(currentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
 		t.Fatal("source pair mutated")
 	}
 }

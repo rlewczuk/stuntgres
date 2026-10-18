@@ -34,7 +34,7 @@ func bodyErrorContext(outer *procedureDescriptor, constant bool) routineBodyCont
 	if !constant || outer.address.ObjectID == 3935 || outer.address.ObjectID == 3936 {
 		return routineBodyContext{}
 	}
-	return routineBodyContext{outer: outer, statement: outer.volatility == expr.Immutable}
+	return routineBodyContext{outer: outer, statement: outer.Volatility == expr.Immutable}
 }
 func inquiryRoutine(outer *procedureDescriptor) bool {
 	switch outer.address.ObjectID {
@@ -125,7 +125,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBo
 }
 
 func admitRoutineBody(c *EvalContext, node expr.Expr, outer *procedureDescriptor, constant bool) error {
-	if len(outer.body) == 0 || inquiryRoutine(outer) {
+	if len(outer.Body) == 0 || inquiryRoutine(outer) {
 		return nil
 	}
 	auth, dependencies, err := c.routineAdmissionAuthority()
@@ -141,7 +141,7 @@ func admitRoutineBody(c *EvalContext, node expr.Expr, outer *procedureDescriptor
 	}
 	local := *c
 	local.routineBodyContext = bodyErrorContext(outer, constant)
-	for _, edge := range outer.body {
+	for _, edge := range outer.Body {
 		if !bodyEdgeDemanded(node, outer, edge) {
 			continue
 		}
@@ -177,7 +177,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 	if pair == 1 {
 		demand = bodyRightDuration
 	}
-	for _, edge := range outer.body {
+	for _, edge := range outer.Body {
 		if edge.demand != demand || !bodyEdgeDemanded(e, outer, edge) {
 			continue
 		}

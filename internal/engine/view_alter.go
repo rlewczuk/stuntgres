@@ -196,7 +196,7 @@ func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 		return nil
 	}
 	ns := auth.catalog.MustNamespace(d.namespace)
-	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.owner)
+	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.Owner)
 	if err != nil {
 		return err
 	}

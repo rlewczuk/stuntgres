@@ -41,7 +41,7 @@ func TestPGSequencesDescriptors(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12050})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12049})
-	if row.owningRelation != address || row.array != 12049 || array.owningRelation != address || array.typ.Element() != row.typ {
+	if row.OwningRelation != address || row.Array != 12049 || array.OwningRelation != address || array.SQLType.Element() != row.SQLType {
 		t.Fatal(row, array)
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {

@@ -14,15 +14,15 @@ func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ids.Object
 			definitions = append(definitions, c)
 		}
 	}
-	sort.Slice(definitions, func(i, j int) bool { return definitions[i].oid < definitions[j].oid })
+	sort.Slice(definitions, func(i, j int) bool { return definitions[i].OID < definitions[j].OID })
 	rows := make([][]sqltype.Value, 0, len(definitions))
 	for _, d := range definitions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		row := make([]sqltype.Value, 12)
-		owner := d.owner
-		for i, n := range []uint32{uint32(d.oid), 0, uint32(d.Namespace().ObjectID), uint32(owner.ID())} {
+		owner := d.Owner
+		for i, n := range []uint32{uint32(d.OID), 0, uint32(d.Namespace().ObjectID), uint32(owner.ID())} {
 			if i == 1 {
 				continue
 			}
@@ -33,14 +33,14 @@ func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ids.Object
 			row[i] = v
 		}
 		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.name)
-		row[4] = sqltype.String(source.Columns[4].Usage.Type, d.provider)
-		row[5] = sqltype.Boolean(source.Columns[5].Usage.Type, d.deterministic)
-		v, err := sqltype.Integer(source.Columns[6].Usage.Type, int64(d.encoding))
+		row[4] = sqltype.String(source.Columns[4].Usage.Type, d.Provider)
+		row[5] = sqltype.Boolean(source.Columns[5].Usage.Type, d.Deterministic)
+		v, err := sqltype.Integer(source.Columns[6].Usage.Type, int64(d.Encoding))
 		if err != nil {
 			return nil, err
 		}
 		row[6] = v
-		for i, text := range []*string{d.collate, d.ctype, d.locale, d.rules, d.version} {
+		for i, text := range []*string{d.Collate, d.CType, d.Locale, d.Rules, d.Version} {
 			typ := source.Columns[7+i].Usage.Type
 			if text == nil {
 				row[7+i] = sqltype.Null(typ)

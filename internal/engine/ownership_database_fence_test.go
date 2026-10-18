@@ -24,7 +24,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if private {
 				selected := cloneCatalog(auth.catalog.state)
 				database := *committed.(*databaseDescriptor)
-				database.acl = authorization.ACLValue{Explicit: true}
+				database.ACL = authorization.ACLValue{Explicit: true}
 				database.revision++
 				selected.setDescriptor(currentDatabaseAddress, &database)
 				auth.catalog = e.catalog.read(selected)
@@ -78,7 +78,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			setup := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defaultUnitTable(t, f, setup, "default_fence_sentinel", f.owner)
 			database := *setup.base.MustDatabase(currentDatabaseAddress)
-			database.owner = f.owner
+			database.Owner = f.owner
 			database.revision++
 			if err := setup.Replace(&database); err != nil {
 				t.Fatal(err)
@@ -135,7 +135,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			}
 			if veto == "database" {
 				replacement := database
-				replacement.owner = f.reader
+				replacement.Owner = f.reader
 				replacement.revision++
 				other := f.e.BeginCatalogStage(f.e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {

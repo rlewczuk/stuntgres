@@ -47,7 +47,7 @@ func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, t
 	if !ok {
 		return false, ids.ErrCatalogReplaced
 	}
-	return namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token, nil
+	return namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != token, nil
 }
 
 // Explicit targets are opened in user order. Named occurrences always check
@@ -149,7 +149,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = s.relationCursorPreflight(auth.catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
-				if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.temporary == s.op.session.token {
+				if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.Temporary == s.op.session.token {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {

@@ -391,7 +391,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	}
 	imported := target.catalog.state.MustRelation(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}))
 	row := target.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.RowType)})
-	if row.owningRelation != imported.address || len(imported.Attributes) != 1 || imported.Attributes[0] != d.Attributes[0] || len(target.storage[imported.address].versions) != 3 || e.catalog.state.Get(d.address) != d {
+	if row.OwningRelation != imported.address || len(imported.Attributes) != 1 || imported.Attributes[0] != d.Attributes[0] || len(target.storage[imported.address].versions) != 3 || e.catalog.state.Get(d.address) != d {
 		t.Fatal("real replacement lost coherent rowtype/attributes/stored authority")
 	}
 }

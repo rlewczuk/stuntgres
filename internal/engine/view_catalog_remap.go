@@ -34,17 +34,17 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			address = target
 		}
 		if d, ok := next.Type(address); ok {
-			return d.typ
+			return d.SQLType
 		}
 		return old
 	}
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
 			if typesOnly {
 				changed := false
-				for _, check := range domain.domainChecks {
+				for _, check := range domain.DomainChecks {
 					walkQueryArgumentExpression(check.expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
 				}
 				if !changed {
@@ -52,9 +52,9 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				}
 			}
 			copy := *domain
-			copy.domainChecks = append([]domainCheckConstraint(nil), domain.domainChecks...)
-			for i := range copy.domainChecks {
-				check := &copy.domainChecks[i]
+			copy.DomainChecks = append([]domainCheckConstraint(nil), domain.DomainChecks...)
+			for i := range copy.DomainChecks {
+				check := &copy.DomainChecks[i]
 				node, err := remapBoundExpression(check.expression, ref, nil)
 				if err != nil {
 					return err

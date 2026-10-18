@@ -36,7 +36,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), acl: authorization.ACLValue{Explicit: true}}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -52,10 +52,10 @@ func TestExtensionSchemaACL(t *testing.T) {
 		t.Fatal("trusted explicit schema requires neither USAGE nor CREATE", err)
 	}
 	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
-	if ext.owner != actor.Ref {
+	if ext.Owner != actor.Ref {
 		t.Fatal("extension owner")
 	}
-	for _, a := range ext.members {
+	for _, a := range ext.Members {
 		if a.ClassID != ids.TSTemplateClassID {
 			owner, _, _ := descriptorACL(e.catalog.state.Get(a))
 			if owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
@@ -85,7 +85,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	raw.Name.Parts = raw.Name.Parts[1:]
 	_, err = binder.bindFunctionProvider(raw)
 	extensionUnitError(t, err, "42883")
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
-	if authorization.ACLRights(db.acl, db.owner, []authorization.PrincipalRef{actor.Ref}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege {
+	if authorization.ACLRights(db.ACL, db.Owner, []authorization.PrincipalRef{actor.Ref}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege {
 		t.Fatal("grant option missing")
 	}
 	delegated := extensionUnitGrant("ext_authority", "")
@@ -125,7 +125,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	}
 	db = e.catalog.state.MustDatabase(currentDatabaseAddress)
 	found := false
-	for _, entry := range db.acl.Entries {
+	for _, entry := range db.ACL.Entries {
 		if entry.Grantee.Public && entry.Grantor == actor.Ref && entry.Privileges&authorization.CreatePrivilege != 0 {
 			found = true
 		}

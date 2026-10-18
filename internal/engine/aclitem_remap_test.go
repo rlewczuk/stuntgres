@@ -154,7 +154,7 @@ func TestACLItemRestoreFence(t *testing.T) {
 	public := freshSource.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	copy := *public
 	role, _ := freshSource.roleRead(freshSource.catalog.read(freshSource.catalog.state), freshSource.roles).Lookup("acl_missing_target")
-	copy.owner = role.Ref
+	copy.Owner = role.Ref
 	freshSource.catalog.state = cloneCatalog(freshSource.catalog.state)
 	freshSource.catalog.state.setDescriptor(copy.address, &copy)
 	freshSource.mu.Unlock()

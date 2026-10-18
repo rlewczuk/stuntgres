@@ -23,9 +23,9 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
 			}
-			if typ.array != 0 {
-				array, ok := view.LookupArray(typ.typ)
-				if !ok || array.Element() != typ.typ || array.ID() != typ.array {
+			if typ.Array != 0 {
+				array, ok := view.LookupArray(typ.SQLType)
+				if !ok || array.Element() != typ.SQLType || array.ID() != typ.Array {
 					t.Fatal("builtin reverse association", typ)
 				}
 			}
@@ -34,12 +34,12 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public._collision AS TEXT"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.collision AS INT"))
 	domain := domainUnitType(t, e.CatalogRead(), "collision")
-	array, ok := e.CatalogRead().LookupArray(domain.typ)
-	if !ok || array.Name() != "_collision_1" || array.DatabaseName() != "_COLLISION_1" || array.Element() != domain.typ || array.ID() == domain.typ.ID() {
+	array, ok := e.CatalogRead().LookupArray(domain.SQLType)
+	if !ok || array.Name() != "_collision_1" || array.DatabaseName() != "_COLLISION_1" || array.Element() != domain.SQLType || array.ID() == domain.SQLType.ID() {
 		t.Fatal("collision association", array)
 	}
 	associated := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
-	if associated.owner != domain.owner || associated.Namespace() != domain.Namespace() || associated.Revision() != domain.Revision() {
+	if associated.Owner != domain.Owner || associated.Namespace() != domain.Namespace() || associated.Revision() != domain.Revision() {
 		t.Fatal("association ownership", associated, domain)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.array_origin(id INT,a public.collision[],n NUMERIC(5,2)[])")
@@ -73,20 +73,20 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	}
 	domainUnitPublish(t, e, staged)
 	stagedDomain := domainUnitType(t, e.CatalogRead(), "staged")
-	stagedArray, ok := e.CatalogRead().LookupArray(stagedDomain.typ)
+	stagedArray, ok := e.CatalogRead().LookupArray(stagedDomain.SQLType)
 	if !ok || stagedArray.Name() != "_staged_1" {
 		t.Fatal("staged collision", stagedArray)
 	}
 	// A foreign element generation or broken reverse ID cannot publish.
 	broken := cloneCatalog(e.CatalogRead().state)
 	copied := *domain
-	copied.array = sqltype.NameArray
+	copied.Array = sqltype.NameArray
 	broken.setDescriptor(domain.Address(), &copied)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), associated); err == nil {
 		t.Fatal("broken reverse association accepted")
 	}
 	foreignBase, _ := New().CatalogRead().LookupType(sqltype.Int4)
-	foreignDomain, err := sqltype.Domain(domain.typ.ID(), domain.Name(), domain.typ.SQLName(), foreignBase.Usage())
+	foreignDomain, err := sqltype.Domain(domain.SQLType.ID(), domain.Name(), domain.SQLType.SQLName(), foreignBase.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	forged := *associated
-	forged.typ = foreignArray
+	forged.SQLType = foreignArray
 	broken = cloneCatalog(e.catalog.state)
 	broken.setDescriptor(associated.Address(), &forged)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
@@ -109,7 +109,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.di AS INT"))
 	domain := domainUnitType(t, e.CatalogRead(), "di")
-	array, _ := e.CatalogRead().LookupArray(domain.typ)
+	array, _ := e.CatalogRead().LookupArray(domain.SQLType)
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.array_depend(keep INT,a public.di[],tail INT)")
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.whole AS public.di[]"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.nested AS public.whole[]"))
@@ -151,7 +151,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	if len(survivor.Columns) != 2 || survivor.Columns[0].Name != "keep" || survivor.Columns[1].Name != "tail" || survivor.Attributes[0] != table.Attributes[0] || survivor.Attributes[1] != table.Attributes[2] {
 		t.Fatal("containing table/stable attributes lost", survivor)
 	}
-	for _, id := range []sqltype.ID{domain.typ.ID(), array.ID()} {
+	for _, id := range []sqltype.ID{domain.SQLType.ID(), array.ID()} {
 		if _, ok := next.LookupType(id); ok {
 			t.Fatal("orphan domain association", id)
 		}
@@ -163,8 +163,8 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.di AS INT"))
 	recreated := domainUnitType(t, e.CatalogRead(), "di")
-	recreatedArray, ok := e.CatalogRead().LookupArray(recreated.typ)
-	if !ok || recreated.typ.ID() == domain.typ.ID() || recreatedArray.ID() == array.ID() || recreatedArray.Element() != recreated.typ {
+	recreatedArray, ok := e.CatalogRead().LookupArray(recreated.SQLType)
+	if !ok || recreated.SQLType.ID() == domain.SQLType.ID() || recreatedArray.ID() == array.ID() || recreatedArray.Element() != recreated.SQLType {
 		t.Fatal("recreated association", recreated, recreatedArray)
 	}
 }
@@ -178,21 +178,21 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	rc, whole, nested := domainUnitType(t, e.CatalogRead(), "rc"), domainUnitType(t, e.CatalogRead(), "whole"), domainUnitType(t, e.CatalogRead(), "nested")
-	rcArray, _ := e.CatalogRead().LookupArray(rc.typ)
-	wholeArray, _ := e.CatalogRead().LookupArray(whole.typ)
-	nestedArray, _ := e.CatalogRead().LookupArray(nested.typ)
+	rcArray, _ := e.CatalogRead().LookupArray(rc.SQLType)
+	wholeArray, _ := e.CatalogRead().LookupArray(whole.SQLType)
+	nestedArray, _ := e.CatalogRead().LookupArray(nested.SQLType)
 	referent := domainUnitTable(t, e, op, "CREATE TABLE public.array_target(id INT)")
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.array_recursive(a public.nested[])")
 	regclass, _ := e.CatalogRead().LookupType(sqltype.Regclass)
-	rcValue, err := rc.typ.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(referent.address.ObjectID), 10)))
+	rcValue, err := rc.SQLType.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(referent.address.ObjectID), 10)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	inner, err := sqltype.ArrayValue(rcArray, []sqltype.ArrayDimension{{Lower: 0, Length: 2}}, []sqltype.Value{rcValue, sqltype.Null(rc.typ)})
+	inner, err := sqltype.ArrayValue(rcArray, []sqltype.ArrayDimension{{Lower: 0, Length: 2}}, []sqltype.Value{rcValue, sqltype.Null(rc.SQLType)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	wholeValue, err := whole.typ.Wrap(inner)
+	wholeValue, err := whole.SQLType.Wrap(inner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,11 +200,11 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nestedValue, err := nested.typ.Wrap(middle)
+	nestedValue, err := nested.SQLType.Wrap(middle)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := sqltype.ArrayValue(nestedArray, []sqltype.ArrayDimension{{Lower: 3, Length: 2}}, []sqltype.Value{nestedValue, sqltype.Null(nested.typ)})
+	value, err := sqltype.ArrayValue(nestedArray, []sqltype.ArrayDimension{{Lower: 3, Length: 2}}, []sqltype.Value{nestedValue, sqltype.Null(nested.SQLType)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,10 +216,10 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	// Replace only the builtin scalar generation, retaining this catalog's
 	// principal authority; a foreign descriptor would invalidate its array owner.
 	reboundRegclass := *next.MustType(regclassAddress)
-	reboundRegclass.typ = fresh.catalog.state.MustType(regclassAddress).typ
+	reboundRegclass.SQLType = fresh.catalog.state.MustType(regclassAddress).SQLType
 	next.setDescriptor(regclassAddress, &reboundRegclass)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: ids.RelationClassID, ObjectID: 60021}}
-	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
+	for i, typ := range []*sqltype.Descriptor{rc.SQLType, rcArray, whole.SQLType, wholeArray, nested.SQLType, nestedArray} {
 		mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
 	}
 	changed, err := reownDomainTypes(next, mapping, false)
@@ -230,7 +230,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := storage[table.address].versions[0].values[0]
-	expected := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}).typ
+	expected := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}).SQLType
 	if imported.Type() != expected || imported.ArrayElement(0).Type().ID() != 60005 || imported.ArrayElement(1).Type().ID() != 60005 || imported.ArrayElement(0).ArrayElement(0).Type().ID() != 60003 || imported.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type().ID() != 60001 {
 		t.Fatal("nested element generations", imported)
 	}
@@ -242,7 +242,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil || oid != "60021" {
 		t.Fatal("nested REGCLASS identity", oid, err)
 	}
-	if storage[table.address] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.typ {
+	if storage[table.address] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
 		t.Fatal("source payload/provider mutated")
 	}
 	descriptors := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
@@ -312,7 +312,7 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	if err != nil {
 		t.Fatal(err)
 	}
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, name: "pg_temp_array_component", revision: revision, owner: op.RoleState().CurrentUser, temporary: op.session.token}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, name: "pg_temp_array_component", revision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.session.token}
 	table := *prototype
 	table.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tableOID}
 	table.namespace = ns.address
@@ -392,7 +392,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	replacement.mu.Unlock()
 	importedTypes := make(map[ids.ObjectAddress]*typeDescriptor)
 	for address, descriptor := range replacement.CatalogRead().Descriptors() {
-		if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.NamespaceName() != "" && typ.owningRelation == (ids.ObjectAddress{}) {
+		if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.NamespaceName() != "" && typ.OwningRelation == (ids.ObjectAddress{}) {
 			importedTypes[address] = typ
 		}
 	}
@@ -421,20 +421,20 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	for address, source := range importedTypes {
 		actual := current.MustType(address)
-		if actual.Namespace() != source.Namespace() || actual.comment != source.comment || !reflect.DeepEqual(actual.acl, source.acl) {
+		if actual.Namespace() != source.Namespace() || actual.Comment != source.Comment || !reflect.DeepEqual(actual.ACL, source.ACL) {
 			t.Fatal("imported type catalog ownership changed", address)
 		}
-		sourceOwner, sourceErr := replacement.Roles().Descriptor(source.owner)
-		targetOwner, targetErr := e.Roles().Descriptor(actual.owner)
+		sourceOwner, sourceErr := replacement.Roles().Descriptor(source.Owner)
+		targetOwner, targetErr := e.Roles().Descriptor(actual.Owner)
 		if sourceErr != nil || targetErr != nil || sourceOwner.Name != targetOwner.Name {
 			t.Fatal("imported type principal ownership did not remap", address, sourceErr, targetErr)
 		}
 		if err := validateACL(e.Roles(), actual); err != nil {
 			t.Fatal("imported type principal closure", address, err)
 		}
-		if source.typ.IsDomain() {
-			base, ok := current.LookupType(source.typ.DomainBase().Type.ID())
-			if !ok || actual.typ.DomainBase().Type != base || actual.typ.Concrete() != source.typ.Concrete() || actual.typ.IsUserDefined() {
+		if source.SQLType.IsDomain() {
+			base, ok := current.LookupType(source.SQLType.DomainBase().Type.ID())
+			if !ok || actual.SQLType.DomainBase().Type != base || actual.SQLType.Concrete() != source.SQLType.Concrete() || actual.SQLType.IsUserDefined() {
 				t.Fatal("seeded domain closure/admission changed", address)
 			}
 		}

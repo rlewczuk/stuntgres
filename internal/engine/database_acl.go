@@ -27,8 +27,8 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 	}
 	db := catalog.MustDatabase(currentDatabaseAddress)
 	// Avoid materializing a default ACL merely to inspect its ordinary rights.
-	rights := authorization.ACLRights(db.acl, db.owner, principals, authorization.DatabasePrivileges, false)
-	if !db.acl.Explicit {
+	rights := authorization.ACLRights(db.ACL, db.Owner, principals, authorization.DatabasePrivileges, false)
+	if !db.ACL.Explicit {
 		rights |= authorization.DatabasePublicPrivileges
 	}
 	return rights & authorization.DatabasePrivileges, nil

@@ -33,7 +33,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.Columns[2].Usage.Type, d.acl)
+		acl, err := e.pgClassACL(roles, source.Columns[2].Usage.Type, d.ACL)
 		if err != nil {
 			return nil, err
 		}

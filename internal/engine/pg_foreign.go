@@ -106,45 +106,45 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 			switch source.address.ObjectID {
 			case ids.ForeignWrapperClassID:
 				putString(1, d.name)
-				for i, value := range []uint32{uint32(d.owner.ID()), uint32(d.handler.ObjectID), uint32(d.validator.ObjectID)} {
+				for i, value := range []uint32{uint32(d.Owner.ID()), uint32(d.Handler.ObjectID), uint32(d.Validator.ObjectID)} {
 					if err = putOID(i+2, value); err != nil {
 						return nil, err
 					}
 				}
-				row[5], err = e.pgClassACL(auth.roles, source.Columns[5].Usage.Type, d.acl)
+				row[5], err = e.pgClassACL(auth.roles, source.Columns[5].Usage.Type, d.ACL)
 				if err != nil {
 					return nil, err
 				}
-				row[6], err = foreignOptionsValue(source.Columns[6].Usage.Type, d.options)
+				row[6], err = foreignOptionsValue(source.Columns[6].Usage.Type, d.Options)
 			case ids.ForeignServerClassID:
 				putString(1, d.name)
-				if err = putOID(2, uint32(d.owner.ID())); err != nil {
+				if err = putOID(2, uint32(d.Owner.ID())); err != nil {
 					return nil, err
 				}
-				if err = putOID(3, uint32(d.wrapper.ObjectID)); err != nil {
+				if err = putOID(3, uint32(d.Wrapper.ObjectID)); err != nil {
 					return nil, err
 				}
-				if d.serverType != nil {
-					putString(4, *d.serverType)
+				if d.ServerType != nil {
+					putString(4, *d.ServerType)
 				}
-				if d.version != nil {
-					putString(5, *d.version)
+				if d.Version != nil {
+					putString(5, *d.Version)
 				}
-				row[6], err = e.pgClassACL(auth.roles, source.Columns[6].Usage.Type, d.acl)
+				row[6], err = e.pgClassACL(auth.roles, source.Columns[6].Usage.Type, d.ACL)
 				if err != nil {
 					return nil, err
 				}
-				row[7], err = foreignOptionsValue(source.Columns[7].Usage.Type, d.options)
+				row[7], err = foreignOptionsValue(source.Columns[7].Usage.Type, d.Options)
 			case ids.ForeignMappingClassID:
-				if err = putOID(1, uint32(d.mappedRole.ID())); err != nil {
+				if err = putOID(1, uint32(d.MappedRole.ID())); err != nil {
 					return nil, err
 				}
-				if err = putOID(2, uint32(d.server.ObjectID)); err != nil {
+				if err = putOID(2, uint32(d.Server.ObjectID)); err != nil {
 					return nil, err
 				}
-				row[3], err = foreignOptionsValue(source.Columns[3].Usage.Type, d.options)
+				row[3], err = foreignOptionsValue(source.Columns[3].Usage.Type, d.Options)
 			case pgUserMappingsOID:
-				server, ok := auth.catalog.Foreign(d.server)
+				server, ok := auth.catalog.Foreign(d.Server)
 				if !ok {
 					return nil, ids.ErrCatalogReplaced
 				}
@@ -152,12 +152,12 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 					return nil, err
 				}
 				putString(2, server.name)
-				if err = putOID(3, uint32(d.mappedRole.ID())); err != nil {
+				if err = putOID(3, uint32(d.MappedRole.ID())); err != nil {
 					return nil, err
 				}
-				if d.mappedRole == (authorization.PrincipalRef{}) {
+				if d.MappedRole == (authorization.PrincipalRef{}) {
 					putString(4, "public")
-				} else if role, ok := auth.roles.Find(d.mappedRole); ok {
+				} else if role, ok := auth.roles.Find(d.MappedRole); ok {
 					putString(4, role.Name)
 				}
 				actor, er := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -165,12 +165,12 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 					return nil, er
 				}
 				owner := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}) == nil
-				visible := actor.Superuser || d.mappedRole == (authorization.PrincipalRef{}) && owner
-				if d.mappedRole == auth.state.CurrentUser {
+				visible := actor.Superuser || d.MappedRole == (authorization.PrincipalRef{}) && owner
+				if d.MappedRole == auth.state.CurrentUser {
 					visible = visible || owner || auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}) == nil
 				}
 				if visible {
-					row[5], err = foreignOptionsValue(source.Columns[5].Usage.Type, d.options)
+					row[5], err = foreignOptionsValue(source.Columns[5].Usage.Type, d.Options)
 				}
 			}
 		}

@@ -16,62 +16,62 @@ var pgTypeColumnIDs = [...]sqltype.ID{26, 19, 26, 26, 21, 16, 18, 18, 16, 16, 18
 // Inventory evidence is separate from REGTYPE lookup and codec admission.
 // Every companion must be the captured element's canonical array generation.
 func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
-	if d == nil || d.typ == nil {
+	if d == nil || d.SQLType == nil {
 		return false
 	}
-	if d.typ.IsArray() {
-		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
-		return ok && element.typ == d.typ.Element() && element.array == d.typ.ID() && pgTypeAdmitted(catalog, element)
+	if d.SQLType.IsArray() {
+		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		return ok && element.SQLType == d.SQLType.Element() && element.Array == d.SQLType.ID() && pgTypeAdmitted(catalog, element)
 	}
-	if d.owningRelation != (ids.ObjectAddress{}) {
-		r, ok := catalog.Relation(d.owningRelation)
-		return ok && r.RowType == d.typ.ID()
+	if d.OwningRelation != (ids.ObjectAddress{}) {
+		r, ok := catalog.Relation(d.OwningRelation)
+		return ok && r.RowType == d.SQLType.ID()
 	}
-	_, ok := d.typ.PGTypeMetadata()
+	_, ok := d.SQLType.PGTypeMetadata()
 	return ok
 }
 
 func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata, error) {
-	if d.typ.IsArray() {
-		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
-		if !ok || element.typ != d.typ.Element() || element.array != d.typ.ID() {
+	if d.SQLType.IsArray() {
+		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		if !ok || element.SQLType != d.SQLType.Element() || element.Array != d.SQLType.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign type array authority")
 		}
 		fact, err := pgTypeFacts(catalog, element)
 		if err != nil {
 			return fact, err
 		}
-		return d.typ.PGTypeArrayMetadata(fact), nil
+		return d.SQLType.PGTypeArrayMetadata(fact), nil
 	}
-	if d.typ.IsDomain() && d.typ.Concrete() {
-		usage := d.typ.DomainBase()
+	if d.SQLType.IsDomain() && d.SQLType.Concrete() {
+		usage := d.SQLType.DomainBase()
 		base, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		if !ok || base.typ != usage.Type {
+		if !ok || base.SQLType != usage.Type {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign domain base authority")
 		}
 		fact, err := pgTypeFacts(catalog, base)
 		if err != nil {
 			return fact, err
 		}
-		return d.typ.PGTypeDomainMetadata(fact), nil
+		return d.SQLType.PGTypeDomainMetadata(fact), nil
 	}
-	if d.owningRelation != (ids.ObjectAddress{}) {
-		relation, ok := catalog.Relation(d.owningRelation)
-		if !ok || relation.RowType != d.typ.ID() {
+	if d.OwningRelation != (ids.ObjectAddress{}) {
+		relation, ok := catalog.Relation(d.OwningRelation)
+		if !ok || relation.RowType != d.SQLType.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign row type authority")
 		}
 		return sqltype.CompositePGTypeMetadata(), nil
 	}
-	f, ok := d.typ.PGTypeMetadata()
+	f, ok := d.SQLType.PGTypeMetadata()
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.typ.IsQueryInt() {
-		ext, ok := catalog.Extension(d.extension)
-		if !ok || len(ext.members) != 3 {
+	if d.SQLType.IsQueryInt() {
+		ext, ok := catalog.Extension(d.Extension)
+		if !ok || len(ext.Members) != 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")
 		}
-		f.Input, f.Output = uint32(ext.members[1].ObjectID), uint32(ext.members[2].ObjectID)
+		f.Input, f.Output = uint32(ext.Members[1].ObjectID), uint32(ext.Members[2].ObjectID)
 	}
 	return f, nil
 }
@@ -105,7 +105,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 		}
 	}
 	database, ok := catalog.Database(currentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.owner {
+	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign type owner authority")
 	}
 	count := 0
@@ -134,10 +134,10 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 		if err := (typeProvider{}).Validate(catalog, d); err != nil {
 			return nil, err
 		}
-		if _, err := roles.Descriptor(d.owner); err != nil {
+		if _, err := roles.Descriptor(d.Owner); err != nil {
 			return nil, err
 		}
-		if d.owner.ID() > math.MaxUint32 {
+		if d.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable type owner")
 		}
 		f, err := pgTypeFacts(catalog, d)
@@ -146,9 +146,9 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 		}
 		relation := uint32(0)
 		if f.Kind == "c" {
-			relation = uint32(d.owningRelation.ObjectID)
+			relation = uint32(d.OwningRelation.ObjectID)
 		}
-		numbers := [32]uint32{0: uint32(d.typ.ID()), 2: uint32(d.Namespace().ObjectID), 3: uint32(d.owner.ID()), 11: relation, 12: f.Subscript, 13: uint32(f.Element), 14: uint32(d.array), 15: f.Input, 16: f.Output, 17: f.Receive, 18: f.Send, 19: f.ModIn, 20: f.ModOut, 21: f.Analyze, 25: uint32(f.Base), 28: f.Collation}
+		numbers := [32]uint32{0: uint32(d.SQLType.ID()), 2: uint32(d.Namespace().ObjectID), 3: uint32(d.Owner.ID()), 11: relation, 12: f.Subscript, 13: uint32(f.Element), 14: uint32(d.Array), 15: f.Input, 16: f.Output, 17: f.Receive, 18: f.Send, 19: f.ModIn, 20: f.ModOut, 21: f.Analyze, 25: uint32(f.Base), 28: f.Collation}
 		row := values[next*32 : (next+1)*32 : (next+1)*32]
 		for i, column := range source.Columns {
 			switch pgTypeColumnIDs[i] {
@@ -163,7 +163,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 				if i == 26 {
 					n = int64(f.Modifier)
 				} else if i == 27 {
-					n = int64(d.dimensions)
+					n = int64(d.Dimensions)
 				}
 				row[i], err = sqltype.Integer(column.Usage.Type, n)
 			case sqltype.Bool:
@@ -191,7 +191,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 				case 23:
 					value = f.Storage
 				default:
-					value = string(d.typ.Delimiter())
+					value = string(d.SQLType.Delimiter())
 				}
 				row[i] = sqltype.String(column.Usage.Type, value)
 			case sqltype.PgNodeTree:

@@ -558,8 +558,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE public.os_unit_enum AS ENUM('z','a')"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.os_unit_domain AS INT"))
 	view := e.CatalogRead()
-	enum := domainUnitType(t, view, "os_unit_enum").typ
-	domain := domainUnitType(t, view, "os_unit_domain").typ
+	enum := domainUnitType(t, view, "os_unit_enum").SQLType
+	domain := domainUnitType(t, view, "os_unit_domain").SQLType
 	for _, tc := range []struct {
 		name            string
 		operation       functions.AggregateOperation
@@ -606,7 +606,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				t.Fatal("binding input owner")
 			}
 			inputOwner := descriptor.(*typeDescriptor)
-			if inputOwner.typ != input {
+			if inputOwner.SQLType != input {
 				t.Fatal("input owner/leaf generation", inputOwner, input)
 			}
 			namespace, ok := catalog.Descriptor(inputOwner.Namespace())
@@ -617,8 +617,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if !ok || namespace.Name() != wantNamespace {
 				t.Fatal("input namespace authority", namespace, wantNamespace)
 			}
-			if tc.custom != nil && inputOwner.owner != auth.state.CurrentUser {
-				t.Fatal("custom input principal authority", inputOwner.owner, auth.state.CurrentUser)
+			if tc.custom != nil && inputOwner.Owner != auth.state.CurrentUser {
+				t.Fatal("custom input principal authority", inputOwner.Owner, auth.state.CurrentUser)
 			}
 			usage := input.Usage()
 			if tc.id == sqltype.VarChar {
@@ -662,7 +662,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			want.Typmod = -1
 			if tc.array {
 				array, ok := catalog.LookupArray(input)
-				if !ok || array.Element() != input || array.ID() != inputOwner.array {
+				if !ok || array.Element() != input || array.ID() != inputOwner.Array {
 					t.Fatal("catalog associated-array authority", array, input, inputOwner)
 				}
 				catalogLeaf, ok := catalog.LookupType(array.Element().ID())
@@ -681,10 +681,10 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				t.Fatal("actual result owner")
 			}
 			resultOwner := descriptor.(*typeDescriptor)
-			if actual.Type != resultOwner.typ || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.owner != inputOwner.owner {
+			if actual.Type != resultOwner.SQLType || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.Owner != inputOwner.Owner {
 				t.Fatal("result generation/namespace/principal authority", actual, resultOwner, inputOwner)
 			}
-			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.InputType() || resultOwner.typ.Element() != input || inputOwner.array != actual.Type.ID()) {
+			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.InputType() || resultOwner.SQLType.Element() != input || inputOwner.Array != actual.Type.ID()) {
 				t.Fatal("actual result/leaf/owner relationship", actual, input, inputOwner)
 			}
 			for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {

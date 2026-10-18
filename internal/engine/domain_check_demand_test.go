@@ -83,7 +83,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	if _, err := (scalarRenderer{}).sql(op.Context(), evaluation.catalog, node); err != nil {
 		t.Fatal("stored checked conversion rejected as free VALUE", err)
 	}
-	required := domainUnitType(t, e.CatalogRead(), "preflight_required").typ
+	required := domainUnitType(t, e.CatalogRead(), "preflight_required").SQLType
 	fresh := domainNullInputExpression(required.Usage())
 	prepared, _, err := preflightCoercions(&evaluation, fresh)
 	if err != nil || !prepared.Properties().RuntimeDomainConversion {

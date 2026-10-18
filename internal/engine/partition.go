@@ -160,7 +160,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 		parentNamespace, parentExists := catalog.Namespace(parent.namespace)
 		childNamespace, childExists := catalog.Namespace(d.namespace)
-		if !parentExists || !childExists || parentNamespace.temporary != childNamespace.temporary {
+		if !parentExists || !childExists || parentNamespace.Temporary != childNamespace.Temporary {
 			return invalid()
 		}
 		for _, c := range parent.Columns {

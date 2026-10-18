@@ -109,7 +109,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 		t.Fatal("local origin must be explicit only for this captured replay")
 	}
 	r, c, pi, ci, li := f.root.address.ObjectID, f.leaf.address.ObjectID, f.parent.address.ObjectID, f.child.address.ObjectID, local.address.ObjectID
-	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
+	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, Owner: f.leaf.Owner, name: "unit_local_consumer", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
 	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}

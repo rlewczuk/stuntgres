@@ -67,11 +67,11 @@ func projectAvailableExtension(name string, registration extensionControl, insta
 	text(1, registration.version)
 	if source.address.ObjectID == 12081 {
 		if installed != nil {
-			text(2, installed.version)
+			text(2, installed.Version)
 		}
 		optional(3, registration.comment)
 	} else {
-		for i, value := range []bool{installed != nil && installed.version == registration.version, registration.superuser, registration.trusted, registration.relocatable} {
+		for i, value := range []bool{installed != nil && installed.Version == registration.version, registration.superuser, registration.trusted, registration.relocatable} {
 			row[i+2] = sqltype.Boolean(source.Columns[i+2].Usage.Type, value)
 		}
 		optional(6, registration.schema)

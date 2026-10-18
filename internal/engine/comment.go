@@ -151,7 +151,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	switch d := auth.catalog.Get(a).(type) {
 	case *namespaceDescriptor:
 		n := *d
-		n.comment = text
+		n.Comment = text
 		n.revision = revision
 		updated = &n
 	case *relationDescriptor:

@@ -19,7 +19,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	a := roleTableRef(t, e, "a")
 	b := roleTableRef(t, e, "b")
 	row := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.MustRelation(a.Address).RowType)})
-	array := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
+	array := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
 	retained := run(t, e, "SELECT * FROM a")
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Remove(a); err != nil {
@@ -279,7 +279,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()
-	custom := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, name: "feature", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	custom := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, name: "feature", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err = stage.Create(custom); err != nil {
 		t.Fatal(err)

@@ -285,13 +285,13 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	}
 	source := &relationDescriptor{
 		Partition: &partitionDefinition{keys: []partitionKeyEntry{
-			{attribute: 1, usage: usage, class: class, comparison: comparison, collation: uint32(provider.oid)},
+			{attribute: 1, usage: usage, class: class, comparison: comparison, collation: uint32(provider.OID)},
 			{attribute: 2, usage: usage, class: class, comparison: comparison},
 		}},
 	}
 	sourceKeys := slices.Clone(source.Partition.keys)
 	imported := *provider
-	imported.oid = 90001
+	imported.OID = 90001
 	// The old identity belongs to the retained live overlay, not the import.
 	temporary := *provider
 	temporary.name = "retained_temp_provider"

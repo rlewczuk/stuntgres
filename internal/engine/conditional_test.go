@@ -432,10 +432,10 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN wrapped AS mood"))
 		done()
 	}
-	oldEnum := domainUnitType(t, source.CatalogRead(), "mood").typ
-	oldDomain := domainUnitType(t, source.CatalogRead(), "wrapped").typ
-	newEnum := domainUnitType(t, target.CatalogRead(), "mood").typ
-	newDomain := domainUnitType(t, target.CatalogRead(), "wrapped").typ
+	oldEnum := domainUnitType(t, source.CatalogRead(), "mood").SQLType
+	oldDomain := domainUnitType(t, source.CatalogRead(), "wrapped").SQLType
+	newEnum := domainUnitType(t, target.CatalogRead(), "mood").SQLType
+	newDomain := domainUnitType(t, target.CatalogRead(), "wrapped").SQLType
 	if oldEnum == newEnum || oldDomain == newDomain {
 		t.Fatal("ownership fixture did not remint descriptors")
 	}

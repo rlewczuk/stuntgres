@@ -17,7 +17,7 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	earlier := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, Owner: e.authorizationDomain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
@@ -34,7 +34,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	view = e.CatalogRead()
 	scope := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.address, low.Namespace()}}
 	procedure, err := scope.conversionProcedure(6, 8)
-	if err != nil || procedure == nil || procedure.address != low.handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
+	if err != nil || procedure == nil || procedure.address != low.Handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
 	reversed := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.address}}
@@ -42,7 +42,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal("default index OID order, not name order", err)
 	}
 	removedDefault := *first
-	removedDefault.defaultConversion, removedDefault.revision = false, 2
+	removedDefault.DefaultConversion, removedDefault.revision = false, 2
 	stage = e.BeginCatalogStage(view)
 	if err = stage.Replace(&removedDefault); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	private := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	private := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, Owner: e.authorizationDomain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), private.address)); err == nil {
 		t.Fatal("private schema supplied implicit USAGE")
 	}
-	if err = e.SetObjectACL(context.Background(), e.catalog.domain.Ref(auth.catalog.Epoch(), private.address), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err = e.SetObjectACL(context.Background(), e.catalog.domain.Ref(auth.catalog.Epoch(), private.address), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
@@ -173,7 +173,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: expr.Stable, strict: true, implementation: stockUnaccent}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace = 90001, catalog
 	stage := e.BeginCatalogStage(view)
