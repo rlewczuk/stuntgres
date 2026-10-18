@@ -955,17 +955,17 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 			changed = changed || old != typ(old)
 		})
 	}
-	for _, definition := range d.defaults {
+	for _, definition := range d.Defaults {
 		expression(definition.expression)
 	}
-	for _, definition := range d.generations {
+	for _, definition := range d.Generations {
 		expression(definition.expression)
 		expression(definition.planned)
 	}
-	for _, constraint := range d.checkConstraints {
+	for _, constraint := range d.CheckConstraints {
 		expression(constraint.expression)
 	}
-	for _, policy := range d.policies {
+	for _, policy := range d.Policies {
 		for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
 			if condition != nil {
 				expression(condition.expression)
@@ -979,20 +979,20 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 			}
 		}
 	}
-	if d.sqlIndex != nil {
-		for _, key := range d.sqlIndex.keys {
+	if d.SQLIndex != nil {
+		for _, key := range d.SQLIndex.keys {
 			if key.derived != nil {
 				expression(key.derived.definition)
 				expression(key.derived.execution)
 			}
 		}
-		if predicate := d.sqlIndex.predicate; predicate != nil {
+		if predicate := d.SQLIndex.predicate; predicate != nil {
 			expression(predicate.definition)
 			expression(predicate.execution)
 		}
 	}
-	if d.partition != nil {
-		for _, key := range d.partition.keys {
+	if d.Partition != nil {
+		for _, key := range d.Partition.keys {
 			changed = changed || key.usage.Type != typ(key.usage.Type)
 			if key.derived != nil {
 				expression(key.derived.definition)
@@ -1000,8 +1000,8 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 			}
 		}
 	}
-	if d.membership != nil {
-		for _, tuple := range [][]partitionDatum{d.membership.lower, d.membership.upper} {
+	if d.Membership != nil {
+		for _, tuple := range [][]partitionDatum{d.Membership.lower, d.Membership.upper} {
 			for _, datum := range tuple {
 				if datum.kind == 0 {
 					changed = changed || datum.value.Type() != typ(datum.value.Type())
@@ -1009,7 +1009,7 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 			}
 		}
 	}
-	if d.view != nil {
+	if d.View != nil {
 		for _, usage := range viewOf(d).castUsages {
 			changed = changed || usage.Type != typ(usage.Type)
 		}
@@ -1037,7 +1037,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 	var views []*relationDescriptor
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
-		if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
+		if view, ok := descriptor.(*relationDescriptor); ok && view.View != nil {
 			if viewOf(view).rule == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}
@@ -1063,7 +1063,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 			definition := *viewOf(view)
 			definition.rule = rule
 			replacement := *view
-			replacement.view = &definition
+			replacement.View = &definition
 			next.setDescriptor(view.address, &replacement)
 		}
 		reserved[rule] |= ruleOID | claimedOID

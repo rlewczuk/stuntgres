@@ -106,7 +106,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45002}
-	next.setDescriptor(address, &relationDescriptor{address: address, columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}})
+	next.setDescriptor(address, &relationDescriptor{address: address, Columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}})
 	original := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{value}}}}
 	stores := map[ids.ObjectAddress]*relationStorage{address: original}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {

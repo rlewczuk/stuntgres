@@ -37,7 +37,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []rowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.attributes[3], rewrite: true}}, nil, nil, true)
+			roots, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")
@@ -71,10 +71,10 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	baseline.versions = slices.Clone(baseline.versions[:2])
 	// Real candidate descriptor/predicate, separately owned private publication.
 	next := *f.index
-	definition := *f.index.sqlIndex
+	definition := *f.index.SQLIndex
 	predicate := *definition.predicate
 	definition.predicate = &predicate
-	next.sqlIndex = &definition
+	next.SQLIndex = &definition
 	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{next.address: &next}, originals: map[ids.ObjectAddress]Descriptor{next.address: f.index}}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, changes, f.auth.catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)

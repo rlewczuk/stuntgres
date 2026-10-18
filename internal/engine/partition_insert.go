@@ -36,8 +36,8 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	state := &partitionInsertState{catalog: auth.catalog, auth: auth, target: target}
 	var captureLayouts func(*relationDescriptor) error
 	captureLayout := func(d *relationDescriptor) error {
-		if s.output.RegTS == nil && d.partition != nil {
-			for _, key := range d.partition.keys {
+		if s.output.RegTS == nil && d.Partition != nil {
+			for _, key := range d.Partition.keys {
 				if key.usage.Type.ContainsRegTS() {
 					if err := e.captureCommentSnapshotLocked(s); err != nil {
 						return err
@@ -62,8 +62,8 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		if err := captureLayout(d); err != nil {
 			return err
 		}
-		if d.partition != nil {
-			for _, address := range d.partition.children {
+		if d.Partition != nil {
+			for _, address := range d.Partition.children {
 				if err := captureLayouts(auth.catalog.MustRelation(address)); err != nil {
 					return err
 				}
@@ -74,8 +74,8 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	if err := captureLayouts(target); err != nil {
 		return err
 	}
-	for child := target; child.membership != nil; {
-		parent := auth.catalog.MustRelation(child.membership.parent)
+	for child := target; child.Membership != nil; {
+		parent := auth.catalog.MustRelation(child.Membership.parent)
 		if err := captureLayout(parent); err != nil {
 			return err
 		}
@@ -96,25 +96,25 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value, evaluation *EvalContext) error {
 	state := s.partitionInsert
 	state.namedRow = row
-	if state.target.partition != nil {
+	if state.target.Partition != nil {
 		if err := s.validateTargetPartitionConstraint(b, row, evaluation); err != nil {
 			return err
 		}
 	}
 	destination := state.target
-	for destination.partition != nil {
+	for destination.Partition != nil {
 		var values [32]partitionDatum
 		key, err := partitionRowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
 		if err != nil {
 			return err
 		}
 		var selected *relationDescriptor
-		for _, address := range destination.partition.children {
+		for _, address := range destination.Partition.children {
 			child := state.catalog.MustRelation(address)
-			if child.membership.defaultBound {
+			if child.Membership.defaultBound {
 				continue
 			}
-			contains, err := partitionContains(evaluation.Context, destination.partition.keys, child.membership, key, s.input)
+			contains, err := partitionContains(evaluation.Context, destination.Partition.keys, child.Membership, key, s.input)
 			if err != nil {
 				return err
 			}
@@ -123,8 +123,8 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 				break
 			}
 		}
-		if selected == nil && destination.partition.defaultChild != (ids.ObjectAddress{}) {
-			selected = state.catalog.MustRelation(destination.partition.defaultChild)
+		if selected == nil && destination.Partition.defaultChild != (ids.ObjectAddress{}) {
+			selected = state.catalog.MustRelation(destination.Partition.defaultChild)
 		}
 		if selected == nil {
 			return state.missingPartition(evaluation.Context, destination, key.values, s.output)
@@ -144,7 +144,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
 		return err
 	}
-	if state.target.partition == nil {
+	if state.target.Partition == nil {
 		if err := s.validateTargetPartitionConstraint(b, row, evaluation); err != nil {
 			return err
 		}
@@ -156,8 +156,8 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 
 func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqltype.Value, evaluation *EvalContext) error {
 	state := s.partitionInsert
-	for child := state.target; child.membership != nil; {
-		parent := state.catalog.MustRelation(child.membership.parent)
+	for child := state.target; child.Membership != nil; {
+		parent := state.catalog.MustRelation(child.Membership.parent)
 		accepts, err := partitionAccepts(state.catalog, parent, child, state.rowFor(parent, row), evaluation)
 		if err != nil {
 			return err
@@ -195,7 +195,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 		return checkErr
 	}
 	if rights&authorization.SelectPrivilege == 0 {
-		for _, entry := range parent.partition.keys {
+		for _, entry := range parent.Partition.keys {
 			if entry.derived != nil {
 				return err
 			}
@@ -212,7 +212,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	}
 	var names, values strings.Builder
 	renderer := pgRenderer{view: state.catalog, relation: parent, output: output}
-	for i, entry := range parent.partition.keys {
+	for i, entry := range parent.Partition.keys {
 		if i != 0 {
 			names.WriteString(", ")
 			values.WriteString(", ")

@@ -31,10 +31,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, nil
 	}
 	parent := scope.lockedDescriptor.(*relationDescriptor)
-	if parent.partition == nil {
+	if parent.Partition == nil {
 		return fail(partitionAttachKindError(parent))
 	}
-	if parent.partition.strategy == parser.PartitionHash && !op.restorePartitionAttach {
+	if parent.Partition.strategy == parser.PartitionHash && !op.restorePartitionAttach {
 		return fail(sqlError("0A000", "hash partition attachment is unsupported"))
 	}
 	lookupAuth, err := e.partitionAttachAuthorization(op, auth)
@@ -63,8 +63,8 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	// PostgreSQL demands incumbent DEFAULT AX before candidate AX. Its proof
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partitionAttachScan
-	if !bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
+	if !bound.defaultBound && parent.Partition.defaultChild != (ids.ObjectAddress{}) {
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.Partition.defaultChild)
 		if err = scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -162,8 +162,8 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = pending.validateBounds(scope); err != nil {
 		return Result{}, err
 	}
-	if bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-		old := auth.catalog.MustRelation(parent.partition.defaultChild)
+	if bound.defaultBound && parent.Partition.defaultChild != (ids.ObjectAddress{}) {
+		old := auth.catalog.MustRelation(parent.Partition.defaultChild)
 		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
 	}
 	if !bound.defaultBound {
@@ -185,14 +185,14 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if parent.revision == ids.DefinitionRevision(^uint64(0)) || next.revision == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
-	next.membership = bound
+	next.Membership = bound
 	next.revision++
-	changed, definition := *parent, *parent.partition
+	changed, definition := *parent, *parent.Partition
 	definition.children = append(slices.Clone(definition.children), child.address)
 	if bound.defaultBound {
 		definition.defaultChild = child.address
 	}
-	changed.partition = &definition
+	changed.Partition = &definition
 	changed.revision++
 	if err = stage.Replace(&changed); err != nil {
 		return Result{}, err

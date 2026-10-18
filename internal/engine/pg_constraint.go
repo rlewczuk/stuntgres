@@ -25,13 +25,13 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.columns) != len(pgConstraintTypeIDs) {
+	if len(source.Columns) != len(pgConstraintTypeIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid constraint source shape")
 	}
 	var types [28]*sqltype.Descriptor
 	for i, id := range pgConstraintTypeIDs {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign constraint source type")
 		}
 		types[i] = owned
@@ -42,7 +42,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			return nil, err
 		}
 		if table, ok := descriptor.(*relationDescriptor); ok {
-			count += len(table.notNullConstraints) + len(table.checkConstraints) + len(table.uniqueConstraints) + len(table.foreignKeys) + len(table.exclusionConstraints)
+			count += len(table.NotNullConstraints) + len(table.CheckConstraints) + len(table.UniqueConstraints) + len(table.ForeignKeys) + len(table.ExclusionConstraints)
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
 			count += len(domain.domainChecks)
@@ -92,7 +92,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			builder.initialize(row, table.namespace.ObjectID, table.address.ObjectID, id, name, kind)
 			return row, builder.err
 		}
-		for _, c := range table.notNullConstraints {
+		for _, c := range table.NotNullConstraints {
 			row, err := next(c.OID, c.Name, "n")
 			if err != nil {
 				return nil, err
@@ -104,7 +104,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			builder.boolean(row, 18, c.NoInherit)
 			builder.keys(row, 20, []int32{c.Attribute})
 		}
-		for _, c := range table.checkConstraints {
+		for _, c := range table.CheckConstraints {
 			row, err := next(c.OID, c.Name, "c")
 			if err != nil {
 				return nil, err
@@ -120,7 +120,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				return nil, err
 			}
 		}
-		for _, c := range table.uniqueConstraints {
+		for _, c := range table.UniqueConstraints {
 			kind := "u"
 			if c.Primary {
 				kind = "p"
@@ -138,7 +138,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			}
 			builder.keys(row, 20, c.Attributes)
 		}
-		for _, c := range table.foreignKeys {
+		for _, c := range table.ForeignKeys {
 			row, err := next(c.OID, c.Name, "f")
 			if err != nil {
 				return nil, err
@@ -167,7 +167,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				return nil, err
 			}
 		}
-		for _, c := range table.exclusionConstraints {
+		for _, c := range table.ExclusionConstraints {
 			row, err := next(c.OID, c.Name, "x")
 			if err != nil {
 				return nil, err
@@ -182,12 +182,12 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			}
 			builder.boolean(row, 18, c.Parent == 0)
 			index, ok := catalog.Relation(c.Index)
-			if !ok || index.sqlIndex == nil || len(index.sqlIndex.keys) != len(c.Operators) {
+			if !ok || index.SQLIndex == nil || len(index.SQLIndex.keys) != len(c.Operators) {
 				return nil, fmt.Errorf("stuntgres: missing exclusion metadata provider")
 			}
 			keys := make([]sqltype.Value, len(c.Operators))
 			operators := make([]sqltype.Value, len(c.Operators))
-			for i, key := range index.sqlIndex.keys {
+			for i, key := range index.SQLIndex.keys {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
@@ -377,7 +377,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog Cata
 		return fmt.Errorf("stuntgres: missing foreign-key parent metadata")
 	}
 	index, ok := catalog.Relation(f.Index)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		return fmt.Errorf("stuntgres: missing foreign-key index metadata")
 	}
 	comparisons, err := bindForeignKeyComparison(catalog, child, parent, index, f)
@@ -392,7 +392,7 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog Cata
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		childSlot, parentSlot := slices.Index(child.attributes, attribute), slices.Index(parent.attributes, f.Referenced[i])
+		childSlot, parentSlot := slices.Index(child.Attributes, attribute), slices.Index(parent.Attributes, f.Referenced[i])
 		matched := -1
 		for at, comparison := range comparisons {
 			if comparison.child == childSlot && comparison.parent == parentSlot {

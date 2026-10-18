@@ -40,7 +40,7 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *relationDescr
 				next.buckets[h] = append(next.buckets[h], entry)
 			}
 		}
-		if err := next.captureRowEntries(ctx, index.sqlIndex); err != nil {
+		if err := next.captureRowEntries(ctx, index.SQLIndex); err != nil {
 			return nil, err
 		}
 		return &logicalIndexRoot{hash: next}, nil
@@ -57,7 +57,7 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *relationDescr
 		entry.position = position
 		entries = append(entries, entry)
 	}
-	return newLogicalIndexRoot(index.sqlIndex, entries), nil
+	return newLogicalIndexRoot(index.SQLIndex, entries), nil
 }
 
 func retainIndexBuild(changes *catalogChanges, index *relationDescriptor, baseline *relationStorage, root *logicalIndexRoot) {

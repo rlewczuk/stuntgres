@@ -65,7 +65,7 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				ref := roleTableRef(t, e, "s.t")
 				nsDesc := e.CatalogRead().MustNamespace(ns.Address)
 				tableDesc := e.CatalogRead().MustRelation(ref.Address)
-				if nsDesc.owner != schemaRole.Ref || tableDesc.owner != tableRole.Ref || nsDesc.acl.Explicit || tableDesc.acl.Explicit {
+				if nsDesc.owner != schemaRole.Ref || tableDesc.Owner != tableRole.Ref || nsDesc.acl.Explicit || tableDesc.ACL.Explicit {
 					t.Fatal("restore changed independent owners or synthesized grants")
 				}
 				if tableRole.Comment != "shared table owner" || schemaRole.Comment != "shared schema owner" {
@@ -178,7 +178,7 @@ func TestCommentPublishingWaiters(t *testing.T) {
 			ref.Address.SubID = 2
 			commentWant(t, e, e.CatalogRead(), ref, tc.b)
 			current := e.CatalogRead().MustRelation(original.address)
-			if current.owner != original.owner || !reflect.DeepEqual(current.attributes, original.attributes) || current.address != original.address {
+			if current.Owner != original.Owner || !reflect.DeepEqual(current.Attributes, original.Attributes) || current.address != original.address {
 				t.Fatal("serialized comments changed object authority/column identities")
 			}
 			sessionSQL(t, first, "INSERT INTO t VALUES(7,8)")

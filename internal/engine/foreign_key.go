@@ -55,11 +55,11 @@ func foreignKeyDeclarations(s *parser.CreateTable) []parser.ForeignKeyConstraint
 func foreignKeyAttributes(d *relationDescriptor, columns []parser.Identifier) ([]int32, error) {
 	attributes := make([]int32, len(columns))
 	for i, column := range columns {
-		slot, ok := d.index[column.Text]
+		slot, ok := d.Index[column.Text]
 		if !ok {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" referenced in foreign key constraint does not exist`, column.Text))
 		}
-		attributes[i] = d.attributes[slot]
+		attributes[i] = d.Attributes[slot]
 	}
 	return attributes, nil
 }
@@ -68,7 +68,7 @@ func foreignKeyIndex(view CatalogRead, parent *relationDescriptor, attributes []
 	var found *relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
 		eligible, err := foreignKeyIndexEligible(parent, index, attributes)
@@ -86,7 +86,7 @@ func foreignKeyIndex(view CatalogRead, parent *relationDescriptor, attributes []
 }
 
 func foreignKeyIndexEligible(parent, index *relationDescriptor, attributes []int32) (bool, error) {
-	d := index.sqlIndex
+	d := index.SQLIndex
 	if d == nil || d.parent != parent.address || !d.unique || !d.ready || !d.valid || !d.live || d.predicate != nil || len(d.keys) != len(attributes) {
 		return false, nil
 	}
@@ -114,15 +114,15 @@ func foreignKeyIndexEligible(parent, index *relationDescriptor, attributes []int
 func bindForeignKeyComparison(view CatalogRead, child, parent, index *relationDescriptor, f foreignKeyConstraint) ([]foreignKeyComparison, error) {
 	comparisons := make([]foreignKeyComparison, len(f.Attributes))
 	for i, attribute := range f.Attributes {
-		c, p := slices.Index(child.attributes, attribute), slices.Index(parent.attributes, f.Referenced[i])
+		c, p := slices.Index(child.Attributes, attribute), slices.Index(parent.Attributes, f.Referenced[i])
 		if c < 0 || p < 0 {
 			return nil, fmt.Errorf("stuntgres: missing foreign-key attribute")
 		}
-		cu, pu := child.columns[c].Usage, parent.columns[p].Usage
+		cu, pu := child.Columns[c].Usage, parent.Columns[p].Usage
 		var err error
 		bound := foreignKeyComparison{child: c, parent: p}
 		matchedAt := -1
-		for at, key := range index.sqlIndex.keys {
+		for at, key := range index.SQLIndex.keys {
 			a, node, keyErr := indexCatalogKey(parent, key)
 			if keyErr != nil {
 				return nil, keyErr
@@ -139,7 +139,7 @@ func bindForeignKeyComparison(view CatalogRead, child, parent, index *relationDe
 		}
 		if err != nil {
 			d := sqlError("42804", fmt.Sprintf(`foreign key constraint "%s" cannot be implemented`, f.Name)).(*sqlstate.Error)
-			d.Detail = fmt.Sprintf(`Key columns "%s" of the referencing table and "%s" of the referenced table are of incompatible types: %s and %s.`, child.columns[c].Name, parent.columns[p].Name, cu.Type.DiagnosticName(), pu.Type.DiagnosticName())
+			d.Detail = fmt.Sprintf(`Key columns "%s" of the referencing table and "%s" of the referenced table are of incompatible types: %s and %s.`, child.Columns[c].Name, parent.Columns[p].Name, cu.Type.DiagnosticName(), pu.Type.DiagnosticName())
 			return nil, d
 		}
 		comparisons[matchedAt] = bound
@@ -189,7 +189,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if hierarchyRelation(child) || hierarchyRelation(parent) {
 		return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 	}
-	if parent.relationKind != tableRelation {
+	if parent.RelationKind != tableRelation {
 		return sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, parent.name))
 	}
 	childTemp := view.MustNamespace(child.namespace).temporary
@@ -222,7 +222,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	}
 	deleteAttributes = normalized
 	for _, a := range local {
-		if _, generated := child.generations[a]; !generated {
+		if _, generated := child.Generations[a]; !generated {
 			continue
 		}
 		if raw.UpdateAction == parser.ForeignKeyCascade || raw.UpdateAction == parser.ForeignKeySetNull || raw.UpdateAction == parser.ForeignKeySetDefault {
@@ -234,7 +234,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	}
 	var referenced []int32
 	if len(raw.Referenced) == 0 {
-		for _, key := range parent.uniqueConstraints {
+		for _, key := range parent.UniqueConstraints {
 			if key.Primary {
 				referenced = slices.Clone(key.Attributes)
 				break
@@ -298,7 +298,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err != nil {
 		return err
 	}
-	child.foreignKeys = append(child.foreignKeys, f)
+	child.ForeignKeys = append(child.ForeignKeys, f)
 	stage.descriptors[child.address] = child
 	return nil
 }
@@ -335,21 +335,21 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 }
 
 func validateForeignKeys(view CatalogRead, child *relationDescriptor, names map[string]bool) error {
-	for _, f := range child.foreignKeys {
-		if child.relationKind != tableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
+	for _, f := range child.ForeignKeys {
+		if child.RelationKind != tableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
 		}
 		if f.UpdateAction > parser.ForeignKeySetDefault || f.DeleteAction > parser.ForeignKeySetDefault || len(f.DeleteAttributes) != 0 && f.DeleteAction != parser.ForeignKeySetNull && f.DeleteAction != parser.ForeignKeySetDefault {
 			return fmt.Errorf("stuntgres: invalid foreign-key action")
 		}
 		for i, a := range f.DeleteAttributes {
-			if !slices.Contains(child.attributes, a) || !slices.Contains(f.Attributes, a) || slices.Contains(f.DeleteAttributes[:i], a) {
+			if !slices.Contains(child.Attributes, a) || !slices.Contains(f.Attributes, a) || slices.Contains(f.DeleteAttributes[:i], a) {
 				return fmt.Errorf("stuntgres: invalid foreign-key action attribute")
 			}
 		}
 		names[f.Name] = true
 		parent, ok := view.Relation(f.Target)
-		if !ok || parent.relationKind != tableRelation {
+		if !ok || parent.RelationKind != tableRelation {
 			return fmt.Errorf("stuntgres: missing foreign-key target")
 		}
 		index, ok := view.Relation(f.Index)
@@ -432,8 +432,8 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	}
 	labels, text := make([]string, len(attributes)), make([]string, len(attributes))
 	for i, a := range attributes {
-		slot := slices.Index(violating.attributes, a)
-		labels[i] = violating.columns[slot].Name
+		slot := slices.Index(violating.Attributes, a)
+		labels[i] = violating.Columns[slot].Name
 		text[i], err = values[slot].Type().OutputWithEnvironment(ctx, values[slot], output)
 		if err != nil {
 			return err

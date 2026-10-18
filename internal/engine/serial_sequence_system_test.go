@@ -16,7 +16,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 		for _, column := range []string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid", "CTID", `"ctid"`, "ctid ", "oid", "absent"} {
 			t.Run(fmt.Sprintf("kind=%d/%s", kind, column), func(t *testing.T) {
 				f := serialSequenceUnitFixture(t)
-				f.table.relationKind = kind
+				f.table.RelationKind = kind
 				text := f.node.ResultUsage().Type
 				f.node.args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, column)}
 				value, err := f.node.Eval(f.context)
@@ -39,11 +39,11 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 	// A view can expose a declared column whose literal name happens to be a
 	// system spelling. Declared lookup must precede the kind-aware fallback.
 	f := serialSequenceUnitFixture(t)
-	f.table.relationKind = viewRelation
-	f.table.columns[0].Name = "ctid"
-	delete(f.table.index, "ID")
-	f.table.index["ctid"] = 0
-	f.sequence.sequence.owned = ids.ObjectAddress{}
+	f.table.RelationKind = viewRelation
+	f.table.Columns[0].Name = "ctid"
+	delete(f.table.Index, "ID")
+	f.table.Index["ctid"] = 0
+	f.sequence.Sequence.owned = ids.ObjectAddress{}
 	text := f.node.ResultUsage().Type
 	f.node.args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "ctid")}
 	value, err := f.node.Eval(f.context)

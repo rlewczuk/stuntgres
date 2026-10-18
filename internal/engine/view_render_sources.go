@@ -490,10 +490,10 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 				from.rowTarget, from.rowSource = key, true
 				from.rowTargetSQL = v.presentation.identifier(d.name)
 			}
-			for i, attribute := range d.attributes {
+			for i, attribute := range d.Attributes {
 				if c, ok := frozen[attribute]; ok {
-					from.slots[c.slot] = v.presentation.identifier(d.columns[i].Name)
-					from.columns = append(from.columns, viewRenderColumn{name: d.columns[i].Name, slot: c.slot})
+					from.slots[c.slot] = v.presentation.identifier(d.Columns[i].Name)
+					from.columns = append(from.columns, viewRenderColumn{name: d.Columns[i].Name, slot: c.slot})
 				}
 			}
 			v.slots[root] = from.slots
@@ -517,8 +517,8 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			from.slots = make(map[int]string, len(frozen))
 			qualifier := v.presentation.identifier(d.name)
 			from.rowTargetSQL = qualifier
-			for i, attribute := range d.attributes {
-				column := viewRenderColumn{name: d.columns[i].Name, slot: -1}
+			for i, attribute := range d.Attributes {
+				column := viewRenderColumn{name: d.Columns[i].Name, slot: -1}
 				if captured, ok := frozen[attribute]; ok {
 					column.slot = captured.slot
 					from.slots[column.slot] = qualifier + "." + v.presentation.identifier(column.name)
@@ -535,7 +535,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		if leaf.only {
 			from.relation = "ONLY " + from.relation
 		}
-		for _, attribute := range d.attributes {
+		for _, attribute := range d.Attributes {
 			column := viewRenderColumn{slot: -1}
 			if c, ok := frozen[attribute]; ok {
 				column.name, column.slot = c.name, c.slot

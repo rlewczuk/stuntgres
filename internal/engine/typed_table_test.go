@@ -34,25 +34,25 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	e.mu.Lock()
 	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
 	if err == nil {
-		source.relationKind = compositeRelation
+		source.RelationKind = compositeRelation
 		if !empty {
-			source.attributes = []int32{2, 4}
-			source.attributeHighWater = 4
-			source.columns[0].OriginAttribute = 2
-			source.columns[1].OriginAttribute = 4
+			source.Attributes = []int32{2, 4}
+			source.AttributeHighWater = 4
+			source.Columns[0].OriginAttribute = 2
+			source.Columns[1].OriginAttribute = 4
 		}
 		err = e.stageRowTypeLocked(stage, source)
 	}
 	var table *relationDescriptor
 	if err == nil {
-		table, err = e.newTableDescriptorLocked(source.namespace, "typed", source.owner, append([]ColumnDescriptor(nil), columns...), index)
+		table, err = e.newTableDescriptorLocked(source.namespace, "typed", source.Owner, append([]ColumnDescriptor(nil), columns...), index)
 	}
 	if err == nil {
-		table.ofType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}
+		table.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 		if !empty {
-			table.attributes = []int32{1, 7}
-			table.attributeHighWater = 7
-			table.columns[1].OriginAttribute = 7
+			table.Attributes = []int32{1, 7}
+			table.AttributeHighWater = 7
+			table.Columns[1].OriginAttribute = 7
 		}
 		err = e.stageRowTypeLocked(stage, table)
 	}
@@ -77,7 +77,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if err := validateTypedAttachment(view, table); err != nil {
 		t.Fatal(err)
 	}
-	if table.rowType == source.rowType || !reflect.DeepEqual(table.attributes, []int32{1, 7}) || table.attributeHighWater != 7 {
+	if table.RowType == source.RowType || !reflect.DeepEqual(table.Attributes, []int32{1, 7}) || table.AttributeHighWater != 7 {
 		t.Fatal("source identity copied into destination", table)
 	}
 	next, err := renameColumnCandidate(source, "note", "label")
@@ -85,30 +85,30 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions, renames := typedShapeActions(source, next, table, nil)
-	if len(actions) != 0 || !reflect.DeepEqual(renames, map[int32]string{7: "label"}) || source.columns[1].Name != "note" {
+	if len(actions) != 0 || !reflect.DeepEqual(renames, map[int32]string{7: "label"}) || source.Columns[1].Name != "note" {
 		t.Fatal("unstable rename correspondence", actions, renames)
 	}
 	removed := *source
-	removed.columns, removed.attributes, removed.index = source.columns[:1], source.attributes[:1], map[string]int{"id": 0}
+	removed.Columns, removed.Attributes, removed.Index = source.Columns[:1], source.Attributes[:1], map[string]int{"id": 0}
 	actions, _ = typedShapeActions(source, &removed, table, nil)
 	if len(actions) != 1 || actions[0].action.Column.Text != "note" || actions[0].action.Action != parser.DropColumn {
 		t.Fatal(actions)
 	}
 	for _, bad := range []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: source.address.ObjectID}, {ClassID: ids.TypeClassID, ObjectID: 999999}} {
 		invalid := *table
-		invalid.ofType = bad
+		invalid.OfType = bad
 		if err := validateTypedAttachment(view, &invalid); err == nil {
 			t.Fatal("invalid attachment admitted", bad)
 		}
 	}
 	invalid := *table
-	invalid.ofType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}
+	invalid.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}
 	if err := validateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("physical own-row source admitted")
 	}
 	invalid = *table
-	invalid.columns = append([]ColumnDescriptor(nil), table.columns...)
-	invalid.columns[0].Usage = testUsage(e, sqltype.Int8)
+	invalid.Columns = append([]ColumnDescriptor(nil), table.Columns...)
+	invalid.Columns[0].Usage = testUsage(e, sqltype.Int8)
 	if err := validateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("different member usage admitted")
 	}
@@ -132,7 +132,7 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 		}
 	}
 	detached := *table
-	detached.ofType = ids.ObjectAddress{}
+	detached.OfType = ids.ObjectAddress{}
 	if err := typedDirectActionsGuard(&detached, []parser.AlterTableAction{{Action: parser.AddColumn}}); err != nil {
 		t.Fatal(err)
 	}
@@ -141,8 +141,8 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 func typedRenameStage(t *testing.T, e *Engine, source, table *relationDescriptor) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.typedSource = table.ofType
-	stage.typedObserved = typedClosure(stage.base, table.ofType)
+	stage.typedSource = table.OfType
+	stage.typedObserved = typedClosure(stage.base, table.OfType)
 	for _, old := range []*relationDescriptor{source, table} {
 		next, err := renameColumnCandidate(old, "note", "label")
 		if err != nil {
@@ -171,7 +171,7 @@ func TestTypedPublicationFinalCancellationPreservesRoots(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
 		t.Fatal("cancelled publication changed catalog", changes, err)
 	}
-	if source.columns[1].Name != "note" || table.columns[1].Name != "note" {
+	if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
 		t.Fatal("old descriptors mutated")
 	}
 }
@@ -192,15 +192,15 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 		case "attach":
 			next.setDescriptor(late.address, &late)
 		case "child":
-			late.ofType = ids.ObjectAddress{}
-			late.inheritance = &tableInheritance{parents: []ids.ObjectAddress{table.address}}
+			late.OfType = ids.ObjectAddress{}
+			late.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{table.address}}
 			next.setDescriptor(late.address, &late)
 		case "descriptor":
 			replacement := *table
 			replacement.revision++
 			next.setDescriptor(table.address, &replacement)
 		case "unrelated":
-			late.ofType = ids.ObjectAddress{}
+			late.OfType = ids.ObjectAddress{}
 			next.setDescriptor(late.address, &late)
 		}
 		valid := typedObservationValid(stage, e.catalog.read(next))

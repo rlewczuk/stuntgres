@@ -44,14 +44,14 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	index, ok := catalog.Relation(ref.Address)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		return m, names, fmt.Errorf("stuntgres: index metadata target is missing")
 	}
 	sql, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{})
 	if err != nil {
 		return m, names, err
 	}
-	definition := index.sqlIndex
+	definition := index.SQLIndex
 	parent := catalog.MustRelation(definition.parent)
 	n := len(definition.keys)
 	ready, valid, live := definition.publicationState()
@@ -133,7 +133,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
 	}

@@ -37,19 +37,19 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 
 func validCheckTraversal(parent *relationDescriptor) *relationDescriptor {
 	valid := 0
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if !c.NotValid {
 			valid++
 		}
 	}
-	if valid == len(parent.checkConstraints) {
+	if valid == len(parent.CheckConstraints) {
 		return parent
 	}
 	next := *parent
-	next.checkConstraints = make([]checkConstraint, 0, valid)
-	for _, c := range parent.checkConstraints {
+	next.CheckConstraints = make([]checkConstraint, 0, valid)
+	for _, c := range parent.CheckConstraints {
 		if !c.NotValid {
-			next.checkConstraints = append(next.checkConstraints, c)
+			next.CheckConstraints = append(next.CheckConstraints, c)
 		}
 	}
 	return &next

@@ -51,15 +51,15 @@ func ruleColumnInfo(column ColumnDescriptor) expr.Info {
 
 func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
 	d := b.relation
-	p := ruleProducer{old: make([]expr.Expr, len(d.columns)), new: make([]expr.Expr, len(d.columns)), sources: b.querySources}
-	for i, column := range d.columns {
+	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), new: make([]expr.Expr, len(d.Columns)), sources: b.querySources}
+	for i, column := range d.Columns {
 		ref := b.ref
-		ref.Address.SubID = d.attributes[i]
+		ref.Address.SubID = d.Attributes[i]
 		p.old[i] = columnExpression{Info: ruleColumnInfo(column), origin: ref, scope: 1, frame: 1, slot: i}
 		p.new[i] = p.old[i]
 	}
 	if event == "INSERT" {
-		for i, column := range d.columns {
+		for i, column := range d.Columns {
 			p.old[i] = literalExpression{Info: ruleColumnInfo(column), value: sqltype.Null(column.Usage.Type)}
 			p.new[i] = p.old[i]
 			if len(b.defaults) > i && b.defaults[i] != nil {
@@ -69,7 +69,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		assign := func(output int, value expr.Expr) {
 			slot := b.targets[output]
 			if len(b.arrayTargets) > output && b.arrayTargets[output] != nil {
-				value = assignmentValueExpression{Info: expr.Info{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
+				value = assignmentValueExpression{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
 			}
 			p.new[slot] = value
 		}
@@ -103,7 +103,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		} else {
 			schema := make(querySchema, len(b.targets))
 			for i, slot := range b.targets {
-				schema[i] = d.columns[slot]
+				schema[i] = d.Columns[slot]
 				if len(b.expressions) != 0 {
 					schema[i].Usage = b.expressions[0][i].ResultUsage()
 				}
@@ -117,7 +117,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		}
 	} else {
 		p.sources = append([]queryLeaf{{ref: b.ref, relation: d, storage: b.storage, uses: b.usedColumns}}, b.querySources...)
-		p.root = &sourceNode{querySchema: querySchema(d.columns), ref: b.ref, occurrence: 0}
+		p.root = &sourceNode{querySchema: querySchema(d.Columns), ref: b.ref, occurrence: 0}
 		var from LogicalNode
 		var condition expr.Expr
 		if event == "UPDATE" {
@@ -126,7 +126,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 			for i, slot := range b.targets {
 				value := b.update.assignments[i]
 				if len(b.update.arrayTargets) > i && b.update.arrayTargets[i] != nil {
-					value = assignmentValueExpression{Info: expr.Info{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
+					value = assignmentValueExpression{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
 				}
 				p.new[slot] = value
 			}
@@ -190,8 +190,8 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 // Loan only original callable dependencies, after its actual containing recipe
 // certifies lifetime (including the existing retained-TEMP epoch bridge).
 func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, slot int, dependencies *[]expressionDependency, private *bool) error {
-	definition, ok := parent.defaults[parent.attributes[slot]]
-	if !ok || definition.OID == 0 || definition.expression == nil || definition.expression.ResultUsage() != parent.columns[slot].Usage {
+	definition, ok := parent.Defaults[parent.Attributes[slot]]
+	if !ok || definition.OID == 0 || definition.expression == nil || definition.expression.ResultUsage() != parent.Columns[slot].Usage {
 		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
 	}
 	if err := validateColumnDefaultProviders(view, parent, definition); err != nil {
@@ -311,7 +311,7 @@ func normalizeRuleInsert(b binding) binding {
 	}
 	schema := make(querySchema, len(b.targets))
 	for i, slot := range b.targets {
-		schema[i] = b.relation.columns[slot]
+		schema[i] = b.relation.Columns[slot]
 	}
 	if len(b.expressions) == 1 {
 		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, child: &singletonNode{}, expressions: b.expressions[0], frame: 1}}
@@ -354,7 +354,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	// Resolve authority at the retained producer boundary, before switching
 	// to the event owner's context for stored action refresh and composition.
 	caller := auth.state.CurrentUser
-	auth.state.CurrentUser = original.relation.owner
+	auth.state.CurrentUser = original.relation.Owner
 	b := action.binding
 	dependenciesPrivate := false
 	b.conflict = b.conflict.instantiate()
@@ -442,10 +442,10 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	width := len(p.root.Schema())
 	targetWidth := 0
 	if _, ok := action.syntax.(*parser.Update); ok {
-		targetWidth = len(b.relation.columns)
+		targetWidth = len(b.relation.Columns)
 	}
 	if _, ok := action.syntax.(*parser.Delete); ok {
-		targetWidth = len(b.relation.columns)
+		targetWidth = len(b.relation.Columns)
 	}
 	sourceOffset := len(p.sources)
 	b, err = offsetRuleSources(catalog, b, sourceOffset, original.ctes)
@@ -471,7 +471,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			if column.frame == 2 {
 				recipes = p.new
 			}
-			slot := slices.Index(original.relation.attributes, column.origin.Address.SubID)
+			slot := slices.Index(original.relation.Attributes, column.origin.Address.SubID)
 			if slot < 0 || slot >= len(recipes) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
@@ -743,7 +743,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		b.defaults = nil
 		e.bindInsertDefaults(&b, auth, insert.Override)
 	}
-	if current.relationKind != viewRelation {
+	if current.RelationKind != viewRelation {
 		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 	}
 	rules := rulesOf(b.relation)
@@ -754,7 +754,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 			program.events = append(program.events, dependency)
 		}
 	}
-	if current.relationKind == viewRelation && !matched {
+	if current.RelationKind == viewRelation && !matched {
 		b.viewWrite = nil
 		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 			return -1, err
@@ -820,7 +820,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		}
 		for _, action := range r.actions {
 			actionAuth := auth
-			actionAuth.state.CurrentUser = current.owner
+			actionAuth.state.CurrentUser = current.Owner
 			composed, err := composeRuleAction(auth, b, event, r, action)
 			if err != nil {
 				return -1, err
@@ -934,7 +934,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 				if column.frame == 2 {
 					recipes = p.new
 				}
-				slot := slices.Index(b.relation.attributes, column.origin.Address.SubID)
+				slot := slices.Index(b.relation.Attributes, column.origin.Address.SubID)
 				if slot < 0 || slot >= len(recipes) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
@@ -960,7 +960,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		}
 		projection := make([]expr.Expr, len(b.targets))
 		for i, slot := range b.targets {
-			schema[i] = b.relation.columns[slot]
+			schema[i] = b.relation.Columns[slot]
 			projection[i] = p.new[slot]
 		}
 		root := &filterNode{querySchema: querySchema(p.root.Schema()), child: p.root, predicate: viewWritePredicate(predicates, nil)}
@@ -1005,7 +1005,7 @@ func ruleReturningProjection(catalog CatalogRead, original, provider *boundRetur
 }
 
 func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
-	if b.relation.relationKind != viewRelation {
+	if b.relation.RelationKind != viewRelation {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
 	prior := b.viewWrite
@@ -1022,17 +1022,17 @@ func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth Authorizat
 
 func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescriptor) (binding, error) {
 	old := b.relation
-	if slices.Equal(old.attributes, current.attributes) {
+	if slices.Equal(old.Attributes, current.Attributes) {
 		b.relation = current
 		return b, nil
 	}
 	slots := func(original []int) ([]int, error) {
 		next := slices.Clone(original)
 		for i, slot := range original {
-			if slot < 0 || slot >= len(old.attributes) {
+			if slot < 0 || slot >= len(old.Attributes) {
 				return nil, ids.ErrCatalogReplaced
 			}
-			next[i] = slices.Index(current.attributes, old.attributes[slot])
+			next[i] = slices.Index(current.Attributes, old.Attributes[slot])
 			if next[i] < 0 {
 				return nil, ids.ErrCatalogReplaced
 			}
@@ -1055,10 +1055,10 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 		}
 	}
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
-		if column, ok := expr.(columnExpression); ok && column.scope == 1 && column.frame == 1 && column.slot >= len(old.columns) {
-			column.slot += len(current.columns) - len(old.columns)
+		if column, ok := expr.(columnExpression); ok && column.scope == 1 && column.frame == 1 && column.slot >= len(old.Columns) {
+			column.slot += len(current.Columns) - len(old.Columns)
 			if column.virtual != nil {
-				column.rowStart += len(current.columns) - len(old.columns)
+				column.rowStart += len(current.Columns) - len(old.Columns)
 			}
 			return column, true, nil
 		}
@@ -1066,10 +1066,10 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 		if !ok || column.origin.Address.ObjectID != b.ref.Address.ObjectID {
 			return expr, false, nil
 		}
-		if !(column.scope == 0 && column.frame == 0) && !(column.scope == 1 && column.frame == 1 && column.slot < len(old.columns)) {
+		if !(column.scope == 0 && column.frame == 0) && !(column.scope == 1 && column.frame == 1 && column.slot < len(old.Columns)) {
 			return expr, false, nil
 		}
-		column.slot = slices.Index(current.attributes, column.origin.Address.SubID)
+		column.slot = slices.Index(current.Attributes, column.origin.Address.SubID)
 		if column.slot < 0 {
 			return nil, false, ids.ErrCatalogReplaced
 		}
@@ -1150,13 +1150,13 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 		updated := source
 		updated.relation = current
 		updated.storage = storage
-		if !slices.Equal(source.relation.attributes, current.attributes) {
+		if !slices.Equal(source.relation.Attributes, current.Attributes) {
 			updated.uses = slices.Clone(source.uses)
 			for j, slot := range source.uses {
-				if slot < 0 || slot >= len(source.relation.attributes) {
+				if slot < 0 || slot >= len(source.relation.Attributes) {
 					return b, ids.ErrCatalogReplaced
 				}
-				updated.uses[j] = slices.Index(current.attributes, source.relation.attributes[slot])
+				updated.uses[j] = slices.Index(current.Attributes, source.relation.Attributes[slot])
 				if updated.uses[j] < 0 {
 					return b, ids.ErrCatalogReplaced
 				}
@@ -1189,7 +1189,7 @@ func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescri
 	if err != nil {
 		return nil, err
 	}
-	oldWidth, width := len(b.relation.attributes), len(current.attributes)
+	oldWidth, width := len(b.relation.Attributes), len(current.Attributes)
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		column, ok := expr.(columnExpression)
 		if !ok || column.origin.Address.ClassID != b.ref.Address.ClassID || column.origin.Address.ObjectID != b.ref.Address.ObjectID {

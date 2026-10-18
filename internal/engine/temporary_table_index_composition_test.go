@@ -75,7 +75,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			intermediateParent := stage.descriptors[survivor.address].(*relationDescriptor)
 			check := func(candidate, parent *relationDescriptor, wantSlot int, wantLayout []int32) {
 				t.Helper()
-				derived := candidate.sqlIndex.keys[0].derived
+				derived := candidate.SQLIndex.keys[0].derived
 				if !slices.Equal(derived.attributes, wantLayout) {
 					t.Fatal("captured layout", derived.attributes, wantLayout)
 				}
@@ -93,18 +93,18 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 						t.Fatal("derived slot/attribute", column.slot, column.origin.Address)
 					}
 				}
-				if candidate.name != index.name || candidate.owner != index.owner || candidate.namespace != index.namespace || candidate.sqlIndex.ready != index.sqlIndex.ready || candidate.sqlIndex.valid != index.sqlIndex.valid || candidate.sqlIndex.live != index.sqlIndex.live {
+				if candidate.name != index.name || candidate.Owner != index.Owner || candidate.namespace != index.namespace || candidate.SQLIndex.ready != index.SQLIndex.ready || candidate.SQLIndex.valid != index.SQLIndex.valid || candidate.SQLIndex.live != index.SQLIndex.live {
 					t.Fatal("index identity or flags changed")
 				}
 				if err := validateIndexDefinition(e.stageRead(stage), candidate); err != nil {
 					t.Fatal(err)
 				}
-				if len(parent.columns) != len(wantLayout) {
+				if len(parent.Columns) != len(wantLayout) {
 					t.Fatal("parent shape")
 				}
 			}
 			check(intermediate, intermediateParent, 2, []int32{1, 3, 4})
-			if intermediate == index || intermediate.sqlIndex.keys[0].derived == index.sqlIndex.keys[0].derived {
+			if intermediate == index || intermediate.SQLIndex.keys[0].derived == index.SQLIndex.keys[0].derived {
 				t.Fatal("first candidate mutated original")
 			}
 			err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project)
@@ -123,17 +123,17 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			final := stage.descriptors[index.address].(*relationDescriptor)
 			finalParent := stage.descriptors[survivor.address].(*relationDescriptor)
 			check(final, finalParent, 1, []int32{1, 4})
-			if final == intermediate || final.sqlIndex.keys[0].derived == intermediate.sqlIndex.keys[0].derived {
+			if final == intermediate || final.SQLIndex.keys[0].derived == intermediate.SQLIndex.keys[0].derived {
 				t.Fatal("second candidate mutated first")
 			}
-			if !slices.Equal(index.sqlIndex.keys[0].derived.attributes, []int32{1, 2, 3, 4}) || !slices.Equal(intermediate.sqlIndex.keys[0].derived.attributes, []int32{1, 3, 4}) || len(oldRows[0].values) != 4 || e.indexRoots[index.address] != oldRoot {
+			if !slices.Equal(index.SQLIndex.keys[0].derived.attributes, []int32{1, 2, 3, 4}) || !slices.Equal(intermediate.SQLIndex.keys[0].derived.attributes, []int32{1, 3, 4}) || len(oldRows[0].values) != 4 || e.indexRoots[index.address] != oldRoot {
 				t.Fatal("retained candidate/vector/root mutated")
 			}
 			for _, retained := range []struct {
 				candidate *relationDescriptor
 				slot      int
 			}{{index, 3}, {intermediate, 2}} {
-				derived := retained.candidate.sqlIndex.keys[0].derived
+				derived := retained.candidate.SQLIndex.keys[0].derived
 				for _, expression := range []expr.Expr{derived.definition, derived.execution} {
 					node := expression.(arithmeticExpression).left
 					for {
@@ -191,7 +191,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if kerr != nil || key != 9 || root.entries[0].row != oldRows[0].row || root.entries[0].version != oldRows[0].version {
 				t.Fatal("rebuilt key/identity", key, kerr)
 			}
-			if originalIndex.sqlIndex.keys[0].derived.attributes[3] != 4 || before != e.storage[survivor.address] {
+			if originalIndex.SQLIndex.keys[0].derived.attributes[3] != 4 || before != e.storage[survivor.address] {
 				t.Fatal("original fixture changed")
 			}
 		})
@@ -209,7 +209,7 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	var own, foreign *relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.name != "deparse_owner_index" || index.sqlIndex == nil {
+		if !ok || index.name != "deparse_owner_index" || index.SQLIndex == nil {
 			continue
 		}
 		namespace := view.MustNamespace(index.namespace)
@@ -262,10 +262,10 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 			index = relation
 		}
 	}
-	if parent == nil || index == nil || index.sqlIndex.predicate == nil || index.sqlIndex.keys[0].derived != nil || len(parent.generations) != 0 || len(parent.defaults) != 0 || len(parent.checkConstraints) != 0 || len(parent.columns) != 1 || parent.columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if parent == nil || index == nil || index.SQLIndex.predicate == nil || index.SQLIndex.keys[0].derived != nil || len(parent.Generations) != 0 || len(parent.Defaults) != 0 || len(parent.CheckConstraints) != 0 || len(parent.Columns) != 1 || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixture is not a genuine unmasked plain-key partial predicate")
 	}
-	predicate := index.sqlIndex.predicate
+	predicate := index.SQLIndex.predicate
 	definitionTypes, executionTypes := map[sqltype.ID]*sqltype.Descriptor{}, map[sqltype.ID]*sqltype.Descriptor{}
 	for _, tree := range []struct {
 		node  expr.Expr
@@ -299,7 +299,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()
-	if after.state == before.state || after.Epoch() <= before.Epoch() || after.Get(parent.address) != parent || after.Get(index.address) != index || index.sqlIndex.predicate != predicate || e.storage[parent.address] != store || e.indexRoots[index.address] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
+	if after.state == before.state || after.Epoch() <= before.Epoch() || after.Get(parent.address) != parent || after.Get(index.address) != index || index.SQLIndex.predicate != predicate || e.storage[parent.address] != store || e.indexRoots[index.address] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
 		t.Fatal("replacement changed actual retained catalog/index/store/vector roots")
 	}
 	for _, tree := range []struct {

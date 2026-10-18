@@ -14,7 +14,7 @@ func capturePGShDescription(ctx context.Context, roles authorization.Read, ref i
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	class, err := sqltype.OIDValue(source.columns[1].Usage.Type, 1260)
+	class, err := sqltype.OIDValue(source.Columns[1].Usage.Type, 1260)
 	if err != nil {
 		return nil, err
 	}
@@ -26,11 +26,11 @@ func capturePGShDescription(ctx context.Context, roles authorization.Read, ref i
 		if role.Comment == "" || principal.ID() > math.MaxUint32 {
 			continue
 		}
-		object, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(principal.ID()))
+		object, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, []sqltype.Value{object, class, sqltype.String(source.columns[2].Usage.Type, role.Comment)})
+		rows = append(rows, []sqltype.Value{object, class, sqltype.String(source.Columns[2].Usage.Type, role.Comment)})
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil
 }

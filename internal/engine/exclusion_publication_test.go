@@ -20,7 +20,7 @@ func TestExclusionPublication(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "public.t").Address)
 			store := e.storage[parent.address]
-			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
+			value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +47,7 @@ func TestExclusionPublication(t *testing.T) {
 			}
 			// Use a supported original recipe and a real INT4 input: the
 			// derived addition must fail before any publication is installed.
-			overflow, err := parent.columns[0].Usage.Type.Input(context.Background(), "2147483647", -1)
+			overflow, err := parent.Columns[0].Usage.Type.Input(context.Background(), "2147483647", -1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,7 +99,7 @@ func TestExclusionPublication(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO exclusion_publication.t VALUES(1),(2)")
 			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "exclusion_publication.t").Address)
 			store := e.storage[parent.address]
-			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
+			value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
 				t.Fatal(err)
 			}

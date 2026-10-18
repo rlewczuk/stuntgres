@@ -27,7 +27,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		t.Run(fmt.Sprintf("%s/%d", c.class, c.typ), func(t *testing.T) {
 			typ, _ := view.LookupType(c.typ)
 			class, _ := sqltype.LookupIndexClass(c.class)
-			parent := &relationDescriptor{attributes: []int32{1}, columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
+			parent := &relationDescriptor{Attributes: []int32{1}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
 			definition := &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}
 			if err := validateUniqueProviders(parent, definition, nil); err != nil {
 				t.Fatal(err)
@@ -66,7 +66,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		typ, _ := view.LookupType(id)
 		for _, name := range []string{"bpchar_ops", "bpchar_pattern_ops"} {
 			class, _ := sqltype.LookupIndexClass(name)
-			parent := &relationDescriptor{attributes: []int32{1}, columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
+			parent := &relationDescriptor{Attributes: []int32{1}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
 			if err := validateUniqueProviders(parent, &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}, nil); err == nil {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
@@ -113,7 +113,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 		t.Fatal("parent-only binding missed added index", err)
 	}
 	index, root := btreeRoot(t, e, "ui_ab")
-	if !index.sqlIndex.unique || index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 {
+	if !index.SQLIndex.unique || index.SQLIndex.constraint != nil || len(parent.UniqueConstraints) != 0 {
 		t.Fatal("fake attachment")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -129,7 +129,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	if err != nil || len(third.keys) != 0 {
 		t.Fatal("removed index retained enforcement", err)
 	}
-	if !reflect.DeepEqual(parent.uniqueConstraints, third.parent.uniqueConstraints) {
+	if !reflect.DeepEqual(parent.UniqueConstraints, third.parent.UniqueConstraints) {
 		t.Fatal("standalone lifecycle mutated constraints")
 	}
 }

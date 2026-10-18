@@ -30,20 +30,20 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if !d.virtualView || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || d.owner != owner || d.rowType != sqltype.ID(spec.row) || len(d.columns) != len(spec.names) || d.attributeHighWater != int32(len(spec.names)) {
+		if !d.VirtualView || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}
-		if len(d.acl.Entries) != 1 || !d.acl.Explicit || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC SELECT", d.acl)
+		if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC SELECT", d.ACL)
 		}
-		for i, c := range d.columns {
+		for i, c := range d.Columns {
 			owned, _ := e.CatalogRead().LookupType(spec.ids[i])
-			if c.Name != spec.names[i] || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != spec.collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != uint32(spec.oid) || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[c.Name] != i {
+			if c.Name != spec.names[i] || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != spec.collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != uint32(spec.oid) || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i {
 				t.Fatal("column", i, c)
 			}
 			invalid := *d
-			invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-			invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
+			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
 			if source, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("foreign generation accepted", i, source, err)
 			}
@@ -57,9 +57,9 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		if !ok || ownedArray != array.typ || row.array != sqltype.ID(spec.array) || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
 		}
-		for _, width := range []int{0, len(d.columns) - 1, len(d.columns) + 1} {
+		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
 			invalid := *d
-			invalid.columns = make([]ColumnDescriptor, width)
+			invalid.Columns = make([]ColumnDescriptor, width)
 			if source, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("malformed width accepted", width, source, err)
 			}
@@ -110,7 +110,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version
 					continue
 				}
 				var got any
-				if d.columns[i].Usage.Type.ID() == sqltype.Bool {
+				if d.Columns[i].Usage.Type.ID() == sqltype.Bool {
 					got, err = v.Boolean()
 				} else {
 					got, err = v.Text()
@@ -175,7 +175,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	}
 	metadata.comment, metadata.schema, metadata.requires = nil, nil, nil
 	row, err = projectAvailableExtension("unaccent", metadata, nil, d)
-	if err != nil || !row[6].IsNull() || !row[7].IsNull() || !row[8].IsNull() || row[7].Type() != d.columns[7].Usage.Type {
+	if err != nil || !row[6].IsNull() || !row[7].IsNull() || !row[8].IsNull() || row[7].Type() != d.Columns[7].Usage.Type {
 		t.Fatal("typed absence", row, err)
 	}
 	metadata.requires = []string{strings.Repeat("x", 64)}
@@ -249,13 +249,13 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 		t.Fatal("missing installed unaccent registry row")
 	}
 	values := append([]sqltype.Value(nil), installedRow...)
-	columns := append([]ColumnDescriptor(nil), d.columns...)
+	columns := append([]ColumnDescriptor(nil), d.Columns...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	availableUnitExpected(t, e, e.CatalogRead(), nil, false)
 	fresh, _ := availableUnitSource(e, 12081)
-	if fresh.columns[0].Usage.Type == d.columns[0].Usage.Type || !reflect.DeepEqual(values, installedRow) || !reflect.DeepEqual(columns, d.columns) {
+	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type || !reflect.DeepEqual(values, installedRow) || !reflect.DeepEqual(columns, d.Columns) {
 		t.Fatal("retained generation mutated")
 	}
 	if version, err := installedRow[2].Text(); err != nil || version != "1.1" {

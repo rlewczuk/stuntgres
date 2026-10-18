@@ -75,12 +75,12 @@ func TestPgClassPartitionTree(t *testing.T) {
 		t.Fatal(got, err)
 	}
 	// Replacing the descriptor's topology does not retarget an already captured tree.
-	relation := &relationDescriptor{membership: membership}
-	relation.membership = &partitionMembership{defaultBound: true}
+	relation := &relationDescriptor{Membership: membership}
+	relation.Membership = &partitionMembership{defaultBound: true}
 	if got, err := tree.StructuralOutput(context.Background()); err != nil || got != want {
 		t.Fatal("captured tree retargeted", got, err)
 	}
-	defaultTree := partitionBoundTree{membership: relation.membership}
+	defaultTree := partitionBoundTree{membership: relation.Membership}
 	if got, err := defaultTree.StructuralOutput(context.Background()); err != nil || got != "{PartitionBound strategy range default true}" {
 		t.Fatal(got, err)
 	}

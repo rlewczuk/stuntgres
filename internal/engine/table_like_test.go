@@ -51,8 +51,8 @@ func TestTableLikeOptionMask(t *testing.T) {
 
 func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
-	source := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, attributes: []int32{1, 3}}
-	destination := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, attributes: []int32{1, 2, 3, 4}}
+	source := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
+	destination := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
 	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), source.address)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
@@ -113,23 +113,23 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.state || destination.address == source.address || destination.rowType == source.rowType || destination.defaults[3].OID == source.defaults[2].OID || destination.generations[5].OID == source.generations[4].OID || destination.checkConstraints[0].OID == source.checkConstraints[0].OID {
+	if e.catalog.state != before.state || destination.address == source.address || destination.RowType == source.RowType || destination.Defaults[3].OID == source.Defaults[2].OID || destination.Generations[5].OID == source.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
-	if !destination.checkConstraints[0].NoInherit || destination.checkConstraints[0].Name != "positive" || destination.columnComments[3] != "exact" || len(source.columns) != 3 || len(destination.columns) != 5 {
+	if !destination.CheckConstraints[0].NoInherit || destination.CheckConstraints[0].Name != "positive" || destination.ColumnComments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
 		t.Fatal(destination, source)
 	}
-	identity := destination.identities[4]
+	identity := destination.Identities[4]
 	sequence := stage.descriptors[identity.sequence].(*relationDescriptor)
-	if identity.sequence == source.identities[3].sequence || sequence.sequence.owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.owner != destination.owner || sequence.sequence.persistence != "logged" || stage.generators[identity.sequence].called {
+	if identity.sequence == source.Identities[3].sequence || sequence.Sequence.owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.persistence != "logged" || stage.generators[identity.sequence].called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
-	for _, ref := range destination.generations[5].dependencies {
+	for _, ref := range destination.Generations[5].dependencies {
 		if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == source.address.ObjectID {
 			t.Fatal("generation retained source row", ref)
 		}
 	}
-	for _, dep := range destination.checkConstraints[0].dependencies {
+	for _, dep := range destination.CheckConstraints[0].dependencies {
 		if dep.ref.Address.ObjectID == source.address.ObjectID {
 			t.Fatal("CHECK retained source row", dep)
 		}
@@ -204,7 +204,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.comment = "intervening descriptor"
+	next.Comment = "intervening descriptor"
 	update := e.BeginCatalogStage(e.CatalogRead())
 	if err := update.Replace(&next); err != nil {
 		t.Fatal(err)

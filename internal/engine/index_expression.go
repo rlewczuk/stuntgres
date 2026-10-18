@@ -16,11 +16,11 @@ type derivedIndexKey struct {
 
 func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor) *expressionBinder {
 	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.address)
-	columns := make([]queryColumn, len(parent.columns))
-	for i, c := range parent.columns {
+	columns := make([]queryColumn, len(parent.Columns))
+	for i, c := range parent.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.name, original: parent.name, schema: auth.catalog.Get(parent.namespace).Name(), ref: ref, columns: columns}}, frame: parent.columns}
+	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.name, original: parent.name, schema: auth.catalog.Get(parent.namespace).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
 	binder.queryNamespace = &namespace
@@ -58,7 +58,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if plannedVolatility(execution) != expr.Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
-	key := &derivedIndexKey{definition: definition, execution: execution, attributes: parent.attributes}
+	key := &derivedIndexKey{definition: definition, execution: execution, attributes: parent.Attributes}
 	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &key.dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
 		return nil, "", err
 	}
@@ -88,19 +88,19 @@ func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage,
 	if key.derived != nil {
 		return key.derived.execution.ResultUsage(), nil
 	}
-	for i, a := range parent.attributes {
+	for i, a := range parent.Attributes {
 		if a == key.attribute {
-			return parent.columns[i].Usage, nil
+			return parent.Columns[i].Usage, nil
 		}
 	}
 	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
 }
 
 func indexExpressionDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	if d.sqlIndex == nil {
+	if d.SQLIndex == nil {
 		return false
 	}
-	for _, key := range d.sqlIndex.keys {
+	for _, key := range d.SQLIndex.keys {
 		if key.derived == nil {
 			continue
 		}

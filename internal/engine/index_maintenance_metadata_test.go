@@ -35,7 +35,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	ni, _ := btreeRoot(t, e, "ni")
 	ei, _ := btreeRoot(t, e, "ei")
 	m, n := indexMaintenanceMetadata(t, e, capture, "ni")
-	want := indexMaintenanceMetadataFlags(ni.address.ObjectID, ni.sqlIndex.parent.ObjectID, 4)
+	want := indexMaintenanceMetadataFlags(ni.address.ObjectID, ni.SQLIndex.parent.ObjectID, 4)
 	want.IndKey = []int16{2, 2, 2, 2}
 	want.IndClass = []ids.OID{1978, 1978, 1978, 1978}
 	want.IndCollation = []ids.OID{0, 0, 0, 0}
@@ -44,27 +44,27 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal("complete simple metadata", m, n, want)
 	}
 	expressions, names := indexMaintenanceMetadata(t, e, capture, "ei")
-	expected := indexMaintenanceMetadataFlags(ei.address.ObjectID, ei.sqlIndex.parent.ObjectID, 3)
+	expected := indexMaintenanceMetadataFlags(ei.address.ObjectID, ei.SQLIndex.parent.ObjectID, 3)
 	expected.IndKey = []int16{0, 0, 2}
 	expected.IndClass = []ids.OID{3126, 1978, 1978}
 	expected.IndCollation = []ids.OID{100, 0, 0}
 	expected.IndOption = []int16{0, 0, 1}
-	expected.IndexExpressions = []expr.Expr{ei.sqlIndex.keys[0].derived.definition, ei.sqlIndex.keys[1].derived.definition}
+	expected.IndexExpressions = []expr.Expr{ei.SQLIndex.keys[0].derived.definition, ei.SQLIndex.keys[1].derived.definition}
 	if !reflect.DeepEqual(expressions, expected) || names.IndexDef != "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + (2 - 1))), n DESC NULLS LAST)" {
 		t.Fatal("derived metadata lost original trees/providers", expressions, names, expected)
 	}
 	first := expressions.IndexExpressions[0].(functions.String)
-	original := ei.sqlIndex.keys[0].derived.definition.(functions.String)
+	original := ei.SQLIndex.keys[0].derived.definition.(functions.String)
 	if &first.Args[0] != &original.Args[0] {
 		t.Fatal("metadata copied an immutable analyzed function tree")
 	}
-	if reflect.DeepEqual(expressions.IndexExpressions[1], ei.sqlIndex.keys[1].derived.execution) {
+	if reflect.DeepEqual(expressions.IndexExpressions[1], ei.SQLIndex.keys[1].derived.execution) {
 		t.Fatal("fixture or projection lost the original-vs-simplified distinction")
 	}
 	for _, name := range []string{"u", "distinct_u"} {
 		index, _ := btreeRoot(t, e, name)
 		got, n := indexMaintenanceMetadata(t, e, capture, name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, 1)
 		want.IndIsUnique = true
 		want.IndNullsNotDistinct = name == "u"
 		want.IndKey = []int16{1}
@@ -124,23 +124,23 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		run(t, e, q)
 	}
 	un, _ := btreeRoot(t, e, "un")
-	constraint := *un.sqlIndex.constraint
+	constraint := *un.SQLIndex.constraint
 	run(t, e, "ALTER INDEX un RENAME TO renamed_un")
 	renamed, _ := btreeRoot(t, e, "renamed_un")
-	if renamed.address != un.address || renamed.sqlIndex.constraint.OID != constraint.OID || renamed.sqlIndex.constraint.Index != constraint.Index {
+	if renamed.address != un.address || renamed.SQLIndex.constraint.OID != constraint.OID || renamed.SQLIndex.constraint.Index != constraint.Index {
 		t.Fatal("domain backing rename lost real constraint/index link")
 	}
 	check := func(name string, attribute int16, class, collation ids.OID) {
 		t.Helper()
 		index, _ := btreeRoot(t, e, name)
 		got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, 1)
 		want.IndIsUnique, want.IndNullsNotDistinct = true, true
 		want.IndKey = []int16{attribute}
 		want.IndClass = []ids.OID{class}
 		want.IndCollation = []ids.OID{collation}
 		want.IndOption = []int16{0}
-		if !reflect.DeepEqual(got, want) || index.sqlIndex.keys[0].class.OID() != uint32(class) || index.sqlIndex.constraint.Index != index.address {
+		if !reflect.DeepEqual(got, want) || index.SQLIndex.keys[0].class.OID() != uint32(class) || index.SQLIndex.constraint.Index != index.address {
 			t.Fatal("real domain backing descriptor/vector truth", name, got, want)
 		}
 	}
@@ -150,10 +150,10 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		check("us", 2, 3126, 950)
 	}
 	beforeType, oldRoot := btreeRoot(t, e, "renamed_un")
-	oldConstraint := *beforeType.sqlIndex.constraint
+	oldConstraint := *beforeType.SQLIndex.constraint
 	run(t, e, "ALTER TABLE q ALTER n TYPE BIGINT USING n::bigint")
 	afterType, typedRoot := btreeRoot(t, e, "renamed_un")
-	if afterType.address == beforeType.address || afterType.sqlIndex.constraint.OID == oldConstraint.OID || afterType.sqlIndex.constraint.Index != afterType.address || typedRoot == oldRoot || beforeType.sqlIndex.keys[0].class.OID() != 1978 || beforeType.sqlIndex.constraint.Index != oldConstraint.Index {
+	if afterType.address == beforeType.address || afterType.SQLIndex.constraint.OID == oldConstraint.OID || afterType.SQLIndex.constraint.Index != afterType.address || typedRoot == oldRoot || beforeType.SQLIndex.keys[0].class.OID() != 1978 || beforeType.SQLIndex.constraint.Index != oldConstraint.Index {
 		t.Fatal("TYPE lost candidate identities/backing link or mutated retained class/root")
 	}
 	if !reflect.DeepEqual(btreeKeys(t, oldRoot), []string{"1", "NULL"}) {
@@ -176,7 +176,7 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "ci")
 	got, names := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ci")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, 3)
 	want.IndKey = []int16{3, 3, 3}
 	want.IndClass = []ids.OID{3126, 3126, 3126}
 	want.IndCollation = []ids.OID{950, 951, 100}
@@ -191,7 +191,7 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	}
 	repeated, _ := btreeRoot(t, e, "repeated")
 	m, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "repeated")
-	expected := indexMaintenanceMetadataFlags(repeated.address.ObjectID, repeated.sqlIndex.parent.ObjectID, 32)
+	expected := indexMaintenanceMetadataFlags(repeated.address.ObjectID, repeated.SQLIndex.parent.ObjectID, 32)
 	expected.IndKey = make([]int16, 32)
 	expected.IndClass = make([]ids.OID, 32)
 	expected.IndCollation = make([]ids.OID, 32)
@@ -212,7 +212,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "ix")
 	got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ix")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, 3)
 	want.IndKey = []int16{1, 2, 3}
 	want.IndClass = []ids.OID{1978, 3126, 10069}
 	want.IndCollation = []ids.OID{0, 100, 0}
@@ -221,7 +221,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("domain/enum metadata substituted declared type OIDs", got, want)
 	}
 	// An explicit empty table ACL cannot hide a structural metadata record.
-	parent := e.catalog.domain.Ref(e.CatalogRead().Epoch(), index.sqlIndex.parent)
+	parent := e.catalog.domain.Ref(e.CatalogRead().Epoch(), index.SQLIndex.parent)
 	if err := e.SetObjectACL(context.Background(), parent, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.domain.Ref(old.Epoch(), parent.Address)); err == nil {
 		t.Fatal("non-index ref accepted by capture")
 	}
-	if p, err := sqltype.BindOrdering(index.columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {
+	if p, err := sqltype.BindOrdering(index.Columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {
 		t.Fatal("enum central provider was not retained", p, err)
 	}
 }

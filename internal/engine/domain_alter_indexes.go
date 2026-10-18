@@ -19,7 +19,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	}
 	sourceRoots := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for address, descriptor := range stage.base.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && sources[index.sqlIndex.parent] != nil {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && sources[index.SQLIndex.parent] != nil {
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
 		}
 	}
@@ -59,7 +59,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	}
 	for address, root := range roots {
 		index := next.MustRelation(address)
-		store := stores[index.sqlIndex.parent]
+		store := stores[index.SQLIndex.parent]
 		stage.indexCandidates[address] = indexRootCandidate{index: index, root: root, storage: indexStorageIdentity(store), generation: store.generation, ends: store.ends, length: len(store.versions)}
 		stage.domainIndexRoots[address] = snapshot.sources[address].root
 	}

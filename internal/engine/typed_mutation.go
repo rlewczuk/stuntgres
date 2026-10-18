@@ -44,7 +44,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.usage)
 				if err == nil && added.column != nil {
 					if planned.usage != nil {
-						mutation.next.columns[mutation.next.indexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
+						mutation.next.Columns[mutation.next.indexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
 					}
 					mutation.additions = append(mutation.additions, added)
 				}
@@ -82,7 +82,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				if err != nil {
 					return mutation, err
 				}
-				if old.relationKind != compositeRelation {
+				if old.RelationKind != compositeRelation {
 					mutation.transforms = append(mutation.transforms, transform)
 				}
 			}
@@ -103,9 +103,9 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 	}
 	next := *mutation.next
 	next.revision = old.revision + 1
-	next.defaults = maps.Clone(next.defaults)
-	next.checkConstraints = slices.Clone(next.checkConstraints)
-	next.notNullConstraints = slices.Clone(next.notNullConstraints)
+	next.Defaults = maps.Clone(next.Defaults)
+	next.CheckConstraints = slices.Clone(next.CheckConstraints)
+	next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
 	e.mu.Lock()
 	err := e.assignDefinitionOIDsLocked(&next)
 	e.mu.Unlock()
@@ -115,7 +115,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 
 func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, mutation typedRelationMutation) error {
 	old, next := mutation.old, mutation.next
-	if old.relationKind != tableRelation {
+	if old.RelationKind != tableRelation {
 		return nil
 	}
 	// An explicit TYPE action protects stored own-row consumers even when the
@@ -129,7 +129,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	if old == next {
 		return nil
 	}
-	if len(mutation.transforms) == 0 && slices.Equal(old.attributes, next.attributes) {
+	if len(mutation.transforms) == 0 && slices.Equal(old.Attributes, next.Attributes) {
 		return nil
 	}
 	e.mu.Lock()
@@ -170,7 +170,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	validator := newAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next
-		checks.checkConstraints = mutation.checks
+		checks.CheckConstraints = mutation.checks
 		validator.checks = validCheckTraversal(&checks)
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &checks)
@@ -184,7 +184,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if rewrite {
 		replacement, _, _, err = rewriteTypeRows(scope, scope.op, old, next, store, frontier, mutation.transforms, mutation.additions, nil, validator)
-	} else if !slices.Equal(old.attributes, next.attributes) {
+	} else if !slices.Equal(old.Attributes, next.Attributes) {
 		projection, projectionErr := newColumnProjection(old, next, fills)
 		if projectionErr != nil {
 			return projectionErr

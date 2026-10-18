@@ -204,7 +204,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 			return false
 		}
 		for address, shape := range t.catalog.storage {
-			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.relation.attributes, shape.relation.attributes) {
+			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.relation.Attributes, shape.relation.Attributes) {
 				return true
 			}
 		}

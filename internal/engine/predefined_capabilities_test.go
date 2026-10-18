@@ -27,13 +27,13 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		want authorization.Privileges
 	}{
 		{&namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, name: "private", owner: owner, acl: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, name: "table", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: tableRelation, attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, name: "view", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, name: "materialized", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, name: "sequence", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, name: "index", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: indexRelation}, 0},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, name: "catalog", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: catalogRelation}, authorization.SelectPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, name: "provider", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation, virtualView: true}, authorization.SelectPrivilege},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, name: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: tableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, name: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, name: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, name: "sequence", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, name: "index", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: indexRelation}, 0},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, name: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalogRelation}, authorization.SelectPrivilege},
+		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, name: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation, VirtualView: true}, authorization.SelectPrivilege},
 	}
 	state := cloneCatalog(e.catalog.state)
 	for _, tc := range descriptors {
@@ -67,7 +67,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	// only fresh role views, never retained descriptor or authority snapshots.
 	table := descriptors[1].d.(*relationDescriptor)
 	withColumn := *table
-	withColumn.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
+	withColumn.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := cloneCatalog(state)
 	withColumnState.setDescriptor(table.address, &withColumn)
 	v.catalog = e.catalog.read(withColumnState)
@@ -123,7 +123,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.CreateIndex{Name: parser.Identifier{Text: "maintained_index"}, Table: predefinedObjectName("maintained"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}})
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"})
 	index := e.catalog.state.MustRelation(address)
-	root, storage := e.indexRoots[address], e.storage[index.sqlIndex.parent]
+	root, storage := e.indexRoots[address], e.storage[index.SQLIndex.parent]
 	if root == nil || storage == nil {
 		t.Fatal("missing real index or parent storage")
 	}
@@ -138,7 +138,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeApply(t, e, op, utility)
 	next := e.indexRoots[address]
-	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage[index.sqlIndex.parent] != storage {
+	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage[index.SQLIndex.parent] != storage {
 		t.Fatal("MAINTAIN did not rebuild real isolated root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})

@@ -21,7 +21,7 @@ func TestTableCoreLikeColumnOrigins(t *testing.T) {
 	if !ok {
 		t.Fatal("missing clone descriptor")
 	}
-	for i, c := range d.(*relationDescriptor).columns {
+	for i, c := range d.(*relationDescriptor).Columns {
 		if c.OriginTable != uint32(ref.Address.ObjectID) || c.OriginAttribute != int16(i+1) {
 			t.Fatal("incorrect clone column origin", c)
 		}
@@ -70,7 +70,7 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
 	})
 	clone := e.CatalogRead().MustRelation(roleTableRef(t, e, "clone").Address)
-	if clone.owner != reader.Ref || clone.acl.Explicit || len(clone.columnACL) != 0 {
+	if clone.Owner != reader.Ref || clone.ACL.Explicit || len(clone.ColumnACL) != 0 {
 		t.Fatal("LIKE copied ACL/owner")
 	}
 }

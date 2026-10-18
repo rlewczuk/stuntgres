@@ -14,8 +14,8 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100001}
 	consumer := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	parent := &relationDescriptor{address: parentAddress, namespace: namespace, relationKind: tableRelation}
-	index := &relationDescriptor{address: indexAddress, namespace: namespace, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress, ready: true, valid: true, live: true}}
+	parent := &relationDescriptor{address: parentAddress, namespace: namespace, RelationKind: tableRelation}
+	index := &relationDescriptor{address: indexAddress, namespace: namespace, RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: parentAddress, ready: true, valid: true, live: true}}
 	view.state.setDescriptor(parentAddress, parent)
 	view.state.setDescriptor(indexAddress, index)
 	got, err := dumpPredecessor(view, indexAddress, consumer)
@@ -23,8 +23,8 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 		t.Fatal("ordinary index lost exact predecessor", got, err)
 	}
 	constraint := uniqueConstraint{OID: 100020, Index: indexAddress}
-	index.sqlIndex.unique, index.sqlIndex.constraint = true, uniqueBacking(&constraint)
-	parent.uniqueConstraints = []uniqueConstraint{constraint}
+	index.SQLIndex.unique, index.SQLIndex.constraint = true, uniqueBacking(&constraint)
+	parent.UniqueConstraints = []uniqueConstraint{constraint}
 	got, err = dumpPredecessor(view, indexAddress, consumer)
 	if err != nil || got != parentAddress.ObjectID {
 		t.Fatal("inline unique predecessor", got, err)
@@ -33,7 +33,7 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	if err != nil || got != 0 {
 		t.Fatal("inline self predecessor", got, err)
 	}
-	parent.uniqueConstraints = nil
+	parent.UniqueConstraints = nil
 	if _, err := dumpPredecessor(view, indexAddress, consumer); err == nil {
 		t.Fatal("orphan unique dependency accepted")
 	}

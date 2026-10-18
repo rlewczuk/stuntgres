@@ -18,10 +18,10 @@ type inheritanceQuerySegment struct {
 // Graph validation establishes name/origin identity; live row layout still has
 // to be translated, because earlier parents may precede this named parent.
 func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
-	identity := len(parent.columns) == len(child.columns)
-	for i, column := range parent.columns {
-		slot, ok := child.index[column.Name]
-		if !ok || !samePartitionColumnUsage(child.columns[slot].Usage, column.Usage) {
+	identity := len(parent.Columns) == len(child.Columns)
+	for i, column := range parent.Columns {
+		slot, ok := child.Index[column.Name]
+		if !ok || !samePartitionColumnUsage(child.Columns[slot].Usage, column.Usage) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		identity = identity && slot == i
@@ -29,9 +29,9 @@ func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
 	if identity {
 		return nil, nil
 	}
-	layout := make([]int, len(parent.columns))
-	for i, column := range parent.columns {
-		layout[i] = child.index[column.Name]
+	layout := make([]int, len(parent.Columns))
+	for i, column := range parent.Columns {
+		layout[i] = child.Index[column.Name]
 	}
 	return layout, nil
 }

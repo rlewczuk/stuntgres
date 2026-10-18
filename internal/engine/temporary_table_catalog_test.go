@@ -26,7 +26,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
 	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: session.token}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, owner: namespace.owner, onCommit: action, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, Owner: namespace.owner, OnCommit: action, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.address, namespace)
 	e.catalogChangeLocked(c, table.address, table)
@@ -45,7 +45,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	}
 	mark := cloneCatalogChanges(c)
 	replacement := *table
-	replacement.onCommit = parser.OnCommitDrop
+	replacement.OnCommit = parser.OnCommitDrop
 	e.catalogChangeLocked(c, table.address, &replacement)
 	if mark.descriptors[table.address] != table || mark.storage[table.address].replacement != c.storage[table.address].replacement {
 		t.Fatal("savepoint descriptor/action/store rewritten")
@@ -70,7 +70,7 @@ func TestTemporaryTableProviderAction(t *testing.T) {
 		t.Fatal("persistent action descriptor accepted")
 	}
 	invalid = *table
-	invalid.onCommit = parser.OnCommitAction(255)
+	invalid.OnCommit = parser.OnCommitAction(255)
 	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
 		t.Fatal("unknown action accepted")
 	}
@@ -79,7 +79,7 @@ func TestTemporaryTableProviderAction(t *testing.T) {
 func TestTemporaryTableCommitCandidate(t *testing.T) {
 	for _, action := range []parser.OnCommitAction{parser.OnCommitPreserve, parser.OnCommitDelete, parser.OnCommitDrop} {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
-		writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
+		writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 		mark := cloneCatalogChanges(c)
 		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, c)
 		if err != nil {
@@ -161,7 +161,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	cancel()
 	op.ctx = ctx
 	original := e.catalog.state
-	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
+	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
 	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage[table.address] != nil || c.descriptors[table.address] != table || len(writes[table.address]) != 1 {
@@ -202,7 +202,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.persistence = "temporary"
-	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, namespace: table.namespace, name: "retained_sequence", revision: 1, sequencePlanStamp: 1, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
+	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, namespace: table.namespace, name: "retained_sequence", revision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, sequence.address, sequence)
 	view := e.privateCatalogLocked(c)
@@ -291,8 +291,8 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("missing actual stored row or installed index")
 	}
 	rows, ends, generation := store.versions, store.ends, store.generation
-	dependencies := make(map[int32][]ids.ObjectRef, len(consumer.generations))
-	for attribute, definition := range consumer.generations {
+	dependencies := make(map[int32][]ids.ObjectRef, len(consumer.Generations))
+	for attribute, definition := range consumer.Generations {
 		dependencies[attribute] = slices.Clone(definition.dependencies)
 	}
 	if _, err := replaceWithFreshCatalog(context.Background(), e); err != nil {
@@ -308,7 +308,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if err := validateGenerationProviders(retained, consumer); err != nil {
 		t.Fatal("live table/index generation providers rejected", err)
 	}
-	for attribute, definition := range consumer.generations {
+	for attribute, definition := range consumer.Generations {
 		var manifest []ids.ObjectRef
 		renderer := scalarRenderer{owner: consumer, capturedManifest: definition.dependencies, dependencies: &manifest}
 		if text, err := renderer.sql(context.Background(), retained, definition.expression); err != nil || text == "" {
@@ -370,7 +370,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	// This is a real captured row origin, not a provider-kind substitute. Exact
 	// concrete Usage and stable attribute/slot/frame checks remain mandatory.
-	columnNode := consumer.generations[5].expression.(arithmeticExpression).left
+	columnNode := consumer.Generations[5].expression.(arithmeticExpression).left
 	for {
 		cast, ok := columnNode.(coercionExpression)
 		if !ok {
@@ -436,7 +436,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("same-name recreated provider rebound old identity")
 	}
 	for attribute, manifest := range dependencies {
-		if !slices.Equal(consumer.generations[attribute].dependencies, manifest) {
+		if !slices.Equal(consumer.Generations[attribute].dependencies, manifest) {
 			t.Fatal("cascade/recreation mutated retained original manifest", attribute)
 		}
 	}

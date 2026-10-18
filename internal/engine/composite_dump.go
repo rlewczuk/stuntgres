@@ -10,8 +10,8 @@ import (
 )
 
 func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
-	if relation.ofType != (ids.ObjectAddress{}) {
-		id, err := dumpPredecessor(view, relation.ofType, relation.address)
+	if relation.OfType != (ids.ObjectAddress{}) {
+		id, err := dumpPredecessor(view, relation.OfType, relation.address)
 		if err != nil {
 			return nil, err
 		}
@@ -19,7 +19,7 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 			predecessors = append(predecessors, id)
 		}
 	}
-	for _, column := range relation.columns {
+	for _, column := range relation.Columns {
 		id, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.address)
 		if err != nil {
 			return nil, err
@@ -32,18 +32,18 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 }
 
 func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, relation *relationDescriptor) (dumpDomain, error) {
-	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 	if !defaultDomainACL(row) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed composite ACL")
 	}
-	owner, err := roles.Descriptor(relation.owner)
+	owner, err := roles.Descriptor(relation.Owner)
 	if err != nil {
 		return dumpDomain{}, err
 	}
 	namespace := view.Get(relation.namespace).Name()
 	var sql strings.Builder
 	sql.WriteString("CREATE TYPE " + quoteIdentifier(namespace) + "." + quoteIdentifier(relation.name) + " AS (")
-	for i, c := range relation.columns {
+	for i, c := range relation.Columns {
 		if err := ctx.Err(); err != nil {
 			return dumpDomain{}, err
 		}
@@ -78,8 +78,8 @@ func mixedDumpStatements(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		d := domains[id]
 		if d == nil {
-			if relation, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}); ok && relation.rowType != 0 {
-				d = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+			if relation, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}); ok && relation.RowType != 0 {
+				d = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 			}
 		}
 		if d == nil {

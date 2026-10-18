@@ -133,13 +133,13 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 			remaining[ref]--
 		}
 	}
-	for _, definition := range consumer.defaults {
+	for _, definition := range consumer.Defaults {
 		assertManifest("DEFAULT", scalarRenderer{provenance: consumer, capturedManifest: definition.dependencies}, definition.expression, definition.dependencies)
 	}
-	for _, definition := range consumer.generations {
+	for _, definition := range consumer.Generations {
 		assertManifest("generated", scalarRenderer{owner: consumer, capturedManifest: definition.dependencies}, definition.expression, definition.dependencies)
 	}
-	for _, definition := range consumer.checkConstraints {
+	for _, definition := range consumer.CheckConstraints {
 		want := make([]ids.ObjectRef, len(definition.dependencies))
 		for i, dependency := range definition.dependencies {
 			want[i] = dependency.ref

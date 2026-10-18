@@ -94,8 +94,8 @@ func (r indexRowOutput) matches(index *relationDescriptor) bool {
 
 func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *EvalContext, precheck bool, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
-	if purpose == indexProbeRuntime && !index.sqlIndex.hasRuntimeDomainConversion() {
-		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, r.values, &bound.ordering, nil)
+	if purpose == indexProbeRuntime && !index.SQLIndex.hasRuntimeDomainConversion() {
+		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, r.values, &bound.ordering, nil)
 		if err != nil || !member {
 			return member, nil, err
 		}
@@ -112,7 +112,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		if !output.matches(index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.sqlIndex.method == hashMethod && output.member {
+		if index.SQLIndex.method == hashMethod && output.member {
 			bound.scratch[0] = output.key
 			return true, bound.scratch, nil
 		}
@@ -121,13 +121,13 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	if purpose == indexProbeRevalidation {
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, r.values, &bound.ordering, nil)
+	member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, r.values, &bound.ordering, nil)
 	if err != nil {
 		return false, nil, err
 	}
 	output := indexRowOutput{index: index, member: member}
 	if member {
-		if index.sqlIndex.method == hashMethod {
+		if index.SQLIndex.method == hashMethod {
 			if err := bound.fillKeys(r.values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
@@ -146,14 +146,14 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	}
 	*shared = false
 	(*outputs)[index.address] = output
-	if index.sqlIndex.method == hashMethod && member {
+	if index.SQLIndex.method == hashMethod && member {
 		return true, bound.scratch, nil
 	}
 	return member, output.keys, nil
 }
 
 func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value) (bool, error) {
-	if !bound.index.sqlIndex.hasRuntimeDomainConversion() && r.indexes == nil {
+	if !bound.index.SQLIndex.hasRuntimeDomainConversion() && r.indexes == nil {
 		return bound.matches(evaluation, r.values, key)
 	}
 	member, produced, err := r.uniqueOutput(bound, evaluation, false, indexProbeRevalidation)
@@ -202,23 +202,23 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 }
 
 func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *relationDescriptor, ordering *indexOrdering, hash *hashIndexBinding, values []sqltype.Value) (indexRowOutput, error) {
-	if index.sqlIndex.method != hashMethod {
+	if index.SQLIndex.method != hashMethod {
 		hash = nil
 	}
-	member, err := preparation.predicateMatches(evaluation, parent, index.sqlIndex, values, ordering, hash)
+	member, err := preparation.predicateMatches(evaluation, parent, index.SQLIndex, values, ordering, hash)
 	output := indexRowOutput{index: index, member: member}
 	if err != nil || !member {
 		return output, err
 	}
-	if index.sqlIndex.method == hashMethod {
-		err = preparation.prepareKeys(evaluation, parent, index.sqlIndex, nil, hash)
+	if index.SQLIndex.method == hashMethod {
+		err = preparation.prepareKeys(evaluation, parent, index.SQLIndex, nil, hash)
 	} else {
-		err = preparation.prepareKeys(evaluation, parent, index.sqlIndex, ordering, nil)
+		err = preparation.prepareKeys(evaluation, parent, index.SQLIndex, ordering, nil)
 	}
 	if err != nil {
 		return output, err
 	}
-	if index.sqlIndex.method == hashMethod {
+	if index.SQLIndex.method == hashMethod {
 		output.key, err = extractIndexKey(hash.slot, hash.expression, values, evaluation)
 	} else {
 		output.keys = make([]sqltype.Value, len(ordering.keys))
@@ -233,7 +233,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		if !output.matches(index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.sqlIndex.method == hashMethod && output.member {
+		if index.SQLIndex.method == hashMethod && output.member {
 			bound.scratch[0] = output.key
 			return true, bound.scratch, nil
 		}
@@ -246,8 +246,8 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	if output, exists := s.existingIndexOutputs[index.address][identity]; exists {
 		return read(output)
 	}
-	if !index.sqlIndex.hasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
-		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, row.values, &bound.ordering, nil)
+	if !index.SQLIndex.hasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
+		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, row.values, &bound.ordering, nil)
 		if err != nil {
 			return false, nil, err
 		}
@@ -262,7 +262,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		}
 		output := indexRowOutput{index: index, member: member}
 		if member {
-			if index.sqlIndex.method == hashMethod {
+			if index.SQLIndex.method == hashMethod {
 				if err := bound.fillKeys(row.values, bound.scratch, evaluation); err != nil {
 					return false, nil, err
 				}
@@ -321,7 +321,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 				}
 			}
 		} else {
-			if index.sqlIndex.predicate != nil && root.membership[row.row] != row.version {
+			if index.SQLIndex.predicate != nil && root.membership[row.row] != row.version {
 				return false, nil, nil
 			}
 			if root.rowEntries != nil {
@@ -347,7 +347,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		return false, nil, nil
 	}
 	if root.hash != nil {
-		if !index.sqlIndex.hasRuntimeDomainKeyConversion() {
+		if !index.SQLIndex.hasRuntimeDomainKeyConversion() {
 			if err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
@@ -375,10 +375,10 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		bound.scratch[0] = entry.key
 		return true, bound.scratch, nil
 	}
-	if index.sqlIndex.predicate != nil && root.membership[row.row] != row.version {
+	if index.SQLIndex.predicate != nil && root.membership[row.row] != row.version {
 		return false, nil, nil
 	}
-	if index.sqlIndex.hasRuntimeDomainKeyConversion() {
+	if index.SQLIndex.hasRuntimeDomainKeyConversion() {
 		ordinal, ok := root.rowEntries[row.row]
 		if !ok || ordinal < 0 || ordinal >= len(root.entries) {
 			return false, nil, fmt.Errorf("stuntgres: existing index key identity is missing")
@@ -394,7 +394,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 }
 
 func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
-	if purpose == indexProbeRuntime && !bound.index.sqlIndex.hasRuntimeDomainConversion() && row.indexOutputs == nil {
+	if purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() && row.indexOutputs == nil {
 		return bound.matches(evaluation, row.values, key)
 	}
 	member, produced, err := s.existingUniqueOutput(bound, row, evaluation, purpose)

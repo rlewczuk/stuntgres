@@ -17,7 +17,7 @@ func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor,
 		types[typ.ID()] = typ
 	}
 	inet, r := types[sqltype.Inet], types[sqltype.Int4Range]
-	parent := &relationDescriptor{name: "bookings", attributes: []int32{1, 2}, columns: []ColumnDescriptor{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
+	parent := &relationDescriptor{name: "bookings", Attributes: []int32{1, 2}, Columns: []ColumnDescriptor{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
 	ic, _ := sqltype.LookupGiSTIndexClass("inet_ops")
 	rc, _ := sqltype.LookupGiSTIndexClass("range_ops")
 	eq, err := sqltype.BindExclusionOperator(inet.Usage(), ic, "=")
@@ -28,8 +28,8 @@ func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor,
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{name: "booking_ex", sqlIndex: &indexDefinition{method: gistMethod, keys: []indexKey{{attribute: 1, class: ic}, {attribute: 2, class: rc}}, exclusion: []sqltype.ExclusionOperator{eq, overlap}, ready: true, live: true, valid: true}}
-	index.sqlIndex.constraint = &backingConstraint{kind: exclusionBackingKind, OID: 1, Name: index.name}
+	index := &relationDescriptor{name: "booking_ex", SQLIndex: &indexDefinition{method: gistMethod, keys: []indexKey{{attribute: 1, class: ic}, {attribute: 2, class: rc}}, exclusion: []sqltype.ExclusionOperator{eq, overlap}, ready: true, live: true, valid: true}}
+	index.SQLIndex.constraint = &backingConstraint{kind: exclusionBackingKind, OID: 1, Name: index.name}
 	row := func(id ids.RowID, tenant, during string) rowVersion {
 		a, err := inet.Input(context.Background(), tenant, -1)
 		if err != nil {
@@ -48,7 +48,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 	parent, index, row := logicalGiSTFixture(t)
 	for _, middle := range []rowVersion{row(2, "10.0.0.1", "empty"), row(2, "10.0.0.2", "[1,5)")} {
 		store := &relationStorage{versions: []rowVersion{row(1, "10.0.0.1", "[1,5)"), middle, row(3, "10.0.0.1", "[3,7)")}}
-		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.sqlIndex, store, nil)
+		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +71,7 @@ func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	parent, index, row := logicalGiSTFixture(t)
 	store := &relationStorage{versions: []rowVersion{row(1, "10.0.0.1", "[1,5)"), row(2, "10.0.0.2", "[1,5)")}}
 	evaluation := &EvalContext{Context: context.Background()}
-	root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, store, nil)
+	root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,15 +108,15 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			parent, index, row := logicalGiSTFixture(t)
 			parent.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 			parent.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-			parent.relationKind = tableRelation
+			parent.RelationKind = tableRelation
 			index.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 			index.namespace = parent.namespace
-			index.relationKind = indexRelation
-			index.columns = append([]ColumnDescriptor(nil), parent.columns...)
-			index.sqlIndex.parent = parent.address
-			parent.exclusionConstraints = []exclusionConstraint{{
-				OID: index.sqlIndex.constraint.OID, Name: index.name, Index: index.address,
-				IsLocal: true, Operators: index.sqlIndex.exclusion,
+			index.RelationKind = indexRelation
+			index.Columns = append([]ColumnDescriptor(nil), parent.Columns...)
+			index.SQLIndex.parent = parent.address
+			parent.ExclusionConstraints = []exclusionConstraint{{
+				OID: index.SQLIndex.constraint.OID, Name: index.name, Index: index.address,
+				IsLocal: true, Operators: index.SQLIndex.exclusion,
 			}}
 			// All stored values and bound operators use the same descriptor
 			// authority; mixing a fresh Builtins set with engine-owned values
@@ -128,7 +128,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
 			}}
-			root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.sqlIndex, store, nil)
+			root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -181,7 +181,7 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 				row(3, "10.0.0.1", "[3,7)"),
 			}}
 			evaluation := &EvalContext{Context: context.Background()}
-			root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, store, nil)
+			root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

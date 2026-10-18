@@ -17,11 +17,11 @@ import (
 
 func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, upper int64) *partitionMembership {
 	t.Helper()
-	lo, err := sqltype.Integer(parent.columns[0].Usage.Type, lower)
+	lo, err := sqltype.Integer(parent.Columns[0].Usage.Type, lower)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hi, err := sqltype.Integer(parent.columns[0].Usage.Type, upper)
+	hi, err := sqltype.Integer(parent.Columns[0].Usage.Type, upper)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,11 +95,11 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_growth_parent", 46100)
 			old := inheritanceUnitRelation(e, "attach_growth_old", 46101, "k")
-			old.relationKind = tableRelation
-			old.membership = partitionAttachUnitRange(t, parent, 20, 30)
-			parent.partition.children = []ids.ObjectAddress{old.address}
+			old.RelationKind = tableRelation
+			old.Membership = partitionAttachUnitRange(t, parent, 20, 30)
+			parent.Partition.children = []ids.ObjectAddress{old.address}
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
-			candidate.relationKind = tableRelation
+			candidate.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
 			parent = e.catalog.state.MustRelation(parent.address)
 			old = e.catalog.state.MustRelation(old.address)
@@ -118,11 +118,11 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
 			p, c := *parent, *candidate
-			definition := *parent.partition
+			definition := *parent.Partition
 			definition.children = []ids.ObjectAddress{old.address, candidate.address}
-			p.partition = &definition
+			p.Partition = &definition
 			p.revision++
-			c.membership = partitionAttachUnitRange(t, parent, 1, 3)
+			c.Membership = partitionAttachUnitRange(t, parent, 1, 3)
 			c.revision++
 			if err := stage.Replace(&p); err != nil {
 				t.Fatal(err)
@@ -194,12 +194,12 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			parent := partitionAttachUnitRoot(t, e, "attach_frontier_parent", 46110)
 			target := partitionAttachUnitRoot(t, e, "attach_frontier_target", 46111)
 			leaf := inheritanceUnitRelation(e, "attach_frontier_leaf", 46112, "k")
-			leaf.relationKind = tableRelation
-			leaf.membership = &partitionMembership{parent: target.address, defaultBound: true}
-			target.partition.children = []ids.ObjectAddress{leaf.address}
-			target.partition.defaultChild = leaf.address
+			leaf.RelationKind = tableRelation
+			leaf.Membership = &partitionMembership{parent: target.address, defaultBound: true}
+			target.Partition.children = []ids.ObjectAddress{leaf.address}
+			target.Partition.defaultChild = leaf.address
 			view := inheritanceUnitView(e, parent, target, leaf)
-			usage, boolean := target.columns[0].Usage, testUsage(e, sqltype.Bool)
+			usage, boolean := target.Columns[0].Usage, testUsage(e, sqltype.Bool)
 			ref := e.catalog.domain.Ref(view.Epoch(), target.address)
 			ref.Address.SubID = 1
 			key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
@@ -238,7 +238,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 					}
 					check.dependencies = append(check.dependencies, expressionDependency{ref: dependency, revision: d.Revision()})
 				}
-				target.checkConstraints = []checkConstraint{check}
+				target.CheckConstraints = []checkConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
 			parent = e.catalog.state.MustRelation(parent.address)

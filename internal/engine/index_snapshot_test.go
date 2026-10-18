@@ -57,7 +57,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 								if entry.position != 0 || entry.row != newStore.versions[0].row || entry.version != newStore.versions[0].version {
 									t.Fatal("hash entry retained source identities or positions")
 								}
-								if entry.key.Type() != parent.columns[0].Usage.Type {
+								if entry.key.Type() != parent.Columns[0].Usage.Type {
 									t.Fatal("hash datum retained foreign type generation")
 								}
 							}
@@ -68,7 +68,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 					} else if len(newRoot.entries) != 1 || newRoot.entries[0].position != 0 || newRoot.entries[0].row != newStore.versions[0].row || newRoot.entries[0].version != newStore.versions[0].version {
 						t.Fatal("btree snapshot retained source identities or positions")
 					}
-					if newRoot.hash == nil && newRoot.entries[0].keys[0].Type() != parent.columns[0].Usage.Type {
+					if newRoot.hash == nil && newRoot.entries[0].keys[0].Type() != parent.Columns[0].Usage.Type {
 						t.Fatal("btree datum retained foreign type generation")
 					}
 					for i, row := range oldRows {

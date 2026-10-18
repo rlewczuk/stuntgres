@@ -20,9 +20,9 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	late := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(late)
 	e.mu.Lock()
-	attached, err := e.newTableDescriptorLocked(table.namespace, "late", table.owner, append([]ColumnDescriptor(nil), table.columns...), table.index)
+	attached, err := e.newTableDescriptorLocked(table.namespace, "late", table.Owner, append([]ColumnDescriptor(nil), table.Columns...), table.Index)
 	if err == nil {
-		attached.ofType = table.ofType
+		attached.OfType = table.OfType
 		err = e.stageRowTypeLocked(late, attached)
 	}
 	e.mu.Unlock()
@@ -39,7 +39,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
 		t.Fatal("late attachment was missed", changes, err)
 	}
-	if source.columns[1].Name != "note" || table.columns[1].Name != "note" {
+	if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
 		t.Fatal("failed source alteration leaked")
 	}
 }
@@ -84,10 +84,10 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	if err := validateTypedAttachment(view, imported); err != nil {
 		t.Fatal(err)
 	}
-	if imported.ofType.ClassID != ids.TypeClassID || imported.rowType == sqltype.ID(imported.ofType.ObjectID) || !reflect.DeepEqual(imported.attributes, []int32{1, 7}) {
+	if imported.OfType.ClassID != ids.TypeClassID || imported.RowType == sqltype.ID(imported.OfType.ObjectID) || !reflect.DeepEqual(imported.Attributes, []int32{1, 7}) {
 		t.Fatal("attachment/own-row identity lost", imported)
 	}
-	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.rowType)})
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.RowType)})
 	if row.owningRelation != imported.address || row.typ.CompositeMember(1).Attribute != 7 || row.typ.CompositeMember(1).Name != "note" {
 		t.Fatal("imported own-row codec lost reciprocity", row)
 	}
@@ -95,7 +95,7 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	if !ok || !array.Concrete() || array.Element() != row.typ {
 		t.Fatal("imported executable array lost reciprocal generation", array)
 	}
-	oldRow, _ := before.LookupType(table.rowType)
+	oldRow, _ := before.LookupType(table.RowType)
 	oldArray, _ := before.LookupArray(oldRow)
 	if !oldArray.Concrete() || array == oldArray || row.typ == oldRow {
 		t.Fatal("imported composite/array borrowed foreign codec")
@@ -109,20 +109,20 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	e, _, root := typedUnitCatalog(t, false)
 	other := *root
 	other.address.ObjectID += 1000
-	other.ofType = ids.ObjectAddress{}
+	other.OfType = ids.ObjectAddress{}
 	child := *root
 	child.address.ObjectID += 2000
-	child.ofType = ids.ObjectAddress{}
-	child.attributes = []int32{3, 8}
-	child.inheritance = &tableInheritance{parents: []ids.ObjectAddress{root.address, other.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: root.address, attribute: 1}, {parent: other.address, attribute: 1}}}, 8: {local: true, origins: []inheritanceOrigin{{parent: root.address, attribute: 7}, {parent: other.address, attribute: 7}}}}}
+	child.OfType = ids.ObjectAddress{}
+	child.Attributes = []int32{3, 8}
+	child.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{root.address, other.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: root.address, attribute: 1}, {parent: other.address, attribute: 1}}}, 8: {local: true, origins: []inheritanceOrigin{{parent: root.address, attribute: 7}, {parent: other.address, attribute: 7}}}}}
 	changed := *root
-	changed.columns, changed.attributes, changed.index = root.columns[1:], root.attributes[1:], map[string]int{"note": 0}
+	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
 	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{root.address: &changed, other.address: &other}}
 	actions, renames, graph, err := typedInheritedActions(e.catalog.read(state), &child, nil)
-	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.columns[3].origins, []inheritanceOrigin{{parent: other.address, attribute: 1}}) || len(child.inheritance.columns[3].origins) != 2 {
+	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.columns[3].origins, []inheritanceOrigin{{parent: other.address, attribute: 1}}) || len(child.Inheritance.columns[3].origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)
 	}
-	other.columns, other.attributes, other.index = nil, nil, map[string]int{}
+	other.Columns, other.Attributes, other.Index = nil, nil, map[string]int{}
 	actions, _, graph, err = typedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 1 || actions[0].action.Column.Text != "id" || !graph.columns[8].local {
 		t.Fatal("local column or retired origin lost", actions, graph, err)
@@ -185,7 +185,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 			} else {
 				late := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(late)
-				next := *late.base.MustType(table.ofType)
+				next := *late.base.MustType(table.OfType)
 				next.revision++
 				if err := late.Replace(&next); err != nil {
 					t.Fatal(err)

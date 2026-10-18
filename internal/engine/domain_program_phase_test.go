@@ -61,7 +61,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			view := auth.catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "phase_child"})
 			child := view.MustRelation(childRef[0])
-			ownerAuth := foreignActionOwner(auth, child.owner)
+			ownerAuth := foreignActionOwner(auth, child.Owner)
 			e.mu.Unlock()
 			domain := domainUnitType(t, view, "phase_checked")
 			value, err := sqltype.Integer(domain.typ.DomainBase().Type, 1)
@@ -166,7 +166,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			view := auth.catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "inquiry_phase_child"})
 			child := view.MustRelation(childRef[0])
-			ownerAuth := foreignActionOwner(auth, child.owner)
+			ownerAuth := foreignActionOwner(auth, child.Owner)
 			binder := newExpressionBinder(context.Background(), e, scope.input, caller, nil)
 			binder.queryAuth, binder.queryNamespace = &auth, &queryNamespace{}
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})

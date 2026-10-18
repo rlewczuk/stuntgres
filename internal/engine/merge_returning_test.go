@@ -19,7 +19,7 @@ func TestMergeReturningFrames(t *testing.T) {
 	defer target.close()
 	defer inputs.close()
 	integer := func(n int64) sqltype.Value {
-		v, err := sqltype.Integer(b.relation.columns[0].Usage.Type, n)
+		v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,7 +95,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			defer op.Done()
 			defer target.close()
 			defer inputs.close()
-			one, _ := sqltype.Integer(b.relation.columns[0].Usage.Type, 1)
+			one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 			two, _ := sqltype.Integer(one.Type(), 2)
 			injected := errors.New("private output/producer veto")
 			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}, {two}}}

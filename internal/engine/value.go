@@ -52,7 +52,7 @@ func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, col
 			b.WriteString(", ")
 		}
 		if relation != nil {
-			if definition, ok := relation.generations[relation.attributes[index]]; ok && definition.kind == generationVirtual {
+			if definition, ok := relation.Generations[relation.Attributes[index]]; ok && definition.kind == generationVirtual {
 				b.WriteString("virtual")
 				continue
 			}

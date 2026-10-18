@@ -102,15 +102,15 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		return err
 	}
 	if b.createOfType != nil {
-		d.ofType = b.createOfType.Address()
+		d.OfType = b.createOfType.Address()
 		stage.domainBases = append(stage.domainBases, b.createOfType)
 	}
-	d.acl = stage.creationACL(owner, ns, authorization.DefaultTables)
+	d.ACL = stage.creationACL(owner, ns, authorization.DefaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
-	d.onCommit = s.OnCommit
-	d.notNullConstraints = b.createNotNull
+	d.OnCommit = s.OnCommit
+	d.NotNullConstraints = b.createNotNull
 	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
 		return err
 	}
@@ -137,18 +137,18 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	binder.defaultTemporary = auth.catalog.MustNamespace(d.namespace).temporary
 	for slot, declaration := range b.createDeclarations {
 		if declaration.defaultExpr != nil {
-			delete(d.defaults, d.attributes[slot])
+			delete(d.Defaults, d.Attributes[slot])
 		}
 	}
-	defaults, err := bindCreateDefaults(binder, d.columns, b.createDeclarations)
+	defaults, err := bindCreateDefaults(binder, d.Columns, b.createDeclarations)
 	if err != nil {
 		return err
 	}
-	if d.defaults == nil {
-		d.defaults = defaults
+	if d.Defaults == nil {
+		d.Defaults = defaults
 	} else {
 		for attribute, definition := range defaults {
-			d.defaults[attribute] = definition
+			d.Defaults[attribute] = definition
 		}
 	}
 	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
@@ -170,9 +170,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	// relation descriptor, without a parser state/source position.
 	for _, element := range s.Elements {
 		if column := element.Column; column != nil && len(column.TypeName.Modifiers) > 0 {
-			i := d.index[column.Name]
+			i := d.Index[column.Name]
 			// Temporal modifiers emit a second descriptor-build warning.
-			if id := d.columns[i].Usage.Type.ID(); id != sqltype.Interval && id != sqltype.Timestamp && id != sqltype.Time && id != sqltype.Timestamptz && id != sqltype.Timetz {
+			if id := d.Columns[i].Usage.Type.ID(); id != sqltype.Interval && id != sqltype.Timestamp && id != sqltype.Time && id != sqltype.Timestamptz && id != sqltype.Timetz {
 				continue
 			}
 			modifiers := make([]int32, len(column.TypeName.Modifiers))
@@ -187,11 +187,11 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			if !valid {
 				continue
 			}
-			usage, warning, err := d.columns[i].Usage.Type.ResolveModifiers(modifiers...)
+			usage, warning, err := d.Columns[i].Usage.Type.ResolveModifiers(modifiers...)
 			if err != nil {
 				return err
 			}
-			d.columns[i].Usage = usage
+			d.Columns[i].Usage = usage
 			if warning != nil {
 				op.emitNotice(levelWarning, *warning)
 			}
@@ -226,12 +226,12 @@ func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, own
 			index[column.Name] = i
 		}
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: revision, owner: owner, columns: columns, index: index, attributes: make([]int32, len(columns))}
-	d.attributeHighWater = int32(len(columns))
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: revision, Owner: owner, Columns: columns, Index: index, Attributes: make([]int32, len(columns))}
+	d.AttributeHighWater = int32(len(columns))
 	for i := range columns {
-		d.attributes[i] = int32(i + 1)
-		d.columns[i].OriginTable = uint32(oid)
-		d.columns[i].OriginAttribute = int16(i + 1)
+		d.Attributes[i] = int32(i + 1)
+		d.Columns[i].OriginTable = uint32(oid)
+		d.Columns[i].OriginAttribute = int16(i + 1)
 	}
 	return d, nil
 }
@@ -309,7 +309,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
-		if r, ok := stage.base.Relation(a); ok && r.relationKind == sequenceRelation {
+		if r, ok := stage.base.Relation(a); ok && r.RelationKind == sequenceRelation {
 			if err := scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
@@ -591,14 +591,14 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				continue // the extension owns these members as one namespace dependent
 			}
 			if r, ok := d.(*relationDescriptor); ok {
-				if r.relationKind == compositeRelation {
+				if r.RelationKind == compositeRelation {
 					continue
 				}
-				if r.sqlIndex != nil {
+				if r.SQLIndex != nil {
 					continue
 				}
 				dependent = append(dependent, r)
-			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ids.ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.MustRelation(t.owningRelation).relationKind == compositeRelation) {
+			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ids.ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.MustRelation(t.owningRelation).RelationKind == compositeRelation) {
 				domains = append(domains, t)
 			} else if c, ok := d.(*collationDescriptor); ok {
 				domains = append(domains, c)

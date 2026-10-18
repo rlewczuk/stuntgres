@@ -111,7 +111,7 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 	f.e.mu.Lock()
 	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []ColumnDescriptor{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
-		d.acl = stage.creationACL(owner, f.schema, authorization.DefaultTables)
+		d.ACL = stage.creationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.stageRowTypeLocked(stage, d)
 	}
 	f.e.mu.Unlock()

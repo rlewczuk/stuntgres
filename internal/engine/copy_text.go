@@ -32,7 +32,7 @@ type copyCursor struct {
 }
 
 func newCopyCursor(scope *StatementScope, b binding, o copyOptions, r io.Reader) *copyCursor {
-	c := &copyCursor{scope: scope, binding: b, options: o, reader: bufio.NewReader(copyReader{scope, r}), defaults: make([]bool, len(b.relation.columns)), omitted: make([]bool, len(b.relation.columns))}
+	c := &copyCursor{scope: scope, binding: b, options: o, reader: bufio.NewReader(copyReader{scope, r}), defaults: make([]bool, len(b.relation.Columns)), omitted: make([]bool, len(b.relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -221,7 +221,7 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 			target := c.binding.targets[len(c.fields)]
 			if len(c.binding.defaults) == 0 || c.binding.defaults[target] == nil {
 				d := c.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.relation.columns[target].Name)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.relation.Columns[target].Name)
 				return d
 			}
 		}
@@ -259,7 +259,7 @@ func (c *copyCursor) header() error {
 		return c.lineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(c.fields), len(c.binding.targets)), "")
 	}
 	for i, field := range c.fields {
-		name := c.binding.relation.columns[c.binding.targets[i]].Name
+		name := c.binding.relation.Columns[c.binding.targets[i]].Name
 		if field.isNull {
 			return c.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, c.options.null, name), "")
 		}
@@ -300,7 +300,7 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 	}
 	copy(c.defaults, c.omitted)
 	for i, target := range c.binding.targets {
-		column := c.binding.relation.columns[target]
+		column := c.binding.relation.Columns[target]
 		if i >= len(c.fields) {
 			return false, c.diagnostic(c.lineError(fmt.Sprintf("missing data for column \"%s\"", column.Name), ""))
 		}

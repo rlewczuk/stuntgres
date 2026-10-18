@@ -39,10 +39,10 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 		t.Fatal("ACL replacement mutated retained authorization", err)
 	}
 	current := e.CatalogRead().MustRelation(d.address)
-	if current == d || len(current.acl.Entries) != 0 || !current.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public {
-		t.Fatal("ACL publication/source-root immutability", current.acl, d.acl)
+	if current == d || len(current.ACL.Entries) != 0 || !current.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public {
+		t.Fatal("ACL publication/source-root immutability", current.ACL, d.ACL)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, d.acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, d.ACL); err != nil {
 		t.Fatal(err)
 	}
 	restored, err := reader.Authorization()

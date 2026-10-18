@@ -149,7 +149,7 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 
 func pgLockRow(d *relationDescriptor, database uint32, record lock.Record, mode, ownerText string, row []sqltype.Value) ([]sqltype.Value, error) {
 	for i := range row {
-		row[i] = sqltype.Null(d.columns[i].Usage.Type)
+		row[i] = sqltype.Null(d.Columns[i].Usage.Type)
 	}
 	var failure error
 	checked := func(v sqltype.Value, err error) sqltype.Value {
@@ -158,9 +158,9 @@ func pgLockRow(d *relationDescriptor, database uint32, record lock.Record, mode,
 		}
 		return v
 	}
-	oid := func(i int, n uint32) { row[i] = checked(sqltype.OIDValue(d.columns[i].Usage.Type, n)) }
-	integer := func(i int, n int64) { row[i] = checked(sqltype.Integer(d.columns[i].Usage.Type, n)) }
-	text := func(i int, value string) { row[i] = sqltype.String(d.columns[i].Usage.Type, value) }
+	oid := func(i int, n uint32) { row[i] = checked(sqltype.OIDValue(d.Columns[i].Usage.Type, n)) }
+	integer := func(i int, n int64) { row[i] = checked(sqltype.Integer(d.Columns[i].Usage.Type, n)) }
+	text := func(i int, value string) { row[i] = sqltype.String(d.Columns[i].Usage.Type, value) }
 	kind := ""
 	switch record.Kind {
 	case lock.RelationRecord, lock.PredicateRecord:
@@ -185,7 +185,7 @@ func pgLockRow(d *relationDescriptor, database uint32, record lock.Record, mode,
 		text(5, targetText)
 	case lock.TransactionRecord:
 		kind = "transactionid"
-		row[6] = checked(sqltype.XIDValue(d.columns[6].Usage.Type, record.XID))
+		row[6] = checked(sqltype.XIDValue(d.Columns[6].Usage.Type, record.XID))
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown public lock kind")
 	}
@@ -195,10 +195,10 @@ func pgLockRow(d *relationDescriptor, database uint32, record lock.Record, mode,
 		integer(11, int64(record.Owner.Session))
 	}
 	text(12, mode)
-	row[13] = sqltype.Boolean(d.columns[13].Usage.Type, !record.Waiting)
-	row[14] = sqltype.Boolean(d.columns[14].Usage.Type, false)
+	row[13] = sqltype.Boolean(d.Columns[13].Usage.Type, !record.Waiting)
+	row[14] = sqltype.Boolean(d.Columns[14].Usage.Type, false)
 	if record.Waiting {
-		row[15] = checked(sqltype.TimestampFromTime(d.columns[15].Usage.Type, record.WaitStart.UTC()))
+		row[15] = checked(sqltype.TimestampFromTime(d.Columns[15].Usage.Type, record.WaitStart.UTC()))
 	}
 	return row, failure
 }

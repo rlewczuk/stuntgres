@@ -11,17 +11,17 @@ import (
 // Delayed virtual definitions own a local constraint origin. Recursive UNIQUE
 // creates its tree at declaration; incomplete EXCLUDE uses ONLY and memberships.
 func partitionReplayVirtualUniqueRoot(view CatalogRead, index *relationDescriptor) *relationDescriptor {
-	if index.sqlIndex == nil || index.sqlIndex.constraint == nil {
+	if index.SQLIndex == nil || index.SQLIndex.constraint == nil {
 		return nil
 	}
-	for index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
-		index = view.MustRelation(index.sqlIndex.partitionParent)
-		if index.sqlIndex.constraint == nil {
+	for index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+		index = view.MustRelation(index.SQLIndex.partitionParent)
+		if index.SQLIndex.constraint == nil {
 			return nil
 		}
 	}
-	table := view.MustRelation(index.sqlIndex.parent)
-	if table.partition != nil && (partitionReplayOnlyExclusion(index) || partitionPreservedReplayLocal(view, index)) {
+	table := view.MustRelation(index.SQLIndex.parent)
+	if table.Partition != nil && (partitionReplayOnlyExclusion(index) || partitionPreservedReplayLocal(view, index)) {
 		return index
 	}
 	return nil
@@ -34,7 +34,7 @@ func partitionReplaySeparateConstraint(view CatalogRead, index *relationDescript
 // ONLY declarations create just the local origin. Captured covered providers
 // are created later by their table membership, never by index attachment.
 func partitionReplayOnlyExclusion(index *relationDescriptor) bool {
-	return index.sqlIndex != nil && index.sqlIndex.isExclusion() && !index.sqlIndex.valid && index.sqlIndex.partitionParent == (ids.ObjectAddress{})
+	return index.SQLIndex != nil && index.SQLIndex.isExclusion() && !index.SQLIndex.valid && index.SQLIndex.partitionParent == (ids.ObjectAddress{})
 }
 
 func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dumpEventKey {
@@ -45,18 +45,18 @@ func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dum
 	// UNIQUE can adopt a provider declared on the standalone child before
 	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
 	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
-	if !index.sqlIndex.isExclusion() || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
+	if !index.SQLIndex.isExclusion() || index.SQLIndex.partitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
 		oid, _ := dumpPredecessor(view, index.address, ids.ObjectAddress{})
 		return dumpEventKey{oid: oid}
 	}
-	table := view.MustRelation(index.sqlIndex.parent)
+	table := view.MustRelation(index.SQLIndex.parent)
 	creator := dumpEventKey{oid: table.address.ObjectID}
-	for index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
-		table = view.MustRelation(index.sqlIndex.parent)
+	for index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+		table = view.MustRelation(index.SQLIndex.parent)
 		if partitionDumpNeedsAttach(view, table) {
 			creator = dumpEventKey{oid: table.address.ObjectID, phase: dumpTableAttachment}
 		}
-		index = view.MustRelation(index.sqlIndex.partitionParent)
+		index = view.MustRelation(index.SQLIndex.partitionParent)
 	}
 	return creator
 }
@@ -64,10 +64,10 @@ func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dum
 // Remove only DEFAULT-last edges contradicted by an ONLY origin's captured
 // gap-before-declaration-before-covered-membership requirements.
 func partitionExclusionDefaultBefore(view CatalogRead, gap, sibling *relationDescriptor) bool {
-	if gap.membership == nil || !gap.membership.defaultBound {
+	if gap.Membership == nil || !gap.Membership.defaultBound {
 		return false
 	}
-	parent := view.MustRelation(gap.membership.parent)
+	parent := view.MustRelation(gap.Membership.parent)
 	for _, index := range partitionIndexDeclarationOrder(view, parent) {
 		if partitionReplayOnlyExclusion(index) && partitionDumpIndexBacking(view, index.address, gap.address) == nil && partitionDumpIndexBacking(view, index.address, sibling.address) != nil {
 			return true
@@ -77,8 +77,8 @@ func partitionExclusionDefaultBefore(view CatalogRead, gap, sibling *relationDes
 }
 
 func partitionVirtualUniqueDefinitionSQL(view CatalogRead, index *relationDescriptor) (string, error) {
-	table := view.MustRelation(index.sqlIndex.parent)
-	if index.sqlIndex.isExclusion() {
+	table := view.MustRelation(index.SQLIndex.parent)
+	if index.SQLIndex.isExclusion() {
 		text, err := indexDefinitionSQL(context.Background(), view, index, indexPresentation{dump: true, exclusion: true})
 		if err != nil {
 			return "", err
@@ -89,7 +89,7 @@ func partitionVirtualUniqueDefinitionSQL(view CatalogRead, index *relationDescri
 		}
 		return "ALTER TABLE " + only + quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name) + " ADD CONSTRAINT " + quoteIdentifier(index.name) + " " + text + ";\n", nil
 	}
-	for _, constraint := range table.uniqueConstraints {
+	for _, constraint := range table.UniqueConstraints {
 		if constraint.Index != index.address {
 			continue
 		}
@@ -116,11 +116,11 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view CatalogRead, index
 	var renames []rename
 	var reserve func(*relationDescriptor)
 	reserve = func(parentIndex *relationDescriptor) {
-		table := view.MustRelation(parentIndex.sqlIndex.parent)
-		if table.partition == nil {
+		table := view.MustRelation(parentIndex.SQLIndex.parent)
+		if table.Partition == nil {
 			return
 		}
-		for _, address := range table.partition.children {
+		for _, address := range table.Partition.children {
 			childIndex := partitionDumpIndexBacking(view, parentIndex.address, address)
 			child := view.MustRelation(address)
 			used := r.occupied[child.namespace]
@@ -129,15 +129,15 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view CatalogRead, index
 				r.occupied[child.namespace] = used
 			}
 			suffix, addition := "key", ""
-			if childIndex.sqlIndex.isExclusion() {
+			if childIndex.SQLIndex.isExclusion() {
 				suffix = "excl"
 			}
-			if childIndex.sqlIndex.constraint.Primary {
+			if childIndex.SQLIndex.constraint.Primary {
 				suffix = "pkey"
 			} else {
-				labels := make([]string, len(childIndex.sqlIndex.keys))
-				for i := range childIndex.sqlIndex.keys {
-					labels[i] = childIndex.columns[i].Name
+				labels := make([]string, len(childIndex.SQLIndex.keys))
+				for i := range childIndex.SQLIndex.keys {
+					labels[i] = childIndex.Columns[i].Name
 				}
 				addition = strings.Join(labels, "_")
 			}
@@ -165,8 +165,8 @@ func partitionVirtualUniqueMembershipReady(view CatalogRead, graph map[dumpEvent
 		member.phase = dumpTableAttachment
 	}
 	addDumpDependency(graph, event, member)
-	if table.partition != nil {
-		for _, address := range table.partition.children {
+	if table.Partition != nil {
+		for _, address := range table.Partition.children {
 			partitionVirtualUniqueMembershipReady(view, graph, event, view.MustRelation(address))
 		}
 	}
@@ -175,7 +175,7 @@ func partitionVirtualUniqueMembershipReady(view CatalogRead, graph map[dumpEvent
 func partitionReplayTopologyReady(view CatalogRead, table *relationDescriptor) bool {
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.sqlIndex.parent == table.address && (partitionPreservedReplayBacking(view, index) || partitionReplayVirtualUniqueRoot(view, index) != nil) {
+		if ok && index.SQLIndex != nil && index.SQLIndex.parent == table.address && (partitionPreservedReplayBacking(view, index) || partitionReplayVirtualUniqueRoot(view, index) != nil) {
 			return true
 		}
 	}

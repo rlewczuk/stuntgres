@@ -12,8 +12,8 @@ import (
 // Ordinary LOCK and view-target paths retain their capability boundary.
 // Direct UPDATE/DELETE targets use real command-local descendant admission.
 func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) error {
-	if relation.view == nil {
-		if relation.relationKind == tableRelation && inheritanceHasChildren(catalog, relation.address) {
+	if relation.View == nil {
+		if relation.RelationKind == tableRelation && inheritanceHasChildren(catalog, relation.address) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
 		}
 		return nil
@@ -22,7 +22,7 @@ func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) e
 }
 
 func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ids.ObjectAddress]bool) error {
-	if relation.view == nil {
+	if relation.View == nil {
 		return inheritanceTargetGuard(catalog, relation)
 	}
 	if visited[relation.address] {
@@ -69,7 +69,7 @@ func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, De
 	if current, ok := replacement(relation.address).(*relationDescriptor); ok {
 		relation = current
 	}
-	if relation.inheritance != nil {
+	if relation.Inheritance != nil {
 		return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
 	}
 	for address, descriptor := range descriptors {
@@ -79,7 +79,7 @@ func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, De
 		if current := replacement(address); current != nil {
 			descriptor = current
 		}
-		if child, ok := descriptor.(*relationDescriptor); ok && child.inheritance != nil && slices.Contains(child.inheritance.parents, relation.address) {
+		if child, ok := descriptor.(*relationDescriptor); ok && child.Inheritance != nil && slices.Contains(child.Inheritance.parents, relation.address) {
 			return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
 		}
 	}
@@ -87,11 +87,11 @@ func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, De
 }
 
 func inheritanceColumnGuard(relation *relationDescriptor, name, operation string, position parser.Position) error {
-	if relation.inheritance == nil {
+	if relation.Inheritance == nil {
 		return nil
 	}
-	slot, exists := relation.index[name]
-	if !exists || len(relation.inheritance.columns[relation.attributes[slot]].origins) == 0 {
+	slot, exists := relation.Index[name]
+	if !exists || len(relation.Inheritance.columns[relation.Attributes[slot]].origins) == 0 {
 		return nil
 	}
 	message := fmt.Sprintf(`cannot %s inherited column "%s"`, operation, name)
@@ -121,26 +121,26 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 				return err
 			}
 		case parser.DropExpression:
-			if relation.inheritance != nil {
-				if slot, exists := relation.index[action.Column.Text]; exists && len(relation.inheritance.columns[relation.attributes[slot]].origins) != 0 {
+			if relation.Inheritance != nil {
+				if slot, exists := relation.Index[action.Column.Text]; exists && len(relation.Inheritance.columns[relation.Attributes[slot]].origins) != 0 {
 					return sqlError("42P16", "cannot drop generation expression from inherited column")
 				}
 			}
 		case parser.DropNotNull, parser.DropConstraint:
-			if action.Action == parser.DropConstraint && relation.inheritance != nil {
-				if provenance, exists := relation.inheritance.checks[action.Constraint.Text]; exists && provenance.count() != 0 {
+			if action.Action == parser.DropConstraint && relation.Inheritance != nil {
+				if provenance, exists := relation.Inheritance.checks[action.Constraint.Text]; exists && provenance.count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, action.Constraint.Text, relation.name))
 				}
 			}
-			if relation.inheritance == nil {
+			if relation.Inheritance == nil {
 				continue
 			}
-			for _, constraint := range relation.notNullConstraints {
+			for _, constraint := range relation.NotNullConstraints {
 				matches := action.Action == parser.DropConstraint && constraint.Name == action.Constraint.Text
-				if slot, exists := relation.index[action.Column.Text]; action.Action == parser.DropNotNull && exists {
-					matches = constraint.Attribute == relation.attributes[slot]
+				if slot, exists := relation.Index[action.Column.Text]; action.Action == parser.DropNotNull && exists {
+					matches = constraint.Attribute == relation.Attributes[slot]
 				}
-				if matches && relation.inheritance.notNull[constraint.Attribute].count() != 0 {
+				if matches && relation.Inheritance.notNull[constraint.Attribute].count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, constraint.Name, relation.name))
 				}
 			}

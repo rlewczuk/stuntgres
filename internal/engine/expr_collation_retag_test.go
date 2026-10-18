@@ -55,7 +55,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	tableRef := catalogRef(t, e, view, "expr_retag_t")
 	table := view.MustRelation(tableRef.Address)
-	original := table.defaults[table.attributes[0]].expression.(comparisonExpression)
+	original := table.Defaults[table.Attributes[0]].expression.(comparisonExpression)
 	oldRef, conflict := original.predicate.InputCollation()
 	if oldRef.ID != uint32(source.oid) || conflict || original.Usage.Collation.ID != 0 {
 		t.Fatal("BOOL result hid wrong input authority", oldRef, conflict, original.Usage)
@@ -208,9 +208,9 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("stored demand changed clause stages or output layout")
 	}
 	rowContext := &EvalContext{Context: context.Background(), Scope: 1, Frame: projection.frame, Row: []sqltype.Value{
-		sqltype.Null(table.columns[0].Usage.Type),
-		sqltype.String(table.columns[1].Usage.Type, "A"),
-		sqltype.String(table.columns[2].Usage.Type, "A"),
+		sqltype.Null(table.Columns[0].Usage.Type),
+		sqltype.String(table.Columns[1].Usage.Type, "A"),
+		sqltype.String(table.Columns[2].Usage.Type, "A"),
 	}}
 	value, err = demanded.expressions[0].Eval(rowContext)
 	if err != nil || !value.IsNull() {
@@ -235,7 +235,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("malformed stored slot admitted")
 	}
 	typesRef := catalogRef(t, e, view, "expr_retag_domain_types")
-	types := view.MustRelation(typesRef.Address).columns
+	types := view.MustRelation(typesRef.Address).Columns
 	mappedType := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == types[0].Usage.Type {
 			return types[1].Usage.Type

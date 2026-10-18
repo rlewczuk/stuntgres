@@ -7,13 +7,13 @@ import (
 )
 
 func physicalPrimaryDeferred(table *relationDescriptor, primary *uniqueConstraint) bool {
-	return primary.Primary && len(table.physicalNotNull) != 0
+	return primary.Primary && len(table.PhysicalNotNull) != 0
 }
 
 func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, primary *uniqueConstraint, emit func(string) error, setOwner func(string) error) error {
 	hasPhysicalKey := false
 	for _, attribute := range primary.Attributes {
-		if _, present := table.physicalNotNull[attribute]; present {
+		if _, present := table.PhysicalNotNull[attribute]; present {
 			hasPhysicalKey = true
 			break
 		}
@@ -24,16 +24,16 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, pri
 	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
 	keys := make([]string, len(primary.Attributes))
 	for i, attribute := range primary.Attributes {
-		keys[i] = table.columns[table.indexForAttribute(attribute)].Name
+		keys[i] = table.Columns[table.indexForAttribute(attribute)].Name
 	}
 	if err := setOwner("postgres"); err != nil {
 		return err
 	}
 	for _, attribute := range primary.Attributes {
-		if _, physical := table.physicalNotNull[attribute]; !physical {
+		if _, physical := table.PhysicalNotNull[attribute]; !physical {
 			continue
 		}
-		column := table.columns[table.indexForAttribute(attribute)].Name
+		column := table.Columns[table.indexForAttribute(attribute)].Name
 		if err := emit(physicalNotNullCleanupSQL(qualified, column, primary.Name, keys) + ";\n"); err != nil {
 			return err
 		}
@@ -44,12 +44,12 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, pri
 // Run at declaration time, before descendants or rows. The constructor creates
 // its real NN record; the CTE selects that record by key, never an assumed name.
 func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) error, setOwner func(string) error) error {
-	if len(t.descriptor.physicalNotNull) == 0 {
+	if len(t.descriptor.PhysicalNotNull) == 0 {
 		return nil
 	}
 	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 	for _, attribute := range t.attributes {
-		if _, physical := t.descriptor.physicalNotNull[attribute]; !physical || physicalPrimaryForAttribute(t.descriptor, attribute) != nil {
+		if _, physical := t.descriptor.PhysicalNotNull[attribute]; !physical || physicalPrimaryForAttribute(t.descriptor, attribute) != nil {
 			continue
 		}
 		column := t.columns[t.descriptor.indexForAttribute(attribute)].Name
@@ -66,8 +66,8 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 			return err
 		}
 	}
-	for i := range t.descriptor.uniqueConstraints {
-		primary := &t.descriptor.uniqueConstraints[i]
+	for i := range t.descriptor.UniqueConstraints {
+		primary := &t.descriptor.UniqueConstraints[i]
 		if !primary.Primary {
 			continue
 		}
@@ -101,14 +101,14 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 	var deferred map[ids.ObjectAddress]*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || len(table.physicalNotNull) == 0 {
+		if !ok || len(table.PhysicalNotNull) == 0 {
 			continue
 		}
 		if _, emitted := graph[dumpEventKey{oid: table.address.ObjectID}]; !emitted {
 			continue
 		}
-		for i := range table.uniqueConstraints {
-			primary := &table.uniqueConstraints[i]
+		for i := range table.UniqueConstraints {
+			primary := &table.UniqueConstraints[i]
 			if !primary.Primary {
 				continue
 			}
@@ -134,7 +134,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 		if _, emitted := graph[event]; !emitted {
 			continue
 		}
-		if relation.sqlIndex != nil {
+		if relation.SQLIndex != nil {
 			producer, moved, err := physicalCompetingIndexSource(view, relation)
 			if err != nil {
 				return err
@@ -148,17 +148,17 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 			}
 			continue
 		}
-		if relation.inheritance != nil {
-			for _, parent := range relation.inheritance.parents {
+		if relation.Inheritance != nil {
+			for _, parent := range relation.Inheritance.parents {
 				index := deferred[parent]
 				if index == nil || !partitionReplaySeparateConstraint(view, index) {
 					continue
 				}
 				table := view.MustRelation(parent)
 				var primary *uniqueConstraint
-				for i := range table.uniqueConstraints {
-					if table.uniqueConstraints[i].Primary && table.uniqueConstraints[i].Index == index.address {
-						primary = &table.uniqueConstraints[i]
+				for i := range table.UniqueConstraints {
+					if table.UniqueConstraints[i].Primary && table.UniqueConstraints[i].Index == index.address {
+						primary = &table.UniqueConstraints[i]
 						break
 					}
 				}
@@ -167,7 +167,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				}
 				temporaryNN := false
 				for _, attribute := range primary.Attributes {
-					if _, missing := table.physicalNotNull[attribute]; missing {
+					if _, missing := table.PhysicalNotNull[attribute]; missing {
 						temporaryNN = true
 						break
 					}
@@ -177,7 +177,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				}
 			}
 		}
-		for _, foreign := range relation.foreignKeys {
+		for _, foreign := range relation.ForeignKeys {
 			primary := deferred[foreign.Target]
 			if foreign.NotValid || foreign.Target == relation.address || primary == nil {
 				continue

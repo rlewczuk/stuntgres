@@ -14,7 +14,7 @@ func refreshUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	d.populated = true
+	d.Populated = true
 	rows := refreshUnitRows(t, d, 3)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func refreshUnitRows(t *testing.T, d *relationDescriptor, count int) [][]sqltype
 	t.Helper()
 	rows := make([][]sqltype.Value, count)
 	for i := range rows {
-		value, err := sqltype.Integer(d.columns[0].Usage.Type, int64(i+1))
+		value, err := sqltype.Integer(d.Columns[0].Usage.Type, int64(i+1))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,11 +62,11 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		}
 		queryCreatePublish(t, e, stage)
 		d = e.catalog.state.MustRelation(d.address)
-		if d == old || d.view != old.view || d.address != old.address || d.rowType != old.rowType || viewOf(d).rule != viewOf(old).rule || d.owner != old.owner || d.revision != old.revision+1 || !reflect.DeepEqual(d.acl, old.acl) || !reflect.DeepEqual(d.columnACL, old.columnACL) || !reflect.DeepEqual(d.columns, old.columns) || !reflect.DeepEqual(d.attributes, old.attributes) {
+		if d == old || d.View != old.View || d.address != old.address || d.RowType != old.RowType || viewOf(d).rule != viewOf(old).rule || d.Owner != old.Owner || d.revision != old.revision+1 || !reflect.DeepEqual(d.ACL, old.ACL) || !reflect.DeepEqual(d.ColumnACL, old.ColumnACL) || !reflect.DeepEqual(d.Columns, old.Columns) || !reflect.DeepEqual(d.Attributes, old.Attributes) {
 			t.Fatal("refresh lost immutable identity/metadata")
 		}
-		if e.storage[d.address] != candidate || len(candidate.versions) != tc.count || candidate.generation != generation+1 || d.populated != tc.populated || e.commitSeq != frontier+1 {
-			t.Fatal("incomplete atomic replacement", d.populated, e.commitSeq, candidate)
+		if e.storage[d.address] != candidate || len(candidate.versions) != tc.count || candidate.generation != generation+1 || d.Populated != tc.populated || e.commitSeq != frontier+1 {
+			t.Fatal("incomplete atomic replacement", d.Populated, e.commitSeq, candidate)
 		}
 		if !sameVersionRoot(root, store.versions) || store.ends != ends || store.generation != generation {
 			t.Fatal("predecessor mutated")

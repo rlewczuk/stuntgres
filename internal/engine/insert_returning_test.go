@@ -65,7 +65,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 
 func TestInsertReturningModes(t *testing.T) {
 	_, _, relation := generatedUnitDescriptor(t)
-	typ := relation.columns[0].Usage.Type
+	typ := relation.Columns[0].Usage.Type
 	three, _ := sqltype.Integer(typ, 3)
 	seven, _ := sqltype.Integer(typ, 7)
 	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 0}
@@ -117,11 +117,11 @@ func TestInsertReturningWholeRow(t *testing.T) {
 			sessionSQL(t, s, declaration)
 			_, scope, b := insertReturningAnalyzedScope(t, e, s, "INSERT INTO t DEFAULT VALUES RETURNING old,new,t")
 			typ := b.returning.schema[0].Usage.Type
-			if !typ.IsComposite() || typ.ID() != b.relation.rowType || typ.CompositeLen() != len(b.relation.columns) {
-				t.Fatal("not actual named target descriptor", typ, b.relation.rowType)
+			if !typ.IsComposite() || typ.ID() != b.relation.RowType || typ.CompositeLen() != len(b.relation.Columns) {
+				t.Fatal("not actual named target descriptor", typ, b.relation.RowType)
 			}
-			row := make([]sqltype.Value, len(b.relation.columns))
-			for i, col := range b.relation.columns {
+			row := make([]sqltype.Value, len(b.relation.Columns))
+			for i, col := range b.relation.Columns {
 				row[i] = sqltype.Null(col.Usage.Type)
 			}
 			c := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, Row: row}
@@ -156,16 +156,16 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 				query += " RETURNING v"
 				op, scope, b := insertReturningAnalyzedScope(t, e, s, query)
 				integer := func(n int64) sqltype.Value {
-					v, err := sqltype.Integer(b.relation.columns[0].Usage.Type, n)
+					v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 					if err != nil {
 						t.Fatal(err)
 					}
 					return v
 				}
-				cursor := &insertConflictInputCursor{schema: b.relation.columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(3), integer(30)}}}
+				cursor := &insertConflictInputCursor{schema: b.relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(3), integer(30)}}}
 				calls := 0
 				injected := errors.New("late private output veto")
-				b.returning.expressions[0] = queryProbe(b.relation.columns[1].Usage, func(c *EvalContext) (sqltype.Value, error) {
+				b.returning.expressions[0] = queryProbe(b.relation.Columns[1].Usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if len(scope.stage.rows[b.ref.Address]) != calls || cursor.position != calls {
 						t.Fatal("projection preceded final stage or next proposal", calls, cursor.position, scope.stage.rows)
@@ -205,8 +205,8 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE t(k INT,v INT)")
 		sessionSQL(t, s, "CREATE UNIQUE INDEX u ON t(k)")
 		op, scope, b := insertReturningAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,10) RETURNING v")
-		one, _ := sqltype.Integer(b.relation.columns[0].Usage.Type, 1)
-		ten, _ := sqltype.Integer(b.relation.columns[1].Usage.Type, 10)
+		one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
+		ten, _ := sqltype.Integer(b.relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output, statementScope: scope}
 		admitted, err := scope.admitInsertRow(b.ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, &evaluation)
@@ -237,7 +237,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.stage.rows)
 		}
 		calls := 0
-		b.returning.expressions[0] = queryProbe(b.relation.columns[1].Usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[1], nil })
+		b.returning.expressions[0] = queryProbe(b.relation.Columns[1].Usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[1], nil })
 		if _, err := scope.admitInsertProducer(b, &indexWriteCandidate{values: row}, indexWriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}
@@ -261,14 +261,14 @@ func TestInsertReturningProducerClose(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			op, scope, b := insertReturningAnalyzedScope(t, e, s, "INSERT INTO t SELECT k,v FROM t RETURNING v")
 			integer := func(n int64) sqltype.Value {
-				v, err := sqltype.Integer(b.relation.columns[0].Usage.Type, n)
+				v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 				if err != nil {
 					t.Fatal(err)
 				}
 				return v
 			}
 			closeErr, nextErr := errors.New("required producer close veto"), errors.New("primary producer veto")
-			cursor := &insertConflictInputCursor{schema: b.relation.columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(3), integer(30)}}, closeError: closeErr}
+			cursor := &insertConflictInputCursor{schema: b.relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(3), integer(30)}}, closeError: closeErr}
 			if primary {
 				cursor.nextError = nextErr
 			}
@@ -358,7 +358,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				var indexAddress ids.ObjectAddress
 				for address, descriptor := range e.catalog.state.Descriptors() {
-					if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && index.sqlIndex.parent == ref.Address && index.sqlIndex.unique {
+					if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.parent == ref.Address && index.SQLIndex.unique {
 						indexAddress = address
 					}
 				}

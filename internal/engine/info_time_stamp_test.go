@@ -42,7 +42,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	defer done()
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.info_time_stamp_unit(v information_schema.time_stamp)")
 	current := e.CatalogRead()
-	usage := relation.columns[0].Usage
+	usage := relation.Columns[0].Usage
 	if usage.Type != d.typ || usage.Typmod != -1 || usage.BaseUsage().Type != base || usage.BaseUsage().Typmod != 2 {
 		t.Fatal("logical column usage", usage)
 	}

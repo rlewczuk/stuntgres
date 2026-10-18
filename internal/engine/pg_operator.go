@@ -12,10 +12,10 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.columns) != 15 {
+	if len(source.Columns) != 15 {
 		return nil, fmt.Errorf("stuntgres: invalid operator source shape")
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		id := sqltype.Oid
 		switch i {
 		case 1:
@@ -58,23 +58,23 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 			var value sqltype.Value
 			var err error
 			if j >= 12 {
-				value, err = sqltype.RegprocValue(source.columns[j].Usage.Type, oid)
+				value, err = sqltype.RegprocValue(source.Columns[j].Usage.Type, oid)
 			} else {
-				value, err = sqltype.OIDValue(source.columns[j].Usage.Type, oid)
+				value, err = sqltype.OIDValue(source.Columns[j].Usage.Type, oid)
 			}
 			if err != nil {
 				return nil, err
 			}
 			row[j] = value
 		}
-		row[1] = sqltype.String(source.columns[1].Usage.Type, identity.name)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, identity.name)
 		kind := "b"
 		if identity.left == 0 {
 			kind = "l"
 		}
-		row[4] = sqltype.String(source.columns[4].Usage.Type, kind)
-		row[5] = sqltype.Boolean(source.columns[5].Usage.Type, identity.merge)
-		row[6] = sqltype.Boolean(source.columns[6].Usage.Type, identity.hash)
+		row[4] = sqltype.String(source.Columns[4].Usage.Type, kind)
+		row[5] = sqltype.Boolean(source.Columns[5].Usage.Type, identity.merge)
+		row[6] = sqltype.Boolean(source.Columns[6].Usage.Type, identity.hash)
 		rows[i] = row
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

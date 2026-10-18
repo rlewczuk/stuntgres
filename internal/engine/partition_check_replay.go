@@ -37,7 +37,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil {
+	if d.RelationKind == tableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil {
 		op.restorePartitionCheck = d
 	}
 	return nil
@@ -68,5 +68,5 @@ func partitionConstraintReplayImport(e *Engine, op *Operation, auth Authorizatio
 }
 
 func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *relationDescriptor) bool {
-	return op != nil && op.restorePartitionCheck == d && d != nil && d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil && auth.catalog.Get(d.address) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return op != nil && op.restorePartitionCheck == d && d != nil && d.RelationKind == tableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.catalog.Get(d.address) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

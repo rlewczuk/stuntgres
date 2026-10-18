@@ -11,10 +11,10 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	e := source.restoreStage()
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
-	child.relationKind = tableRelation
-	child.membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.partition.children = []ids.ObjectAddress{child.address}
-	parent.partition.defaultChild = child.address
+	child.RelationKind = tableRelation
+	child.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
+	parent.Partition.children = []ids.ObjectAddress{child.address}
+	parent.Partition.defaultChild = child.address
 	partitionAttachUnitInstall(t, e, parent, child)
 	child = e.CatalogRead().MustRelation(child.address)
 	op, done := roleOperation(t, e, "postgres")
@@ -56,7 +56,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 		t.Fatal("valid CHECK granted")
 	}
 	virtual := *child
-	virtual.partition = parent.partition
+	virtual.Partition = parent.Partition
 	op.restorePartitionCheck = &virtual
 	if partitionCheckReplayAllowed(op, auth, raw, &virtual) {
 		t.Fatal("virtual CHECK granted")

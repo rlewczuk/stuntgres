@@ -60,11 +60,11 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition := *f.index.sqlIndex
+	definition := *f.index.SQLIndex
 	definition.predicate = predicate
 	index := *f.index
 	index.revision++
-	index.sqlIndex = &definition
+	index.SQLIndex = &definition
 	next := cloneCatalog(capture.state)
 	next.setDescriptor(index.address, &index)
 	candidate := f.e.catalog.read(next)
@@ -110,10 +110,10 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	}
 	// Decisive FALSE excludes every row; structural consumers must still
 	// recover the original attribute reference even after simplification.
-	definition := *f.index.sqlIndex
+	definition := *f.index.SQLIndex
 	definition.predicate = predicate
 	index := *f.index
-	index.sqlIndex = &definition
+	index.SQLIndex = &definition
 	next := cloneCatalog(capture.state)
 	next.setDescriptor(index.address, &index)
 	candidate := f.e.catalog.read(next)

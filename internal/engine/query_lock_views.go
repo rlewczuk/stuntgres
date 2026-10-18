@@ -92,7 +92,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	}
 	var visit func(*relationDescriptor, queryRowMark, lock.Mode) (lock.Mode, error)
 	visit = func(d *relationDescriptor, inherited queryRowMark, diagnostic lock.Mode) (lock.Mode, error) {
-		if d.relationKind != viewRelation {
+		if d.RelationKind != viewRelation {
 			if inherited.mode == 0 {
 				return 0, nil
 			}
@@ -131,7 +131,7 @@ func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 	seen := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(d *relationDescriptor) bool {
-		if d.relationKind != viewRelation || seen[d.address] {
+		if d.RelationKind != viewRelation || seen[d.address] {
 			return false
 		}
 		seen[d.address] = true
@@ -283,7 +283,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	scope.visibilityDemand = scope.visibilityDemand || visibilityDemand
 	var visit func(*relationDescriptor, queryRowMark, bool) error
 	visit = func(d *relationDescriptor, inherited queryRowMark, referenceMarked bool) error {
-		if d.relationKind == viewRelation {
+		if d.RelationKind == viewRelation {
 			if queryHasSetOutput(viewOf(d).query.Root) {
 				referenceMarked = false
 			}
@@ -306,19 +306,19 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		if isPGSequencesRelation(d) {
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
-		if (referenceMarked || inherited.mode != 0) && d.relationKind == materializedViewRelation {
+		if (referenceMarked || inherited.mode != 0) && d.RelationKind == materializedViewRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.name))
 		}
 		// PostgreSQL validates reference rowmark kinds even for an unselected
 		// sequence sibling. This does not confer UPDATE ACLs or tuple grants.
-		if referenceMarked && d.relationKind == sequenceRelation {
+		if referenceMarked && d.RelationKind == sequenceRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.name))
 		}
 		if inherited.mode == 0 {
 			return nil
 		}
 		marked = true
-		if d.relationKind == catalogRelation {
+		if d.RelationKind == catalogRelation {
 			return sqlError("0A000", "row locking is not supported for virtual catalog relations")
 		}
 		return nil
@@ -342,13 +342,13 @@ func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited qu
 }
 
 func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited queryRowMark, invoker authorization.PrincipalRef) error {
-	if d.relationKind != viewRelation {
+	if d.RelationKind != viewRelation {
 		return nil
 	}
 	if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(inherited)); err != nil {
 		return err
 	}
-	principal := d.owner
+	principal := d.Owner
 	if viewOf(d).invoker {
 		principal = invoker
 	}
@@ -362,7 +362,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 		indices := make([]int, 0, len(leaf.reads))
 		for _, attribute := range leaf.reads {
 			found := false
-			for slot, live := range child.attributes {
+			for slot, live := range child.Attributes {
 				if attribute == live {
 					indices = append(indices, slot)
 					found = true

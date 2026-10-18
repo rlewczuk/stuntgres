@@ -8,8 +8,8 @@ import (
 // Mutation target columns retain independent physical write/read authority.
 // Exposed source columns follow them; source-internal ON expressions stay local.
 func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
-	columns := make([]queryColumn, len(b.relation.columns))
-	for i, descriptor := range b.relation.columns {
+	columns := make([]queryColumn, len(b.relation.Columns))
+	for i, descriptor := range b.relation.Columns {
 		columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
 	name := b.targetName
@@ -17,7 +17,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 		name = b.targetAlias
 	}
 	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.catalog.Get(b.relation.namespace).Name(), lateralForbidden: true}
-	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.relation.columns}
+	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.relation.Columns}
 }
 
 // Namespace lookup and role privileges precede physical storage admission.
@@ -26,7 +26,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if relation == nil {
 		return ids.ErrCatalogReplaced
 	}
-	if !relation.relationKind.stored() {
+	if !relation.RelationKind.stored() {
 		return nil
 	}
 	namespace, ok := catalog.Namespace(relation.namespace)
@@ -56,7 +56,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if relation.relationKind != viewRelation {
+		if relation.RelationKind != viewRelation {
 			return nil
 		}
 		for _, prior := range active {
@@ -113,7 +113,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if relation.relationKind == viewRelation {
+		if relation.RelationKind == viewRelation {
 			if visited[ref] {
 				return nil
 			}
@@ -134,25 +134,25 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				}
 			}
 		}
-		if relation.partition != nil && !only {
-			for _, address := range relation.partition.children {
+		if relation.Partition != nil && !only {
+			for _, address := range relation.Partition.children {
 				child, ok := catalog.Relation(address)
 				if !ok {
 					return ids.ErrCatalogReplaced
 				}
-				if err := collect(ref.Domain().Ref(ref.Epoch, address), child.partition == nil); err != nil {
+				if err := collect(ref.Domain().Ref(ref.Epoch, address), child.Partition == nil); err != nil {
 					return err
 				}
 			}
 		}
-		if relation.relationKind == tableRelation && !only {
+		if relation.RelationKind == tableRelation && !only {
 			return inheritanceQueryClosure(catalog, relation, token, func(physical *relationDescriptor) error {
 				child := ref
 				child.Address = physical.address
 				return collect(child, true)
 			})
 		}
-		if relation.relationKind.stored() {
+		if relation.RelationKind.stored() {
 			if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
 				return err
 			}

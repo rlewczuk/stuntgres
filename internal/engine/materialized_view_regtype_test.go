@@ -26,7 +26,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil || text != "'integer'::regtype" {
 		t.Fatalf("builtin symbolic deparse: %q %v", text, err)
 	}
-	value, err := sqltype.RegtypeValue(regtype, uint32(original.rowType))
+	value, err := sqltype.RegtypeValue(regtype, uint32(original.RowType))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,12 +39,12 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	}
 	_, destinationDone, destinationStage, reminted := materializedUnitStage(t, destination)
 	defer destinationDone()
-	if original.rowType == reminted.rowType {
+	if original.RowType == reminted.RowType {
 		t.Fatal("fixture did not remint row-type identity")
 	}
 	value, err = remapCatalogAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
-		if address == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.rowType)}) {
-			return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(reminted.rowType)}
+		if address == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.RowType)}) {
+			return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(reminted.RowType)}
 		}
 		return address
 	})

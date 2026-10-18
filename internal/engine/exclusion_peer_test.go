@@ -91,7 +91,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					at := a.transactions.ticket
 					projection := e.exclusionPending[at]
 					parent := roleTableRef(t, e, "public.t")
-					index := e.catalog.state.MustRelation(parent.Address).exclusionConstraints[0].Index
+					index := e.catalog.state.MustRelation(parent.Address).ExclusionConstraints[0].Index
 					if projection == nil || len(projection.ended[parent.Address]) != 1 {
 						t.Fatal("provisional deletion lacks its actual ended version")
 					}

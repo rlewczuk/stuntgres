@@ -14,15 +14,15 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	e := source.restoreStage()
 	parent := partitionAttachUnitRoot(t, e, "using_replay_parent", 46800)
 	child := inheritanceUnitRelation(e, "using_replay_child", 46801, "k")
-	child.relationKind = tableRelation
-	child.membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.partition.children = []ids.ObjectAddress{child.address}
-	parent.partition.defaultChild = child.address
-	class, _ := sqltype.DefaultIndexClass(child.columns[0].Usage.Type)
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46802}, namespace: child.namespace, name: "using_replay_local", revision: 1, owner: child.owner, relationKind: indexRelation, columns: slices.Clone(child.columns), attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: child.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}}
-	index.columns[0].OriginTable = uint32(index.address.ObjectID)
-	index.columns[0].OriginAttribute = 1
-	child.hasIndexes = true
+	child.RelationKind = tableRelation
+	child.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
+	parent.Partition.children = []ids.ObjectAddress{child.address}
+	parent.Partition.defaultChild = child.address
+	class, _ := sqltype.DefaultIndexClass(child.Columns[0].Usage.Type)
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46802}, namespace: child.namespace, name: "using_replay_local", revision: 1, Owner: child.Owner, RelationKind: indexRelation, Columns: slices.Clone(child.Columns), Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{parent: child.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}}
+	index.Columns[0].OriginTable = uint32(index.address.ObjectID)
+	index.Columns[0].OriginAttribute = 1
+	child.HasIndexes = true
 	partitionAttachUnitInstall(t, e, parent, child, index)
 	child = e.catalog.state.MustRelation(child.address)
 	index = e.catalog.state.MustRelation(index.address)

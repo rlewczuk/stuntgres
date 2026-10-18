@@ -79,9 +79,9 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		ref := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *original
-		d.address, d.name, d.owner, d.relationKind = ref.Address, name, owner, viewRelation
-		d.columns, d.attributes, d.columnACL = query.Root.Schema(), []int32{1}, nil
-		d.view = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
+		d.address, d.name, d.Owner, d.RelationKind = ref.Address, name, owner, viewRelation
+		d.Columns, d.Attributes, d.ColumnACL = query.Root.Schema(), []int32{1}, nil
+		d.View = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
 		e.catalog.state.setDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
@@ -110,8 +110,8 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		entries := []authorization.ACLEntry{
-			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: mask},
-			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: mask},
+			{Grantor: original.Owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: mask},
+			{Grantor: original.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: mask},
 		}
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
 			t.Fatal(err)
@@ -181,7 +181,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		ref := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *e.catalog.state.MustRelation(base.Address)
-		d.address, d.name, d.view, d.relationKind = ref.Address, name, viewPayloadOf(definition), kind
+		d.address, d.name, d.View, d.RelationKind = ref.Address, name, viewPayloadOf(definition), kind
 		e.catalog.state.setDescriptor(ref.Address, &d)
 		return ref
 	}
@@ -252,7 +252,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	definition := *viewOf(&d)
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	definition.sources[1].ref.Epoch++
-	d.view = &definition
+	d.View = &definition
 	e.catalog.state.setDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &transactionOwner{}}
 	e.mu.Lock()

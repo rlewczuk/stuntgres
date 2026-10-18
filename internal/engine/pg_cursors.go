@@ -21,16 +21,16 @@ func capturePGCursors(ctx context.Context, ref ids.ObjectRef, d *relationDescrip
 		}
 		// Immutable builtin timestamp data outlives catalog replacement. Give
 		// this observation its current descriptor without rebinding the cursor.
-		created, err := cursor.created.Retag(d.columns[5].Usage.Type)
+		created, err := cursor.created.Retag(d.Columns[5].Usage.Type)
 		if err != nil {
 			return nil, err
 		}
 		rows = append(rows, []sqltype.Value{
-			sqltype.String(d.columns[0].Usage.Type, name),
-			sqltype.String(d.columns[1].Usage.Type, cursor.statement),
-			sqltype.Boolean(d.columns[2].Usage.Type, cursor.hold),
-			sqltype.Boolean(d.columns[3].Usage.Type, false),
-			sqltype.Boolean(d.columns[4].Usage.Type, cursor.scroll),
+			sqltype.String(d.Columns[0].Usage.Type, name),
+			sqltype.String(d.Columns[1].Usage.Type, cursor.statement),
+			sqltype.Boolean(d.Columns[2].Usage.Type, cursor.hold),
+			sqltype.Boolean(d.Columns[3].Usage.Type, false),
+			sqltype.Boolean(d.Columns[4].Usage.Type, cursor.scroll),
 			created,
 		})
 	}

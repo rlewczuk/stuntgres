@@ -64,7 +64,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 			if !ok {
 				return 0, fmt.Errorf("stuntgres: missing domain use rowtype owner")
 			}
-			for _, column := range relation.columns {
+			for _, column := range relation.Columns {
 				found, err = contains(column.Usage.Type.ID())
 				if err != nil || found != 0 {
 					break
@@ -107,11 +107,11 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 	})
 	var blocker error
 	for _, relation := range relations {
-		physical := relation.relationKind == tableRelation || relation.relationKind == materializedViewRelation
-		stored := physical || relation.relationKind == partitionedRelation
+		physical := relation.RelationKind == tableRelation || relation.RelationKind == materializedViewRelation
+		stored := physical || relation.RelationKind == partitionedRelation
 		var columns []int
 		recorded := false
-		for i, column := range relation.columns {
+		for i, column := range relation.Columns {
 			found := cache[column.Usage.Type.ID()]
 			if found == 0 {
 				continue
@@ -168,8 +168,8 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 }
 
 func domainHistoricalViolation(view CatalogRead, relation *relationDescriptor, column int) error {
-	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.columns[column].Name, relation.name)).(*sqlstate.Error)
+	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.name)).(*sqlstate.Error)
 	diagnostic.Schema = view.Get(relation.namespace).Name()
-	diagnostic.Table, diagnostic.Column = relation.name, relation.columns[column].Name
+	diagnostic.Table, diagnostic.Column = relation.name, relation.Columns[column].Name
 	return diagnostic
 }

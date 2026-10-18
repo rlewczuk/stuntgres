@@ -33,8 +33,8 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 			continue
 		}
 		changed := false
-		for i, c := range consumer.columns {
-			changed = changed || c.Usage.Type != previous.columns[i].Usage.Type
+		for i, c := range consumer.Columns {
+			changed = changed || c.Usage.Type != previous.Columns[i].Usage.Type
 		}
 		if !changed {
 			continue

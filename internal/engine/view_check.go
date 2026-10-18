@@ -11,7 +11,7 @@ const (
 )
 
 func validateViewCheckDeclaration(definition *viewDefinition) error {
-	project, source, _, reason := viewWriteShape(&relationDescriptor{view: viewPayloadOf(definition)})
+	project, source, _, reason := viewWriteShape(&relationDescriptor{View: viewPayloadOf(definition)})
 	if reason == "" {
 		reason = "Views that have no updatable columns are not automatically updatable."
 		for _, expr := range project.expressions {

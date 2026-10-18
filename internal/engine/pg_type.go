@@ -25,7 +25,7 @@ func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
 	}
 	if d.owningRelation != (ids.ObjectAddress{}) {
 		r, ok := catalog.Relation(d.owningRelation)
-		return ok && r.rowType == d.typ.ID()
+		return ok && r.RowType == d.typ.ID()
 	}
 	_, ok := d.typ.PGTypeMetadata()
 	return ok
@@ -57,7 +57,7 @@ func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata
 	}
 	if d.owningRelation != (ids.ObjectAddress{}) {
 		relation, ok := catalog.Relation(d.owningRelation)
-		if !ok || relation.rowType != d.typ.ID() {
+		if !ok || relation.RowType != d.typ.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign row type authority")
 		}
 		return sqltype.CompositePGTypeMetadata(), nil
@@ -92,15 +92,15 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.relationKind != catalogRelation || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalogRelation || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
-	if len(source.columns) != len(pgTypeColumnIDs) {
+	if len(source.Columns) != len(pgTypeColumnIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid type source shape")
 	}
 	for i, id := range pgTypeColumnIDs {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign type source type")
 		}
 	}
@@ -150,7 +150,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 		}
 		numbers := [32]uint32{0: uint32(d.typ.ID()), 2: uint32(d.Namespace().ObjectID), 3: uint32(d.owner.ID()), 11: relation, 12: f.Subscript, 13: uint32(f.Element), 14: uint32(d.array), 15: f.Input, 16: f.Output, 17: f.Receive, 18: f.Send, 19: f.ModIn, 20: f.ModOut, 21: f.Analyze, 25: uint32(f.Base), 28: f.Collation}
 		row := values[next*32 : (next+1)*32 : (next+1)*32]
-		for i, column := range source.columns {
+		for i, column := range source.Columns {
 			switch pgTypeColumnIDs[i] {
 			case sqltype.Oid:
 				row[i], err = sqltype.OIDValue(column.Usage.Type, numbers[i])

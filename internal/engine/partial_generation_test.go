@@ -22,7 +22,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			oldCatalog := f.e.catalog.state
 			oldRoot := f.e.indexRoots[f.index.address]
 			oldRows := append([]rowVersion(nil), f.store.versions...)
-			oldPredicate := f.index.sqlIndex.predicate
+			oldPredicate := f.index.SQLIndex.predicate
 			oldUsage := f.predicate.ResultUsage()
 			for i := range oldRows {
 				oldRows[i].values = append([]sqltype.Value(nil), oldRows[i].values...)
@@ -50,10 +50,10 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if name == "execution_only" {
 				predicate.definition = currentColumn
 			}
-			definition := *f.index.sqlIndex
+			definition := *f.index.SQLIndex
 			definition.predicate = &predicate
 			index := *f.index
-			index.sqlIndex = &definition
+			index.SQLIndex = &definition
 			beforeDefinition, beforeExecution := predicate.definition, predicate.execution
 			beforeDependencies := append([]ids.ObjectRef(nil), predicate.dependencies...)
 			beforeAttributes := append([]int32(nil), predicate.attributes...)
@@ -81,7 +81,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Fatal(err)
 			}
 			parent := next.MustRelation(f.parent.address)
-			if parent.columns[1].Usage != newUsage || stores[f.parent.address] == f.store {
+			if parent.Columns[1].Usage != newUsage || stores[f.parent.address] == f.store {
 				t.Fatal("scalar reownership did not detach and retype the parent rows")
 			}
 			// A nonempty relation mapping and newer epoch must not change
@@ -91,11 +91,11 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Fatal(err)
 			}
 			reowned := next.MustRelation(index.address)
-			p := reowned.sqlIndex.predicate
+			p := reowned.SQLIndex.predicate
 			if reowned == &index || p == &predicate {
 				t.Error("changed predicate descriptor was reused")
 			}
-			if !reflect.DeepEqual(p.dependencies, beforeDependencies) || !reflect.DeepEqual(p.attributes, beforeAttributes) || reowned.sqlIndex.parent != f.parent.address {
+			if !reflect.DeepEqual(p.dependencies, beforeDependencies) || !reflect.DeepEqual(p.attributes, beforeAttributes) || reowned.SQLIndex.parent != f.parent.address {
 				t.Fatal("types-only pass changed dependencies, attributes or parent identity")
 			}
 			for _, node := range []expr.Expr{p.definition, p.execution} {
@@ -115,18 +115,18 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			var preparation indexExecutionPreparation
 			for i, row := range stores[f.parent.address].versions {
-				matched, err := preparation.predicateMatches(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.sqlIndex, row.values, nil, nil)
+				matched, err := preparation.predicateMatches(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.SQLIndex, row.values, nil, nil)
 				if err != nil || matched != (i == 0 || i == 3 || i == 4) {
 					t.Error("reowned predicate changed TRUE/FALSE/NULL membership", i, matched, err)
 				}
 			}
-			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.sqlIndex, stores[f.parent.address], nil)
+			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.SQLIndex, stores[f.parent.address], nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 			partialWantMembership(t, oldRoot, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.address) != f.parent || oldCatalog.Get(f.index.address) != f.index || f.e.indexRoots[f.index.address] != oldRoot || f.index.sqlIndex.predicate != oldPredicate || predicate.definition != beforeDefinition || predicate.execution != beforeExecution || !reflect.DeepEqual(predicate.dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
+			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.address) != f.parent || oldCatalog.Get(f.index.address) != f.index || f.e.indexRoots[f.index.address] != oldRoot || f.index.SQLIndex.predicate != oldPredicate || predicate.definition != beforeDefinition || predicate.execution != beforeExecution || !reflect.DeepEqual(predicate.dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
 			for i, row := range view.data.Load().committed[f.parent.address] {
@@ -156,7 +156,7 @@ func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 			t.Fatal("unchanged descriptor was not reused", address)
 		}
 	}
-	if next.MustRelation(f.index.address).sqlIndex.predicate != f.index.sqlIndex.predicate {
+	if next.MustRelation(f.index.address).SQLIndex.predicate != f.index.SQLIndex.predicate {
 		t.Fatal("unchanged predicate was not reused")
 	}
 }

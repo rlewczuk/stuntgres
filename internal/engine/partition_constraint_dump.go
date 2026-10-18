@@ -31,7 +31,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 	}
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if ok && hierarchyRelation(table) && (len(table.uniqueConstraints) != 0 || len(table.exclusionConstraints) != 0) {
+		if ok && hierarchyRelation(table) && (len(table.UniqueConstraints) != 0 || len(table.ExclusionConstraints) != 0) {
 			tables = append(tables, table)
 		}
 	}
@@ -48,11 +48,11 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 		// PARTITION OF binds local declarations before cloning inherited keys,
 		// even when the captured table added its locals after inheritance. Name
 		// allocation must not depend on that mutable slice order (or on OIDs).
-		indexes := make([]*relationDescriptor, 0, len(table.uniqueConstraints)+len(table.exclusionConstraints))
-		for _, c := range table.uniqueConstraints {
+		indexes := make([]*relationDescriptor, 0, len(table.UniqueConstraints)+len(table.ExclusionConstraints))
+		for _, c := range table.UniqueConstraints {
 			indexes = append(indexes, view.MustRelation(c.Index))
 		}
-		for _, c := range table.exclusionConstraints {
+		for _, c := range table.ExclusionConstraints {
 			indexes = append(indexes, view.MustRelation(c.Index))
 		}
 		slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
@@ -70,26 +70,26 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			}
 		}
 		next := *table
-		next.uniqueConstraints = slices.Clone(table.uniqueConstraints)
-		for i := range next.uniqueConstraints {
-			c := &next.uniqueConstraints[i]
+		next.UniqueConstraints = slices.Clone(table.UniqueConstraints)
+		for i := range next.UniqueConstraints {
+			c := &next.UniqueConstraints[i]
 			c.Name = replay.temporary[c.Index]
 			old := view.MustRelation(c.Index)
-			index, definition := *old, *old.sqlIndex
+			index, definition := *old, *old.SQLIndex
 			index.name = c.Name
 			definition.constraint = uniqueBacking(c)
-			index.sqlIndex = &definition
+			index.SQLIndex = &definition
 			state.setDescriptor(index.address, &index)
 		}
-		next.exclusionConstraints = slices.Clone(table.exclusionConstraints)
-		for i := range next.exclusionConstraints {
-			c := &next.exclusionConstraints[i]
+		next.ExclusionConstraints = slices.Clone(table.ExclusionConstraints)
+		for i := range next.ExclusionConstraints {
+			c := &next.ExclusionConstraints[i]
 			c.Name = replay.temporary[c.Index]
 			old := view.MustRelation(c.Index)
-			index, definition := *old, *old.sqlIndex
+			index, definition := *old, *old.SQLIndex
 			index.name = c.Name
 			definition.constraint = exclusionBacking(c)
-			index.sqlIndex = &definition
+			index.SQLIndex = &definition
 			state.setDescriptor(index.address, &index)
 		}
 		state.setDescriptor(next.address, &next)
@@ -105,18 +105,18 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 		r.occupied[table.namespace] = used
 	}
 	used[table.name] = true
-	for _, c := range table.notNullConstraints {
+	for _, c := range table.NotNullConstraints {
 		used[c.Name] = true
 	}
-	for _, c := range table.checkConstraints {
+	for _, c := range table.CheckConstraints {
 		used[c.Name] = true
 	}
 	for _, index := range partitionIndexDeclarationOrder(view, table) {
-		if index.sqlIndex.constraint != nil && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
+		if index.SQLIndex.constraint != nil && index.SQLIndex.partitionParent == (ids.ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
 			used[index.name] = true
 		}
 	}
-	if table.membership == nil || partitionDumpNeedsAttach(view, table) {
+	if table.Membership == nil || partitionDumpNeedsAttach(view, table) {
 		return "", nil
 	}
 	return r.membershipRenames(view, table, dumpEventKey{oid: table.address.ObjectID}), nil
@@ -133,7 +133,7 @@ func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *r
 	var reserve func(*relationDescriptor, *relationDescriptor)
 	reserve = func(child, parentIndex *relationDescriptor) {
 		index := partitionDumpIndexBacking(r.original, parentIndex.address, child.address)
-		if index == nil || index.sqlIndex.constraint == nil {
+		if index == nil || index.SQLIndex.constraint == nil {
 			return
 		}
 		if root := partitionReplayVirtualUniqueRoot(r.original, index); root != nil && !partitionReplayOnlyExclusion(root) {
@@ -148,28 +148,28 @@ func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *r
 			r.occupied[index.namespace] = used
 		}
 		suffix, addition := "key", ""
-		if index.sqlIndex.isExclusion() {
+		if index.SQLIndex.isExclusion() {
 			suffix = "excl"
 		}
-		if index.sqlIndex.constraint.Primary {
+		if index.SQLIndex.constraint.Primary {
 			suffix = "pkey"
 		} else {
-			labels := make([]string, len(index.sqlIndex.keys))
+			labels := make([]string, len(index.SQLIndex.keys))
 			for i := range labels {
-				labels[i] = index.columns[i].Name
+				labels[i] = index.Columns[i].Name
 			}
 			addition = strings.Join(labels, "_")
 		}
 		name := generatedConstraintName(child.name, addition, suffix, used)
 		used[name] = true
 		renames = append(renames, rename{index, name})
-		if event.phase == dumpTableAttachment && child.partition != nil {
-			for _, address := range child.partition.children {
+		if event.phase == dumpTableAttachment && child.Partition != nil {
+			for _, address := range child.Partition.children {
 				reserve(r.original.MustRelation(address), index)
 			}
 		}
 	}
-	parent := r.original.MustRelation(table.membership.parent)
+	parent := r.original.MustRelation(table.Membership.parent)
 	for _, index := range partitionIndexDeclarationOrder(r.original, parent) {
 		reserve(table, index)
 	}
@@ -209,6 +209,6 @@ func (r *partitionConstraintReplay) finalRenameSQL(index *relationDescriptor) st
 }
 
 func partitionIndexDumpAttachmentSQL(view CatalogRead, index *relationDescriptor) string {
-	parent := view.MustRelation(index.sqlIndex.partitionParent)
+	parent := view.MustRelation(index.SQLIndex.partitionParent)
 	return "ALTER INDEX " + quoteIdentifier(view.Get(parent.namespace).Name()) + "." + quoteIdentifier(parent.name) + " ATTACH PARTITION " + quoteIdentifier(view.Get(index.namespace).Name()) + "." + quoteIdentifier(index.name) + ";\n"
 }

@@ -23,7 +23,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
 	}
-	switch d.relationKind {
+	switch d.RelationKind {
 	case foreignRelation:
 		source, err := e.captureForeignSourceLocked(scope, ref, d, invoker, outputUses, mark)
 		e.mu.Unlock()
@@ -78,7 +78,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return source, err
 		}
-		if d.virtualView {
+		if d.VirtualView {
 			e.mu.Unlock()
 			return nil, fmt.Errorf("stuntgres: unknown virtual catalog view")
 		}
@@ -194,7 +194,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() || viewOf(d) != definition {
 		return ids.ErrCatalogReplaced
 	}
-	principal := d.owner
+	principal := d.Owner
 	if definition.invoker {
 		principal = invoker
 	}
@@ -210,7 +210,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 		indices := make([]int, 0, len(leaf.reads))
 		for _, attribute := range leaf.reads {
 			found := false
-			for slot, live := range source.attributes {
+			for slot, live := range source.Attributes {
 				if attribute == live {
 					indices = append(indices, slot)
 					found = true

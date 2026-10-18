@@ -28,17 +28,17 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	base := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
+	base := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, Owner: owner, RelationKind: tableRelation, Attributes: []int32{7, 11, 19}, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, AttributeHighWater: 19}
 	baseRef := e.catalog.domain.Ref(e.catalog.state.epoch, base.address)
 	column := func(slot int) expr.Expr {
 		ref := baseRef
-		ref.Address.SubID = base.attributes[slot]
+		ref.Address.SubID = base.Attributes[slot]
 		return columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 	}
-	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, owner: owner, relationKind: viewRelation, attributes: []int32{1, 2}, attributeHighWater: 2, columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"x": 0, "key": 1}}
+	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, Owner: owner, RelationKind: viewRelation, Attributes: []int32{1, 2}, AttributeHighWater: 2, Columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
-	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
-	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
+	project := &projectNode{querySchema: querySchema(view.Columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
+	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
 	viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
 	e.catalog.state.setDescriptor(base.address, base)
 	e.catalog.state.setDescriptor(view.address, view)
@@ -108,9 +108,9 @@ func TestViewWriteMapping(t *testing.T) {
 	}
 	// Creation slots survive current dense compaction and column renames.
 	compact := *f.base
-	compact.attributes = []int32{11, 19}
-	compact.columns = []ColumnDescriptor{f.base.columns[1], f.base.columns[2]}
-	compact.columns[0].Name = "renamed"
+	compact.Attributes = []int32{11, 19}
+	compact.Columns = []ColumnDescriptor{f.base.Columns[1], f.base.Columns[2]}
+	compact.Columns[0].Name = "renamed"
 	slot, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 1)
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
@@ -126,7 +126,7 @@ func TestViewWriteMapping(t *testing.T) {
 	syntax.Distinct = &parser.DistinctClause{}
 	syntax.GroupBy = &parser.GroupClause{}
 	definition.syntax = &syntax
-	restricted.view = &definition
+	restricted.View = &definition
 	_, _, _, reason := viewWriteShape(&restricted)
 	if reason != "Views containing DISTINCT are not automatically updatable." {
 		t.Fatal(reason)
@@ -158,7 +158,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
-	f.base.defaults = map[int32]columnDefault{19: {expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: constant}}}
+	f.base.Defaults = map[int32]columnDefault{19: {expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: constant}}}
 	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]expr.Expr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	f.e.catalog.state.setDescriptor(indexAddress, &relationDescriptor{
 		address:  indexAddress,
-		sqlIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
+		SQLIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
 	})
 	conflict := &boundInsertConflict{}
 	evaluation := EvalContext{Context: context.Background()}

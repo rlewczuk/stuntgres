@@ -247,11 +247,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		r.record(n.owner)
 		return "tableoid", nil
 	case columnExpression:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.Columns) || r.owner.Attributes[n.slot] != n.origin.Address.SubID || u != r.owner.Columns[n.slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
 		}
 		r.record(n.origin)
-		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
+		return quoteIdentifier(r.owner.Columns[n.slot].Name), nil
 	case functions.DatetimeSleep:
 		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
@@ -445,7 +445,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
 			sequence, ok := target.(*relationDescriptor)
-			if !ok || sequence.relationKind != sequenceRelation {
+			if !ok || sequence.RelationKind != sequenceRelation {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
 			}
 			r.record(n.ref)

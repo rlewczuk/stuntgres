@@ -30,7 +30,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 					old := e.catalog.state.MustRelation(ref.Address)
 					next := *old
 					next.revision++
-					next.comment = "retained"
+					next.Comment = "retained"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					defer e.DiscardCatalogStage(stage)
 					if err := stage.Replace(&next); err != nil {
@@ -65,7 +65,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 					if kind == "revision" {
 						lockAwait(t, done, nil)
 						d := e.catalog.state.MustRelation(ref.Address)
-						if d.comment != "retained" {
+						if d.Comment != "retained" {
 							t.Fatal("lost grant-time revision")
 						}
 						run(t, e, "INSERT INTO t DEFAULT VALUES")
@@ -115,7 +115,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 				case "descriptor":
 					next := *old
 					next.revision++
-					next.comment = "changed"
+					next.Comment = "changed"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					defer e.DiscardCatalogStage(stage)
 					if err := stage.Replace(&next); err != nil {
@@ -142,7 +142,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 				t.Fatal("stale DROP published")
 			}
 			current := e.catalog.state.MustRelation(ref.Address)
-			if current.defaults[current.attributes[0]].expression != old.defaults[old.attributes[0]].expression || e.storage[ref.Address] != storage {
+			if current.Defaults[current.Attributes[0]].expression != old.Defaults[old.Attributes[0]].expression || e.storage[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}
 			lockEmpty(t, e)

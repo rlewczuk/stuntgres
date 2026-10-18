@@ -18,7 +18,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	run(t, e, "CREATE TYPE private_composite.source_type AS (a INT)")
 	sourceRef := roleTableRef(t, e, "source_type")
 	source := e.CatalogRead().MustRelation(sourceRef.Address)
-	typeRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
+	typeRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 	sourceType := e.CatalogRead().MustType(typeRef.Address)
 	if sourceType.owningRelation != source.address {
 		t.Fatal("composite fixture lacks reciprocal type authority")
@@ -83,10 +83,10 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal("type USAGE did not independently authorize source", err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if destination.owner != reader.Ref || destination.acl.Explicit || len(destination.columnACL) != 0 || destination.relationKind != tableRelation || destination.address == source.address || destination.rowType == source.rowType {
+	if destination.Owner != reader.Ref || destination.ACL.Explicit || len(destination.ColumnACL) != 0 || destination.RelationKind != tableRelation || destination.address == source.address || destination.RowType == source.RowType {
 		t.Fatal("composite authority/identity copied", destination)
 	}
-	if len(destination.defaults) != 0 || len(destination.generations) != 0 || len(destination.identities) != 0 || len(destination.checkConstraints) != 0 || len(destination.uniqueConstraints) != 0 {
+	if len(destination.Defaults) != 0 || len(destination.Generations) != 0 || len(destination.Identities) != 0 || len(destination.CheckConstraints) != 0 || len(destination.UniqueConstraints) != 0 {
 		t.Fatal("inapplicable composite providers invented")
 	}
 	capturedRelation, capturedType := false, false
@@ -99,7 +99,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if !capturedRelation || !capturedType {
 		t.Fatal("reciprocal composite source captures missing", capturedRelation, capturedType)
 	}
-	for _, column := range destination.columns {
+	for _, column := range destination.Columns {
 		if !column.Nullable || !column.NullabilityKnown {
 			t.Fatal("composite nullability changed", column)
 		}

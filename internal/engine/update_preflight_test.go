@@ -184,18 +184,18 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					replacement.revision++
 					switch mode {
 					case "attribute":
-						replacement.attributes = append([]int32(nil), replacement.attributes...)
-						replacement.attributes[0]++
+						replacement.Attributes = append([]int32(nil), replacement.Attributes...)
+						replacement.Attributes[0]++
 					case "type":
-						replacement.columns = append([]ColumnDescriptor(nil), replacement.columns...)
-						replacement.columns[0].Usage = int8Usage
+						replacement.Columns = append([]ColumnDescriptor(nil), replacement.Columns...)
+						replacement.Columns[0].Usage = int8Usage
 					case "width":
-						replacement.columns = nil
-						replacement.attributes = nil
+						replacement.Columns = nil
+						replacement.Attributes = nil
 					case "comment":
-						replacement.comment = "compatible metadata revision"
+						replacement.Comment = "compatible metadata revision"
 					case "acl":
-						replacement.acl = authorization.ACLValue{Explicit: true}
+						replacement.ACL = authorization.ACLValue{Explicit: true}
 					}
 					e.catalog.state.setDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.setDescriptor(address, original) }

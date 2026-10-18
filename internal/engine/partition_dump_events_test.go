@@ -16,53 +16,53 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
 	for _, table := range []*relationDescriptor{f.root, f.leaf} {
-		table.columns = append(slices.Clone(table.columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
-		table.attributes = append(slices.Clone(table.attributes), 99)
-		table.attributeHighWater = 99
+		table.Columns = append(slices.Clone(table.Columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
+		table.Attributes = append(slices.Clone(table.Attributes), 99)
+		table.AttributeHighWater = 99
 	}
 	other := *f.leaf
 	other.address.ObjectID = 90001
 	other.name = "unit_other"
-	other.membership = &partitionMembership{parent: f.root.address}
-	f.root.partition.children = []ids.ObjectAddress{other.address, f.leaf.address}
-	f.child.sqlIndex.partitionParent = f.parent.address
-	good, goodDefinition := *f.parent, *f.parent.sqlIndex
+	other.Membership = &partitionMembership{parent: f.root.address}
+	f.root.Partition.children = []ids.ObjectAddress{other.address, f.leaf.address}
+	f.child.SQLIndex.partitionParent = f.parent.address
+	good, goodDefinition := *f.parent, *f.parent.SQLIndex
 	good.address.ObjectID = 90002
 	good.name = "unit_good"
-	good.sqlIndex = &goodDefinition
+	good.SQLIndex = &goodDefinition
 	goodDefinition.valid = true
-	leafGood, leafDefinition := *f.child, *f.child.sqlIndex
+	leafGood, leafDefinition := *f.child, *f.child.SQLIndex
 	leafGood.address.ObjectID = 90003
 	leafGood.name = "unit_leaf_good"
-	leafGood.sqlIndex = &leafDefinition
+	leafGood.SQLIndex = &leafDefinition
 	leafDefinition.partitionParent = good.address
 	otherGood, otherDefinition := leafGood, leafDefinition
 	otherGood.address.ObjectID = 90004
 	otherGood.name = "unit_other_good"
-	otherGood.sqlIndex = &otherDefinition
+	otherGood.SQLIndex = &otherDefinition
 	otherDefinition.parent = other.address
 	for _, d := range []*relationDescriptor{&other, &good, &leafGood, &otherGood} {
 		f.view.state.setDescriptor(d.address, d)
 		f.view.state.bindName(descriptorNameKey(d), d.address)
 	}
 	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).typ
-	f.leaf.checkConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
-	values := make([]sqltype.Value, len(f.leaf.columns))
-	for i, column := range f.leaf.columns {
+	f.leaf.CheckConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
+	values := make([]sqltype.Value, len(f.leaf.Columns))
+	for i, column := range f.leaf.Columns {
 		values[i] = sqltype.Null(column.Usage.Type)
 	}
 	for _, reference := range []*relationDescriptor{f.parent, &good} {
 		t.Run(reference.name, func(t *testing.T) {
 			rowValues := slices.Clone(values)
 			rowValues[len(rowValues)-1] = sqltype.String(regclass, strconv.FormatUint(uint64(reference.address.ObjectID), 10))
-			tables := []dumpRelation{{descriptor: f.root}, {descriptor: &other}, {descriptor: f.leaf, columns: f.leaf.columns, attributes: f.leaf.attributes, versions: []rowVersion{{row: 1, version: 1, values: rowValues}}}}
+			tables := []dumpRelation{{descriptor: f.root}, {descriptor: &other}, {descriptor: f.leaf, columns: f.leaf.Columns, attributes: f.leaf.Attributes, versions: []rowVersion{{row: 1, version: 1, values: rowValues}}}}
 			graph := make(map[dumpEventKey][]dumpEventKey)
 			indices := make(map[ids.OID]int)
 			for _, table := range tables {
 				graph[dumpEventKey{oid: table.descriptor.address.ObjectID}] = nil
 			}
 			for _, index := range []*relationDescriptor{f.parent, f.child, &good, &leafGood, &otherGood} {
-				graph[dumpEventKey{oid: index.address.ObjectID}] = []dumpEventKey{{oid: index.sqlIndex.parent.ObjectID}}
+				graph[dumpEventKey{oid: index.address.ObjectID}] = []dumpEventKey{{oid: index.SQLIndex.parent.ObjectID}}
 				indices[index.address.ObjectID] = len(indices)
 			}
 			declarations, err := viewDumpOrder(context.Background(), graph, nil)
@@ -100,7 +100,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			for _, child := range []*relationDescriptor{f.child, &leafGood, &otherGood} {
 				before(dumpEventKey{oid: child.address.ObjectID, phase: dumpIndexAttachment}, dumpEventKey{oid: f.root.address.ObjectID, phase: dumpTableCompletion})
 			}
-			if f.parent.sqlIndex.valid || f.child.sqlIndex.partitionParent != f.parent.address || !good.sqlIndex.valid || leafGood.sqlIndex.partitionParent != good.address || otherGood.sqlIndex.partitionParent != good.address {
+			if f.parent.SQLIndex.valid || f.child.SQLIndex.partitionParent != f.parent.address || !good.SQLIndex.valid || leafGood.SQLIndex.partitionParent != good.address || otherGood.SQLIndex.partitionParent != good.address {
 				t.Fatal("phase construction changed the captured incomplete or valid index tree")
 			}
 		})

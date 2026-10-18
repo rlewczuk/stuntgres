@@ -42,7 +42,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	if old.relationKind != tableRelation && old.relationKind != viewRelation && old.relationKind != materializedViewRelation && old.relationKind != foreignRelation {
+	if old.RelationKind != tableRelation && old.RelationKind != viewRelation && old.RelationKind != materializedViewRelation && old.RelationKind != foreignRelation {
 		return fail(sqlError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
 	destination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.name}}})
@@ -75,22 +75,22 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	owned := make([]*relationDescriptor, 0)
 	for _, d := range auth.catalog.Descriptors() {
 		r, ok := d.(*relationDescriptor)
-		if ok && r.sqlIndex != nil && r.sqlIndex.parent == old.address {
+		if ok && r.SQLIndex != nil && r.SQLIndex.parent == old.address {
 			owned = append(owned, r)
 			continue
 		}
-		if !ok || r.relationKind != sequenceRelation {
+		if !ok || r.RelationKind != sequenceRelation {
 			continue
 		}
-		a := r.sequence.owned
-		if old.relationKind == tableRelation && a.ClassID == old.address.ClassID && a.ObjectID == old.address.ObjectID && old.hasAttribute(a.SubID) {
+		a := r.Sequence.owned
+		if old.RelationKind == tableRelation && a.ClassID == old.address.ClassID && a.ObjectID == old.address.ObjectID && old.hasAttribute(a.SubID) {
 			owned = append(owned, r)
 		}
 	}
 	sort.Slice(owned, func(i, j int) bool { return owned[i].address.ObjectID < owned[j].address.ObjectID })
 	e.mu.Unlock()
 	for _, r := range owned {
-		if r.sqlIndex != nil {
+		if r.SQLIndex != nil {
 			continue
 		}
 		if err = scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, r.address), lock.AccessExclusive, false); err != nil {
@@ -132,14 +132,14 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	group = append(group, old)
 	for _, r := range owned {
 		live, ok := auth.catalog.Relation(r.address)
-		if ok && r.sqlIndex != nil {
-			if live.sqlIndex != r.sqlIndex || live.namespace != old.namespace || live.owner != old.owner {
+		if ok && r.SQLIndex != nil {
+			if live.SQLIndex != r.SQLIndex || live.namespace != old.namespace || live.Owner != old.Owner {
 				return fail(ids.ErrCatalogReplaced)
 			}
 			group = append(group, live)
 			continue
 		}
-		if !ok || live.relationKind != sequenceRelation || live.sequence.owned != r.sequence.owned || live.namespace != old.namespace || live.owner != old.owner {
+		if !ok || live.RelationKind != sequenceRelation || live.Sequence.owned != r.Sequence.owned || live.namespace != old.namespace || live.Owner != old.Owner {
 			return fail(ids.ErrCatalogReplaced)
 		}
 		group = append(group, live)
@@ -155,8 +155,8 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.name}); exists {
 			return fail(collision(r))
 		}
-		if r.rowType != 0 {
-			if winner, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}) {
+		if r.RowType != 0 {
+			if winner, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}) {
 				return fail(typeCollision(r))
 			}
 		}
@@ -166,8 +166,8 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		}
 		next[i] = *r
 		next[i].namespace, next[i].revision = destination.Address, frontier+1
-		if r.relationKind == sequenceRelation {
-			next[i].sequencePlanStamp = frontier + 1
+		if r.RelationKind == sequenceRelation {
+			next[i].SequencePlanStamp = frontier + 1
 		}
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -193,8 +193,8 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 					err = collision(r)
 					break
 				}
-				if r.rowType != 0 {
-					if winner, exists := current.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}) {
+				if r.RowType != 0 {
+					if winner, exists := current.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}) {
 						err = typeCollision(r)
 						break
 					}

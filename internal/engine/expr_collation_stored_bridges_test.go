@@ -120,8 +120,8 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 			for i, leaf := range viewOf(outer).sources {
 				reads[i] = append([]int32(nil), leaf.reads...)
 			}
-			if (tc.name == "selected" || tc.name == "full") && !reflect.DeepEqual(reads[0], inner.attributes) {
-				t.Fatal("fixture lacks full frozen nested-read manifest", reads, inner.attributes)
+			if (tc.name == "selected" || tc.name == "full") && !reflect.DeepEqual(reads[0], inner.Attributes) {
+				t.Fatal("fixture lacks full frozen nested-read manifest", reads, inner.Attributes)
 			}
 			bound, scope := exprCollationStoredBinding(t, e, owner, tc.q)
 			e.mu.Lock()
@@ -237,9 +237,9 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, "expr_domain_storage")
 		table := view.MustRelation(ref.Address)
-		definition := table.defaults[table.attributes[2]].expression
-		generation := table.generations[table.attributes[3]]
-		if definition.ResultUsage() != table.columns[2].Usage || generation.expression.ResultUsage() != table.columns[3].Usage || generation.planned.ResultUsage() != table.columns[3].Usage {
+		definition := table.Defaults[table.Attributes[2]].expression
+		generation := table.Generations[table.Attributes[3]]
+		if definition.ResultUsage() != table.Columns[2].Usage || generation.expression.ResultUsage() != table.Columns[3].Usage || generation.planned.ResultUsage() != table.Columns[3].Usage {
 			t.Fatal("storage lost exact immutable destination usage")
 		}
 		if !generation.expression.Properties().RowDependent || !generation.planned.Properties().RowDependent {

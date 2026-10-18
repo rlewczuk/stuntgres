@@ -102,9 +102,9 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 			return false
 		}
 		if origin.attribute != 0 {
-			return d.defaults[origin.attribute].OID == origin.definition
+			return d.Defaults[origin.attribute].OID == origin.definition
 		}
-		return d.view != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
+		return d.View != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
 	}
 	for i, entry := range g.entries {
 		if valid(entry.origin) {

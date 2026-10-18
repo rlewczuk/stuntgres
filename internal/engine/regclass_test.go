@@ -151,8 +151,8 @@ func TestRegclassDeferredDefinitionSelection(t *testing.T) {
 		t.Fatal("selected result eligibility or primitive inline definition changed")
 	}
 	table := dumpRelation{
-		schema: "public", name: "t", attributes: descriptor.attributes,
-		columns: descriptor.columns, descriptor: descriptor,
+		schema: "public", name: "t", attributes: descriptor.Attributes,
+		columns: descriptor.Columns, descriptor: descriptor,
 		defaults:            map[int32]columnDefault{1: {expression: inline}, 2: {expression: scalar}},
 		deferredDefinitions: map[int32]bool{2: true},
 	}
@@ -236,7 +236,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 			ownerRef, targetRef := roleTableRef(t, e, "rr_opaque_owner"), roleTableRef(t, e, "rr_opaque_target")
 			descriptor, _ := catalog.Descriptor(ownerRef.Address)
 			owner := descriptor.(*relationDescriptor)
-			definition := owner.defaults[owner.attributes[owner.index["v"]]]
+			definition := owner.Defaults[owner.Attributes[owner.Index["v"]]]
 			if defaultReplayDeferrable(definition) || definition.expression.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("opaque BOOL default changed eligibility")
 			}

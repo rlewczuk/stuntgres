@@ -18,7 +18,7 @@ type defaultDependencyEdge struct {
 }
 
 func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	for _, definition := range d.defaults {
+	for _, definition := range d.Defaults {
 		for _, dependency := range definition.dependencies {
 			a := dependency.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
@@ -32,7 +32,7 @@ func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 // Validate only captured provider authority against the merged publication root.
 // Full expression/dependency agreement is already checked on the private stage.
 func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
-	for _, definition := range d.defaults {
+	for _, definition := range d.Defaults {
 		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			continue
 		}
 		var removed []int32
-		for slot, attribute := range d.attributes {
+		for slot, attribute := range d.Attributes {
 			owner := address
 			owner.SubID = attribute
 			dropping := false
@@ -105,7 +105,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			if dropping {
 				continue
 			}
-			definition, ok := d.defaults[attribute]
+			definition, ok := d.Defaults[attribute]
 			if !ok {
 				continue
 			}
@@ -125,7 +125,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			if dependency == (ids.ObjectAddress{}) {
 				continue
 			}
-			edges = append(edges, defaultDependencyEdge{d, attribute, d.columns[slot].Name, dependency})
+			edges = append(edges, defaultDependencyEdge{d, attribute, d.Columns[slot].Name, dependency})
 			removed = append(removed, attribute)
 		}
 		if len(removed) != 0 && mode != parser.DropRestrict {
@@ -138,9 +138,9 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 				return nil, err
 			}
 			copy.revision = revision
-			copy.defaults = maps.Clone(d.defaults)
+			copy.Defaults = maps.Clone(d.Defaults)
 			for _, attribute := range removed {
-				delete(copy.defaults, attribute)
+				delete(copy.Defaults, attribute)
 			}
 			if err := provider.replace(&copy); err != nil {
 				return nil, err

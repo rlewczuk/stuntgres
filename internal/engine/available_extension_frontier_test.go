@@ -44,7 +44,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				t.Cleanup(source.close)
 				for _, row := range source.anonymous {
 					for i, value := range row {
-						if value.Type() != d.columns[i].Usage.Type {
+						if value.Type() != d.Columns[i].Usage.Type {
 							t.Fatal("source lost generation-owned type", oid, i)
 						}
 					}

@@ -139,13 +139,13 @@ func TestTruncateRestartCache(t *testing.T) {
 				sessionSQL(t, s, "DISCARD SEQUENCES")
 			}
 			memory := s.sequences[ref.Address]
-			if memory == nil || memory.analysisStamp <= original.sequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ids.ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.catalog.state.Get(ref.Address) != original {
+			if memory == nil || memory.analysisStamp <= original.SequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ids.ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.catalog.state.Get(ref.Address) != original {
 				t.Fatal("local source event minted an observation, touched peer, mutated descriptor, or was undone")
 			}
 			e.mu.Lock()
 			localStamp, peerStamp := preparedDefinitionStamp(original, s), preparedDefinitionStamp(original, peer)
 			e.mu.Unlock()
-			if localStamp != memory.analysisStamp || peerStamp != original.sequencePlanStamp {
+			if localStamp != memory.analysisStamp || peerStamp != original.SequencePlanStamp {
 				t.Fatal("source stamp authority not caller-local")
 			}
 			for _, test := range []struct {
@@ -249,7 +249,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)
-		if e.sequences[ps.Address] != replacement || e.catalog.state.MustRelation(ps.Address).sequence.owned != (ids.ObjectAddress{}) {
+		if e.sequences[ps.Address] != replacement || e.catalog.state.MustRelation(ps.Address).Sequence.owned != (ids.ObjectAddress{}) {
 			t.Fatal("legitimate own later DDL rejected or reset discarded")
 		}
 		sequenceScalar(t, s, "SELECT nextval('later')", 90)

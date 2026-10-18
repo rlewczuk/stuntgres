@@ -68,12 +68,12 @@ func TestAlterTablespacePreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []relationKind{tableRelation, partitionedRelation, indexRelation, materializedViewRelation} {
-		if err := alterTablespaceKind(&relationDescriptor{relationKind: kind}); err != nil {
+		if err := alterTablespaceKind(&relationDescriptor{RelationKind: kind}); err != nil {
 			t.Fatal(kind, err)
 		}
 	}
 	for _, kind := range []relationKind{viewRelation, sequenceRelation, foreignRelation} {
-		err := alterTablespaceKind(&relationDescriptor{name: "t", relationKind: kind})
+		err := alterTablespaceKind(&relationDescriptor{name: "t", RelationKind: kind})
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || got.Code != "42809" || got.Detail == "" {
 			t.Fatal(kind, err)
@@ -152,7 +152,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 			if first && diagnostic.Code != tc.code || !first && (diagnostic.Code != "42704" || diagnostic.Message != `tablespace "ats_missing" does not exist`) {
 				t.Fatal(query, diagnostic)
 			}
-			if e.catalog.state != before || e.roles != roles || old.revision != revision || old.columns[0].Usage.Type.ID() != sqltype.Int4 {
+			if e.catalog.state != before || e.roles != roles || old.revision != revision || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 				t.Fatal("preparation published state", query)
 			}
 		}
@@ -164,7 +164,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 		t.Fatal(prepared, err)
 	}
 	for _, captured := range prepared.types {
-		if captured.usage.Type.ID() != sqltype.Int8 || captured.transformation.attribute != old.attributes[0] || captured.transformation.expression == nil || !captured.transformation.rewrite {
+		if captured.usage.Type.ID() != sqltype.Int8 || captured.transformation.attribute != old.Attributes[0] || captured.transformation.expression == nil || !captured.transformation.rewrite {
 			t.Fatal("incomplete TYPE capture", captured)
 		}
 	}
@@ -173,7 +173,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 	action := prepared.actions[0]
 	action.Using = alterAddUnitAction(t, "ALTER TABLE t ALTER a TYPE BIGINT USING absent").Using
 	next, consumed, err := e.alterTypeCandidate(scope, scope.op, auth, nil, old, old, ref, action, prepared.types[0])
-	if err != nil || next.columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.types[0].transformation) || old.columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if err != nil || next.Columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.types[0].transformation) || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate did not consume capture", next, consumed, err)
 	}
 }
@@ -185,7 +185,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	// Bound column origins identify an attribute, not just its relation.
 	// Keep the complete admitted identity, including owner and catalog epoch.
 	rootColumn := command.scope.lockedRef
-	rootColumn.Address.SubID = parent.attributes[0]
+	rootColumn.Address.SubID = parent.Attributes[0]
 	holder := inheritanceAlterAXHolder(t, e, child)
 	result, joined := inheritanceAlterWorker(t, command, holder)
 	state := inheritanceAlterPending(t, command, child)
@@ -204,7 +204,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 				}
 			}
 		})
-		if columns != 1 || captured.transformation.attribute != parent.attributes[0] {
+		if columns != 1 || captured.transformation.attribute != parent.Attributes[0] {
 			t.Fatal("root capture missing original attribute", columns, captured)
 		}
 	}
@@ -228,7 +228,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		want int64
 	}{{parent, 11}, {child, 21}} {
 		current := e.CatalogRead().MustRelation(pair.old.address)
-		if current.columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.storage[current.address].versions) != 1 {
+		if current.Columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.storage[current.address].versions) != 1 {
 			t.Fatal("TYPE capture did not reach physical candidate", current)
 		}
 		value, err := e.storage[current.address].versions[0].values[0].Integer()

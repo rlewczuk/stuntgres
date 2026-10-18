@@ -67,13 +67,13 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 			next[i].ref = ref(next[i].ref)
 			next[i].relation, _ = view.Relation(next[i].ref.Address)
 			next[i].storage = nil
-			if old != nil && next[i].relation != nil && !slices.Equal(old.attributes, next[i].relation.attributes) {
+			if old != nil && next[i].relation != nil && !slices.Equal(old.Attributes, next[i].relation.Attributes) {
 				next[i].uses = slices.Clone(next[i].uses)
 				for j, slot := range next[i].uses {
-					if slot < 0 || slot >= len(old.attributes) {
+					if slot < 0 || slot >= len(old.Attributes) {
 						return nil, ids.ErrCatalogReplaced
 					}
-					next[i].uses[j] = next[i].relation.indexForAttribute(old.attributes[slot])
+					next[i].uses[j] = next[i].relation.indexForAttribute(old.Attributes[slot])
 					if next[i].uses[j] < 0 {
 						return nil, ids.ErrCatalogReplaced
 					}
@@ -282,7 +282,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 		}
 	}
 	copy := *d
-	copy.rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+	copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
 	for i := range rulesOf(&copy) {
 		r := &rulesOf(&copy)[i]
 		var err error
@@ -359,7 +359,7 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 		}
 		if replacement == nil {
 			copy := *d
-			copy.rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+			copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
 			replacement = &copy
 		}
 		r.references = references

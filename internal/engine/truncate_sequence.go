@@ -17,10 +17,10 @@ type truncateSequence struct {
 }
 
 func truncateOwnsSequence(d *relationDescriptor, selected map[ids.ObjectAddress]int) bool {
-	if d.relationKind != sequenceRelation || d.sequence.owned == (ids.ObjectAddress{}) {
+	if d.RelationKind != sequenceRelation || d.Sequence.owned == (ids.ObjectAddress{}) {
 		return false
 	}
-	a := d.sequence.owned
+	a := d.Sequence.owned
 	a.SubID = 0
 	return selected[a] != 0
 }
@@ -106,11 +106,11 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 			return nil, err
 		}
 		d := *sequence.relation
-		d.revision, d.sequencePlanStamp = rev, rev
+		d.revision, d.SequencePlanStamp = rev, rev
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}
-		stage.generators[d.address] = &sequenceGenerator{last: d.sequence.start, generation: rev}
+		stage.generators[d.address] = &sequenceGenerator{last: d.Sequence.start, generation: rev}
 	}
 	session := s.op.session
 	if len(s.truncateSequences) != 0 && session.sequences == nil {
@@ -128,7 +128,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		// source event also survives rollback, without changing observation
 		// validity/value, the last-demanded sequence, or a peer's analysis.
 		m.remaining = 0
-		m.analysisStamp = stage.descriptors[a].(*relationDescriptor).sequencePlanStamp
+		m.analysisStamp = stage.descriptors[a].(*relationDescriptor).SequencePlanStamp
 	}
 	s.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return observed, nil

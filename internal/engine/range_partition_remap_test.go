@@ -77,11 +77,11 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	retained := e.CatalogRead()
 	root := rangePartitionRelation(t, e, "root")
 	leaf := rangePartitionRelation(t, e, "leaf")
-	oldKeys := slices.Clone(root.partition.keys)
-	oldChildren := slices.Clone(root.partition.children)
-	oldLower := slices.Clone(leaf.membership.lower)
-	oldUpper := slices.Clone(leaf.membership.upper)
-	oldChecks := slices.Clone(leaf.checkConstraints)
+	oldKeys := slices.Clone(root.Partition.keys)
+	oldChildren := slices.Clone(root.Partition.children)
+	oldLower := slices.Clone(leaf.Membership.lower)
+	oldUpper := slices.Clone(leaf.Membership.upper)
+	oldChecks := slices.Clone(leaf.CheckConstraints)
 	cursor := roleExecute(t, e, op, "SELECT k,payload FROM root")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -126,11 +126,11 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	sequence := rangePartitionRelation(t, e, "seq")
 	currentRoot := rangePartitionRelation(t, e, "root")
 	expectedOwned := currentRoot.address
-	expectedOwned.SubID = currentRoot.attributes[currentRoot.index["payload"]]
-	if sequence.sequence.owned != expectedOwned || sequence.owner != currentRoot.owner {
+	expectedOwned.SubID = currentRoot.Attributes[currentRoot.Index["payload"]]
+	if sequence.Sequence.owned != expectedOwned || sequence.Owner != currentRoot.Owner {
 		t.Fatal("self remap changed virtual column ownership identity")
 	}
-	if !reflect.DeepEqual(root.partition.keys, oldKeys) || !reflect.DeepEqual(root.partition.children, oldChildren) || !reflect.DeepEqual(leaf.membership.lower, oldLower) || !reflect.DeepEqual(leaf.membership.upper, oldUpper) || !reflect.DeepEqual(leaf.checkConstraints, oldChecks) {
+	if !reflect.DeepEqual(root.Partition.keys, oldKeys) || !reflect.DeepEqual(root.Partition.children, oldChildren) || !reflect.DeepEqual(leaf.Membership.lower, oldLower) || !reflect.DeepEqual(leaf.Membership.upper, oldUpper) || !reflect.DeepEqual(leaf.CheckConstraints, oldChecks) {
 		t.Fatal("self remap mutated retained descriptors")
 	}
 	if !reflect.DeepEqual(tuples(cursor), [][]driver.Value{{int64(1), int64(1)}, {int64(2), int64(2)}}) {
@@ -172,9 +172,9 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	root := rangePartitionRelation(t, e, "root")
 	state := cloneCatalog(before.state)
 	candidate := *root
-	partition := *root.partition
+	partition := *root.Partition
 	partition.children = append(slices.Clone(partition.children), partition.children[0])
-	candidate.partition = &partition
+	candidate.Partition = &partition
 	state.setDescriptor(root.address, &candidate)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
@@ -284,12 +284,12 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := &relationDescriptor{
-		partition: &partitionDefinition{keys: []partitionKeyEntry{
+		Partition: &partitionDefinition{keys: []partitionKeyEntry{
 			{attribute: 1, usage: usage, class: class, comparison: comparison, collation: uint32(provider.oid)},
 			{attribute: 2, usage: usage, class: class, comparison: comparison},
 		}},
 	}
-	sourceKeys := slices.Clone(source.partition.keys)
+	sourceKeys := slices.Clone(source.Partition.keys)
 	imported := *provider
 	imported.oid = 90001
 	// The old identity belongs to the retained live overlay, not the import.
@@ -310,10 +310,10 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if mapped == source || mapped.partition == source.partition {
+		if mapped == source || mapped.Partition == source.Partition {
 			t.Fatal("remap reused mutable source descriptor")
 		}
-		if !reflect.DeepEqual(source.partition.keys, sourceKeys) {
+		if !reflect.DeepEqual(source.Partition.keys, sourceKeys) {
 			t.Fatal("remap mutated source keys")
 		}
 		if next.Get(provider.Address()) != &temporary || !reflect.DeepEqual(temporary, temporaryBefore) {
@@ -323,7 +323,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for i, key := range mapped.partition.keys {
+		for i, key := range mapped.Partition.keys {
 			if key.usage.Collation != wantCapability {
 				t.Fatal("remap lost imported comparison capability", typesOnly, i, key.usage.Collation, wantCapability)
 			}

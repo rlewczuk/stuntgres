@@ -26,7 +26,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 	if err := partitionAttachEligibility(view, parent, child); !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
 		t.Fatalf("temporary eligibility: got %v want %v", err, want)
 	}
-	if child.membership != nil || parent.partition != nil {
+	if child.Membership != nil || parent.Partition != nil {
 		t.Fatal("eligibility changed topology")
 	}
 }
@@ -35,8 +35,8 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "parent", 32210, "k")
 	child := inheritanceUnitRelation(e, "child", 32211, "k")
-	parent.relationKind = partitionedRelation
-	usage := parent.columns[0].Usage
+	parent.RelationKind = partitionedRelation
+	usage := parent.Columns[0].Usage
 	class, supported := sqltype.DefaultIndexClass(usage.Type)
 	if !supported {
 		t.Fatal("missing default ordering class")
@@ -45,8 +45,8 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}, children: []ids.ObjectAddress{child.address}, defaultChild: child.address}
-	child.membership = &partitionMembership{parent: parent.address, defaultBound: true}
+	parent.Partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}, children: []ids.ObjectAddress{child.address}, defaultChild: child.address}
+	child.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
 	view := inheritanceUnitView(e, parent, child)
 	check := func(wantValid bool) {
 		t.Helper()
@@ -86,20 +86,20 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			parent := inheritanceUnitRelation(e, "parent", 32220, "k", "payload")
-			parent.attributes = []int32{3, 8}
-			parent.attributeHighWater = 8
-			parent.columns[1].Nullable = false
-			parent.notNullConstraints = []notNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
+			parent.Attributes = []int32{3, 8}
+			parent.AttributeHighWater = 8
+			parent.Columns[1].Nullable = false
+			parent.NotNullConstraints = []notNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
 			child := inheritanceUnitRelation(e, "child", 32222, "payload", "k")
-			child.attributes = []int32{2, 9}
-			child.attributeHighWater = 9
-			child.columns[0].Nullable, child.columns[1].Nullable = false, false
+			child.Attributes = []int32{2, 9}
+			child.AttributeHighWater = 9
+			child.Columns[0].Nullable, child.Columns[1].Nullable = false, false
 			name := "child_nn"
 			if c.sameName {
 				name = "parent_nn"
 			}
-			child.notNullConstraints = []notNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, partitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, partitionLocal: true}}
-			original := append([]notNullConstraint(nil), child.notNullConstraints...)
+			child.NotNullConstraints = []notNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, partitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, partitionLocal: true}}
+			original := append([]notNullConstraint(nil), child.NotNullConstraints...)
 			view := inheritanceUnitView(e, parent, child)
 			next, err := partitionAttachSchema(&StatementScope{op: op}, view, parent, child)
 			if !c.parentInvalid && c.childInvalid {
@@ -114,11 +114,11 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 				}
 				matched := original[0]
 				matched.partitionLocal = false
-				if !reflect.DeepEqual(next.notNullConstraints, []notNullConstraint{matched, original[1]}) {
-					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.notNullConstraints)
+				if !reflect.DeepEqual(next.NotNullConstraints, []notNullConstraint{matched, original[1]}) {
+					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.NotNullConstraints)
 				}
 			}
-			if !reflect.DeepEqual(child.notNullConstraints, original) || child.membership != nil {
+			if !reflect.DeepEqual(child.NotNullConstraints, original) || child.Membership != nil {
 				t.Fatal("schema validation mutated original constraints or membership")
 			}
 		})

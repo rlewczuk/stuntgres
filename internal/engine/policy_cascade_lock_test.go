@@ -60,8 +60,8 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					projected := 0
 					project := func(old, next *relationDescriptor) error {
 						projected++
-						if old != owners[0] || shape != "column_and_policy" || len(next.columns) != 1 || next.columns[0].Name != "keep" {
-							t.Fatal("policy lock target became a column projection", old.name, next.columns)
+						if old != owners[0] || shape != "column_and_policy" || len(next.Columns) != 1 || next.Columns[0].Name != "keep" {
+							t.Fatal("policy lock target became a column projection", old.name, next.Columns)
 						}
 						return nil
 					}
@@ -77,13 +77,13 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					}
 					for _, old := range owners {
 						next, ok := stage.descriptors[old.address].(*relationDescriptor)
-						if !ok || len(next.policies) != 1 || next.policies[0].Name != "retained" {
+						if !ok || len(next.Policies) != 1 || next.Policies[0].Name != "retained" {
 							t.Fatal("wrong surviving policy owner", old.name, next)
 						}
 						if _, removed := stage.removals[old.address]; removed {
 							t.Fatal("lock target became a physical deletion", old.name)
 						}
-						if len(old.policies) != 3 || e.CatalogRead().state != base.state {
+						if len(old.Policies) != 3 || e.CatalogRead().state != base.state {
 							t.Fatal("staging mutated published roots")
 						}
 					}

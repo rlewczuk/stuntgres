@@ -64,7 +64,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if suffix == "WITH NO DATA" {
 						want = 0
 					}
-					if len(shape.replacement.versions) != want || shape.relation.populated != (want != 0) {
+					if len(shape.replacement.versions) != want || shape.relation.Populated != (want != 0) {
 						t.Fatal("incomplete private population", shape)
 					}
 					for _, row := range shape.replacement.versions {

@@ -191,7 +191,7 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 			}
 		}
 	case *relationDescriptor:
-		for _, c := range d.columns {
+		for _, c := range d.Columns {
 			if err := validateUsageCollation(view, c.Usage); err != nil {
 				return err
 			}

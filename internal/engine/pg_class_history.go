@@ -10,20 +10,20 @@ import (
 // Visit only owned graph edges. An ordinary index's table is not its subclass
 // parent; attached indexes use the separate partitionParent identity.
 func visitSubclassParents(child *relationDescriptor, visit func(ids.ObjectAddress) error) error {
-	if child.inheritance != nil {
-		for _, parent := range child.inheritance.parents {
+	if child.Inheritance != nil {
+		for _, parent := range child.Inheritance.parents {
 			if err := visit(parent); err != nil {
 				return err
 			}
 		}
 	}
-	if child.membership != nil {
-		if err := visit(child.membership.parent); err != nil {
+	if child.Membership != nil {
+		if err := visit(child.Membership.parent); err != nil {
 			return err
 		}
 	}
-	if child.sqlIndex != nil && child.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
-		if err := visit(child.sqlIndex.partitionParent); err != nil {
+	if child.SQLIndex != nil && child.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+		if err := visit(child.SQLIndex.partitionParent); err != nil {
 			return err
 		}
 	}
@@ -45,11 +45,11 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}
-			if parent.hasSubclasses {
+			if parent.HasSubclasses {
 				return nil
 			}
 			next := *parent
-			next.hasSubclasses = true
+			next.HasSubclasses = true
 			if staged {
 				stage.descriptors[address] = &next
 				return nil
@@ -59,7 +59,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 				return err
 			}
 			next.revision = revision
-			next.subclassPredecessor, next.subclassPublication = parent, revision
+			next.SubclassPredecessor, next.SubclassPublication = parent, revision
 			return stage.Replace(&next)
 		}); err != nil {
 			return err
@@ -84,9 +84,9 @@ func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRea
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}
-			if !parent.hasSubclasses {
+			if !parent.HasSubclasses {
 				next := *parent
-				next.hasSubclasses = true
+				next.HasSubclasses = true
 				catalog.state.setDescriptor(address, &next)
 			}
 			return nil

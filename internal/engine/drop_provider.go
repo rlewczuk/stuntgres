@@ -394,7 +394,7 @@ func (p *dropProvider) replacePartitionDescriptor(d *relationDescriptor) error {
 func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 	if p.stage == nil {
 		p.observe(old.address)
-		if old.relationKind != compositeRelation && old.relationKind != foreignRelation {
+		if old.RelationKind != compositeRelation && old.RelationKind != foreignRelation {
 			p.owner.mu.Lock()
 			err := p.evolveIndexes(old.address, nil)
 			p.owner.mu.Unlock()
@@ -406,7 +406,7 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 		return nil
 	}
 	stage, e, ctx := p.stage, p.owner, p.ctx
-	if old.relationKind == compositeRelation || old.relationKind == foreignRelation {
+	if old.RelationKind == compositeRelation || old.RelationKind == foreignRelation {
 		return stage.Replace(next)
 	}
 	if p.project != nil {
@@ -728,7 +728,7 @@ func (p *dropProvider) recordIndexLayout(address ids.ObjectAddress, lineage inde
 }
 
 func (p *dropProvider) projectPreparedColumn(old, next *relationDescriptor) error {
-	if old.relationKind == compositeRelation || old.relationKind == foreignRelation {
+	if old.RelationKind == compositeRelation || old.RelationKind == foreignRelation {
 		return p.stage.replaceDescriptor(next, false)
 	}
 	if p.changes != nil {

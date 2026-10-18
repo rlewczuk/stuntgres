@@ -52,11 +52,11 @@ func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*re
 			}
 		}
 	}
-	if provider == nil || root == nil || root.partition == nil || root.partition.keys[0].derived == nil {
+	if provider == nil || root == nil || root.Partition == nil || root.Partition.keys[0].derived == nil {
 		t.Fatal("missing actual provider/expression hierarchy")
 	}
 	captured := false
-	for _, ref := range root.partition.keys[0].derived.dependencies {
+	for _, ref := range root.Partition.keys[0].derived.dependencies {
 		captured = captured || ref.Address == provider.address
 	}
 	if !captured {
@@ -126,17 +126,17 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	// configure the provider lifetime through the real validated catalog seam.
 	committed := e.CatalogRead()
 	provider, _ := rangePartitionRetirementDescriptors(t, committed)
-	originalAction := provider.onCommit
+	originalAction := provider.OnCommit
 	stage := e.BeginCatalogStage(committed)
 	defer e.DiscardCatalogStage(stage)
 	replacement := *provider
-	replacement.onCommit = parser.OnCommitDrop
+	replacement.OnCommit = parser.OnCommitDrop
 	replacement.revision++
 	if err := stage.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
-	if committed.Get(provider.address) != provider || provider.onCommit != originalAction {
+	if committed.Get(provider.address) != provider || provider.OnCommit != originalAction {
 		t.Fatal("provider lifetime replacement mutated the published predecessor")
 	}
 	ref := transactionBegin(t, s)
@@ -163,7 +163,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	beforeDeletes := maps.Clone(deletes)
 	leafWrites := 0
 	for a, rows := range writes {
-		if r, ok := base.Relation(a); ok && r.membership != nil && len(rows) != 0 {
+		if r, ok := base.Relation(a); ok && r.Membership != nil && len(rows) != 0 {
 			leafWrites++
 		}
 	}

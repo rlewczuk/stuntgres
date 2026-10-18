@@ -43,7 +43,7 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if e.catalog.state.MustRelation(ref.Address).owner != successor.Ref {
+			if e.catalog.state.MustRelation(ref.Address).Owner != successor.Ref {
 				t.Fatal("transfer changed identity")
 			}
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")

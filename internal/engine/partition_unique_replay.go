@@ -49,14 +49,14 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if table.partition == nil || table.membership == nil || table.inheritance != nil {
+	if table.Partition == nil || table.Membership == nil || table.Inheritance != nil {
 		return nil
 	}
-	bound, err := bindUniqueAttributes(definition, nil, table.index, table.attributes)
+	bound, err := bindUniqueAttributes(definition, nil, table.Index, table.Attributes)
 	if err != nil {
 		return err
 	}
-	parent := auth.catalog.MustRelation(table.membership.parent)
+	parent := auth.catalog.MustRelation(table.Membership.parent)
 	chosen := partitionPreservedReplayChild(auth.catalog, parent)
 	if chosen == nil || chosen.address != table.address {
 		return nil
@@ -64,15 +64,15 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	var selected *relationDescriptor
 	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !partitionIndexPreservedInvalid(auth.catalog, index) {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.address || !partitionIndexPreservedInvalid(auth.catalog, index) {
 			continue
 		}
 		child := partitionDumpIndexBacking(auth.catalog, index.address, table.address)
-		if child == nil || child.sqlIndex.constraint != nil || child.sqlIndex.predicate != nil || len(child.sqlIndex.include) != 0 || child.sqlIndex.nullsNotDistinct != bound.NullsNotDistinct || len(child.sqlIndex.keys) != len(bound.Attributes) {
+		if child == nil || child.SQLIndex.constraint != nil || child.SQLIndex.predicate != nil || len(child.SQLIndex.include) != 0 || child.SQLIndex.nullsNotDistinct != bound.NullsNotDistinct || len(child.SQLIndex.keys) != len(bound.Attributes) {
 			continue
 		}
 		match := true
-		for i, key := range child.sqlIndex.keys {
+		for i, key := range child.SQLIndex.keys {
 			match = match && key.derived == nil && key.attribute == bound.Attributes[i]
 		}
 		if match {
@@ -88,21 +88,21 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	tables := make(map[ids.ObjectAddress]bool)
 	var capture func(*relationDescriptor) bool
 	capture = func(node *relationDescriptor) bool {
-		if node.inheritance != nil {
+		if node.Inheritance != nil {
 			return false
 		}
 		if definition.Primary {
 			for _, column := range definition.Columns {
-				slot, ok := node.index[column.Text]
-				if !ok || node.columns[slot].Nullable {
+				slot, ok := node.Index[column.Text]
+				if !ok || node.Columns[slot].Nullable {
 					return false
 				}
 			}
 		}
 		tables[node.address] = true
 		captured.descriptors = append(captured.descriptors, node)
-		if node.partition != nil {
-			for _, address := range node.partition.children {
+		if node.Partition != nil {
+			for _, address := range node.Partition.children {
 				if !capture(auth.catalog.MustRelation(address)) {
 					return false
 				}
@@ -115,7 +115,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && tables[index.sqlIndex.parent] {
+		if ok && index.SQLIndex != nil && tables[index.SQLIndex.parent] {
 			captured.descriptors = append(captured.descriptors, index)
 		}
 	}
@@ -174,8 +174,8 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	if err != nil {
 		return Result{}, err
 	}
-	index := e.stageRead(stage).MustRelation(next.uniqueConstraints[len(next.uniqueConstraints)-1].Index)
-	if err = partitionUniqueCoverage(next, index.sqlIndex); err != nil {
+	index := e.stageRead(stage).MustRelation(next.UniqueConstraints[len(next.UniqueConstraints)-1].Index)
+	if err = partitionUniqueCoverage(next, index.SQLIndex); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()

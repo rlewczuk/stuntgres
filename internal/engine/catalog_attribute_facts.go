@@ -64,13 +64,13 @@ func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 }
 
 func initializeCatalogAttributes(d *relationDescriptor) {
-	d.catalogAttributes = make([]catalogAttribute, len(d.columns))
-	view := d.virtualView || representedSummaryViewDefinition(d.address.ObjectID) != ""
-	for i, column := range d.columns {
+	d.CatalogAttributes = make([]catalogAttribute, len(d.Columns))
+	view := d.VirtualView || representedSummaryViewDefinition(d.address.ObjectID) != ""
+	for i, column := range d.Columns {
 		attribute := catalogAttributeNumber(d.address.ObjectID, column.Name, int32(i+1))
-		d.attributes[i], d.columns[i].OriginAttribute = attribute, int16(attribute)
-		if attribute > d.attributeHighWater {
-			d.attributeHighWater = attribute
+		d.Attributes[i], d.Columns[i].OriginAttribute = attribute, int16(attribute)
+		if attribute > d.AttributeHighWater {
+			d.AttributeHighWater = attribute
 		}
 		fact := catalogAttribute{notNull: !view, collation: column.Usage.Collation.ID}
 		if !view {
@@ -110,6 +110,6 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 				fact.notNull = i < 20
 			}
 		}
-		d.catalogAttributes[i] = fact
+		d.CatalogAttributes[i] = fact
 	}
 }

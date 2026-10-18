@@ -16,12 +16,12 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 			g.indexes = append(g.indexes, ref)
 		}
 		g.descriptors[index.address] = index
-		address := index.sqlIndex.parent
+		address := index.SQLIndex.parent
 		parentRef := ref.Domain().Ref(ref.Epoch, address)
 		if !slices.Contains(g.parents, parentRef) {
 			g.parents = append(g.parents, parentRef)
 		}
-		if table := auth.catalog.MustRelation(address); table.partition != nil || index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
+		if table := auth.catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
 			g.partition = true
 		}
 		g.descriptors[address] = auth.catalog.MustRelation(address)
@@ -30,8 +30,8 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		selected := false
 		for _, target := range g.targets {
 			index := g.descriptors[target.Address]
-			table := auth.catalog.MustRelation(index.sqlIndex.parent)
-			if table.partition != nil || index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
+			table := auth.catalog.MustRelation(index.SQLIndex.parent)
+			if table.Partition != nil || index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
 				selected = true
 				break
 			}
@@ -44,7 +44,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 	}
 	indexes := make([]*relationDescriptor, 0, len(g.indexes))
 	for _, descriptor := range auth.catalog.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
 	}
@@ -57,18 +57,18 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		for {
 			grew := false
 			for _, index := range indexes {
-				if !roots[index.sqlIndex.partitionParent] || roots[index.address] {
+				if !roots[index.SQLIndex.partitionParent] || roots[index.address] {
 					continue
 				}
 				roots[index.address] = true
 				grew = true
-				if index.sqlIndex.constraint != nil && drop.Mode != parser.DropCascade {
+				if index.SQLIndex.constraint != nil && drop.Mode != parser.DropCascade {
 					root := index
 					for !slices.ContainsFunc(g.targets, func(target ids.ObjectRef) bool { return target.Address == root.address }) {
-						root = auth.catalog.MustRelation(root.sqlIndex.partitionParent)
+						root = auth.catalog.MustRelation(root.SQLIndex.partitionParent)
 					}
-					table := auth.catalog.Get(index.sqlIndex.parent)
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because other objects depend on it", root.name), Detail: fmt.Sprintf("constraint %s on table %s depends on index %s", index.sqlIndex.constraint.Name, table.Name(), root.name), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+					table := auth.catalog.Get(index.SQLIndex.parent)
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because other objects depend on it", root.name), Detail: fmt.Sprintf("constraint %s on table %s depends on index %s", index.SQLIndex.constraint.Name, table.Name(), root.name), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 				}
 			}
 			if !grew {
@@ -79,14 +79,14 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		// Capture the parent tree's validity frontier and each sibling descriptor
 		// before taking any lock. No names are resolved after a wait.
 		root := g.descriptors[g.targets[0].Address]
-		for root.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
-			root = auth.catalog.MustRelation(root.sqlIndex.partitionParent)
+		for root.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+			root = auth.catalog.MustRelation(root.SQLIndex.partitionParent)
 		}
 		roots[root.address] = true
 		for {
 			grew := false
 			for _, index := range indexes {
-				if roots[index.sqlIndex.partitionParent] && !roots[index.address] {
+				if roots[index.SQLIndex.partitionParent] && !roots[index.address] {
 					roots[index.address] = true
 					grew = true
 				}
@@ -108,14 +108,14 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 }
 
 func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDescriptor) error {
-	if index.sqlIndex.constraint != nil {
+	if index.SQLIndex.constraint != nil {
 		view := e.stageRead(stage)
-		table := view.MustRelation(index.sqlIndex.parent)
+		table := view.MustRelation(index.SQLIndex.parent)
 		next := *table
-		next.uniqueConstraints = slices.Clone(table.uniqueConstraints)
+		next.UniqueConstraints = slices.Clone(table.UniqueConstraints)
 		next.revision++
-		next.uniqueConstraints = slices.DeleteFunc(next.uniqueConstraints, func(c uniqueConstraint) bool { return c.Index == index.address })
-		next.exclusionConstraints = slices.DeleteFunc(slices.Clone(table.exclusionConstraints), func(c exclusionConstraint) bool { return c.Index == index.address })
+		next.UniqueConstraints = slices.DeleteFunc(next.UniqueConstraints, func(c uniqueConstraint) bool { return c.Index == index.address })
+		next.ExclusionConstraints = slices.DeleteFunc(slices.Clone(table.ExclusionConstraints), func(c exclusionConstraint) bool { return c.Index == index.address })
 		if err := stagePartitionDescriptor(stage, &next); err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 		if !ok {
 			continue
 		}
-		for _, c := range table.uniqueConstraints {
+		for _, c := range table.UniqueConstraints {
 			if c.Parent != oid {
 				continue
 			}
@@ -142,7 +142,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 				return err
 			}
 		}
-		for _, c := range table.exclusionConstraints {
+		for _, c := range table.ExclusionConstraints {
 			if c.Parent != oid {
 				continue
 			}
@@ -158,10 +158,10 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 }
 
 func partitionIndexDropDependency(view CatalogRead, index *relationDescriptor) error {
-	if index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
+	if index.SQLIndex.partitionParent == (ids.ObjectAddress{}) {
 		return nil
 	}
-	parent, exists := view.Descriptor(index.sqlIndex.partitionParent)
+	parent, exists := view.Descriptor(index.SQLIndex.partitionParent)
 	if !exists {
 		return ids.ErrCatalogReplaced
 	}
@@ -178,20 +178,20 @@ func partitionConstraintDropActions(table *relationDescriptor, actions []parser.
 			return false
 		}
 		found := false
-		for _, c := range table.uniqueConstraints {
+		for _, c := range table.UniqueConstraints {
 			if c.Name == action.Constraint.Text {
 				found = true
 				break
 			}
 		}
-		found = found || slices.ContainsFunc(table.exclusionConstraints, func(c exclusionConstraint) bool { return c.Name == action.Constraint.Text })
+		found = found || slices.ContainsFunc(table.ExclusionConstraints, func(c exclusionConstraint) bool { return c.Name == action.Constraint.Text })
 		if found {
 			selected = true
 			continue
 		}
-		if slices.ContainsFunc(table.notNullConstraints, func(c notNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.checkConstraints, func(c checkConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.foreignKeys, func(c foreignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
+		if slices.ContainsFunc(table.NotNullConstraints, func(c notNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
+			slices.ContainsFunc(table.CheckConstraints, func(c checkConstraint) bool { return c.Name == action.Constraint.Text }) ||
+			slices.ContainsFunc(table.ForeignKeys, func(c foreignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
 			return false
 		}
 	}
@@ -212,7 +212,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 		view := e.stageRead(stage)
 		current := view.MustRelation(table.address)
 		found := false
-		for _, c := range current.uniqueConstraints {
+		for _, c := range current.UniqueConstraints {
 			if c.Name != action.Constraint.Text {
 				continue
 			}
@@ -231,7 +231,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, err
 			}
 		}
-		for _, c := range current.exclusionConstraints {
+		for _, c := range current.ExclusionConstraints {
 			if c.Name != action.Constraint.Text {
 				continue
 			}

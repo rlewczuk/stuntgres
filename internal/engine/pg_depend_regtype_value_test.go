@@ -32,7 +32,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.ID())}
 	relationAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(row.ID())}
 	catalog.state.setDescriptor(rowAddress, &typeDescriptor{typ: row, owningRelation: relationAddress})
-	catalog.state.setDescriptor(relationAddress, &relationDescriptor{address: relationAddress, rowType: row.ID()})
+	catalog.state.setDescriptor(relationAddress, &relationDescriptor{address: relationAddress, RowType: row.ID()})
 	value := func(id ids.OID) sqltype.Value {
 		t.Helper()
 		v, err := sqltype.RegtypeValue(regtype, uint32(id))

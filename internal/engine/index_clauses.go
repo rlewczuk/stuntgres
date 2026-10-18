@@ -258,7 +258,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 			}
 			if column, ok := derived.definition.(columnExpression); ok {
 				key.attribute = column.origin.Address.SubID
-				columns[i] = parent.columns[column.slot]
+				columns[i] = parent.Columns[column.slot]
 			} else {
 				key.derived = derived
 			}
@@ -281,25 +281,25 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 				}
 				continue
 			}
-			slot, exists := parent.index[raw.Column.Text]
+			slot, exists := parent.Index[raw.Column.Text]
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
 			if err := rejectVirtualIndexUses(parent, []int{slot}); err != nil {
 				return fail(err)
 			}
-			columns[i] = parent.columns[slot]
+			columns[i] = parent.Columns[slot]
 			if included {
 				if err := validateIndexInclude(raw); err != nil {
 					return fail(err)
 				}
-				d.include[i-len(s.Keys)] = parent.attributes[slot]
+				d.include[i-len(s.Keys)] = parent.Attributes[slot]
 			} else {
 				key, err := e.bindIndexKey(op, auth, columns[i].Usage, raw, d.method)
 				if err != nil {
 					return fail(err)
 				}
-				key.attribute = parent.attributes[slot]
+				key.attribute = parent.Attributes[slot]
 				d.keys[i] = key
 				columns[i].Usage = indexKeyCollation(columns[i].Usage, key)
 			}

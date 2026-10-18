@@ -58,10 +58,10 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			e.mu.Lock()
-			unchanged := e.catalog.state == catalog && e.storage[table.Address] == store && e.commitSeq == frontier && len(e.catalog.state.MustRelation(table.Address).columns) == 1
+			unchanged := e.catalog.state == catalog && e.storage[table.Address] == store && e.commitSeq == frontier && len(e.catalog.state.MustRelation(table.Address).Columns) == 1
 			private := e.privateCatalogLocked(owner.transactions.catalog)
 			e.mu.Unlock()
-			if !unchanged || len(private.MustRelation(table.Address).columns) != 2 || owner.transactions.catalog.storage[table.Address].replacement == store {
+			if !unchanged || len(private.MustRelation(table.Address).Columns) != 2 || owner.transactions.catalog.storage[table.Address].replacement == store {
 				t.Fatal("queued observer did not see distinct real candidate and committed roots")
 			}
 			select {

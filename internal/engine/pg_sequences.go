@@ -30,7 +30,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 			return err
 		}
 		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.relationKind != sequenceRelation {
+		if !ok || relation.RelationKind != sequenceRelation {
 			return nil
 		}
 		namespace := base.Get(relation.namespace)
@@ -46,30 +46,30 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		if ns.temporary != (ids.SessionToken{}) && ns.temporary != scope.op.session.token {
 			return nil
 		}
-		owner, err := scope.commentRoles.Descriptor(relation.owner)
+		owner, err := scope.commentRoles.Descriptor(relation.Owner)
 		if err != nil {
 			return err
 		}
 		row := make([]sqltype.Value, 11)
-		row[0] = sqltype.String(source.columns[0].Usage.Type, ns.name)
-		row[1] = sqltype.String(source.columns[1].Usage.Type, relation.name)
-		row[2] = sqltype.String(source.columns[2].Usage.Type, owner.Name)
-		row[3], err = sqltype.RegtypeValue(source.columns[3].Usage.Type, uint32(relation.sequence.typ))
+		row[0] = sqltype.String(source.Columns[0].Usage.Type, ns.name)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, relation.name)
+		row[2] = sqltype.String(source.Columns[2].Usage.Type, owner.Name)
+		row[3], err = sqltype.RegtypeValue(source.Columns[3].Usage.Type, uint32(relation.Sequence.typ))
 		if err != nil {
 			return err
 		}
-		for i, value := range [4]int64{relation.sequence.start, relation.sequence.min, relation.sequence.max, relation.sequence.increment} {
-			row[i+4], err = sqltype.Integer(source.columns[i+4].Usage.Type, value)
+		for i, value := range [4]int64{relation.Sequence.start, relation.Sequence.min, relation.Sequence.max, relation.Sequence.increment} {
+			row[i+4], err = sqltype.Integer(source.Columns[i+4].Usage.Type, value)
 			if err != nil {
 				return err
 			}
 		}
-		row[8] = sqltype.Boolean(source.columns[8].Usage.Type, relation.sequence.cycle)
-		row[9], err = sqltype.Integer(source.columns[9].Usage.Type, relation.sequence.cache)
+		row[8] = sqltype.Boolean(source.Columns[8].Usage.Type, relation.Sequence.cycle)
+		row[9], err = sqltype.Integer(source.Columns[9].Usage.Type, relation.Sequence.cache)
 		if err != nil {
 			return err
 		}
-		row[10] = sqltype.Null(source.columns[10].Usage.Type)
+		row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 		rows = append(rows, row)
 		provider.refs = append(provider.refs, e.catalog.domain.Ref(base.epoch, relation.address))
 		return nil
@@ -117,7 +117,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	auth.catalog = e.privateCatalogLocked(p.scope.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
 	relation, ok := auth.catalog.Relation(ref.Address)
-	if !ok || relation.relationKind != sequenceRelation {
+	if !ok || relation.RelationKind != sequenceRelation {
 		return sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 	}
 	rights, err := auth.Effective(ref, false)

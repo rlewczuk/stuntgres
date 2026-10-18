@@ -24,12 +24,12 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 	var queue []alterTypeIndex
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != original.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != original.address {
 			continue
 		}
 		pending := alterTypeIndex{index: index}
 		dropped := false
-		for _, key := range index.sqlIndex.keys {
+		for _, key := range index.SQLIndex.keys {
 			if key.derived == nil {
 				dropped = dropped || !survivor.hasAttribute(key.attribute)
 			} else {
@@ -41,7 +41,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				}
 			}
 		}
-		if predicate := index.sqlIndex.predicate; predicate != nil {
+		if predicate := index.SQLIndex.predicate; predicate != nil {
 			for _, dep := range predicate.dependencies {
 				a := dep.Address
 				if a.ClassID != original.address.ClassID || a.ObjectID != original.address.ObjectID || a.SubID == 0 {
@@ -49,20 +49,20 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				}
 				dropped = dropped || !survivor.hasAttribute(a.SubID)
 				for _, action := range actions {
-					slot, exists := original.index[action.Column.Text]
-					if exists && action.Action == parser.AlterColumnType && original.attributes[slot] == a.SubID {
+					slot, exists := original.Index[action.Column.Text]
+					if exists && action.Action == parser.AlterColumnType && original.Attributes[slot] == a.SubID {
 						pending.predicate = true
 					}
 				}
 			}
 		}
-		for _, attribute := range index.sqlIndex.include {
+		for _, attribute := range index.SQLIndex.include {
 			dropped = dropped || !survivor.hasAttribute(attribute)
 		}
 		if dropped {
 			continue
 		}
-		for i, key := range index.sqlIndex.keys {
+		for i, key := range index.SQLIndex.keys {
 			if key.derived == nil {
 				continue
 			}
@@ -71,13 +71,13 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				if action.Action != parser.AlterColumnType {
 					continue
 				}
-				slot, exists := original.index[action.Column.Text]
+				slot, exists := original.Index[action.Column.Text]
 				if !exists {
 					continue
 				}
 				for _, dep := range key.derived.dependencies {
 					a := dep.Address
-					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID == original.attributes[slot] {
+					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID == original.Attributes[slot] {
 						affected = true
 					}
 				}
@@ -102,9 +102,9 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *relationDescriptor, stage *CatalogStage, queue []alterTypeIndex) error {
 	for _, pending := range queue {
 		copy := *pending.index
-		definition := *copy.sqlIndex
+		definition := *copy.SQLIndex
 		definition.keys = append([]indexKey(nil), definition.keys...)
-		copy.sqlIndex = &definition
+		copy.SQLIndex = &definition
 		// This queue contains actual affected TYPE reconstructions, not generic
 		// descriptor evolution. Publish these flags only with the validated
 		// private candidate; later producers must enforce its rebuilt tuples.
@@ -133,7 +133,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		}
 		oldParent := stage.base.MustRelation(parent.address)
 		for i, key := range definition.keys {
-			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.sqlIndex.keys[i])
+			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.SQLIndex.keys[i])
 			if err != nil {
 				return err
 			}

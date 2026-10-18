@@ -130,7 +130,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.address)
-	if current == survivor || len(current.defaults) != 0 || len(current.checkConstraints) != 0 || e.storage[survivor.address] != store || e.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || store.ends != retainedEnds {
+	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.address] != store || e.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || store.ends != retainedEnds {
 		t.Fatal("stale retirement lost surviving storage/index or failed pruning")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_stale_late"} {
@@ -173,7 +173,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	if mixed {
 		collated := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "ext_collation_survivor"}))
-		if len(collated.columns) != 1 || collated.columns[0].Name != "id" || len(e.storage[collated.address].versions) != 1 {
+		if len(collated.Columns) != 1 || collated.Columns[0].Name != "id" || len(e.storage[collated.address].versions) != 1 {
 			t.Fatal("mixed collation consumer not projected")
 		}
 	}
@@ -218,7 +218,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.address)
-	if current == &maximum || current.revision != maximum.revision || len(current.defaults) != 0 || len(current.checkConstraints) != 0 || len(maximum.defaults) != 1 || len(maximum.checkConstraints) != 1 || e.catalog.nextRevision != maximum.revision {
+	if current == &maximum || current.revision != maximum.revision || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || len(maximum.Defaults) != 1 || len(maximum.CheckConstraints) != 1 || e.catalog.nextRevision != maximum.revision {
 		t.Fatal("post-drain did not preserve terminal counter/immutable predecessor contract")
 	}
 	if e.storage[survivor.address] != store || e.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || ends != store.ends || e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage[peerTable] != peerStore {
@@ -307,8 +307,8 @@ func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	// A genuinely malformed immutable survivor reaches the real relation
 	// provider. No callback returns a fabricated error or advances the root.
 	broken := *survivor
-	broken.index = maps.Clone(survivor.index)
-	broken.index["txt"] = len(broken.columns)
+	broken.Index = maps.Clone(survivor.Index)
+	broken.Index["txt"] = len(broken.Columns)
 	e.mu.Lock()
 	root := cloneCatalog(e.catalog.state)
 	root.setDescriptor(broken.address, &broken)

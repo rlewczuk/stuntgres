@@ -23,7 +23,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 		t.Fatal("INT4 unavailable")
 	}
 	makeRelation := func(id ids.OID, name string) *relationDescriptor {
-		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, index: map[string]int{"id": 0, "v": 1}, attributes: []int32{1, 2}, attributeHighWater: 2, relationKind: tableRelation}
+		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, AttributeHighWater: 2, RelationKind: tableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := cloneCatalog(e.catalog.state)
@@ -37,11 +37,11 @@ func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
 	return e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 }
 func ruleUnitInt(d *relationDescriptor, n int64) expr.Expr {
-	value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
+	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
 	if err != nil {
 		panic(err)
 	}
-	return literalExpression{Info: expr.Info{Usage: d.columns[0].Usage, Pos: parser.Position{Offset: -1}}, value: value}
+	return literalExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, value: value}
 }
 func ruleUnitInsert(e *Engine, d *relationDescriptor, id, v int64) ruleAction {
 	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}, binding: binding{relation: d, ref: ruleUnitRef(e, d), targets: []int{0, 1}, expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
@@ -53,7 +53,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	original.expressions = append(original.expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	pseudo := columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 2, slot: 0}
+	pseudo := columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 2, slot: 0}
 	action := ruleUnitInsert(e, sink, 0, 0)
 	action.binding.expressions[0][0] = pseudo
 	composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
@@ -91,11 +91,11 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		pseudoV := pseudo
 		pseudoV.origin.Address.SubID = 2
 		pseudoV.slot = 1
-		provider, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, src.columns[1].Usage.Type, src.columns[1].Usage.Type, src.columns[1].Usage.Type)
+		provider, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, src.Columns[1].Usage.Type, src.Columns[1].Usage.Type, src.Columns[1].Usage.Type)
 		if err != nil {
 			t.Fatal(err)
 		}
-		output := arithmeticExpression{Info: ruleColumnInfo(src.columns[1]), left: pseudoV, right: ruleUnitInt(src, 10), provider: provider}
+		output := arithmeticExpression{Info: ruleColumnInfo(src.Columns[1]), left: pseudoV, right: ruleUnitInt(src, 10), provider: provider}
 		projection := []expr.Expr{pseudo, output}
 		order, err := (*expressionBinder)(nil).finishOrder(&singletonNode{}, []sortKey{{expression: output, slot: -1, cache: -1, targetIdentity: 2}}, projection)
 		if err != nil {
@@ -104,7 +104,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		template := ruleUnitInsert(e, sink, 0, 0)
 		template.binding.expressions = nil
 		template.binding.commandQuery = true
-		template.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.columns), child: order, expressions: projection, frame: 1}}
+		template.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), child: order, expressions: projection, frame: 1}}
 		rewritten, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, template)
 		if err != nil {
 			t.Fatal(err)
@@ -128,7 +128,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		schema := slices.Clone(src.columns)
+		schema := slices.Clone(src.Columns)
 		schema[1].Usage = random.ResultUsage()
 		source := &projectNode{querySchema: querySchema(schema), child: &singletonNode{}, expressions: []expr.Expr{ruleUnitInt(src, 1), random}, frame: 2}
 		selectBinding := original
@@ -148,7 +148,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		pure := *source
 		pure.expressions = []expr.Expr{source.expressions[0], ruleUnitInt(src, 99)}
-		pure.querySchema = querySchema(src.columns)
+		pure.querySchema = querySchema(src.Columns)
 		selectBinding.query = &BoundQuery{Root: &pure}
 		producer, err = makeRuleProducer(auth.catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
@@ -194,7 +194,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal(err)
 		}
 		project := query.Root.(*projectNode)
-		if len(project.Schema()) != 2 || project.Schema()[0].Usage != src.columns[0].Usage || project.Schema()[1].Usage != src.columns[1].Usage {
+		if len(project.Schema()) != 2 || project.Schema()[0].Usage != src.Columns[0].Usage || project.Schema()[1].Usage != src.Columns[1].Usage {
 			t.Fatal("pseudo frame borrowed unrelated FROM metadata")
 		}
 		for _, expression := range project.expressions {
@@ -206,12 +206,12 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil || !matched {
 			t.Fatalf("typed NEW whole row: matched=%v error=%v", matched, err)
 		}
-		if len(row.(rowExpression).fields) != len(src.columns) {
+		if len(row.(rowExpression).fields) != len(src.Columns) {
 			t.Fatal("NEW whole row lost stable members")
 		}
 	})
 	t.Run("domain_truth_barrier", func(t *testing.T) {
-		leaf := domainValueExpression{Info: expr.Info{Usage: src.columns[0].Usage, Property: expr.Properties{DomainDependent: true, RuntimeDomainConversion: true}}}
+		leaf := domainValueExpression{Info: expr.Info{Usage: src.Columns[0].Usage, Property: expr.Properties{DomainDependent: true, RuntimeDomainConversion: true}}}
 		properties := rewrittenIntrinsicProperties(leaf)
 		if !properties.DomainDependent || !properties.RuntimeDomainConversion {
 			t.Fatal("rewrite erased runtime domain authority")
@@ -315,7 +315,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 
 func TestRuleProgramOrdering(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}, {OID: 900102, Name: "z", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 3, 30)}}})
+	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}, {OID: 900102, Name: "z", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 3, 30)}}})
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
@@ -338,7 +338,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 
 func TestRuleProgramAuthority(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}, {OID: 900102, Name: "z", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 2, 20)}}})
+	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}, {OID: 900102, Name: "z", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 2, 20)}}})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
@@ -350,7 +350,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	if count != 1 || len(p.commands) != 2 {
 		t.Fatalf("last same-event authority=%d commands=%d want1/2", count, len(p.commands))
 	}
-	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "nothing", event: "INSERT", instead: true}})
+	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "nothing", event: "INSERT", instead: true}})
 	p = ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
 	count, err = e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
@@ -366,12 +366,12 @@ func TestRuleProgramAuthority(t *testing.T) {
 		op, done := roleOperation(t, f.e, "postgres")
 		defer done()
 		auth := f.authorization(t, op)
-		f.base.relationKind, f.base.virtualView = viewRelation, true
-		f.base.rules = rulesPayloadOf([]ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}})
+		f.base.RelationKind, f.base.VirtualView = viewRelation, true
+		f.base.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}})
 		viewOf(f.view).checkOption = viewCheckCascaded
 		project := viewOf(f.view).query.Root.(*projectNode)
 		predicate := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
-		project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: predicate}
+		project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: predicate}
 		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		mapped := original
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
@@ -398,8 +398,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 
 func TestRuleProgramRecursion(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
-	sink.rules = rulesPayloadOf([]ruleDefinition{{OID: 900102, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, src, 1, 10)}}})
+	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
+	sink.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900102, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, src, 1, 10)}}})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{}
 	e.mu.Lock()
@@ -408,7 +408,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "infinite recursion detected in rules for relation") {
 		t.Fatalf("recursion error=%v", err)
 	}
-	sink.rules = nil
+	sink.Rules = nil
 	rulesOf(src)[0].actions = append(rulesOf(src)[0].actions, ruleUnitInsert(e, sink, 2, 20))
 	p = ruleProgram{}
 	e.mu.Lock()
@@ -451,7 +451,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, attribute := range sink.attributes {
+		for _, attribute := range sink.Attributes {
 			address := sink.address
 			address.SubID = attribute
 			if !slices.Contains(refs, address) {
@@ -461,7 +461,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	condition := columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 2}
+	condition := columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 2}
 	r := ruleDefinition{OID: 900101, Name: "r", event: "INSERT", condition: condition, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}
 	refs, err := ruleReferences(context.Background(), auth.catalog, r)
 	if err != nil {
@@ -473,7 +473,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		}
 	}
 	r.references = refs
-	src.rules = rulesPayloadOf([]ruleDefinition{r})
+	src.Rules = rulesPayloadOf([]ruleDefinition{r})
 	edges, err := collectPGDepend(context.Background(), auth.catalog)
 	if err != nil {
 		t.Fatal(err)
@@ -510,7 +510,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
+	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
 	newSrc, newSink := *src, *sink
 	newSrc.address.ObjectID += 10
 	newSink.address.ObjectID += 10
@@ -543,13 +543,13 @@ func TestRuleDefinitionRemap(t *testing.T) {
 
 func TestRuleViewReturnReplacement(t *testing.T) {
 	_, _, src, _ := ruleUnitCatalog(t)
-	if err := ruleResultCheck(src, slices.Clone(src.columns), true); err != nil {
+	if err := ruleResultCheck(src, slices.Clone(src.Columns), true); err != nil {
 		t.Fatal(err)
 	}
-	if err := ruleResultCheck(src, src.columns[:1], true); err == nil || !strings.Contains(err.Error(), "SELECT rule's target list has too few entries") {
+	if err := ruleResultCheck(src, src.Columns[:1], true); err == nil || !strings.Contains(err.Error(), "SELECT rule's target list has too few entries") {
 		t.Fatalf("arity error=%v", err)
 	}
-	bad := slices.Clone(src.columns)
+	bad := slices.Clone(src.Columns)
 	bad[0].Name = "other"
 	if err := ruleResultCheck(src, bad, true); err == nil || !strings.Contains(err.Error(), "different column name") {
 		t.Fatalf("name error=%v", err)

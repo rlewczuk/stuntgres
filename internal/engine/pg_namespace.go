@@ -19,12 +19,12 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}
-	if len(source.columns) != len(ids) {
+	if len(source.Columns) != len(ids) {
 		return nil, fmt.Errorf("stuntgres: invalid namespace source shape")
 	}
 	for i, id := range ids {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign namespace source type")
 		}
 	}
@@ -59,19 +59,19 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if ns.owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable namespace owner")
 		}
-		oid, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(ns.address.ObjectID))
+		oid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(ns.address.ObjectID))
 		if err != nil {
 			return nil, err
 		}
-		owner, err := sqltype.OIDValue(source.columns[2].Usage.Type, uint32(ns.owner.ID()))
+		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(ns.owner.ID()))
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.columns[3].Usage.Type, ns.acl)
+		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, ns.acl)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, []sqltype.Value{oid, sqltype.String(source.columns[1].Usage.Type, ns.name), owner, acl})
+		rows = append(rows, []sqltype.Value{oid, sqltype.String(source.Columns[1].Usage.Type, ns.name), owner, acl})
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

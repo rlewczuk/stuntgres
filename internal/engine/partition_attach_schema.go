@@ -11,7 +11,7 @@ import (
 
 func partitionAttachKindError(d *relationDescriptor) error {
 	kind := "relations"
-	switch d.relationKind {
+	switch d.RelationKind {
 	case tableRelation:
 		kind = "tables"
 	case viewRelation:
@@ -27,25 +27,25 @@ func partitionAttachKindError(d *relationDescriptor) error {
 }
 
 func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDescriptor) error {
-	if child.relationKind != tableRelation && child.relationKind != partitionedRelation {
+	if child.RelationKind != tableRelation && child.RelationKind != partitionedRelation {
 		return partitionAttachKindError(child)
 	}
 	for ancestor := parent; ancestor != nil; {
 		if ancestor.address == child.address {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07", Message: "circular inheritance not allowed", Detail: fmt.Sprintf(`"%s" is already a child of "%s".`, parent.name, child.name)}
 		}
-		if ancestor.membership == nil {
+		if ancestor.Membership == nil {
 			break
 		}
-		ancestor, _ = catalog.Relation(ancestor.membership.parent)
+		ancestor, _ = catalog.Relation(ancestor.Membership.parent)
 	}
-	if child.membership != nil {
+	if child.Membership != nil {
 		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.name))
 	}
-	if child.ofType != (ids.ObjectAddress{}) {
+	if child.OfType != (ids.ObjectAddress{}) {
 		return sqlError("42809", "cannot attach a typed table as partition")
 	}
-	if child.inheritance != nil && len(child.inheritance.parents) != 0 {
+	if child.Inheritance != nil && len(child.Inheritance.parents) != 0 {
 		return sqlError("42809", "cannot attach inheritance child as partition")
 	}
 	if inheritanceHasChildren(catalog, child.address) {
@@ -56,9 +56,9 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	if parentNamespace.temporary == (ids.SessionToken{}) && childNamespace.temporary != (ids.SessionToken{}) {
 		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.name))
 	}
-	for _, attribute := range child.attributes {
-		if _, ok := child.identities[attribute]; ok {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.name, child.columns[child.indexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
+	for _, attribute := range child.Attributes {
+		if _, ok := child.Identities[attribute]; ok {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.name, child.Columns[child.indexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
 		}
 	}
 	// Existing FK execution boundaries precede publication.
@@ -67,7 +67,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		if !ok {
 			continue
 		}
-		for _, foreign := range table.foreignKeys {
+		for _, foreign := range table.ForeignKeys {
 			if table.address == child.address || foreign.Target == child.address {
 				return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 			}
@@ -81,18 +81,18 @@ func samePartitionColumnUsage(a, b sqltype.Usage) bool {
 }
 
 func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent, child *relationDescriptor) (*relationDescriptor, error) {
-	for _, column := range child.columns {
-		if _, ok := parent.index[column.Name]; !ok {
+	for _, column := range child.Columns {
+		if _, ok := parent.Index[column.Name]; !ok {
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.name, column.Name, parent.name), Detail: "The new partition may contain only the columns present in parent."}
 		}
 	}
-	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
-	for i, column := range parent.columns {
-		slot, ok := child.index[column.Name]
+	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+	for i, column := range parent.Columns {
+		slot, ok := child.Index[column.Name]
 		if !ok {
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing column "%s"`, column.Name))
 		}
-		other := child.columns[slot]
+		other := child.Columns[slot]
 		if column.Usage.Type != other.Usage.Type || column.Usage.Typmod != other.Usage.Typmod {
 			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, child.name, column.Name))
 		}
@@ -102,8 +102,8 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		if !column.Nullable && other.Nullable {
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table "%s" must be marked NOT NULL`, column.Name, child.name))
 		}
-		_, generated := child.generations[child.attributes[slot]]
-		_, requiredGeneration := parent.generations[parent.attributes[i]]
+		_, generated := child.Generations[child.Attributes[slot]]
+		_, requiredGeneration := parent.Generations[parent.Attributes[i]]
 		if generated && !requiredGeneration {
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table must not be a generated column`, column.Name))
 		}
@@ -114,23 +114,23 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		}
 		in.targetSlots[i] = slot
 	}
-	for _, required := range parent.notNullConstraints {
+	for _, required := range parent.NotNullConstraints {
 		parentSlot := parent.indexForAttribute(required.Attribute)
-		attribute := child.attributes[in.targetSlots[parentSlot]]
-		at := slices.IndexFunc(child.notNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
-		if at >= 0 && !required.NotValid && child.notNullConstraints[at].NotValid {
-			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.notNullConstraints[at].Name, child.name))
+		attribute := child.Attributes[in.targetSlots[parentSlot]]
+		at := slices.IndexFunc(child.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
+		if at >= 0 && !required.NotValid && child.NotNullConstraints[at].NotValid {
+			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.NotNullConstraints[at].Name, child.name))
 		}
 	}
-	for _, required := range parent.checkConstraints {
+	for _, required := range parent.CheckConstraints {
 		if required.NoInherit {
 			continue
 		}
-		at := slices.IndexFunc(child.checkConstraints, func(c checkConstraint) bool { return c.Name == required.Name })
+		at := slices.IndexFunc(child.CheckConstraints, func(c checkConstraint) bool { return c.Name == required.Name })
 		if at < 0 {
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing constraint "%s"`, required.Name))
 		}
-		actual := child.checkConstraints[at]
+		actual := child.CheckConstraints[at]
 		mapped, err := in.remap(required.expression, child, catalog)
 		if err != nil {
 			return nil, err
@@ -152,12 +152,12 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 	next := *child
 	// PostgreSQL turns matched existing NN/CHECK facts into inherited facts, but
 	// retains their identities and names. NN matching is by mapped attribute.
-	next.notNullConstraints = slices.Clone(child.notNullConstraints)
-	for i := range next.notNullConstraints {
-		constraint := &next.notNullConstraints[i]
+	next.NotNullConstraints = slices.Clone(child.NotNullConstraints)
+	for i := range next.NotNullConstraints {
+		constraint := &next.NotNullConstraints[i]
 		slot := child.indexForAttribute(constraint.Attribute)
-		parentSlot := parent.index[child.columns[slot].Name]
-		if !parent.columns[parentSlot].Nullable {
+		parentSlot := parent.Index[child.Columns[slot].Name]
+		if !parent.Columns[parentSlot].Nullable {
 			constraint.partitionLocal = false
 		}
 	}

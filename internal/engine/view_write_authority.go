@@ -26,11 +26,11 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	reads := b.returning != nil || len(logical.usedColumns) != 0 || logical.conflict != nil && len(logical.conflict.reads) != 0
 	for _, layer := range w.layers {
 		current, ok := v.catalog.Relation(layer.ref.Address)
-		if !ok || current.view != layer.relation.view {
+		if !ok || current.View != layer.relation.View {
 			return ids.ErrCatalogReplaced
 		}
 		authority := v
-		authority.state.CurrentUser = current.owner
+		authority.state.CurrentUser = current.Owner
 		if viewOf(current).invoker {
 			authority.state.CurrentUser = invoker
 		}
@@ -64,7 +64,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			indices := make([]int, 0, len(leaf.reads))
 			for _, attr := range leaf.reads {
 				found := false
-				for i, live := range relation.attributes {
+				for i, live := range relation.Attributes {
 					if live == attr {
 						indices = append(indices, i)
 						found = true
@@ -90,7 +90,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			}
 			// This existing visitor checks child definition SELECT records and
 			// applicable row marks under each child's owner/original invoker.
-			if relation.relationKind == viewRelation {
+			if relation.RelationKind == viewRelation {
 				if err := authority.checkViewRowMarks(relation, mark, invoker); err != nil {
 					return err
 				}
@@ -133,7 +133,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	}
 	for _, layer := range w.layers {
 		d, ok := catalog.Relation(layer.ref.Address)
-		if !ok || d.view != layer.relation.view || !sameRelationRowShape(d, layer.relation) {
+		if !ok || d.View != layer.relation.View || !sameRelationRowShape(d, layer.relation) {
 			return ids.ErrCatalogReplaced
 		}
 	}

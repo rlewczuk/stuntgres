@@ -43,11 +43,11 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 		t.Fatal("association ownership", associated, domain)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.array_origin(id INT,a public.collision[],n NUMERIC(5,2)[])")
-	column := table.columns[1]
-	if column.Usage.Type != array || column.Usage.Typmod != -1 || column.OriginTable != uint32(table.address.ObjectID) || column.OriginAttribute != int16(table.attributes[1]) {
+	column := table.Columns[1]
+	if column.Usage.Type != array || column.Usage.Typmod != -1 || column.OriginTable != uint32(table.address.ObjectID) || column.OriginAttribute != int16(table.Attributes[1]) {
 		t.Fatal("array origin", column, table)
 	}
-	if p, s, known := table.columns[2].Usage.DecimalSize(); p != 5 || s != 2 || !known {
+	if p, s, known := table.Columns[2].Usage.DecimalSize(); p != 5 || s != 2 || !known {
 		t.Fatal("element metadata", p, s, known)
 	}
 	// Both halves of an uncommitted publication remain invisible.
@@ -148,7 +148,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	}
 	next := e.CatalogRead()
 	survivor := next.MustRelation(table.address)
-	if len(survivor.columns) != 2 || survivor.columns[0].Name != "keep" || survivor.columns[1].Name != "tail" || survivor.attributes[0] != table.attributes[0] || survivor.attributes[1] != table.attributes[2] {
+	if len(survivor.Columns) != 2 || survivor.Columns[0].Name != "keep" || survivor.Columns[1].Name != "tail" || survivor.Attributes[0] != table.Attributes[0] || survivor.Attributes[1] != table.Attributes[2] {
 		t.Fatal("containing table/stable attributes lost", survivor)
 	}
 	for _, id := range []sqltype.ID{domain.typ.ID(), array.ID()} {
@@ -242,7 +242,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil || oid != "60021" {
 		t.Fatal("nested REGCLASS identity", oid, err)
 	}
-	if storage[table.address] == original || original.versions[0].values[0].Type() != nestedArray || table.columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.typ {
+	if storage[table.address] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.typ {
 		t.Fatal("source payload/provider mutated")
 	}
 	descriptors := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
@@ -255,9 +255,9 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		if relation, ok := descriptor.(*relationDescriptor); ok && target != address {
 			copy := *relation
 			copy.address = target
-			copy.columns = append([]ColumnDescriptor(nil), relation.columns...)
-			for i := range copy.columns {
-				copy.columns[i].OriginTable = uint32(target.ObjectID)
+			copy.Columns = append([]ColumnDescriptor(nil), relation.Columns...)
+			for i := range copy.Columns {
+				copy.Columns[i].OriginTable = uint32(target.ObjectID)
 			}
 			descriptor = &copy
 		}
@@ -280,7 +280,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 			t.Fatal("reminted reverse association", id, array)
 		}
 	}
-	rows := newFinalRows(next.MustRelation(table.address).columns, 1)
+	rows := newFinalRows(next.MustRelation(table.address).Columns, 1)
 	defer rows.Close()
 	if err := captureRegclassOutputValue(rows, view, nil, imported); err != nil {
 		t.Fatal(err)
@@ -318,10 +318,10 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	table.namespace = ns.address
 	table.name = "array_component_temp"
 	table.revision = revision
-	table.rowType = 0
-	table.columns = append([]ColumnDescriptor(nil), prototype.columns...)
-	for i := range table.columns {
-		table.columns[i].OriginTable = uint32(tableOID)
+	table.RowType = 0
+	table.Columns = append([]ColumnDescriptor(nil), prototype.Columns...)
+	for i := range table.Columns {
+		table.Columns[i].OriginTable = uint32(tableOID)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
@@ -352,7 +352,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	ctx := context.Background()
 	prototype := domainUnitTable(t, e, op, "CREATE TABLE public.array_component(i INT[],t TEXT[])")
 	table := arrayComponentTemporary(t, e, op, prototype)
-	integer, text := table.columns[0].Usage.Type, table.columns[1].Usage.Type
+	integer, text := table.Columns[0].Usage.Type, table.Columns[1].Usage.Type
 	i, err := integer.Input(ctx, "[-2:-1]={5,NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -366,7 +366,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	e.storage[table.address] = store
 	e.commitSeq = 1
 	e.mu.Unlock()
-	held := newFinalRows(table.columns, 1)
+	held := newFinalRows(table.Columns, 1)
 	held.values = store.versions[0].values
 	defer held.Close()
 	replacement := New()
@@ -377,11 +377,11 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	actor, finish := roleOperation(t, replacement, "postgres")
 	defer finish()
 	importedSource := domainUnitTable(t, replacement, actor, "CREATE TABLE public.imported_arrays(i INT[],t TEXT[])")
-	sourceInt, err := importedSource.columns[0].Usage.Type.Input(ctx, "[-2:-1]={5,NULL}", -1)
+	sourceInt, err := importedSource.Columns[0].Usage.Type.Input(ctx, "[-2:-1]={5,NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sourceText, err := importedSource.columns[1].Usage.Type.Input(ctx, `{NULL,"NULL","a,b"}`, -1)
+	sourceText, err := importedSource.Columns[1].Usage.Type.Input(ctx, `{NULL,"NULL","a,b"}`, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,10 +452,10 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal("missing imported persistent storage", importedStore)
 	}
 	live := importedStore.versions[0].values
-	if imported.columns[0].Usage.Type != integer || imported.columns[1].Usage.Type != text || len(live) != 2 || !sqltype.SameDatum(live[0], i) || !sqltype.SameDatum(live[1], v) {
+	if imported.Columns[0].Usage.Type != integer || imported.Columns[1].Usage.Type != text || len(live) != 2 || !sqltype.SameDatum(live[0], i) || !sqltype.SameDatum(live[1], v) {
 		t.Fatal("persistent rows not reowned against retained builtin closure", imported, live)
 	}
-	if sourceStore.versions[0].values[0].Type() != foreign || importedSource.columns[0].Usage.Type != foreign || replacement.storage[importedSource.address] != sourceStore {
+	if sourceStore.versions[0].values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.storage[importedSource.address] != sourceStore {
 		t.Fatal("source persistent provider/payload mutated")
 	}
 	frame := make([]sqltype.Value, 2)
@@ -473,7 +473,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.array_temp_di AS INT"))
 	prototype := domainUnitTable(t, e, op, "CREATE TABLE public.array_component(a public.array_temp_di[])")
 	table := arrayComponentTemporary(t, e, op, prototype)
-	typ := table.columns[0].Usage.Type
+	typ := table.Columns[0].Usage.Type
 	value, err := typ.Input(ctx, "[0:1]={13,NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -483,7 +483,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	e.storage[table.address] = store
 	e.commitSeq = 1
 	e.mu.Unlock()
-	held := newFinalRows(table.columns, 1)
+	held := newFinalRows(table.Columns, 1)
 	held.values = store.versions[0].values
 	defer held.Close()
 	if _, err := e.ReplaceCatalog(ctx, e, e.CatalogRead()); err != nil {

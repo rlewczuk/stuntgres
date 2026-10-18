@@ -15,9 +15,9 @@ import (
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
 func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, index: map[string]int{}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Index: map[string]int{}}
 	if len(parents) != 0 {
-		table.inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+		table.Inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 	}
 	return table
 }
@@ -80,7 +80,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal("unrelated parent/sibling removed", table.name)
 		}
 	}
-	if e.catalog.state != base.state || leaf.inheritance.parents[2] != other.address {
+	if e.catalog.state != base.state || leaf.Inheritance.parents[2] != other.address {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -153,8 +153,8 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			child := *parent
 			child.address.ObjectID++
 			child.name = "child"
-			child.onCommit = actions.child
-			child.inheritance = &tableInheritance{
+			child.OnCommit = actions.child
+			child.Inheritance = &tableInheritance{
 				parents: []ids.ObjectAddress{parent.address},
 				columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: parent.address, attribute: 1}}}},
 				checks:  map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{},
@@ -164,11 +164,11 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			childStore := &relationStorage{}
 			changes.storage[child.address] = catalogStorageChange{replacement: childStore, relation: &child}
 			e.mu.Unlock()
-			one, err := sqltype.Integer(parent.columns[0].Usage.Type, 1)
+			one, err := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			two, err := sqltype.Integer(child.columns[0].Usage.Type, 2)
+			two, err := sqltype.Integer(child.Columns[0].Usage.Type, 2)
 			if err != nil {
 				t.Fatal(err)
 			}

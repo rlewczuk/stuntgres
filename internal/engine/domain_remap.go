@@ -116,9 +116,9 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				return fmt.Errorf("stuntgres: missing composite namespace")
 			}
 			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
-			rebuild := importing || identity != address || namespace != d.namespace || owner != d.owningRelation || associated != d.array || declaration != d.typ.SQLName() || d.typ.CompositeLen() != len(relation.columns)
+			rebuild := importing || identity != address || namespace != d.namespace || owner != d.owningRelation || associated != d.array || declaration != d.typ.SQLName() || d.typ.CompositeLen() != len(relation.Columns)
 			var members []sqltype.CompositeMember
-			for i, c := range relation.columns {
+			for i, c := range relation.Columns {
 				child := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}
 				if err := visit(child); err != nil {
 					return err
@@ -132,7 +132,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 					}
 					usage.Collation = mapped
 				}
-				member := sqltype.CompositeMember{Attribute: relation.attributes[i], Name: c.Name, Usage: usage}
+				member := sqltype.CompositeMember{Attribute: relation.Attributes[i], Name: c.Name, Usage: usage}
 				if !rebuild && d.typ.CompositeMember(i) != member {
 					rebuild = true
 				}
@@ -372,20 +372,20 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		if !ok {
 			continue
 		}
-		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}]; ok {
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}]; ok {
 			copy := *d
-			copy.rowType = sqltype.ID(destination.ObjectID)
+			copy.RowType = sqltype.ID(destination.ObjectID)
 			next.setDescriptor(address, &copy)
 			d = &copy
 		}
-		if destination, ok := mapping[d.ofType]; ok {
+		if destination, ok := mapping[d.OfType]; ok {
 			copy := *d
-			copy.ofType = destination
+			copy.OfType = destination
 			next.setDescriptor(address, &copy)
 			d = &copy
 		}
 		var columns []ColumnDescriptor
-		for i, c := range d.columns {
+		for i, c := range d.Columns {
 			target := typ(c.Usage.Type)
 			if target == nil {
 				return fmt.Errorf("stuntgres: missing imported column type")
@@ -400,7 +400,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 			}
 			if target != c.Usage.Type || capability != c.Usage.Collation {
 				if columns == nil {
-					columns = append([]ColumnDescriptor(nil), d.columns...)
+					columns = append([]ColumnDescriptor(nil), d.Columns...)
 				}
 				columns[i].Usage.Type = target
 				columns[i].Usage.Collation = capability
@@ -408,7 +408,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		}
 		if columns != nil {
 			copy := *d
-			copy.columns = columns
+			copy.Columns = columns
 			next.setDescriptor(address, &copy)
 		}
 	}

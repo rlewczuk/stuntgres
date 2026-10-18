@@ -354,7 +354,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		durableRows := e.storage[survivor.address].versions
 		discardUnitApply(t, s, parser.DiscardTemp)
 		next := e.catalog.state.MustRelation(survivor.address)
-		if next == survivor || len(next.columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || len(durableRows[0].values) != 2 {
+		if next == survivor || len(next.Columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || len(durableRows[0].values) != 2 {
 			t.Fatal("CASCADE failed provider-owned durable projection or mutated old rows")
 		}
 		if e.catalog.state.Get(namespace) == nil || s.temporaryNamespace != namespace {
@@ -419,7 +419,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				op.Done()
 				private := e.privateCatalogLocked(s.transactions.catalog)
 				projected := private.MustRelation(survivor.address)
-				if projected == survivor || len(projected.columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.catalog.state.Get(survivor.address) != survivor || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {
+				if projected == survivor || len(projected.Columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.catalog.state.Get(survivor.address) != survivor || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {
 					t.Fatal("private projection leaked into committed descriptor/data or missed closure")
 				}
 				switch boundary {
@@ -432,7 +432,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					sessionSQL(t, s, "COMMIT")
 				}
 				if boundary == "commit" {
-					if len(e.catalog.state.MustRelation(survivor.address).columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || e.catalog.state.Get(providerAddress) != nil || e.catalog.state.Get(indexAddress) != nil {
+					if len(e.catalog.state.MustRelation(survivor.address).Columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || e.catalog.state.Get(providerAddress) != nil || e.catalog.state.Get(indexAddress) != nil {
 						t.Fatal("commit lost projected durable consumer or retained provider/index")
 					}
 				} else if e.catalog.state.Get(survivor.address) != survivor || e.catalog.state.Get(providerAddress) != provider || e.catalog.state.Get(indexAddress) != index || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {

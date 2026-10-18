@@ -59,7 +59,7 @@ func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 func TestPGSequenceShape(t *testing.T) {
 	e := New()
 	d, _ := pgSequenceUnitSource(t, e)
-	if d.name != "pg_sequence" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 8 || len(d.columns) != 8 {
+	if d.name != "pg_sequence" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -68,13 +68,13 @@ func TestPGSequenceShape(t *testing.T) {
 	}{
 		{"seqrelid", sqltype.Oid}, {"seqtypid", sqltype.Oid}, {"seqstart", sqltype.Int8}, {"seqincrement", sqltype.Int8}, {"seqmax", sqltype.Int8}, {"seqmin", sqltype.Int8}, {"seqcache", sqltype.Int8}, {"seqcycle", sqltype.Bool},
 	} {
-		c := d.columns[i]
-		if c.Name != tc.name || c.Usage.Type.ID() != tc.typ || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2224 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[tc.name] != i {
+		c := d.Columns[i]
+		if c.Name != tc.name || c.Usage.Type.ID() != tc.typ || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2224 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[tc.name] != i {
 			t.Fatal("descriptor", i, c)
 		}
 	}
 	for _, name := range []string{"oid", "last_value", "is_called"} {
-		if _, exists := d.index[name]; exists {
+		if _, exists := d.Index[name]; exists {
 			t.Fatal("invented state column", name)
 		}
 	}
@@ -82,7 +82,7 @@ func TestPGSequenceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	physical := *d
-	physical.relationKind = tableRelation
+	physical.RelationKind = tableRelation
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical NOT NULL requires constraint identities")
 	}
@@ -92,22 +92,22 @@ func TestPGSequenceShape(t *testing.T) {
 		invalidate func(*relationDescriptor)
 	}{
 		{"identity", func(r *relationDescriptor) { r.address.ObjectID = 0 }},
-		{"type", func(r *relationDescriptor) { r.columns[0].Usage.Type = foreignType }},
-		{"live attribute", func(r *relationDescriptor) { r.attributes[0] = 0 }},
-		{"constraint record", func(r *relationDescriptor) { r.notNullConstraints = []notNullConstraint{{Attribute: 1}} }},
+		{"type", func(r *relationDescriptor) { r.Columns[0].Usage.Type = foreignType }},
+		{"live attribute", func(r *relationDescriptor) { r.Attributes[0] = 0 }},
+		{"constraint record", func(r *relationDescriptor) { r.NotNullConstraints = []notNullConstraint{{Attribute: 1}} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
-			invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-			invalid.attributes = append([]int32(nil), d.attributes...)
+			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
 			if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 				t.Fatal("virtual-source exemption bypassed validation")
 			}
 		})
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
@@ -122,8 +122,8 @@ func TestPGSequenceShape(t *testing.T) {
 		}
 		name, _ := row[1].Text()
 		ns, _ := row[2].OID()
-		kind, _ := row[class.index["relkind"]].Text()
-		count, _ := row[class.index["relnatts"]].Integer()
+		kind, _ := row[class.Index["relkind"]].Text()
+		count, _ := row[class.Index["relnatts"]].Integer()
 		if name != "pg_sequence" || ns != 11 || kind != "r" || count != 8 {
 			t.Fatal(row)
 		}
@@ -140,10 +140,10 @@ func TestPGSequenceProjection(t *testing.T) {
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &sequenceOptions{typ: sqltype.Int4, start: 15, increment: 7, max: 200, min: -20, cache: 9223372036854775807, cycle: true}
-	d := &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: options}
+	d := &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: options}
 	state.setDescriptor(a, d)
-	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{relationKind: tableRelation})
-	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{relationKind: viewRelation})
+	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{RelationKind: tableRelation})
+	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{RelationKind: viewRelation})
 	e.sequences[a] = &sequenceGenerator{last: 99, called: true, generation: 100}
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
@@ -163,7 +163,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	base := *e.catalog.state
 	base.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	base.setDescriptor(a, &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: &sequenceOptions{typ: sqltype.Int8, start: 1, increment: 1, max: 9223372036854775807, min: 1, cache: 1}})
+	base.setDescriptor(a, &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{typ: sqltype.Int8, start: 1, increment: 1, max: 9223372036854775807, min: 1, cache: 1}})
 	own := newCatalogChanges()
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
@@ -194,7 +194,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	options := &sequenceOptions{typ: sqltype.Int2, start: -1, increment: -3, max: -1, min: -32768, cache: 1}
-	d := &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: options}
+	d := &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: options}
 	base.setDescriptor(a, d)
 	other := *d
 	other.address = dropped
@@ -208,7 +208,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	updated := *d
 	newOptions := *options
 	newOptions.start = -4
-	updated.sequence = &newOptions
+	updated.Sequence = &newOptions
 	own.descriptors[a] = &updated
 	own.descriptors[dropped] = nil
 	addition := *d
@@ -228,7 +228,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgSequenceUnitBag(t, captured), want) {
 		t.Fatal("retained base plus own overlay", err)
 	}
-	if owner.accessedTemporary || !reflect.DeepEqual(pgSequenceUnitBag(t, old), oldBag) || d.sequence.start != -1 {
+	if owner.accessedTemporary || !reflect.DeepEqual(pgSequenceUnitBag(t, old), oldBag) || d.Sequence.start != -1 {
 		t.Fatal("capture mutated retained rows or physical TEMP authority")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

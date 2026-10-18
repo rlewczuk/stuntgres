@@ -84,7 +84,7 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 			address := NameAddressForTempMove(t, e, source, name)
 			d := *e.catalog.state.MustRelation(address)
 			if field == "sequence_stamp" {
-				d.sequencePlanStamp = ids.DefinitionRevision(^uint64(0))
+				d.SequencePlanStamp = ids.DefinitionRevision(^uint64(0))
 			} else {
 				d.revision = ids.DefinitionRevision(^uint64(0))
 			}
@@ -122,12 +122,12 @@ func TestAlterSchemaGrantTimeDefinition(t *testing.T) {
 	lockPending(t, e, 1)
 	next := *old
 	next.revision++
-	next.comment = "grant-time comment"
+	next.Comment = "grant-time comment"
 	alterSchemaPublishDescriptor(t, e, &next)
 	transactionEnd(t, a, tx, false)
 	lockAwait(t, done, nil)
 	moved := e.catalog.state.MustRelation(ref.Address)
-	if moved.comment != "grant-time comment" || moved.revision <= next.revision || roleTableRef(t, e, "s2.t") != ref {
+	if moved.Comment != "grant-time comment" || moved.revision <= next.revision || roleTableRef(t, e, "s2.t") != ref {
 		t.Fatal("prewait descriptor used", moved)
 	}
 	lockEmpty(t, e)
@@ -169,7 +169,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			next := *e.catalog.state.MustRelation(address)
 			next.name = "grant_q2"
 			next.revision++
-			next.sequencePlanStamp++
+			next.SequencePlanStamp++
 			alterSchemaPublishDescriptor(t, e, &next)
 			before, frontier := e.catalog.state, e.catalog.nextRevision
 			transactionEnd(t, a, tx, false)
@@ -181,7 +181,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			} else {
 				lockAwait(t, done, nil)
 				moved := e.catalog.state.MustRelation(address)
-				if moved.name != "grant_q2" || moved.sequence != next.sequence || moved.sequencePlanStamp <= next.sequencePlanStamp {
+				if moved.name != "grant_q2" || moved.Sequence != next.Sequence || moved.SequencePlanStamp <= next.SequencePlanStamp {
 					t.Fatal("stale dependency definition", moved)
 				}
 				destination := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})

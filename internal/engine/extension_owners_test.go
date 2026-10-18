@@ -163,11 +163,11 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{
 		address:  address,
-		defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}},
-		generations: map[int32]columnGeneration{2: {
+		Defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}},
+		Generations: map[int32]columnGeneration{2: {
 			kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref},
 		}},
-		sqlIndex: &indexDefinition{keys: []indexKey{{derived: &derivedIndexKey{
+		SQLIndex: &indexDefinition{keys: []indexKey{{derived: &derivedIndexKey{
 			definition: call, execution: call, dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}
@@ -192,15 +192,15 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal("relocated HMAC", raw, err)
 		}
 	}
-	assertCall(relocated.defaults[1].expression)
-	assertCall(relocated.generations[2].expression)
-	assertCall(relocated.generations[2].planned)
-	assertCall(relocated.sqlIndex.keys[0].derived.definition)
-	assertCall(relocated.sqlIndex.keys[0].derived.execution)
+	assertCall(relocated.Defaults[1].expression)
+	assertCall(relocated.Generations[2].expression)
+	assertCall(relocated.Generations[2].planned)
+	assertCall(relocated.SQLIndex.keys[0].derived.definition)
+	assertCall(relocated.SQLIndex.keys[0].derived.execution)
 	for _, dependency := range []ids.ObjectRef{
-		relocated.defaults[1].dependencies[0],
-		relocated.generations[2].dependencies[0],
-		relocated.sqlIndex.keys[0].derived.dependencies[0],
+		relocated.Defaults[1].dependencies[0],
+		relocated.Generations[2].dependencies[0],
+		relocated.SQLIndex.keys[0].derived.dependencies[0],
 	} {
 		if dependency.Address != mapping[call.ref.Address] || dependency.Epoch != next.epoch {
 			t.Fatal("stale consumer dependency", dependency)
@@ -222,7 +222,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal("relocated query", err)
 	}
 	assertCall(query.(*projectNode).expressions[0])
-	if consumer.defaults[1].dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
+	if consumer.Defaults[1].dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
 		t.Fatal("source consumer mutated")
 	}
 	for _, name := range []string{"gen_random_bytes", "gen_random_uuid", "fips_mode"} {

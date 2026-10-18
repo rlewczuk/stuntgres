@@ -19,7 +19,7 @@ func typedControlsTemporary(e *Engine, tables ...*relationDescriptor) {
 		table.namespace = namespace.address
 		e.catalog.state.setDescriptor(table.address, &table)
 		e.catalog.state.bindName(descriptorNameKey(&table), table.address)
-		rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}
+		rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}
 		row := e.catalog.state.MustType(rowAddress)
 		for _, address := range []ids.ObjectAddress{rowAddress, {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
 			oldType := e.catalog.state.MustType(address)
@@ -69,7 +69,7 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	}
 	retained := next.MustRelation(table.address)
 	backing := next.MustRelation(source.address)
-	if retained.ofType != table.ofType || retained.rowType != table.rowType || backing.rowType != source.rowType || storage[table.address] != e.storage[table.address] {
+	if retained.OfType != table.OfType || retained.RowType != table.RowType || backing.RowType != source.RowType || storage[table.address] != e.storage[table.address] {
 		t.Fatal("retained TEMP providers were retargeted")
 	}
 	if err := validateTypedAttachment(e.catalog.read(next), retained); err != nil {

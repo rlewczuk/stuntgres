@@ -16,7 +16,7 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	if err := stage.Create(&namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, owner: owner, name: "collision", revision: 1, comment: "namespace candidate"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stage.Create(&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, owner: owner, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "collision", revision: 1, comment: "relation candidate", columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"a": 0}, attributes: []int32{1}, attributeHighWater: 1, columnComments: map[int32]string{1: "column excluded"}}); err != nil {
+	if err := stage.Create(&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: owner, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "collision", revision: 1, Comment: "relation candidate", Columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"a": 0}, Attributes: []int32{1}, AttributeHighWater: 1, ColumnComments: map[int32]string{1: "column excluded"}}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), stage)

@@ -31,20 +31,20 @@ func (e *Engine) initializeForeignCatalogSources() error {
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		if spec.oid == ids.ForeignMappingClassID {
-			d.acl = authorization.ACLValue{}
+			d.ACL = authorization.ACLValue{}
 		}
-		d.virtualView = spec.oid == pgUserMappingsOID
+		d.VirtualView = spec.oid == pgUserMappingsOID
 		for i, column := range spec.columns {
 			typ, ok := (e.catalog.read(e.catalog.state)).LookupType(column.typ)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing SQL/MED catalog type %d", column.typ)
 			}
-			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: column.nullable, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			d.Columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: column.nullable, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
 			if column.typ == sqltype.Text || column.typ == 1009 {
-				d.columns[i].Usage.Collation.ID = 950
+				d.Columns[i].Usage.Collation.ID = 950
 			}
-			d.attributes[i] = int32(i + 1)
-			d.index[column.name] = i
+			d.Attributes[i] = int32(i + 1)
+			d.Index[column.name] = i
 		}
 		e.registerCatalogSource(d)
 	}
@@ -69,7 +69,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 			if foreign.address.ClassID == source.address.ObjectID || source.address.ObjectID == pgUserMappingsOID && foreign.address.ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
 			}
-		} else if r, ok := d.(*relationDescriptor); ok && source.address.ObjectID == ids.ForeignTableClassID && r.foreign != nil {
+		} else if r, ok := d.(*relationDescriptor); ok && source.address.ObjectID == ids.ForeignTableClassID && r.Foreign != nil {
 			descriptors = append(descriptors, d)
 		}
 	}
@@ -79,25 +79,25 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		row := make([]sqltype.Value, len(source.columns))
-		for i, c := range source.columns {
+		row := make([]sqltype.Value, len(source.Columns))
+		for i, c := range source.Columns {
 			row[i] = sqltype.Null(c.Usage.Type)
 		}
 		putOID := func(index int, value uint32) error {
-			v, err := sqltype.OIDValue(source.columns[index].Usage.Type, value)
+			v, err := sqltype.OIDValue(source.Columns[index].Usage.Type, value)
 			row[index] = v
 			return err
 		}
-		putString := func(index int, value string) { row[index] = sqltype.String(source.columns[index].Usage.Type, value) }
+		putString := func(index int, value string) { row[index] = sqltype.String(source.Columns[index].Usage.Type, value) }
 		var err error
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			if err = putOID(0, uint32(relation.address.ObjectID)); err != nil {
 				return nil, err
 			}
-			if err = putOID(1, uint32(relation.foreign.server.ObjectID)); err != nil {
+			if err = putOID(1, uint32(relation.Foreign.server.ObjectID)); err != nil {
 				return nil, err
 			}
-			row[2], err = foreignOptionsValue(source.columns[2].Usage.Type, relation.foreign.options)
+			row[2], err = foreignOptionsValue(source.Columns[2].Usage.Type, relation.Foreign.options)
 		} else {
 			d := descriptor.(*foreignDescriptor)
 			if err = putOID(0, uint32(d.address.ObjectID)); err != nil {
@@ -111,11 +111,11 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 						return nil, err
 					}
 				}
-				row[5], err = e.pgClassACL(auth.roles, source.columns[5].Usage.Type, d.acl)
+				row[5], err = e.pgClassACL(auth.roles, source.Columns[5].Usage.Type, d.acl)
 				if err != nil {
 					return nil, err
 				}
-				row[6], err = foreignOptionsValue(source.columns[6].Usage.Type, d.options)
+				row[6], err = foreignOptionsValue(source.Columns[6].Usage.Type, d.options)
 			case ids.ForeignServerClassID:
 				putString(1, d.name)
 				if err = putOID(2, uint32(d.owner.ID())); err != nil {
@@ -130,11 +130,11 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				if d.version != nil {
 					putString(5, *d.version)
 				}
-				row[6], err = e.pgClassACL(auth.roles, source.columns[6].Usage.Type, d.acl)
+				row[6], err = e.pgClassACL(auth.roles, source.Columns[6].Usage.Type, d.acl)
 				if err != nil {
 					return nil, err
 				}
-				row[7], err = foreignOptionsValue(source.columns[7].Usage.Type, d.options)
+				row[7], err = foreignOptionsValue(source.Columns[7].Usage.Type, d.options)
 			case ids.ForeignMappingClassID:
 				if err = putOID(1, uint32(d.mappedRole.ID())); err != nil {
 					return nil, err
@@ -142,7 +142,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				if err = putOID(2, uint32(d.server.ObjectID)); err != nil {
 					return nil, err
 				}
-				row[3], err = foreignOptionsValue(source.columns[3].Usage.Type, d.options)
+				row[3], err = foreignOptionsValue(source.Columns[3].Usage.Type, d.options)
 			case pgUserMappingsOID:
 				server, ok := auth.catalog.Foreign(d.server)
 				if !ok {
@@ -170,7 +170,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 					visible = visible || owner || auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}) == nil
 				}
 				if visible {
-					row[5], err = foreignOptionsValue(source.columns[5].Usage.Type, d.options)
+					row[5], err = foreignOptionsValue(source.Columns[5].Usage.Type, d.options)
 				}
 			}
 		}

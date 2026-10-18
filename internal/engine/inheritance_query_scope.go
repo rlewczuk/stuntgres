@@ -54,7 +54,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 			return ids.ErrCatalogReplaced
 		}
 		leaf.relation = d
-		if d.relationKind == viewRelation {
+		if d.RelationKind == viewRelation {
 			for _, address := range active {
 				if address == d.address {
 					return nil
@@ -76,7 +76,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 			}
 			return nil
 		}
-		if d.relationKind != tableRelation || leaf.only {
+		if d.RelationKind != tableRelation || leaf.only {
 			return visit(leaf)
 		}
 		return inheritanceQueryClosure(catalog, d, token, func(physical *relationDescriptor) error {
@@ -106,7 +106,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.catalog)
 		d, ok := catalog.Relation(s.lockedRef.Address)
-		if !ok || d.view == nil {
+		if !ok || d.View == nil {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
@@ -135,7 +135,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		}
 		var pending []queryLeaf
 		err := inheritanceQueryLeaves(catalog, roots, s.op.session.token, func(leaf queryLeaf) error {
-			if leaf.relation.relationKind != tableRelation {
+			if leaf.relation.RelationKind != tableRelation {
 				return nil
 			}
 			mode := lock.AccessShare
@@ -145,7 +145,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.relationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}

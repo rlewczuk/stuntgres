@@ -51,31 +51,31 @@ func TestForeignActionsDefinition(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "c")
 	child := view.MustRelation(ref.Address)
-	original := child.foreignKeys[0]
-	if original.UpdateAction != parser.ForeignKeyCascade || original.DeleteAction != parser.ForeignKeySetNull || len(original.DeleteAttributes) != 1 || original.DeleteAttributes[0] != child.attributes[3] {
+	original := child.ForeignKeys[0]
+	if original.UpdateAction != parser.ForeignKeyCascade || original.DeleteAction != parser.ForeignKeySetNull || len(original.DeleteAttributes) != 1 || original.DeleteAttributes[0] != child.Attributes[3] {
 		t.Fatal(original)
 	}
 	for _, change := range []func(*foreignKeyConstraint){
-		func(f *foreignKeyConstraint) { f.UpdateAction = 255 }, func(f *foreignKeyConstraint) { f.DeleteAction = 255 }, func(f *foreignKeyConstraint) { f.DeleteAction = parser.ForeignKeyCascade }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{child.attributes[2]} }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{99} }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{child.attributes[3], child.attributes[3]} },
+		func(f *foreignKeyConstraint) { f.UpdateAction = 255 }, func(f *foreignKeyConstraint) { f.DeleteAction = 255 }, func(f *foreignKeyConstraint) { f.DeleteAction = parser.ForeignKeyCascade }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{child.Attributes[2]} }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{99} }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{child.Attributes[3], child.Attributes[3]} },
 	} {
 		candidate := *child
-		candidate.foreignKeys = slices.Clone(child.foreignKeys)
-		change(&candidate.foreignKeys[0])
+		candidate.ForeignKeys = slices.Clone(child.ForeignKeys)
+		change(&candidate.ForeignKeys[0])
 		if err := validateForeignKeys(view, &candidate, map[string]bool{}); err == nil {
-			t.Fatal("invalid action attachment admitted", candidate.foreignKeys[0])
+			t.Fatal("invalid action attachment admitted", candidate.ForeignKeys[0])
 		}
 	}
-	if !reflect.DeepEqual(original, child.foreignKeys[0]) {
+	if !reflect.DeepEqual(original, child.ForeignKeys[0]) {
 		t.Fatal("validation changed retained definition")
 	}
 	sessionSQL(t, s, "ALTER TABLE c DROP COLUMN dead")
 	sessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
 	next := e.CatalogRead()
 	current := next.MustRelation(ref.Address)
-	if !slices.Equal(current.foreignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.foreignKeys[0]) {
-		t.Fatal("slot/name rewrite retargeted action", original, current.foreignKeys[0])
+	if !slices.Equal(current.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.ForeignKeys[0]) {
+		t.Fatal("slot/name rewrite retargeted action", original, current.ForeignKeys[0])
 	}
-	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.namespace}}).foreignKeyConstraintSQL(current, current.foreignKeys[0])
+	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.namespace}}).foreignKeyConstraintSQL(current, current.ForeignKeys[0])
 	if err != nil || text != "FOREIGN KEY (a, author) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (author)" {
 		t.Fatal(text, err)
 	}
@@ -94,18 +94,18 @@ func TestForeignActionsEquality(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE c(pid "+tc.typ+" REFERENCES p ON UPDATE CASCADE)")
 			view := e.CatalogRead()
 			child := view.MustRelation(catalogRef(t, e, view, "c").Address)
-			f := child.foreignKeys[0]
+			f := child.ForeignKeys[0]
 			parent := view.MustRelation(f.Target)
 			index := view.MustRelation(f.Index)
 			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				t.Fatal(err)
 			}
-			old, err := parent.columns[0].Usage.Type.Input(context.Background(), tc.old, -1)
+			old, err := parent.Columns[0].Usage.Type.Input(context.Background(), tc.old, -1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			next, err := parent.columns[0].Usage.Type.Input(context.Background(), tc.next, -1)
+			next, err := parent.Columns[0].Usage.Type.Input(context.Background(), tc.next, -1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,7 +142,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := children.committed[0]
-	value, _ := sqltype.Integer(job.child.columns[0].Usage.Type, 2)
+	value, _ := sqltype.Integer(job.child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]rowVersion{old}
 	if err = scope.stage.replace(ref, predecessor[:], indexWriteBatch{values: replacement[:]}); err == nil {
@@ -160,7 +160,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, true); err != nil {
 		t.Fatal(err)
 	}
-	ownerAuth := foreignActionOwner(auth, job.child.owner)
+	ownerAuth := foreignActionOwner(auth, job.child.Owner)
 	scope.foreignActionAuth = &ownerAuth
 	scope.foreignActionsSettling = true
 	if err = scope.stage.replace(ref, predecessor[:], indexWriteBatch{values: replacement[:]}); err != nil {

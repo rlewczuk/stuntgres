@@ -21,13 +21,13 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 		}
 		return nil
 	}
-	if d.membership != nil {
-		if err := add(d.membership.parent); err != nil {
+	if d.Membership != nil {
+		if err := add(d.Membership.parent); err != nil {
 			return nil, err
 		}
-		if d.membership.defaultBound {
-			parent := catalog.MustRelation(d.membership.parent)
-			for _, address := range parent.partition.children {
+		if d.Membership.defaultBound {
+			parent := catalog.MustRelation(d.Membership.parent)
+			for _, address := range parent.Partition.children {
 				if address != d.address && !partitionExclusionDefaultBefore(catalog, d, catalog.MustRelation(address)) {
 					if err := add(address); err != nil {
 						return nil, err
@@ -35,8 +35,8 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 				}
 			}
 		}
-		if !d.membership.defaultBound {
-			for _, tuple := range [2][]partitionDatum{d.membership.lower, d.membership.upper} {
+		if !d.Membership.defaultBound {
+			for _, tuple := range [2][]partitionDatum{d.Membership.lower, d.Membership.upper} {
 				for _, datum := range tuple {
 					if datum.kind != 0 {
 						continue
@@ -62,8 +62,8 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 			}
 		}
 	}
-	if d.partition != nil {
-		for _, key := range d.partition.keys {
+	if d.Partition != nil {
+		for _, key := range d.Partition.keys {
 			if key.derived != nil {
 				for _, ref := range key.derived.dependencies {
 					if err := add(ref.Address); err != nil {
@@ -77,16 +77,16 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 }
 
 func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor) (string, error) {
-	if d.partition == nil {
+	if d.Partition == nil {
 		return "", nil
 	}
 	var text strings.Builder
-	if d.partition.strategy == parser.PartitionHash {
+	if d.Partition.strategy == parser.PartitionHash {
 		text.WriteString(" PARTITION BY HASH (")
 	} else {
 		text.WriteString(" PARTITION BY RANGE (")
 	}
-	for i, key := range d.partition.keys {
+	for i, key := range d.Partition.keys {
 		if i != 0 {
 			text.WriteString(", ")
 		}
@@ -97,11 +97,11 @@ func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *relationDescri
 			}
 			text.WriteString("(" + expression + ")")
 		} else {
-			slot := slices.Index(d.attributes, key.attribute)
+			slot := slices.Index(d.Attributes, key.attribute)
 			if slot < 0 {
 				return "", fmt.Errorf("stuntgres: missing partition key attribute")
 			}
-			text.WriteString(quoteIdentifier(d.columns[slot].Name))
+			text.WriteString(quoteIdentifier(d.Columns[slot].Name))
 		}
 		if key.collation != 0 {
 			name := collationSQLName(catalog, key.collation)
@@ -123,35 +123,35 @@ func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *relationDescri
 // captured definitions, not a historical CREATE/ATTACH flag, so logical replay
 // remains canonical after stable attribute numbers have been reminted.
 func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
-	if d.membership == nil {
+	if d.Membership == nil {
 		return false
 	}
-	parent := catalog.MustRelation(d.membership.parent)
-	for i, column := range d.columns {
-		if column.DeclaredDimensions != 0 || column.Name != parent.columns[i].Name {
+	parent := catalog.MustRelation(d.Membership.parent)
+	for i, column := range d.Columns {
+		if column.DeclaredDimensions != 0 || column.Name != parent.Columns[i].Name {
 			return true
 		}
-		attribute, parentAttribute := d.attributes[i], parent.attributes[i]
-		if _, exists := parent.defaults[parentAttribute]; exists {
-			if _, exists := d.defaults[attribute]; !exists {
+		attribute, parentAttribute := d.Attributes[i], parent.Attributes[i]
+		if _, exists := parent.Defaults[parentAttribute]; exists {
+			if _, exists := d.Defaults[attribute]; !exists {
 				return true
 			}
 		}
-		for _, child := range d.notNullConstraints {
+		for _, child := range d.NotNullConstraints {
 			if child.Attribute != attribute {
 				continue
 			}
 			if child.NotValid {
 				return true
 			}
-			for _, inherited := range parent.notNullConstraints {
+			for _, inherited := range parent.NotNullConstraints {
 				if inherited.Attribute == parentAttribute && child.Name != inherited.Name {
 					return true
 				}
 			}
 		}
 	}
-	for _, check := range d.checkConstraints {
+	for _, check := range d.CheckConstraints {
 		if check.NotValid || check.NoInherit {
 			return true
 		}
@@ -160,22 +160,22 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
 }
 
 func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor) (string, error) {
-	parent := catalog.MustRelation(d.membership.parent)
+	parent := catalog.MustRelation(d.Membership.parent)
 	qualified := func(table *relationDescriptor) string {
 		return quoteIdentifier(catalog.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
 	}
 	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
-	if d.membership.defaultBound {
+	if d.Membership.defaultBound {
 		return text + " DEFAULT;\n", nil
 	}
-	if d.membership.strategy == parser.PartitionHash {
-		return text + hashPartitionBoundSQL(d.membership) + ";\n", nil
+	if d.Membership.strategy == parser.PartitionHash {
+		return text + hashPartitionBoundSQL(d.Membership) + ";\n", nil
 	}
-	lower, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.lower)
+	lower, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.keys, d.Membership.lower)
 	if err != nil {
 		return "", err
 	}
-	upper, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.upper)
+	upper, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.keys, d.Membership.upper)
 	if err != nil {
 		return "", err
 	}
@@ -185,8 +185,8 @@ func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relatio
 // PARTITION OF names no new column types. Inherited definitions are supplied
 // by the parent; only local default/nullability/check differences are emitted.
 func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor, qualified string, deferred map[int32]bool) (string, error) {
-	parent, ok := catalog.Relation(d.membership.parent)
-	if !ok || parent.partition == nil {
+	parent, ok := catalog.Relation(d.Membership.parent)
+	if !ok || parent.Partition == nil {
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
 	}
 	var text strings.Builder
@@ -198,12 +198,12 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		}
 		options.WriteString(option)
 	}
-	for i, column := range d.columns {
+	for i, column := range d.Columns {
 		var option strings.Builder
 		option.WriteString(quoteIdentifier(column.Name))
 		changed := false
-		childDefault, childHasDefault := d.defaults[d.attributes[i]]
-		parentDefault, parentHasDefault := parent.defaults[parent.attributes[i]]
+		childDefault, childHasDefault := d.Defaults[d.Attributes[i]]
+		parentDefault, parentHasDefault := parent.Defaults[parent.Attributes[i]]
 		childSQL, parentSQL := "NULL", "NULL"
 		var err error
 		if childHasDefault {
@@ -218,13 +218,13 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 				return "", err
 			}
 		}
-		if !deferred[d.attributes[i]] && (childHasDefault != parentHasDefault || childSQL != parentSQL) {
+		if !deferred[d.Attributes[i]] && (childHasDefault != parentHasDefault || childSQL != parentSQL) {
 			option.WriteString(" DEFAULT " + childSQL)
 			changed = true
 		}
 		if !column.Nullable {
-			for _, constraint := range d.notNullConstraints {
-				if constraint.Attribute == d.attributes[i] && (parent.columns[i].Nullable || constraint.partitionLocal) {
+			for _, constraint := range d.NotNullConstraints {
+				if constraint.Attribute == d.Attributes[i] && (parent.Columns[i].Nullable || constraint.partitionLocal) {
 					option.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
 					changed = true
 					break
@@ -241,7 +241,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 			return "", err
 		}
 		inherited := false
-		for _, ancestor := range parent.checkConstraints {
+		for _, ancestor := range parent.CheckConstraints {
 			if ancestor.Name != constraint.Name {
 				continue
 			}
@@ -260,7 +260,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		}
 		appendOption(option)
 	}
-	for _, constraint := range d.uniqueConstraints {
+	for _, constraint := range d.UniqueConstraints {
 		if constraint.Parent != 0 {
 			continue
 		}
@@ -274,7 +274,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		}
 		appendOption("CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + definition)
 	}
-	for _, constraint := range d.exclusionConstraints {
+	for _, constraint := range d.ExclusionConstraints {
 		if constraint.Parent != 0 {
 			continue
 		}
@@ -294,16 +294,16 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 	if options.Len() != 0 {
 		text.WriteString(" (" + options.String() + ")")
 	}
-	if d.membership.defaultBound {
+	if d.Membership.defaultBound {
 		text.WriteString(" DEFAULT")
-	} else if d.membership.strategy == parser.PartitionHash {
-		text.WriteString(hashPartitionBoundSQL(d.membership))
+	} else if d.Membership.strategy == parser.PartitionHash {
+		text.WriteString(hashPartitionBoundSQL(d.Membership))
 	} else {
-		lower, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.lower)
+		lower, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.keys, d.Membership.lower)
 		if err != nil {
 			return "", err
 		}
-		upper, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.upper)
+		upper, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.keys, d.Membership.upper)
 		if err != nil {
 			return "", err
 		}
@@ -345,9 +345,9 @@ func hashPartitionBoundSQL(bound *partitionMembership) string {
 // trees preserve physical destinations. Parent insertion checks every ancestor.
 func partitionHashReplayTarget(catalog CatalogRead, d *relationDescriptor) *relationDescriptor {
 	target := d
-	for child := d; child.membership != nil; {
-		parent := catalog.MustRelation(child.membership.parent)
-		if parent.partition.strategy == parser.PartitionHash {
+	for child := d; child.Membership != nil; {
+		parent := catalog.MustRelation(child.Membership.parent)
+		if parent.Partition.strategy == parser.PartitionHash {
 			target = parent
 		}
 		child = parent

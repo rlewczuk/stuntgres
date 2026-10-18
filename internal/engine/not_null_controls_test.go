@@ -20,7 +20,7 @@ func TestNotNullFailedRestorePreservesCatalogEligibility(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old.(*relationDescriptor)
 	next.revision++
-	next.comment = "still eligible"
+	next.Comment = "still eligible"
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}

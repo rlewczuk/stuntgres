@@ -11,14 +11,14 @@ import (
 // Map actual live relation/index addresses with the existing replacement map.
 // Archived removed identities retain their genuine source lifetime namespace.
 func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
-	if len(old.physicalNotNull) == 0 {
+	if len(old.PhysicalNotNull) == 0 {
 		return nil
 	}
-	next.physicalNotNull = maps.Clone(old.physicalNotNull)
+	next.PhysicalNotNull = maps.Clone(old.PhysicalNotNull)
 	supports := make(map[*physicalPrimarySupport]*physicalPrimarySupport)
-	for attribute, proof := range old.physicalNotNull {
+	for attribute, proof := range old.PhysicalNotNull {
 		slot := old.indexForAttribute(attribute)
-		if proof.cause == nil || proof.cause.self != proof.cause || slot < 0 || proof.usage != old.columns[slot].Usage {
+		if proof.cause == nil || proof.cause.self != proof.cause || slot < 0 || proof.usage != old.Columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid physical not-null remap source")
 		}
 		cause := *proof.cause
@@ -31,7 +31,7 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 				return fmt.Errorf("stuntgres: missing physical not-null source primary")
 			}
 			for i, key := range support.keys {
-				if key.attribute != primary.Attributes[i] || key.usage != old.columns[old.indexForAttribute(key.attribute)].Usage {
+				if key.attribute != primary.Attributes[i] || key.usage != old.Columns[old.indexForAttribute(key.attribute)].Usage {
 					return fmt.Errorf("stuntgres: invalid physical not-null source key usage")
 				}
 			}
@@ -46,7 +46,7 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 			}
 			proof.support = replacement
 		}
-		next.physicalNotNull[attribute] = proof
+		next.PhysicalNotNull[attribute] = proof
 	}
 	return nil
 }
@@ -57,7 +57,7 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || len(table.physicalNotNull) == 0 {
+		if !ok || len(table.PhysicalNotNull) == 0 {
 			continue
 		}
 		namespace, ok := next.Namespace(table.namespace)
@@ -72,18 +72,18 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 			return fmt.Errorf("stuntgres: missing physical not-null remap owner")
 		}
 		copy := *table
-		copy.physicalNotNull = maps.Clone(table.physicalNotNull)
+		copy.PhysicalNotNull = maps.Clone(table.PhysicalNotNull)
 		supports := make(map[*physicalPrimarySupport]*physicalPrimarySupport)
-		for attribute, proof := range table.physicalNotNull {
+		for attribute, proof := range table.PhysicalNotNull {
 			slot := table.indexForAttribute(attribute)
-			if proof.cause == nil || proof.cause.self != proof.cause || slot < 0 || old.physicalNotNull[attribute].cause != proof.cause {
+			if proof.cause == nil || proof.cause.self != proof.cause || slot < 0 || old.PhysicalNotNull[attribute].cause != proof.cause {
 				return fmt.Errorf("stuntgres: changed physical not-null remap cause")
 			}
 			cause := *proof.cause
 			cause.self = &cause
 			cause.ref = e.catalog.domain.Ref(next.epoch, table.address)
 			proof.cause = &cause
-			proof.usage = table.columns[slot].Usage
+			proof.usage = table.Columns[slot].Usage
 			if support := proof.support; support != nil {
 				before, after := physicalPrimaryForAttribute(old, attribute), physicalPrimaryForAttribute(table, attribute)
 				if before == nil || after == nil || before.OID != support.constraint || before.Index != support.index || after.Index != before.Index || !slices.Equal(before.Attributes, after.Attributes) {
@@ -93,14 +93,14 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 				if replacement == nil {
 					keys := make([]physicalPrimaryKeyUsage, len(after.Attributes))
 					for i, key := range after.Attributes {
-						keys[i] = physicalPrimaryKeyUsage{key, table.columns[table.indexForAttribute(key)].Usage}
+						keys[i] = physicalPrimaryKeyUsage{key, table.Columns[table.indexForAttribute(key)].Usage}
 					}
 					replacement = &physicalPrimarySupport{constraint: after.OID, index: after.Index, keys: keys}
 					supports[support] = replacement
 				}
 				proof.support = replacement
 			}
-			copy.physicalNotNull[attribute] = proof
+			copy.PhysicalNotNull[attribute] = proof
 		}
 		next.setDescriptor(address, &copy)
 		if err := validatePhysicalNotNull(e.catalog.read(next), &copy, physicalOrdinaryNotNull(&copy)); err != nil {
@@ -111,8 +111,8 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 }
 
 func physicalOrdinaryNotNull(table *relationDescriptor) map[int32]bool {
-	ordinary := make(map[int32]bool, len(table.notNullConstraints))
-	for _, fact := range table.notNullConstraints {
+	ordinary := make(map[int32]bool, len(table.NotNullConstraints))
+	for _, fact := range table.NotNullConstraints {
 		ordinary[fact.Attribute] = true
 	}
 	return ordinary

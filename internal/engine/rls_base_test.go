@@ -29,7 +29,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *d
-	next.owner = owner
+	next.Owner = owner
 	check := func(label string, p authorization.PrincipalRef, command policyCommand, proposed bool, want rlsDisposition) {
 		t.Helper()
 		got, err := rowSecurityDecision(auth, &next, p, command, proposed)
@@ -38,33 +38,33 @@ func TestRLSBaseDecision(t *testing.T) {
 		}
 	}
 	check("disabled", member, policySelect, false, rlsUnrestricted)
-	next.rlsEnabled = true
+	next.RLSEnabled = true
 	check("owner", owner, policySelect, false, rlsUnrestricted)
 	check("inherited owner", reader, policySelect, false, rlsUnrestricted)
-	next.rlsForced = true
+	next.RLSForced = true
 	check("forced owner", owner, policySelect, false, rlsDefaultDeny)
 	check("direct bypass", bypass, policySelect, false, rlsUnrestricted)
 	check("attribute not inherited", member, policySelect, false, rlsDefaultDeny)
-	check("direct superuser", d.owner, policySelect, false, rlsUnrestricted)
-	next.policies = []policyDefinition{{permissive: false, command: policyAll, roles: []policyRole{{public: true}}, using: policyPayloadOf(using)}}
+	check("direct superuser", d.Owner, policySelect, false, rlsUnrestricted)
+	next.Policies = []policyDefinition{{permissive: false, command: policyAll, roles: []policyRole{{public: true}}, using: policyPayloadOf(using)}}
 	check("restrictive only", member, policySelect, false, rlsDefaultDeny)
-	next.policies[0].permissive = true
-	next.policies[0].roles = []policyRole{{ref: owner}}
+	next.Policies[0].permissive = true
+	next.Policies[0].roles = []policyRole{{ref: owner}}
 	check("role inapplicable", member, policySelect, false, rlsDefaultDeny)
 	check("inherited policy", reader, policySelect, false, rlsNeedsExpressions)
-	next.policies[0].roles = []policyRole{{public: true}}
+	next.Policies[0].roles = []policyRole{{public: true}}
 	check("public constant is not a shortcut", member, policySelect, false, rlsNeedsExpressions)
 	check("ALL check falls back", member, policyInsert, true, rlsNeedsExpressions)
-	next.policies[0].command = policySelect
+	next.Policies[0].command = policySelect
 	check("command inapplicable", member, policyInsert, true, rlsDefaultDeny)
 	got, err := rowSecurityGroups(auth, &next, member, policyUpdate, false, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("same-phase false conjunction", got, err)
 	}
-	next.policies[0].using = nil
+	next.Policies[0].using = nil
 	check("omitted using", member, policySelect, false, rlsDefaultDeny)
-	next.policies[0].command = policyInsert
-	next.policies[0].check = policyPayloadOf(using)
+	next.Policies[0].command = policyInsert
+	next.Policies[0].check = policyPayloadOf(using)
 	check("explicit check", member, policyInsert, true, rlsNeedsExpressions)
 	got, err = rowSecurityGroups(auth, &next, member, policyInsert, true, true)
 	if err != nil || got != rlsDefaultDeny {
@@ -164,13 +164,13 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := *d
-	old.policies = []policyDefinition{{OID: oid, Name: "retained", permissive: true, command: policyAll, roles: []policyRole{{ref: d.owner}}, using: policyPayloadOf(expression), check: policyPayloadOf(expression)}}
+	old.Policies = []policyDefinition{{OID: oid, Name: "retained", permissive: true, command: policyAll, roles: []policyRole{{ref: d.Owner}}, using: policyPayloadOf(expression), check: policyPayloadOf(expression)}}
 	actions := []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}, {Action: parser.DisableRowSecurity}}
 	next := rowSecurityFlags(&old, actions)
-	if next == &old || next.rlsEnabled || !next.rlsForced || old.rlsEnabled || old.rlsForced {
+	if next == &old || next.RLSEnabled || !next.RLSForced || old.RLSEnabled || old.RLSForced {
 		t.Fatal("independent flags/old snapshot")
 	}
-	if &next.policies[0] != &old.policies[0] || policyExpressionOf(next.policies[0].using) != expression || policyExpressionOf(next.policies[0].check) != expression || next.policies[0].OID != oid {
+	if &next.Policies[0] != &old.Policies[0] || policyExpressionOf(next.Policies[0].using) != expression || policyExpressionOf(next.Policies[0].check) != expression || next.Policies[0].OID != oid {
 		t.Fatal("flag action copied or changed immutable policy payload")
 	}
 	if rowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
@@ -197,7 +197,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*relationDescriptor)
 		if ok && copy.name == "t" {
-			if copy.rlsEnabled || !copy.rlsForced || len(copy.policies) != 1 || policyExpressionOf(copy.policies[0].using) == expression {
+			if copy.RLSEnabled || !copy.RLSForced || len(copy.Policies) != 1 || policyExpressionOf(copy.Policies[0].using) == expression {
 				t.Fatal("remap lost flags/policy or shared original expression")
 			}
 			return
@@ -212,7 +212,7 @@ func TestRLSBaseControls(t *testing.T) {
 	base := e.CatalogRead()
 	for _, state := range []struct{ enabled, forced bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
 		next := *d
-		next.rlsEnabled, next.rlsForced = state.enabled, state.forced
+		next.RLSEnabled, next.RLSForced = state.enabled, state.forced
 		catalog := cloneCatalog(base.state)
 		catalog.setDescriptor(d.address, &next)
 		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
@@ -231,7 +231,7 @@ func TestRLSBaseControls(t *testing.T) {
 		if strings.Contains(groups[0].sql, "ENABLE") != state.enabled || strings.Contains(groups[0].sql, "FORCE") != state.forced {
 			t.Fatal("serialized flags", groups[0].sql)
 		}
-		if next.rlsEnabled != state.enabled || next.rlsForced != state.forced {
+		if next.RLSEnabled != state.enabled || next.RLSForced != state.forced {
 			t.Fatal("Dump mutated descriptor")
 		}
 	}
@@ -258,7 +258,7 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled flags published")
 	}
-	if e.CatalogRead().state != base.state || d.rlsEnabled || d.rlsForced {
+	if e.CatalogRead().state != base.state || d.RLSEnabled || d.RLSForced {
 		t.Fatal("cancellation changed original catalog")
 	}
 	rlsBaseLockCancellation(t, e, d)

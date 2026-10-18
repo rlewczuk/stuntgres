@@ -133,7 +133,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")
 	}
-	if len(row) != len(parent.columns) {
+	if len(row) != len(parent.Columns) {
 		return false, false, errors.New("stuntgres: invalid staged row width")
 	}
 	auth, err := e.authorizationLocked(s.op)

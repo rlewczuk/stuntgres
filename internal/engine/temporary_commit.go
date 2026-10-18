@@ -22,14 +22,14 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 	var cleared, dropped []ids.ObjectAddress
 	for a, descriptor := range base.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.relationKind != tableRelation || table.onCommit != parser.OnCommitDelete && table.onCommit != parser.OnCommitDrop {
+		if !ok || table.RelationKind != tableRelation || table.OnCommit != parser.OnCommitDelete && table.OnCommit != parser.OnCommitDrop {
 			continue
 		}
 		ns := base.MustNamespace(table.namespace)
 		if ns.temporary != op.session.token {
 			continue
 		}
-		if table.onCommit == parser.OnCommitDrop {
+		if table.OnCommit == parser.OnCommitDrop {
 			dropped = append(dropped, a)
 			continue
 		}

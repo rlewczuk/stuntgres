@@ -97,9 +97,9 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 		t.Fatal("winning descriptor is absent")
 	}
 	relation := d.(*relationDescriptor)
-	if len(relation.columns) != 1 || relation.columns[0].Name != "kept" ||
-		relation.columns[0].Usage.Type.ID() != sqltype.Text || relation.columns[0].Nullable {
-		t.Fatalf("winning definition changed: %#v", relation.columns)
+	if len(relation.Columns) != 1 || relation.Columns[0].Name != "kept" ||
+		relation.Columns[0].Usage.Type.ID() != sqltype.Text || relation.Columns[0].Nullable {
+		t.Fatalf("winning definition changed: %#v", relation.Columns)
 	}
 	rows := tuples(run(t, e, "SELECT kept FROM conflict_rows"))
 	if len(rows) != 1 || len(rows[0]) != 1 || rows[0][0] != "winner" {

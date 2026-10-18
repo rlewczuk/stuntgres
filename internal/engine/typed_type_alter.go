@@ -24,10 +24,10 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 		if err == nil {
 			source = auth.catalog.MustRelation(ref.Address)
-			if source.relationKind != compositeRelation {
+			if source.RelationKind != compositeRelation {
 				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.name))
 			} else {
-				typ = auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
+				typ = auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 			}
 		}
 	}
@@ -110,11 +110,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		if action.Action == parser.DropColumn {
 			continue
 		}
-		slot, exists := sourceMutation.next.index[name]
+		slot, exists := sourceMutation.next.Index[name]
 		if !exists {
 			continue
 		}
-		usage := sourceMutation.next.columns[slot].Usage
+		usage := sourceMutation.next.Columns[slot].Usage
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
@@ -127,11 +127,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	forced := make(map[ids.ObjectAddress]map[int32]bool, len(targets)+1)
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
-			if slot, ok := source.index[action.Column.Text]; ok {
+			if slot, ok := source.Index[action.Column.Text]; ok {
 				if forced[source.address] == nil {
 					forced[source.address] = make(map[int32]bool)
 				}
-				forced[source.address][source.attributes[slot]] = true
+				forced[source.address][source.Attributes[slot]] = true
 			}
 		}
 	}
@@ -141,7 +141,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		var graph *tableInheritance
 		view := e.stageRead(stage)
 		table = view.MustRelation(table.address)
-		if table.ofType == typ.Address() {
+		if table.OfType == typ.Address() {
 			actions, renames = typedShapeActions(source, sourceMutation.next, table, forced[source.address])
 		} else {
 			actions, renames, graph, err = typedInheritedActions(view, table, forced)
@@ -159,7 +159,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			}
 			forced[table.address] = typedTransformAttributes(mutation.transforms)
 		}
-		for _, attribute := range table.attributes {
+		for _, attribute := range table.Attributes {
 			destination, rename := renames[attribute]
 			if !rename {
 				continue
@@ -168,7 +168,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			if slot < 0 {
 				continue
 			}
-			mutation.next, err = renameColumnCandidate(mutation.next, mutation.next.columns[slot].Name, destination)
+			mutation.next, err = renameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
 			if err != nil {
 				return Result{}, err
 			}

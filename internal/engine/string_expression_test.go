@@ -139,12 +139,12 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	view := engine.CatalogRead()
 	ref := catalogRef(t, engine, view, "regclass_store")
 	relation := view.MustRelation(ref.Address)
-	if relation.defaults[relation.attributes[0]].catalogSnapshot || !relation.checkConstraints[0].commentSnapshot {
+	if relation.Defaults[relation.Attributes[0]].catalogSnapshot || !relation.CheckConstraints[0].commentSnapshot {
 		t.Fatal("stored CHECK lost REGCLASS snapshot demand or ordinary default gained it")
 	}
 	broken := *relation
-	broken.checkConstraints = append([]checkConstraint(nil), relation.checkConstraints...)
-	broken.checkConstraints[0].commentSnapshot = false
+	broken.CheckConstraints = append([]checkConstraint(nil), relation.CheckConstraints...)
+	broken.CheckConstraints[0].commentSnapshot = false
 	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid stored snapshot manifest accepted")
 	}
@@ -171,7 +171,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
 	relation := e.catalog.state.MustRelation(ref.Address)
-	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String)
+	node := relation.CheckConstraints[0].expression.(comparisonExpression).left.(functions.String)
 	args := append([]expr.Expr(nil), node.Args...)
 	plan := node.Plan
 	for _, pretty := range []bool{false, true} {
@@ -202,7 +202,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
 	relation := e.catalog.state.MustRelation(ref.Address)
-	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.Binary)
+	node := relation.CheckConstraints[0].expression.(comparisonExpression).left.(functions.Binary)
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")
 	}

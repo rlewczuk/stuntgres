@@ -91,14 +91,14 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	if _, ok := current.Descriptor(chain.Address()); ok {
 		t.Fatal("chain domain retained")
 	}
-	if len(next.columns) != 2 || next.columns[0].Name != "keep" || next.columns[1].Name != "tail" || next.attributes[0] != 1 || next.attributes[1] != 4 || next.revision != table.revision+1 || store == source || store.generation != 4 || store.ends != source.ends {
+	if len(next.Columns) != 2 || next.Columns[0].Name != "keep" || next.Columns[1].Name != "tail" || next.Attributes[0] != 1 || next.Attributes[1] != 4 || next.revision != table.revision+1 || store == source || store.generation != 4 || store.ends != source.ends {
 		t.Fatal(next, store)
 	}
 	row := store.versions[0]
 	if row.row != 42 || row.version != 99 || row.born != 3 || len(row.values) != 2 || !sqltype.SameDatum(row.values[0], keep) || !sqltype.SameDatum(row.values[1], tail) {
 		t.Fatal(row)
 	}
-	if retained.Get(table.address) != table || len(table.columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.typ {
+	if retained.Get(table.address) != table || len(table.Columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.typ {
 		t.Fatal("immutable old descriptor/storage altered")
 	}
 	if err = validateTypeProviders(current, next); err != nil {
@@ -143,14 +143,14 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 		t.Fatal(imported)
 	}
 	rebound := storage[table.address]
-	if rebound == original || rebound.versions[0].values[0].Type() != imported.typ || next.MustRelation(table.address).columns[0].Usage.Type != imported.typ {
+	if rebound == original || rebound.versions[0].values[0].Type() != imported.typ || next.MustRelation(table.address).Columns[0].Usage.Type != imported.typ {
 		t.Fatal("remap did not detach/retag", rebound)
 	}
 	text, err := imported.typ.Output(context.Background(), rebound.versions[0].values[0])
 	if err != nil || text != "12.35" {
 		t.Fatal(text, err)
 	}
-	if original.versions[0].values[0].Type() != chain.typ || table.columns[0].Usage.Type != chain.typ || a.typ.BaseType() == physical {
+	if original.versions[0].values[0].Type() != chain.typ || table.Columns[0].Usage.Type != chain.typ || a.typ.BaseType() == physical {
 		t.Fatal("source generation mutated")
 	}
 	if _, err = value.Retag(imported.typ); err == nil {
@@ -164,9 +164,9 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.t(keep integer,first integer DEFAULT 7::public.a,second integer DEFAULT 8::public.a,CHECK(keep>0::public.a))")
-	first := table.defaults[table.attributes[1]].OID
-	second := table.defaults[table.attributes[2]].OID
-	check := table.checkConstraints[0].OID
+	first := table.Defaults[table.Attributes[1]].OID
+	second := table.Defaults[table.Attributes[2]].OID
+	check := table.CheckConstraints[0].OID
 	if first == 0 || first >= second || second >= check {
 		t.Fatal("definition allocation does not follow attribute defaults then CHECK", first, second, check)
 	}

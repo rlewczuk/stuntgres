@@ -37,7 +37,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 			defer op.Done()
 			defer target.close()
 			defer inputs.close()
-			typ := b.relation.columns[0].Usage.Type
+			typ := b.relation.Columns[0].Usage.Type
 			one, _ := sqltype.Integer(typ, 1)
 			two, _ := sqltype.Integer(typ, 2)
 			primary, cleanup := errors.New("late source Next"), errors.New("required source Close")

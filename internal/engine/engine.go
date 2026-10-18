@@ -621,12 +621,12 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, err
 				}
 				source := auth.catalog.MustRelation(ref.Address)
-				if source.relationKind != tableRelation && source.relationKind != foreignRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
+				if source.RelationKind != tableRelation && source.RelationKind != foreignRelation && source.RelationKind != viewRelation && source.RelationKind != compositeRelation {
 					kind := "relations of this kind"
-					if source.relationKind == sequenceRelation {
+					if source.RelationKind == sequenceRelation {
 						kind = "sequences"
 					}
-					if source.relationKind == indexRelation {
+					if source.RelationKind == indexRelation {
 						kind = "indexes"
 					}
 					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.name)).(*sqlstate.Error)
@@ -637,11 +637,11 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, diagnostic
 				}
 				var sourceType *typeDescriptor
-				if source.relationKind == compositeRelation {
-					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
+				if source.RelationKind == compositeRelation {
+					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
-					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
+					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.RowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
 					if err := auth.CanUse(typeRef); err != nil {
@@ -653,8 +653,8 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				offset := len(columns)
 				b.createLikes = append(b.createLikes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
 				start := len(inherited)
-				for _, constraint := range source.notNullConstraints {
-					for i, attribute := range source.attributes {
+				for _, constraint := range source.NotNullConstraints {
+					for i, attribute := range source.Attributes {
 						if constraint.Attribute == attribute {
 							inherited = append(inherited, createLikeConstraint{Element: elementIndex, notNullConstraint: notNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
 							break
@@ -665,7 +665,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				slices.SortFunc(inherited[start:], func(a, b createLikeConstraint) int {
 					return strings.Compare(a.Name, b.Name)
 				})
-				for _, c := range source.columns {
+				for _, c := range source.Columns {
 					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 					declarations = append(declarations, createColumnDeclaration{})
 				}
@@ -778,7 +778,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	// Virtual catalog views still undergo the existing semantic
 	// analysis. Reject only after predicates, assignments, RETURNING and
 	// parameters have bound, without ever requiring storage or evaluating writes.
-	if b.relation != nil && b.relation.virtualView {
+	if b.relation != nil && b.relation.VirtualView {
 		switch stmt.(type) {
 		case *parser.Insert:
 			return b, virtualViewWriteError(b.relation, "insert", b.targets)
@@ -822,7 +822,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 		// Auxiliary commands share this binder; borrow its completed original
 		// manifest, including bindings discovered after the auxiliary body.
 		mutation.dependencies = b.dependencies
-		if mutation.relation.virtualView {
+		if mutation.relation.VirtualView {
 			switch definition.statement.(type) {
 			case *parser.Insert:
 				return b, virtualViewWriteError(mutation.relation, "insert", mutation.targets)

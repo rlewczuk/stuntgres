@@ -146,13 +146,13 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if b.queryNamespace != nil {
 				descriptor = b.queryNamespace.frame[column.slot]
 			} else {
-				descriptor = b.relation.columns[column.slot]
+				descriptor = b.relation.Columns[column.slot]
 			}
 			if column.mergeSource {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
 		case returningColumnExpression:
-			descriptor = b.relation.columns[column.slot]
+			descriptor = b.relation.Columns[column.slot]
 			if mode == returningMerge || column.absent || column.old && mode == returningInsert {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
@@ -182,7 +182,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		if star, ok := expression.(parser.StarExpr); ok {
 			if b.queryNamespace != nil {
 				if newValues, pseudo := b.returningPseudo(star.Qualifier); pseudo {
-					for slot, column := range b.relation.columns {
+					for slot, column := range b.relation.Columns {
 						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 					}
 				} else {
@@ -217,7 +217,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if err != nil {
 				return nil, err
 			}
-			for slot, column := range b.relation.columns {
+			for slot, column := range b.relation.Columns {
 				appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 			}
 		} else if field, ok := expression.(parser.FieldExpr); ok && field.Expansion {
@@ -333,7 +333,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	if len(parts) == 1 {
-		_, column := b.relation.index[parts[0].Text]
+		_, column := b.relation.Index[parts[0].Text]
 		if b.queryNamespace != nil {
 			for _, candidate := range b.queryNamespace.columns {
 				column = column || candidate.descriptor.Name == parts[0].Text
@@ -363,7 +363,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		return nil, err
 	}
 	name := parts[len(parts)-1].Text
-	slot, ok := b.relation.index[name]
+	slot, ok := b.relation.Index[name]
 	if !ok {
 		if len(parts) > 1 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name), raw.Pos)
@@ -473,12 +473,12 @@ func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos 
 		expr, _, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, pos)
 		return expr, err
 	}
-	fields := make([]expr.Expr, len(scope.relation.columns))
+	fields := make([]expr.Expr, len(scope.relation.Columns))
 	props := expr.Properties{}
 	for i := range fields {
 		fields[i] = b.outerReturningColumnAt(scope, i, pos, newValues)
 		props = expr.MergeProperties(props, fields[i].Properties())
 	}
-	typ, _ := b.bindingCatalog().LookupType(scope.relation.rowType)
+	typ, _ := b.bindingCatalog().LookupType(scope.relation.RowType)
 	return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: scope.returning.mode == returningDelete && newValues}, nil
 }

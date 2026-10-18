@@ -59,7 +59,7 @@ func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, ev
 	if err != nil || !member {
 		return err
 	}
-	if uniqueHasNull(keys) && !bound.index.sqlIndex.nullsNotDistinct {
+	if uniqueHasNull(keys) && !bound.index.SQLIndex.nullsNotDistinct {
 		return nil
 	}
 	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, keys)

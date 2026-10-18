@@ -158,7 +158,7 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")
 	ref := roleTableRef(t, e, "t")
 	parent := e.catalog.state.MustRelation(ref.Address)
-	index := parent.uniqueConstraints[0].Index
+	index := parent.UniqueConstraints[0].Index
 	if e.storage[ref.Address] == nil || e.indexRoots[index] == nil || len(e.indexRoots[index].entries) != 0 {
 		t.Fatal("co-created parent and empty backing root did not publish together")
 	}

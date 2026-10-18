@@ -13,7 +13,7 @@ import (
 // public SQL implementation or a synthetic hierarchy provider.
 func TestPartitionExclusionCoverage(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	d := *f.parent.sqlIndex
+	d := *f.parent.SQLIndex
 	d.unique = false
 	c := exclusionConstraint{OID: 30000, Name: f.parent.name, Index: f.parent.address, IsLocal: true}
 	d.constraint = exclusionBacking(&c)
@@ -62,7 +62,7 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	if err := partitionUniqueCoverage(f.leaf, &missing); err != nil {
 		t.Fatal("local scope", err)
 	}
-	if len(d.keys) != len(f.parent.sqlIndex.keys) || len(d.exclusion) != len(mapped.exclusion) {
+	if len(d.keys) != len(f.parent.SQLIndex.keys) || len(d.exclusion) != len(mapped.exclusion) {
 		t.Fatal("source definition changed")
 	}
 }

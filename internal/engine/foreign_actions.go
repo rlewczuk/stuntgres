@@ -34,7 +34,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if len(s.stage.rows[child.address]) != 0 || s.stage.deletes[child.address] != nil || len(s.stage.rows[f.Target]) != 0 || s.stage.deletes[f.Target] != nil {
 				relevant = true
 				break
@@ -72,7 +72,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			if !ok {
 				continue
 			}
-			for _, f := range child.foreignKeys {
+			for _, f := range child.ForeignKeys {
 				parentDirections := directions[f.Target]
 				next := directions[child.address]
 				if parentDirections&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade {
@@ -100,7 +100,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if !changed[child.address] && !changed[f.Target] {
 				continue
 			}
@@ -157,11 +157,11 @@ func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
 	child, cok := view.Relation(job.child.address)
 	parent, pok := view.Relation(job.parent.address)
 	index, iok := view.Relation(job.index.address)
-	if !cok || !pok || !iok || index.sqlIndex == nil || !sameRelationRowShape(child, job.child) || !sameRelationRowShape(parent, job.parent) || !sameIndexKeySemantics(index, job.index) {
+	if !cok || !pok || !iok || index.SQLIndex == nil || !sameRelationRowShape(child, job.child) || !sameRelationRowShape(parent, job.parent) || !sameIndexKeySemantics(index, job.index) {
 		return ids.ErrCatalogReplaced
 	}
 	found := false
-	for _, current := range child.foreignKeys {
+	for _, current := range child.ForeignKeys {
 		if current.OID == job.definition.OID {
 			if !sameForeignKeyDefinition(current, job.definition) {
 				return ids.ErrCatalogReplaced

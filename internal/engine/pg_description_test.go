@@ -56,7 +56,7 @@ func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddre
 func TestPGDescriptionShape(t *testing.T) {
 	e := New()
 	d, _ := pgDescriptionUnitSource(t, e)
-	if d.name != "pg_description" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 4 || len(d.columns) != 4 {
+	if d.name != "pg_description" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -64,19 +64,19 @@ func TestPGDescriptionShape(t *testing.T) {
 		typ       sqltype.ID
 		collation uint32
 	}{{"objoid", sqltype.Oid, 0}, {"classoid", sqltype.Oid, 0}, {"objsubid", sqltype.Int4, 0}, {"description", sqltype.Text, 950}} {
-		c := d.columns[i]
-		if c.Name != tc.name || c.Usage.Type.ID() != tc.typ || c.Usage.Typmod != -1 || c.Usage.Collation.ID != tc.collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2609 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) {
+		c := d.Columns[i]
+		if c.Name != tc.name || c.Usage.Type.ID() != tc.typ || c.Usage.Typmod != -1 || c.Usage.Collation.ID != tc.collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2609 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) {
 			t.Fatal("exact descriptor", i, c)
 		}
 	}
-	if _, exists := d.index["oid"]; exists {
+	if _, exists := d.Index["oid"]; exists {
 		t.Fatal("fabricated row oid")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal("virtual catalog metadata must validate without physical constraints", err)
 	}
 	physical := *d
-	physical.relationKind = tableRelation
+	physical.RelationKind = tableRelation
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical table NOT NULL metadata requires constraint identities")
 	}
@@ -86,15 +86,15 @@ func TestPGDescriptionShape(t *testing.T) {
 		invalidate func(*relationDescriptor)
 	}{
 		{"identity", func(r *relationDescriptor) { r.address.ObjectID = 0 }},
-		{"type", func(r *relationDescriptor) { r.columns[0].Usage.Type = foreignType }},
-		{"live attribute", func(r *relationDescriptor) { r.attributes[0] = 0 }},
-		{"constraint record", func(r *relationDescriptor) { r.notNullConstraints = []notNullConstraint{{Attribute: 1}} }},
-		{"column comment", func(r *relationDescriptor) { r.columnComments = map[int32]string{99: "dead attribute"} }},
+		{"type", func(r *relationDescriptor) { r.Columns[0].Usage.Type = foreignType }},
+		{"live attribute", func(r *relationDescriptor) { r.Attributes[0] = 0 }},
+		{"constraint record", func(r *relationDescriptor) { r.NotNullConstraints = []notNullConstraint{{Attribute: 1}} }},
+		{"column comment", func(r *relationDescriptor) { r.ColumnComments = map[int32]string{99: "dead attribute"} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
-			invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-			invalid.attributes = append([]int32(nil), d.attributes...)
+			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
 			if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 				t.Fatal("virtual-source exemption bypassed descriptor validation")
@@ -112,8 +112,8 @@ func TestPGDescriptionShape(t *testing.T) {
 		if oid == 2609 {
 			name, _ := row[1].Text()
 			namespace, _ := row[2].OID()
-			kind, _ := row[class.index["relkind"]].Text()
-			natts, _ := row[class.index["relnatts"]].Integer()
+			kind, _ := row[class.Index["relkind"]].Text()
+			natts, _ := row[class.Index["relnatts"]].Integer()
 			if name != "pg_description" || namespace != 11 || kind != "r" || natts != 4 {
 				t.Fatal(row)
 			}
@@ -132,7 +132,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.descriptors = maps.Clone(e.catalog.state.descriptors)
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	d := &relationDescriptor{address: relation, attributes: []int32{1, 3}, comment: "whole", columnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
+	d := &relationDescriptor{address: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
 	oldState.setDescriptor(namespace, &namespaceDescriptor{address: namespace, comment: "namespace"})
 	oldState.setDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
@@ -153,14 +153,14 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	if _, ok := bag[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 1}]; ok {
 		t.Fatal("empty row projected")
 	}
-	if !reflect.DeepEqual(d.attributes, []int32{1, 3}) || d.columnComments[2] != "stale dropped" {
+	if !reflect.DeepEqual(d.Attributes, []int32{1, 3}) || d.ColumnComments[2] != "stale dropped" {
 		t.Fatal("capture mutated descriptor")
 	}
 	newState := oldState
 	newState.descriptors = maps.Clone(oldState.descriptors)
 	updated := *d
-	updated.comment = "replacement"
-	updated.columnComments = map[int32]string{3: "replacement third"}
+	updated.Comment = "replacement"
+	updated.ColumnComments = map[int32]string{3: "replacement third"}
 	newState.setDescriptor(relation, &updated)
 	newRows, err := capturePGDescription(context.Background(), e.catalog.read(&newState), ref, source)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {

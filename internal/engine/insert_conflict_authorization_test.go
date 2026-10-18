@@ -25,9 +25,9 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	t.Helper()
 	f := insertConflictUniqueFixture(t)
 	f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 1, 1, 1
-	definition := *f.index.sqlIndex
+	definition := *f.index.SQLIndex
 	definition.predicate = nil
-	f.index.sqlIndex = &definition
+	f.index.SQLIndex = &definition
 	root, buildErr := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 	if buildErr != nil {
 		t.Fatal(buildErr)

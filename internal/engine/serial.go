@@ -30,7 +30,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		if !declaration.serial {
 			continue
 		}
-		_, _, typeName := sequenceTypeLimits(table.columns[slot].Usage.Type.ID())
+		_, _, typeName := sequenceTypeLimits(table.Columns[slot].Usage.Type.ID())
 		options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}})
 		if err != nil {
 			return err
@@ -39,7 +39,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		if read.MustNamespace(table.namespace).temporary != (ids.SessionToken{}) {
 			options.persistence = "temporary"
 		}
-		name := ownedSequenceName(table.name, table.columns[slot].Name, func(name string) bool {
+		name := ownedSequenceName(table.name, table.Columns[slot].Name, func(name string) bool {
 			return name == table.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: name})) != 0
 		})
 		oid, err := e.catalog.allocateOIDLocked()
@@ -52,10 +52,10 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		}
 		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 		options.owned = table.address
-		options.owned.SubID = table.attributes[slot]
-		sequence := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: revision, sequencePlanStamp: revision, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
-		sequence.acl = stage.creationACL(table.owner, table.namespace, authorization.DefaultSequences)
-		sequence.attributeHighWater = 3
+		options.owned.SubID = table.Attributes[slot]
+		sequence := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: sequenceRelation, Sequence: &options}
+		sequence.ACL = stage.creationACL(table.Owner, table.namespace, authorization.DefaultSequences)
+		sequence.AttributeHighWater = 3
 		if err := stage.Create(sequence); err != nil {
 			return err
 		}

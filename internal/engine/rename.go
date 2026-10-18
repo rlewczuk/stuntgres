@@ -47,12 +47,12 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	if columnRename && old.relationKind == indexRelation && !allowIndexColumn {
+	if columnRename && old.RelationKind == indexRelation && !allowIndexColumn {
 		return fail(tableKind(old, "rename"))
 	}
 	var renamed *relationDescriptor
 	if columnRename {
-		if old.ofType != (ids.ObjectAddress{}) {
+		if old.OfType != (ids.ObjectAddress{}) {
 			return fail(sqlError("42809", "cannot rename column of typed table"))
 		}
 		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
@@ -61,7 +61,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if inheritanceParticipant(auth.catalog, old) {
 			return e.renameInheritanceColumnLocked(scope, op, auth, old, column, destination, only)
 		}
-		if old.relationKind == sequenceRelation {
+		if old.RelationKind == sequenceRelation {
 			return fail(&sqlstate.Error{
 				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809",
 				Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, old.name),
@@ -86,13 +86,13 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	next := *old
 	next.revision++
 	if columnRename {
-		next.columns, next.index = renamed.columns, renamed.index
+		next.Columns, next.Index = renamed.Columns, renamed.Index
 	} else {
 		next.name = destination
-		if old.relationKind == sequenceRelation {
+		if old.RelationKind == sequenceRelation {
 			// Relation rename invalidates analyzed sequence source without
 			// making every descriptor revision a sequence-plan event.
-			next.sequencePlanStamp, err = e.catalog.revisionLocked()
+			next.SequencePlanStamp, err = e.catalog.revisionLocked()
 			if err != nil {
 				return fail(err)
 			}
@@ -100,7 +100,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	if !columnRename && old.sqlIndex != nil && old.sqlIndex.constraint != nil {
+	if !columnRename && old.SQLIndex != nil && old.SQLIndex.constraint != nil {
 		if err = stageBackingIndexRename(stage, &next); err != nil {
 			e.mu.Unlock()
 			e.DiscardCatalogStage(stage)
@@ -137,24 +137,24 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	return Result{}, nil
 }
 func renameColumnCandidate(old *relationDescriptor, name, destination string) (*relationDescriptor, error) {
-	if old.relationKind != compositeRelation && isSystemColumn(name) {
+	if old.RelationKind != compositeRelation && isSystemColumn(name) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot rename system column "%s"`, name))
 	}
-	slot, exists := old.index[name]
+	slot, exists := old.Index[name]
 	if !exists {
 		return nil, sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, name))
 	}
-	if old.relationKind != compositeRelation && isSystemColumn(destination) {
+	if old.RelationKind != compositeRelation && isSystemColumn(destination) {
 		return nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, destination))
 	}
-	if _, exists := old.index[destination]; exists {
+	if _, exists := old.Index[destination]; exists {
 		return nil, sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, destination, old.name))
 	}
 	next := *old
-	next.columns = slices.Clone(old.columns)
-	next.columns[slot].Name = destination
-	next.index = maps.Clone(old.index)
-	delete(next.index, name)
-	next.index[destination] = slot
+	next.Columns = slices.Clone(old.Columns)
+	next.Columns[slot].Name = destination
+	next.Index = maps.Clone(old.Index)
+	delete(next.Index, name)
+	next.Index[destination] = slot
 	return &next, nil
 }

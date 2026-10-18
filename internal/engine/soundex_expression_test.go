@@ -54,7 +54,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			other := n
 			other.ref.Address = ext.members[0]
 			if sameGroupExpression(n, other) { t.Fatal("procedure identity collapsed") }
-			consumer := &relationDescriptor{generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
+			consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
 			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil { t.Fatal(err) }
 			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil { t.Fatal(err) }
 			for _, mutate := range []func(*procedureDescriptor){
@@ -106,13 +106,13 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.bindName(descriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
-			consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
+			consumer := &relationDescriptor{address: address, Defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
 			next.setDescriptor(address, consumer)
 			next.epoch++
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
-			for _, node := range []expr.Expr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
+			for _, node := range []expr.Expr{relocated.Defaults[1].expression, relocated.Generations[2].expression, relocated.Generations[2].planned} {
 				n := node.(installedSoundexFunctionExpression)
 				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) { t.Fatal("stale remapped authority", n.ref) }
 				if err := n.validate(view); err != nil { t.Fatal(err) }

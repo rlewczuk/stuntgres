@@ -46,13 +46,13 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 		if len(found) != 1 || found[0] != a {
 			t.Fatal("descriptor lost its unique name binding", a, found)
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation && e.sequences[a] == nil {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation && e.sequences[a] == nil {
 			t.Fatal("published sequence has no generator", a)
 		}
 	}
 	for a := range e.sequences {
 		r, ok := view.Relation(a)
-		if !ok || r.relationKind != sequenceRelation {
+		if !ok || r.RelationKind != sequenceRelation {
 			t.Fatal("orphan generator", a)
 		}
 	}
@@ -178,7 +178,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	sourceBefore, destBefore := captureTemporaryProjectionCatalog(source), captureTemporaryProjectionCatalog(dest)
 	sourceSurvivor := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
-	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.columns...)
+	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.Columns...)
 	sourceStore := source.storage[sourceSurvivor.address]
 	sourceValues := make([][]sqltype.Value, len(sourceStore.versions))
 	for i, row := range sourceStore.versions {
@@ -186,8 +186,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	retainedTypedRows := sessionSQL(t, a, "SELECT wide,flag,absent_n,absent_b FROM portable.survivor ORDER BY v")
 	retainedTypes := map[sqltype.ID]*sqltype.Descriptor{
-		sqltype.Int8: descriptor.(*relationDescriptor).columns[0].Usage.Type,
-		sqltype.Bool: descriptor.(*relationDescriptor).columns[2].Usage.Type,
+		sqltype.Int8: descriptor.(*relationDescriptor).Columns[0].Usage.Type,
+		sqltype.Bool: descriptor.(*relationDescriptor).Columns[2].Usage.Type,
 	}
 	oldRows := sessionSQL(t, b, "SELECT v FROM public.old_table")
 	sourceRows := sessionSQL(t, a, "SELECT v FROM portable.owner_table")
@@ -227,7 +227,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 			t.Fatal("foreign replacement lost retained TEMP builtin dependency", id)
 		}
 	}
-	for _, column := range importedSurvivor.columns {
+	for _, column := range importedSurvivor.Columns {
 		actual, ok := dest.CatalogRead().LookupType(column.Usage.Type.ID())
 		if !ok || actual != column.Usage.Type {
 			t.Fatal("imported column uses a foreign type generation", column.Name)
@@ -241,10 +241,10 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 			}
 		}
 	}
-	if !reflect.DeepEqual(sourceSurvivor.columns, sourceColumns) {
+	if !reflect.DeepEqual(sourceSurvivor.Columns, sourceColumns) {
 		t.Fatal("type rebinding mutated source descriptor columns")
 	}
-	for i, column := range sourceSurvivor.columns {
+	for i, column := range sourceSurvivor.Columns {
 		if column.Usage.Type != sourceColumns[i].Usage.Type {
 			t.Fatal("type rebinding changed source column type pointer")
 		}
@@ -281,7 +281,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	r.Rows.Close()
 	importedTable := roleTableRef(t, dest, "portable.owner_table").Address
 	importedSequence := roleTableRef(t, dest, "portable.owned_s").Address
-	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).sequence.owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
+	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).Sequence.owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
 		t.Fatal("persistent collision did not remap OWNED BY", importedTable, dest.catalog.state.Get(importedSequence))
 	}
 	sequenceScalar(t, b, "SELECT nextval('portable.owned_s')", 40)
@@ -289,7 +289,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("remapped persistent rows missing", got)
 	}
 	index, indexRoot := btreeRoot(t, dest, "portable.owner_idx")
-	if index.sqlIndex.parent != importedTable || sourceIndex.sqlIndex.parent != sourceTable || index.sqlIndex == sourceIndex.sqlIndex {
+	if index.SQLIndex.parent != importedTable || sourceIndex.SQLIndex.parent != sourceTable || index.SQLIndex == sourceIndex.SQLIndex {
 		t.Fatal("index parent collision remapping lost source/destination authority")
 	}
 	if got := btreeKeys(t, indexRoot); !reflect.DeepEqual(got, []string{"7"}) {

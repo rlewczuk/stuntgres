@@ -21,7 +21,7 @@ func TestObjectAddressAuthority(t *testing.T) {
 			t.Fatal("descriptor authority", address, descriptor.Name(), identity, err)
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok {
-			for _, sub := range relation.attributes {
+			for _, sub := range relation.Attributes {
 				column, err := identifyAddress(view, roles, nil, ids.ObjectAddress{1259, address.ObjectID, sub})
 				if err != nil || !column.found || len(column.names) != 3 {
 					t.Fatal("column authority", address, sub, column, err)
@@ -62,7 +62,7 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, CatalogRead, *relationDes
 	view := e.CatalogRead()
 	view.state = cloneCatalog(view.state)
 	integer, _ := view.LookupType(sqltype.Int4)
-	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, attributes: []int32{1, 3}, attributeHighWater: 3, droppedAttributes: map[int32]attributeMetadata{2: {name: "........pg.dropped.2........", number: 2, dropped: true}}}
+	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]attributeMetadata{2: {name: "........pg.dropped.2........", number: 2, dropped: true}}}
 	view.state.setDescriptor(d.address, d)
 	view.state.bindName(descriptorNameKey(d), d.address)
 	return e, view, d
@@ -79,16 +79,16 @@ func TestObjectAddressIdentity(t *testing.T) {
 			t.Fatal(tc, identity, err)
 		}
 	}
-	d.notNullConstraints = []notNullConstraint{{OID: 48010, Name: "nn"}}
-	d.checkConstraints = []checkConstraint{{OID: 48011, Name: "ck"}}
-	d.uniqueConstraints = []uniqueConstraint{{OID: 48012, Name: "uk"}, {OID: 48013, Name: "pk"}}
-	d.foreignKeys = []foreignKeyConstraint{{OID: 48014, Name: "fk"}}
-	d.exclusionConstraints = []exclusionConstraint{{OID: 48015, Name: "ex"}}
-	d.defaults = map[int32]columnDefault{1: {OID: 48016}}
-	d.generations = map[int32]columnGeneration{3: {OID: 48017}}
-	d.rules = rulesPayloadOf([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})
-	d.policies = []policyDefinition{{OID: 48019, Name: "policy_unit"}}
-	d.view = &viewDefinition{rule: 48022}
+	d.NotNullConstraints = []notNullConstraint{{OID: 48010, Name: "nn"}}
+	d.CheckConstraints = []checkConstraint{{OID: 48011, Name: "ck"}}
+	d.UniqueConstraints = []uniqueConstraint{{OID: 48012, Name: "uk"}, {OID: 48013, Name: "pk"}}
+	d.ForeignKeys = []foreignKeyConstraint{{OID: 48014, Name: "fk"}}
+	d.ExclusionConstraints = []exclusionConstraint{{OID: 48015, Name: "ex"}}
+	d.Defaults = map[int32]columnDefault{1: {OID: 48016}}
+	d.Generations = map[int32]columnGeneration{3: {OID: 48017}}
+	d.Rules = rulesPayloadOf([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})
+	d.Policies = []policyDefinition{{OID: 48019, Name: "policy_unit"}}
+	d.View = &viewDefinition{rule: 48022}
 	for _, tc := range []struct {
 		class, id ids.OID
 		name      string

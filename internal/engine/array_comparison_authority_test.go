@@ -38,8 +38,8 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	remap := remappedCollationCapabilities(view.state, map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): destination.Address()})
 	ref := catalogRef(t, e, view, "ac_authority")
 	table := view.MustRelation(ref.Address)
-	for _, attribute := range table.attributes {
-		original := table.defaults[attribute].expression.(scalarArrayComparisonExpression)
+	for _, attribute := range table.Attributes {
+		original := table.Defaults[attribute].expression.(scalarArrayComparisonExpression)
 		input, conflict := original.predicate.InputCollation()
 		if input.ID != uint32(source.oid) || conflict || original.ResultUsage().Collation.ID != 0 {
 			t.Fatal("BOOL result leaked or hid input authority", input, conflict, original.ResultUsage())

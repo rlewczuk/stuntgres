@@ -85,8 +85,8 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
 func preparedDefinitionStamp(d Descriptor, session *Session) ids.DefinitionRevision {
-	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == sequenceRelation {
-		stamp := relation.sequencePlanStamp
+	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == sequenceRelation {
+		stamp := relation.SequencePlanStamp
 		if session != nil {
 			if memory := session.sequences[relation.address]; memory != nil {
 				stamp = max(stamp, memory.analysisStamp)
@@ -122,7 +122,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			return ids.ErrCatalogReplaced
 		}
 		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
-		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation && relation.view != nil {
+		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == viewRelation && relation.View != nil {
 			for _, leaf := range viewOf(relation).sources {
 				child, err := storedViewUseReference(auth.catalog, relation, leaf.ref)
 				if err != nil {

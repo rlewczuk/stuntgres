@@ -56,13 +56,13 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	// GRANT-provider extensions. Install them in the canonical private stage.
 	setup := e.BeginCatalogStage(base)
 	copy := *table
-	copy.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.SelectPrivilege, 0)}}
-	copy.columnACL = map[int32]authorization.ACLValue{table.attributes[1]: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UpdatePrivilege, authorization.UpdatePrivilege)}}}
+	copy.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.SelectPrivilege, 0)}}
+	copy.ColumnACL = map[int32]authorization.ACLValue{table.Attributes[1]: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UpdatePrivilege, authorization.UpdatePrivilege)}}}
 	copy.revision++
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []sqltype.ID{table.rowType, base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}).array} {
+	for _, id := range []sqltype.ID{table.RowType, base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}).array} {
 		d := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		next := *d
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
@@ -105,7 +105,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	movedComposite := current.MustType(compositeAddress)
 	movedArray := current.MustType(arrayAddress)
 	movedBacking := current.MustRelation(composite.owningRelation)
-	if !array.typ.IsArray() || backing.rowType != composite.typ.ID() || backing.rowType == array.typ.ID() || movedComposite.owner != target || movedArray.owner != target || movedBacking.owner != target || movedBacking.rowType != backing.rowType || movedComposite.array != composite.array || movedComposite.owningRelation != composite.owningRelation || movedArray.owningRelation != array.owningRelation || composite.owner != owner || array.owner != owner || backing.owner != owner || movedComposite.typ != composite.typ || movedArray.typ != array.typ {
+	if !array.typ.IsArray() || backing.RowType != composite.typ.ID() || backing.RowType == array.typ.ID() || movedComposite.owner != target || movedArray.owner != target || movedBacking.Owner != target || movedBacking.RowType != backing.RowType || movedComposite.array != composite.array || movedComposite.owningRelation != composite.owningRelation || movedArray.owningRelation != array.owningRelation || composite.owner != owner || array.owner != owner || backing.Owner != owner || movedComposite.typ != composite.typ || movedArray.typ != array.typ {
 		t.Fatal("composite root/array/backing reciprocity or retained codec mutated")
 	}
 	for a, old := range base.Descriptors() {
@@ -124,10 +124,10 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		}
 	}
 	moved := current.MustRelation(table.address)
-	if moved.owner != target || moved.attributes[1] != oldTable.attributes[1] || moved.acl.Entries[0].Grantor != target || moved.columnACL[moved.attributes[1]].Entries[0].Grantor != target {
+	if moved.Owner != target || moved.Attributes[1] != oldTable.Attributes[1] || moved.ACL.Entries[0].Grantor != target || moved.ColumnACL[moved.Attributes[1]].Entries[0].Grantor != target {
 		t.Fatal("table/column ACL or stable attribute", moved)
 	}
-	if e.storage[table.address] != store || len(store.versions) != len(rows) || &store.versions[0] != &rows[0] || oldTable.owner != owner || oldTable.acl.Entries[0].Grantor != owner {
+	if e.storage[table.address] != store || len(store.versions) != len(rows) || &store.versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.ACL.Entries[0].Grantor != owner {
 		t.Fatal("retained data/descriptor changed")
 	}
 	for a, g := range generators {

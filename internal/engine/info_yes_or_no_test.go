@@ -158,8 +158,8 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.yes_or_no_description(v information_schema.yes_or_no)")
 	view := e.CatalogRead()
 	d, ok := view.LookupType(13256)
-	if !ok || table.columns[0].Usage != d.Usage() {
-		t.Fatal("declaration lost logical domain", table.columns)
+	if !ok || table.Columns[0].Usage != d.Usage() {
+		t.Fatal("declaration lost logical domain", table.Columns)
 	}
 	check := func(query string) {
 		t.Helper()

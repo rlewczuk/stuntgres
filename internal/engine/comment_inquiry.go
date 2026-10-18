@@ -114,9 +114,9 @@ func descriptorComment(d Descriptor, sub int32) string {
 		}
 	case *relationDescriptor:
 		if sub == 0 {
-			return d.comment
+			return d.Comment
 		}
-		return d.columnComments[sub]
+		return d.ColumnComments[sub]
 	}
 	return ""
 }

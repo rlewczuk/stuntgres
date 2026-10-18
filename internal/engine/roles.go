@@ -166,7 +166,7 @@ type roleDependency struct {
 // Admission and final publication share the exact same descriptor classification.
 func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*relationDescriptor); ok {
-		for _, policy := range relation.policies {
+		for _, policy := range relation.Policies {
 			for _, role := range policy.roles {
 				if !role.public && role.ref == ref {
 					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
@@ -186,7 +186,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 			return false
 		}
 	}
-	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == indexRelation {
+	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == indexRelation {
 		// Index ownership belongs to its validated parent relation.
 		return false
 	}
@@ -345,16 +345,16 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		if dep.address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only
 			// getRelationDescription applies diagnostic identifier quoting.
-			for slot, attribute := range relation.attributes {
+			for slot, attribute := range relation.Attributes {
 				if attribute == dep.address.SubID {
-					kind = "column " + relation.columns[slot].Name + " of table "
+					kind = "column " + relation.Columns[slot].Name + " of table "
 					break
 				}
 			}
 		}
-		if relation.relationKind == compositeRelation {
+		if relation.RelationKind == compositeRelation {
 			path, _ := auth.engine.referencePath(auth)
-			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}

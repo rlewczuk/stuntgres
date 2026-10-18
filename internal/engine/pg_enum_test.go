@@ -110,27 +110,27 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 func TestPGEnumShapeAndCapture(t *testing.T) {
 	e := New()
 	d, ref := pgEnumUnitSource(t, e)
-	if d.name != "pg_enum" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.rowType != 10045 || d.attributeHighWater != 4 || len(d.columns) != 4 {
+	if d.name != "pg_enum" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.RowType != 10045 || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal("source descriptor", d)
 	}
 	for i, id := range [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Float4, sqltype.Name} {
-		c := d.columns[i]
+		c := d.Columns[i]
 		owned, ok := e.CatalogRead().LookupType(id)
 		coll := uint32(0)
 		if i == 3 {
 			coll = 950
 		}
-		if !ok || c.Name != []string{"oid", "enumtypid", "enumsortorder", "enumlabel"}[i] || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != coll || c.Nullable || !c.NullabilityKnown || c.OriginTable != 3501 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[c.Name] != i {
+		if !ok || c.Name != []string{"oid", "enumtypid", "enumsortorder", "enumlabel"}[i] || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != coll || c.Nullable || !c.NullabilityKnown || c.OriginTable != 3501 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i {
 			t.Fatal("source column", i, c)
 		}
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044})
-	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.owner || array.owner != d.owner {
+	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.Owner || array.owner != d.Owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	captured, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, d)
 	if err != nil || captured == nil || captured.ref != ref || captured.anonymous == nil || len(captured.anonymous) != 0 {
@@ -159,7 +159,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("ACL update mutated retained authorization", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, d.acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, d.ACL); err != nil {
 		t.Fatal(err)
 	}
 	restoredAuth, err := readerOp.Authorization()
@@ -181,7 +181,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	before := append([][]sqltype.Value(nil), captured.anonymous...)
 	for _, values := range captured.anonymous {
 		for i, v := range values {
-			if v.IsNull() || v.Type() != d.columns[i].Usage.Type {
+			if v.IsNull() || v.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("unowned capture cell", i, v)
 			}
 		}
@@ -218,12 +218,12 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("capture generation lifetime", err)
 	}
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[0].Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Oid)
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[0].Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Oid)
 	if rows, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 		t.Fatal("foreign source type", rows, err)
 	}
-	invalid.columns = invalid.columns[:3]
+	invalid.Columns = invalid.Columns[:3]
 	if rows, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 		t.Fatal("invalid shape", rows, err)
 	}

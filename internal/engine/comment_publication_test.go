@@ -18,7 +18,7 @@ func TestCommentPublicationFailures(t *testing.T) {
 	before := e.CatalogRead()
 	d := *before.MustRelation(ref.Address)
 	d.revision++
-	d.columnComments = map[int32]string{2: "invalid"}
+	d.ColumnComments = map[int32]string{2: "invalid"}
 	stage := e.BeginCatalogStage(before)
 	if err := stage.Replace(&d); err != nil {
 		t.Fatal(err)

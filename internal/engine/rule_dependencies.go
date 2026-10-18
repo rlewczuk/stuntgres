@@ -53,7 +53,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 		if b.relation != nil {
 			for _, slot := range b.targets {
 				a := b.ref.Address
-				a.SubID = b.relation.attributes[slot]
+				a.SubID = b.relation.Attributes[slot]
 				add([]ids.ObjectAddress{a})
 			}
 			if len(b.targets) == 0 {
@@ -122,7 +122,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			if b.conflict.update != nil {
 				// PostgreSQL's EXCLUDED targetlist captures every live attribute
 				// at definition time, independently of executable ACL read demand.
-				for _, attribute := range b.relation.attributes {
+				for _, attribute := range b.relation.Attributes {
 					a := b.ref.Address
 					a.SubID = attribute
 					add([]ids.ObjectAddress{a})
@@ -135,7 +135,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 						return err
 					}
 					a := b.ref.Address
-					a.SubID = b.relation.attributes[b.conflict.updateTargets[i]]
+					a.SubID = b.relation.Attributes[b.conflict.updateTargets[i]]
 					add([]ids.ObjectAddress{a})
 				}
 				if err := expr(b.conflict.update.predicate); err != nil {
@@ -246,7 +246,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 			continue
 		}
 		copy := *d
-		copy.rules = rulesPayloadOf(kept)
+		copy.Rules = rulesPayloadOf(kept)
 		revision, err := provider.revision(copy.revision)
 		if err != nil {
 			return err

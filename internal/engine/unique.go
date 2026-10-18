@@ -27,8 +27,8 @@ type uniqueConstraint struct {
 func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	primary := false
 	var physicalSupport *physicalPrimarySupport
-	for _, c := range parent.uniqueConstraints {
-		if (parent.relationKind != tableRelation && parent.relationKind != partitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
+	for _, c := range parent.UniqueConstraints {
+		if (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
 		}
 		names[c.Name] = true
@@ -39,33 +39,33 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 			primary = true
 		}
 		index, ok := view.Relation(c.Index)
-		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.kind != uniqueBackingKind || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.constraint.Index != c.Index || index.sqlIndex.constraint.Name != c.Name || index.sqlIndex.nullsNotDistinct != c.NullsNotDistinct || len(index.sqlIndex.keys) != len(c.Attributes) {
+		if !ok || index.SQLIndex == nil || index.name != c.Name || index.SQLIndex.parent != parent.address || !index.SQLIndex.unique || index.SQLIndex.constraint == nil || index.SQLIndex.constraint.kind != uniqueBackingKind || index.SQLIndex.constraint.OID != c.OID || index.SQLIndex.constraint.Index != c.Index || index.SQLIndex.constraint.Name != c.Name || index.SQLIndex.nullsNotDistinct != c.NullsNotDistinct || len(index.SQLIndex.keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
 		}
-		if index.sqlIndex.constraint.Primary != c.Primary {
+		if index.SQLIndex.constraint.Primary != c.Primary {
 			return fmt.Errorf("stuntgres: inconsistent primary backing index")
 		}
 		used := make(map[int32]bool, len(c.Attributes))
 		for i, a := range c.Attributes {
-			attribute, expression, err := indexCatalogKey(parent, index.sqlIndex.keys[i])
-			if err != nil || expression != nil || used[a] || !parent.hasAttribute(a) || attribute != a || index.sqlIndex.keys[i].desc || index.sqlIndex.keys[i].nullsFirst {
+			attribute, expression, err := indexCatalogKey(parent, index.SQLIndex.keys[i])
+			if err != nil || expression != nil || used[a] || !parent.hasAttribute(a) || attribute != a || index.SQLIndex.keys[i].desc || index.SQLIndex.keys[i].nullsFirst {
 				return fmt.Errorf("stuntgres: invalid unique key")
 			}
 			used[a] = true
 			if c.Primary {
-				slot := slices.Index(parent.attributes, a)
-				if parent.columns[slot].Nullable || !parent.columns[slot].NullabilityKnown {
+				slot := slices.Index(parent.Attributes, a)
+				if parent.Columns[slot].Nullable || !parent.Columns[slot].NullabilityKnown {
 					return fmt.Errorf("stuntgres: nullable primary key")
 				}
 				found := false
-				for _, n := range parent.notNullConstraints {
+				for _, n := range parent.NotNullConstraints {
 					if n.Attribute == a {
 						found = true
 						break
 					}
 				}
 				if !found {
-					proof, exists := parent.physicalNotNull[a]
+					proof, exists := parent.PhysicalNotNull[a]
 					if !exists || !physicalNotNullOriginValid(view, parent, a, proof) || proof.support == nil {
 						return fmt.Errorf("stuntgres: missing primary not-null identity")
 					}
@@ -91,7 +91,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relat
 func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
-			if definition, ok := d.generations[attribute]; ok && definition.kind == generationVirtual {
+			if definition, ok := d.Generations[attribute]; ok && definition.kind == generationVirtual {
 				message := "unique constraints on virtual generated columns are not supported"
 				if declaration.Primary {
 					message = "primary keys on virtual generated columns are not supported"
@@ -100,31 +100,31 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 			}
 		}
 	}
-	start := len(d.uniqueConstraints)
+	start := len(d.UniqueConstraints)
 	constraints := make([]uniqueConstraint, start+len(declarations))
-	copy(constraints, d.uniqueConstraints)
-	d.uniqueConstraints = constraints
+	copy(constraints, d.UniqueConstraints)
+	d.UniqueConstraints = constraints
 	for i := range declarations {
-		d.uniqueConstraints[start+i] = declarations[i].uniqueConstraint
-		d.uniqueConstraints[start+i].IsLocal = true
+		d.UniqueConstraints[start+i] = declarations[i].uniqueConstraint
+		d.UniqueConstraints[start+i].IsLocal = true
 		if source := declarations[i].source; source != nil {
 			stage.captureLikeSource(source)
 		}
 	}
 	local := make(map[string]bool)
-	for _, c := range d.notNullConstraints {
+	for _, c := range d.NotNullConstraints {
 		local[c.Name] = true
 	}
-	for _, c := range d.checkConstraints {
+	for _, c := range d.CheckConstraints {
 		local[c.Name] = true
 	}
-	for _, c := range d.uniqueConstraints[:start] {
+	for _, c := range d.UniqueConstraints[:start] {
 		local[c.Name] = true
 	}
-	for _, c := range d.exclusionConstraints {
+	for _, c := range d.ExclusionConstraints {
 		local[c.Name] = true
 	}
-	for _, c := range d.foreignKeys {
+	for _, c := range d.ForeignKeys {
 		local[c.Name] = true
 	}
 	view := e.stageRead(stage)
@@ -139,8 +139,8 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 	}
 	used[d.name] = true
 	indices := make([]*relationDescriptor, 0, len(declarations))
-	for i := start; i < len(d.uniqueConstraints); i++ {
-		c := &d.uniqueConstraints[i]
+	for i := start; i < len(d.UniqueConstraints); i++ {
+		c := &d.UniqueConstraints[i]
 		if c.Name == d.name {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
@@ -150,7 +150,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 			} else {
 				labels := make([]string, len(c.Attributes))
 				for j, a := range c.Attributes {
-					labels[j] = d.columns[slices.Index(d.attributes, a)].Name
+					labels[j] = d.Columns[slices.Index(d.Attributes, a)].Name
 				}
 				c.Name = generatedConstraintName(d.name, strings.Join(labels, "_"), "key", used)
 			}
@@ -192,15 +192,15 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 			return err
 		}
 		definition := &indexDefinition{method: btreeMethod, parent: d.address, unique: true, nullsNotDistinct: c.NullsNotDistinct, constraint: uniqueBacking(c), ready: true, valid: true, live: true}
-		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, owner: d.owner, relationKind: indexRelation, sqlIndex: definition}
+		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, Owner: d.Owner, RelationKind: indexRelation, SQLIndex: definition}
 		if source := declarations[i-start].source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
-			*definition = *source.sqlIndex
+			*definition = *source.SQLIndex
 			definition.parent, definition.constraint = d.address, uniqueBacking(c)
 			definition.partitionParent = ids.ObjectAddress{}
 			definition.ready, definition.valid, definition.live = true, true, true
-			definition.keys = slices.Clone(source.sqlIndex.keys)
+			definition.keys = slices.Clone(source.SQLIndex.keys)
 			for j := range definition.keys {
 				key := &definition.keys[j]
 				if key.derived == nil {
@@ -214,49 +214,49 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 					if err != nil {
 						return err
 					}
-					derived := &derivedIndexKey{definition: node, execution: execution, attributes: d.attributes}
+					derived := &derivedIndexKey{definition: node, execution: execution, attributes: d.Attributes}
 					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.dependencies}).sql(op.Context(), stage.base, node); err != nil {
 						return err
 					}
 					key.derived = derived
 				}
 			}
-			definition.include = make([]int32, len(source.sqlIndex.include))
-			for j, attribute := range source.sqlIndex.include {
+			definition.include = make([]int32, len(source.SQLIndex.include))
+			for j, attribute := range source.SQLIndex.include {
 				definition.include[j], err = declarations[i-start].like.attribute(d, attribute)
 				if err != nil {
 					return err
 				}
 			}
-			index.columns = slices.Clone(source.columns)
-			index.attributes = slices.Clone(source.attributes)
-			index.attributeHighWater = source.attributeHighWater
+			index.Columns = slices.Clone(source.Columns)
+			index.Attributes = slices.Clone(source.Attributes)
+			index.AttributeHighWater = source.AttributeHighWater
 			if declarations[i-start].copyComments {
-				index.comment = source.comment
+				index.Comment = source.Comment
 			}
 		} else {
 			definition.keys = make([]indexKey, len(c.Attributes))
-			index.columns = make([]ColumnDescriptor, len(c.Attributes))
-			index.attributes = make([]int32, len(c.Attributes))
-			index.attributeHighWater = int32(len(c.Attributes))
+			index.Columns = make([]ColumnDescriptor, len(c.Attributes))
+			index.Attributes = make([]int32, len(c.Attributes))
+			index.AttributeHighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {
-				column := d.columns[slices.Index(d.attributes, a)]
+				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 				if !ok {
 					return indexDefaultClassError(column.Usage.Type.DiagnosticName(), btreeMethod)
 				}
 				definition.keys[j] = indexKey{attribute: a, class: class}
 				column.Nullable, column.NullabilityKnown = true, true
-				index.columns[j] = column
-				index.attributes[j] = int32(j + 1)
+				index.Columns[j] = column
+				index.Attributes[j] = int32(j + 1)
 			}
 		}
-		index.index = make(map[string]int, len(index.columns))
-		for j := range index.columns {
-			column := &index.columns[j]
+		index.Index = make(map[string]int, len(index.Columns))
+		for j := range index.Columns {
+			column := &index.Columns[j]
 			column.OriginTable = uint32(id)
 			column.OriginAttribute = int16(j + 1)
-			index.index[column.Name] = j
+			index.Index[column.Name] = j
 		}
 		indices = append(indices, index)
 	}
@@ -358,7 +358,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 		labels := make([]string, len(key))
 		values := make([]string, len(key))
 		for i, value := range key {
-			attribute, node, err := indexCatalogKey(parent, index.sqlIndex.keys[i])
+			attribute, node, err := indexCatalogKey(parent, index.SQLIndex.keys[i])
 			if err != nil {
 				return err
 			}
@@ -373,7 +373,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 			if value.IsNull() {
 				values[i] = "null"
 			} else {
-				text, err := uniqueKeyOutput(ctx, value, index.sqlIndex.keys[i].class, catalog, output)
+				text, err := uniqueKeyOutput(ctx, value, index.SQLIndex.keys[i].class, catalog, output)
 				if err != nil {
 					return err
 				}
@@ -392,7 +392,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 }
 
 func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
-	d := index.sqlIndex
+	d := index.SQLIndex
 	if d.isExclusion() {
 		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
 	}
@@ -407,7 +407,7 @@ func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, 
 }
 
 func validateUniqueEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
-	if index.sqlIndex.isExclusion() {
+	if index.SQLIndex.isExclusion() {
 		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
 	}
 	for i := 1; i < len(entries); i++ {
@@ -419,7 +419,7 @@ func validateUniqueEntries(ctx context.Context, parent, index *relationDescripto
 }
 
 func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
-	d := index.sqlIndex
+	d := index.SQLIndex
 	if d.isExclusion() {
 		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
 	}
@@ -456,10 +456,10 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 
 func (r pgRenderer) uniqueConstraintSQL(parent *relationDescriptor, c *uniqueConstraint) (string, error) {
 	index, ok := r.view.Relation(c.Index)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		return "", fmt.Errorf("stuntgres: missing unique deparse index")
 	}
-	labels := make([]string, len(c.Attributes)+len(index.sqlIndex.include))
+	labels := make([]string, len(c.Attributes)+len(index.SQLIndex.include))
 	for i, attribute := range c.Attributes {
 		label, err := r.attribute(parent, attribute)
 		if err != nil {
@@ -474,8 +474,8 @@ func (r pgRenderer) uniqueConstraintSQL(parent *relationDescriptor, c *uniqueCon
 		prefix += " NULLS NOT DISTINCT"
 	}
 	text := prefix + " (" + strings.Join(labels[:len(c.Attributes)], ", ") + ")"
-	if len(index.sqlIndex.include) != 0 {
-		for i, attribute := range index.sqlIndex.include {
+	if len(index.SQLIndex.include) != 0 {
+		for i, attribute := range index.SQLIndex.include {
 			label, err := r.attribute(parent, attribute)
 			if err != nil {
 				return "", err

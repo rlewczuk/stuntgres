@@ -33,7 +33,7 @@ func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth Authorization
 		values := make([]string, len(row))
 		for i, value := range row {
 			values[i], err = value.Text()
-			if err != nil || value.Type() != source.columns[i].Usage.Type {
+			if err != nil || value.Type() != source.Columns[i].Usage.Type {
 				t.Fatal("projection type/null", i, value, err)
 			}
 		}
@@ -71,9 +71,9 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		{"proof_composite", compositeRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
 	}
 	for i, spec := range specs {
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, namespace: f.schema, name: spec.name, owner: f.owner, revision: 2, relationKind: spec.kind, acl: spec.acl}
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, namespace: f.schema, name: spec.name, Owner: f.owner, revision: 2, RelationKind: spec.kind, ACL: spec.acl}
 		if spec.name == "proof_column_only" {
-			d.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
+			d.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
 		state.setDescriptor(d.address, d)
 	}
@@ -149,7 +149,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	changed := cloneCatalog(state)
 	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
-	named.acl = authorization.ACLValue{Explicit: true}
+	named.ACL = authorization.ACLValue{Explicit: true}
 	changed.setDescriptor(named.address, &named)
 	actor := cloneRoleFixture(roles)
 	renamed := fixtureRole(actor, f.reader)
@@ -167,7 +167,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	source := state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
 	names := []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		typ := sqltype.Name
 		length, known := int64(0), false
 		if i >= 5 {

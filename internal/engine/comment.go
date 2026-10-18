@@ -125,7 +125,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if s.Kind == parser.CommentColumn {
 			d := relation
 			name := s.Name.Parts[len(s.Name.Parts)-1].Text
-			index, ok := d.index[name]
+			index, ok := d.Index[name]
 			if !ok {
 				parts := make([]string, len(s.Name.Parts)-1)
 				for i := range parts {
@@ -133,7 +133,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 				}
 				return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, strings.Join(parts, ".")))
 			}
-			ref.Address.SubID = d.attributes[index]
+			ref.Address.SubID = d.Attributes[index]
 		}
 	default:
 		return nil, sqlError("0A000", "COMMENT object kind is unsupported")
@@ -158,16 +158,16 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		n := *d
 		n.revision = revision
 		if ref.Address.SubID == 0 {
-			n.comment = text
+			n.Comment = text
 		} else {
-			n.columnComments = make(map[int32]string, len(d.columnComments)+1)
-			for key, value := range d.columnComments {
-				n.columnComments[key] = value
+			n.ColumnComments = make(map[int32]string, len(d.ColumnComments)+1)
+			for key, value := range d.ColumnComments {
+				n.ColumnComments[key] = value
 			}
 			if text == "" {
-				delete(n.columnComments, ref.Address.SubID)
+				delete(n.ColumnComments, ref.Address.SubID)
 			} else {
-				n.columnComments[ref.Address.SubID] = text
+				n.ColumnComments[ref.Address.SubID] = text
 			}
 		}
 		updated = &n

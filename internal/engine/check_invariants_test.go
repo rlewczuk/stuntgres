@@ -17,7 +17,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	view := e.CatalogRead()
 	descriptor, _ := view.Descriptor(ref.Address)
 	original := descriptor.(*relationDescriptor)
-	predicate := original.checkConstraints[0].expression.(comparisonExpression)
+	predicate := original.CheckConstraints[0].expression.(comparisonExpression)
 	column := predicate.left.(columnExpression)
 	for _, tc := range []struct {
 		name   string
@@ -34,12 +34,12 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *original
-			copy.checkConstraints = append([]checkConstraint(nil), original.checkConstraints...)
+			copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
 			bad := column
 			tc.change(&bad)
 			p := predicate
 			p.left = bad
-			copy.checkConstraints[0].expression = p
+			copy.CheckConstraints[0].expression = p
 			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("invalid descriptor accepted")
 			}
@@ -50,15 +50,15 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, slot: 0},
 	} {
 		copy := *original
-		copy.checkConstraints = append([]checkConstraint(nil), original.checkConstraints...)
-		copy.checkConstraints[0].expression = node
+		copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
+		copy.CheckConstraints[0].expression = node
 		if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 			t.Fatalf("unpersistable %T accepted", node)
 		}
 	}
 	copy := *original
-	copy.checkConstraints = append([]checkConstraint(nil), original.checkConstraints...)
-	copy.checkConstraints[0].dependencies = nil
+	copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
+	copy.CheckConstraints[0].dependencies = nil
 	if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 		t.Fatal("missing dependency manifest accepted")
 	}
@@ -72,10 +72,10 @@ func TestCheckCompletedRowValidator(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
 	table := d.(*relationDescriptor)
-	old := []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}
+	old := []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}
 	eval := EvalContext{Context: context.Background(), Row: old, Scope: 7, Frame: 9}
 	for _, n := range []int64{1, 2} {
-		v, err := sqltype.Integer(table.columns[0].Usage.Type, n)
+		v, err := sqltype.Integer(table.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}

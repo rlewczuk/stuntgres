@@ -55,10 +55,10 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := pgIndexesUnitSource(t, c)
 	names := []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}
-	if d.name != "pg_indexes" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || len(d.columns) != 5 || d.attributeHighWater != 5 {
+	if d.name != "pg_indexes" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
 		t.Fatal(d)
 	}
-	for i, col := range d.columns {
+	for i, col := range d.Columns {
 		id := sqltype.Name
 		coll := uint32(950)
 		if i == 4 {
@@ -66,19 +66,19 @@ func TestPGIndexesDescriptors(t *testing.T) {
 			coll = 100
 		}
 		typ, ok := c.LookupType(id)
-		if !ok || col.Name != names[i] || col.Usage.Type != typ || col.Usage.Type.ID() != id || col.Usage.Typmod != -1 || uint32(col.Usage.Collation.ID) != coll || !col.Nullable || !col.NullabilityKnown || col.OriginTable != 12002 || col.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+		if !ok || col.Name != names[i] || col.Usage.Type != typ || col.Usage.Type.ID() != id || col.Usage.Typmod != -1 || uint32(col.Usage.Collation.ID) != coll || !col.Nullable || !col.NullabilityKnown || col.OriginTable != 12002 || col.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal(i, col)
 		}
 	}
 	if err := (relationProvider{}).Validate(c, d); err != nil {
 		t.Fatal(err)
 	}
-	row := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
+	row := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 	if row.owningRelation != d.address {
 		t.Fatal("row type linkage", row)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal(d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal(d.ACL)
 	}
 	s := pgIndexesUnitCapture(t, c, catalogAuthorization(e, c))
 	if s.ref != ref || s.anonymous == nil || len(s.anonymous) != 0 {

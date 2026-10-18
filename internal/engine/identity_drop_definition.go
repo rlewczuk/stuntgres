@@ -30,7 +30,7 @@ func identitySequenceDefinition(descriptor Descriptor, table *relationDescriptor
 	sequence, ok := descriptor.(*relationDescriptor)
 	owned := table.address
 	owned.SubID = attribute
-	if !ok || sequence == nil || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned {
+	if !ok || sequence == nil || sequence.Sequence == nil || !sequence.Sequence.identity || sequence.Sequence.owned != owned {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return sequence, nil
@@ -43,12 +43,12 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	if isSystemColumn(action.Column.Text) {
 		return old, capture, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
 	}
-	slot, present := old.index[action.Column.Text]
+	slot, present := old.Index[action.Column.Text]
 	if !present {
 		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.name))
 	}
-	attribute := old.attributes[slot]
-	identity, exists := old.identities[attribute]
+	attribute := old.Attributes[slot]
+	identity, exists := old.Identities[attribute]
 	if !exists {
 		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.name)
 		if !action.IfExists {
@@ -94,8 +94,8 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 		applyIdentityDropTombstone(provider.stage, identity.sequence)
 	}
 	next := *old
-	next.identities = maps.Clone(old.identities)
-	delete(next.identities, attribute)
+	next.Identities = maps.Clone(old.Identities)
+	delete(next.Identities, attribute)
 	return &next, capture, nil
 }
 

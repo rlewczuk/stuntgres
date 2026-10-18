@@ -157,7 +157,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 			return nil, nil
 		}
 	}
-	return &indexPredicate{definition: definition, execution: execution, attributes: parent.attributes, dependencies: dependencies}, nil
+	return &indexPredicate{definition: definition, execution: execution, attributes: parent.Attributes, dependencies: dependencies}, nil
 }
 
 // Shared build/maintenance/private-admission contract:

@@ -99,9 +99,9 @@ func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 			address:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000},
 			namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
 			name:      "invalid", revision: 1,
-			columns: []ColumnDescriptor{{Name: "id", Usage: usage}},
-			index:   map[string]int{"id": 0}, attributes: []int32{1},
-			attributeHighWater: 1,
+			Columns: []ColumnDescriptor{{Name: "id", Usage: usage}},
+			Index:   map[string]int{"id": 0}, Attributes: []int32{1},
+			AttributeHighWater: 1,
 		}
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)

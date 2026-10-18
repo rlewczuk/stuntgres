@@ -42,11 +42,11 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 	for _, old := range targets {
 		next := candidate
 		if old != root {
-			slot, exists := old.index[column]
+			slot, exists := old.Index[column]
 			if !exists {
 				return Result{}, ids.ErrCatalogReplaced
 			}
-			for _, origin := range old.inheritance.columns[old.attributes[slot]].origins {
+			for _, origin := range old.Inheritance.columns[old.Attributes[slot]].origins {
 				if !selected[origin.parent] {
 					return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited column "%s"`, column))
 				}
@@ -81,13 +81,13 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	name := raw.Constraint.Text
 	inherited := false
 	noInherit := false
-	if root.inheritance != nil {
+	if root.Inheritance != nil {
 		if kind == 'c' {
-			inherited = root.inheritance.checks[name].count() != 0
+			inherited = root.Inheritance.checks[name].count() != 0
 		} else {
-			for _, c := range root.notNullConstraints {
+			for _, c := range root.NotNullConstraints {
 				if c.Name == name {
-					inherited = root.inheritance.notNull[c.Attribute].count() != 0
+					inherited = root.Inheritance.notNull[c.Attribute].count() != 0
 				}
 			}
 		}
@@ -97,13 +97,13 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
 	}
 	if kind == 'c' {
-		for _, c := range root.checkConstraints {
+		for _, c := range root.CheckConstraints {
 			if c.Name == name {
 				noInherit = c.NoInherit
 			}
 		}
 	} else {
-		for _, c := range root.notNullConstraints {
+		for _, c := range root.NotNullConstraints {
 			if c.Name == name {
 				noInherit = c.NoInherit
 			}
@@ -128,11 +128,11 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	}
 	for _, old := range targets {
 		if old != root {
-			provenance := old.inheritance.checks[name]
+			provenance := old.Inheritance.checks[name]
 			if kind == 'n' {
-				for _, c := range old.notNullConstraints {
+				for _, c := range old.NotNullConstraints {
 					if c.Name == name {
-						provenance = old.inheritance.notNull[c.Attribute]
+						provenance = old.Inheritance.notNull[c.Attribute]
 					}
 				}
 			}
@@ -149,11 +149,11 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		if err != nil {
 			return Result{}, err
 		}
-		if next.inheritance != nil {
-			next.inheritance = cloneInheritance(next.inheritance)
+		if next.Inheritance != nil {
+			next.Inheritance = cloneInheritance(next.Inheritance)
 			if kind == 'c' {
-				next.inheritance.checks[raw.NewName.Text] = next.inheritance.checks[name]
-				delete(next.inheritance.checks, name)
+				next.Inheritance.checks[raw.NewName.Text] = next.Inheritance.checks[name]
+				delete(next.Inheritance.checks, name)
 			}
 		}
 		if err := stage.Replace(next); err != nil {

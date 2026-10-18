@@ -652,7 +652,7 @@ retry:
 		return errors.New("stuntgres: invalid relation descriptor")
 	}
 	for _, row := range rows {
-		if len(row) != len(relation.columns) {
+		if len(row) != len(relation.Columns) {
 			return errors.New("stuntgres: invalid staged row width")
 		}
 	}
@@ -667,7 +667,7 @@ retry:
 	}
 	var versions []rowVersion
 	var err error
-	if len(relation.exclusionConstraints) != 0 {
+	if len(relation.ExclusionConstraints) != 0 {
 		versions = make([]rowVersion, len(rows))
 		for i := range rows {
 			reserved := batch.candidate(i).exclusion

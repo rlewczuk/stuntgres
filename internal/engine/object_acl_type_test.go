@@ -51,7 +51,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
 		if d := view.MustType(address); !d.aclSyntheticDefault {
 			t.Fatal("relation row/array has explicit raw ACL", address)

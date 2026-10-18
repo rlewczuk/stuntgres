@@ -20,17 +20,17 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
 	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []expressionDependency{{ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]Descriptor{ref: captured}}
-	d := &relationDescriptor{address: consumer, view: viewPayloadOf(definition)}
-	if viewOf(d) != definition || d.view.RuleOID() != 30001 {
+	d := &relationDescriptor{address: consumer, View: viewPayloadOf(definition)}
+	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
 	}
-	if owner, session := d.view.TemporaryConsumer(); owner != consumer || session != token {
+	if owner, session := d.View.TemporaryConsumer(); owner != consumer || session != token {
 		t.Fatal("temporary consumer", owner, session)
 	}
-	if got, ok := d.view.CapturedReference(ref); !ok || got != captured {
+	if got, ok := d.View.CapturedReference(ref); !ok || got != captured {
 		t.Fatal("captured reference")
 	}
-	if _, ok := d.view.CapturedReference(domain.Ref(8, source)); ok {
+	if _, ok := d.View.CapturedReference(domain.Ref(8, source)); ok {
 		t.Fatal("uncaptured reference")
 	}
 	whole := column
@@ -38,7 +38,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	other := column
 	other.SubID = 3
 	for target, want := range map[ids.ObjectAddress]bool{source: true, whole: true, column: true, other: false, consumer: false} {
-		if d.view.DependsOn(target) != want || viewDepends(d, target) != want {
+		if d.View.DependsOn(target) != want || viewDepends(d, target) != want {
 			t.Fatal("view dependency", target, want)
 		}
 	}
@@ -63,12 +63,12 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	if rulesOf(&relationDescriptor{}) != nil || rulesPayloadOf(nil) != nil {
 		t.Fatal("absent rules payload")
 	}
-	empty := &relationDescriptor{rules: rulesPayloadOf([]ruleDefinition{})}
-	if empty.rules == nil || rulesOf(empty) == nil || len(rulesOf(empty)) != 0 {
+	empty := &relationDescriptor{Rules: rulesPayloadOf([]ruleDefinition{})}
+	if empty.Rules == nil || rulesOf(empty) == nil || len(rulesOf(empty)) != 0 {
 		t.Fatal("empty rule list collapsed")
 	}
 	rules := []ruleDefinition{{OID: 40001, Name: "a"}, {OID: 40002, Name: "b"}}
-	withRules := &relationDescriptor{rules: rulesPayloadOf(rules)}
+	withRules := &relationDescriptor{Rules: rulesPayloadOf(rules)}
 	if got := rulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
 		t.Fatal("rule list identity")
 	}
@@ -76,7 +76,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 		t.Fatal("absent rules rejected")
 	}
 	rules[1].Name = "a"
-	if withRules.rules.Validate(CatalogRead{}, withRules) == nil {
+	if withRules.Rules.Validate(CatalogRead{}, withRules) == nil {
 		t.Fatal("unordered rule names accepted")
 	}
 }

@@ -34,7 +34,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: viewPayloadOf(definition), columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, Owner: table.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	definition.consumer = d.address
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = e.stageRowTypeLocked(stage, d)
@@ -69,7 +69,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(view.rowType)}
+	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(view.RowType)}
 	row, ok := catalog.Type(rowAddress)
 	if !ok || row.owningRelation != view.address || row.array == 0 {
 		t.Fatal("missing real associated rowtype", row)
@@ -107,7 +107,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
+	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +229,7 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	}
 	next.setDescriptor(ref.Address, old)
 	fake := *view
-	fake.view = &viewDefinition{consumer: view.address, temporary: viewOf(view).temporary}
+	fake.View = &viewDefinition{consumer: view.address, temporary: viewOf(view).temporary}
 	next.setDescriptor(view.address, &fake)
 	if storedViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")

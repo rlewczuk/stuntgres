@@ -469,7 +469,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("restored sentinel behavior", got)
 	}
 	ref := roleTableRef(t, restored, "sentinel")
-	if restored.catalog.state.MustRelation(ref.Address).owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if restored.catalog.state.MustRelation(ref.Address).Owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{

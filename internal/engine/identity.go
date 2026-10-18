@@ -21,13 +21,13 @@ func identityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }
 func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) error {
-	address := sequence.sequence.owned
+	address := sequence.Sequence.owned
 	address.SubID = 0
 	table := read.MustRelation(address)
 	column := ""
-	for slot, attribute := range table.attributes {
-		if attribute == sequence.sequence.owned.SubID {
-			column = table.columns[slot].Name
+	for slot, attribute := range table.Attributes {
+		if attribute == sequence.Sequence.owned.SubID {
+			column = table.Columns[slot].Name
 			break
 		}
 	}
@@ -71,13 +71,13 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 		if element.Column == nil {
 			continue
 		}
-		slot := table.index[element.Column.Name]
+		slot := table.Index[element.Column.Name]
 		for _, constraint := range element.Column.Constraints {
 			if constraint.Identity == nil {
 				continue
 			}
 			definition := constraint.Identity
-			id := table.columns[slot].Usage.Type.ID()
+			id := table.Columns[slot].Usage.Type.ID()
 			if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
 				return sequenceOptionError("identity column type must be smallint, integer, or bigint")
 			}
@@ -127,7 +127,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			used := func(name string) bool {
 				return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
 			}
-			name := ownedSequenceName(table.name, table.columns[slot].Name, used)
+			name := ownedSequenceName(table.name, table.Columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
 				auth.catalog = read
 				auth.recaptureCatalog(auth.catalog)
@@ -169,17 +169,17 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 	options.owned = table.address
-	options.owned.SubID = table.attributes[slot]
+	options.owned.SubID = table.Attributes[slot]
 	options.identity = true
-	d := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: rev, sequencePlanStamp: rev, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
-	d.acl = stage.creationACL(table.owner, table.namespace, authorization.DefaultSequences)
+	d := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
+	d.ACL = stage.creationACL(table.Owner, table.namespace, authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
 	}
-	if table.identities == nil {
-		table.identities = make(map[int32]columnIdentity)
+	if table.Identities == nil {
+		table.Identities = make(map[int32]columnIdentity)
 	}
-	table.identities[table.attributes[slot]] = columnIdentity{mode: mode, sequence: address}
+	table.Identities[table.Attributes[slot]] = columnIdentity{mode: mode, sequence: address}
 	if stage.generators == nil {
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 	}
@@ -203,7 +203,7 @@ func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []expr.Exp
 			target := b.targets[i]
 			value, err := expression.Eval(evaluation)
 			if err != nil {
-				return insertValueError(read, err, b.relation.columns[target], syntax[i], nil)
+				return insertValueError(read, err, b.relation.Columns[target], syntax[i], nil)
 			}
 			if len(b.identityDiscard) == 0 || !b.identityDiscard[target] {
 				if len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil {
@@ -235,7 +235,7 @@ func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []expr.Exp
 				}
 				value, err := supplied[source].Eval(evaluation)
 				if err != nil {
-					return insertValueError(read, err, b.relation.columns[target], syntax[source], nil)
+					return insertValueError(read, err, b.relation.Columns[target], syntax[source], nil)
 				}
 				row[target] = value
 			}

@@ -9,8 +9,8 @@ import (
 
 func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation collationRemapper) (*relationDescriptor, error) {
 	next := *d
-	if d.partition != nil {
-		definition := *d.partition
+	if d.Partition != nil {
+		definition := *d.Partition
 		definition.keys = slices.Clone(definition.keys)
 		if !typesOnly {
 			definition.children = slices.Clone(definition.children)
@@ -69,10 +69,10 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 			}
 			definition.keys[i] = key
 		}
-		next.partition = &definition
+		next.Partition = &definition
 	}
-	if d.membership != nil {
-		membership := *d.membership
+	if d.Membership != nil {
+		membership := *d.Membership
 		membership.parent = ref(ids.ObjectRef{Address: membership.parent}).Address
 		membership.lower, membership.upper = slices.Clone(membership.lower), slices.Clone(membership.upper)
 		for _, tuple := range [][]partitionDatum{membership.lower, membership.upper} {
@@ -142,7 +142,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 				tuple[i].value = value
 			}
 		}
-		next.membership = &membership
+		next.Membership = &membership
 	}
 	return &next, nil
 }

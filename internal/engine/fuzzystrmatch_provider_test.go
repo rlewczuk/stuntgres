@@ -217,7 +217,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("dependency", refs, err)
 	}
-	consumer := &relationDescriptor{generations: map[int32]columnGeneration{
+	consumer := &relationDescriptor{Generations: map[int32]columnGeneration{
 		1: {expression: n, dependencies: []ids.ObjectRef{n.ref}},
 	}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
@@ -226,7 +226,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	badRef := n.ref
 	badRef.Address.SubID = 1
 	invalid := *consumer
-	invalid.generations = map[int32]columnGeneration{
+	invalid.Generations = map[int32]columnGeneration{
 		1: {expression: n, dependencies: []ids.ObjectRef{badRef}},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {

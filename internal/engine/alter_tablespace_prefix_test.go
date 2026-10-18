@@ -70,9 +70,9 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	e, scope := c.e, c.scope
 	old := scope.lockedDescriptor.(*relationDescriptor)
 	before, storage := e.catalog.state, e.storage[old.address]
-	a := old.identities[old.attributes[0]].sequence
-	b := old.identities[old.attributes[1]].sequence
-	third := old.identities[old.attributes[2]].sequence
+	a := old.Identities[old.Attributes[0]].sequence
+	b := old.Identities[old.Attributes[1]].sequence
+	third := old.Identities[old.Attributes[2]].sequence
 	generatorC := e.sequences[third]
 	valueC, cacheC := *generatorC, *c.op.session.sequences[third]
 	generatorA, generatorB := e.sequences[a], e.sequences[b]
@@ -96,11 +96,11 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	// AS descriptor must reflect the second occurrence, not the first; its
 	// generator must be the replacement belonging to that final descriptor.
 	sequence := stage.descriptors[a].(*relationDescriptor)
-	if sequence.sequence.typ != sqltype.Int2 || stage.generators[a] == nil || stage.generators[a].generation != sequence.revision || stage.generators[a].last != valueA.last || stage.generators[a].called != valueA.called {
-		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.sequence, stage.generators[a])
+	if sequence.Sequence.typ != sqltype.Int2 || stage.generators[a] == nil || stage.generators[a].generation != sequence.revision || stage.generators[a].last != valueA.last || stage.generators[a].called != valueA.called {
+		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.generators[a])
 	}
 	prior := stage.descriptors[third].(*relationDescriptor)
-	if prior.sequence.typ != sqltype.Int8 || prior.revision >= sequence.revision || stage.generators[third] == nil || stage.generators[third].generation != prior.revision || cacheC.remaining != 4 || c.op.session.sequences[third].remaining != 0 {
+	if prior.Sequence.typ != sqltype.Int8 || prior.revision >= sequence.revision || stage.generators[third] == nil || stage.generators[third].generation != prior.revision || cacheC.remaining != 4 || c.op.session.sequences[third].remaining != 0 {
 		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.generators[third])
 	}
 	if stage.descriptors[b] != nil || stage.generators[b] != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
@@ -141,11 +141,11 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 			original := old
 			if tc.kind != tableRelation {
 				copy := *old
-				copy.relationKind = tc.kind
+				copy.RelationKind = tc.kind
 				old = &copy
 			}
 			before := c.e.catalog.state
-			a := original.identities[original.attributes[0]].sequence
+			a := original.Identities[original.Attributes[0]].sequence
 			memory := *c.op.session.sequences[a]
 			generator := *c.e.sequences[a]
 			prepared, err := tablespacePrefixPrepare(c, old, c.raw.Actions)
@@ -182,8 +182,8 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 				e, scope := c.e, c.scope
 				old := scope.lockedDescriptor.(*relationDescriptor)
 				before, storage := e.catalog.state, e.storage[old.address]
-				a := old.identities[old.attributes[0]].sequence
-				b := old.identities[old.attributes[1]].sequence
+				a := old.Identities[old.Attributes[0]].sequence
+				b := old.Identities[old.Attributes[1]].sequence
 				generatorA, generatorB := e.sequences[a], e.sequences[b]
 				valueA, valueB := *generatorA, *generatorB
 				memoryA, memoryB := c.op.session.sequences[a], c.op.session.sequences[b]
@@ -219,7 +219,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					if stage.lifecycle == catalogDiscarded || stage.lifecycle == catalogPublished {
 						t.Fatal("inner failure took shared cleanup ownership", stage.lifecycle)
 					}
-					if !invalidAS && (stage.generators[a] == nil || stage.descriptors[a].(*relationDescriptor).sequence.typ != sqltype.Int2) {
+					if !invalidAS && (stage.generators[a] == nil || stage.descriptors[a].(*relationDescriptor).Sequence.typ != sqltype.Int2) {
 						t.Fatal("shared owner lost actual staged AS")
 					}
 					// The existing outer-owner disposal API, not Finish or the

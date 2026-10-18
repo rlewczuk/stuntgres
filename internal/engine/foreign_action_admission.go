@@ -185,7 +185,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 		return err
 	}
 	s.foreignActionAdmissions[ref.Address].mutated = true
-	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionAdmissions[ref.Address].relation.owner})
+	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionAdmissions[ref.Address].relation.Owner})
 	return nil
 }
 
@@ -195,7 +195,7 @@ func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, 
 	}
 	admission := s.foreignActionAdmissions[ref.Address]
 	admission.mutated = true
-	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.owner})
+	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.Owner})
 }
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {

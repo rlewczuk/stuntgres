@@ -8,17 +8,17 @@ import (
 )
 
 func (s *StatementScope) prepareExclusionShape(original, parent *relationDescriptor, catalog CatalogRead, writes []rowVersion, deletes *privateDeletionRoot) error {
-	if len(original.exclusionConstraints)+len(parent.exclusionConstraints) == 0 {
+	if len(original.ExclusionConstraints)+len(parent.ExclusionConstraints) == 0 {
 		return nil
 	}
-	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.exclusionConstraints))
+	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.ExclusionConstraints))
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: catalog}
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		index, ok := catalog.Relation(c.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing private exclusion index")
 		}
-		ordering, err := bindExclusionOrdering(parent, index.sqlIndex)
+		ordering, err := bindExclusionOrdering(parent, index.SQLIndex)
 		if err != nil {
 			return err
 		}
@@ -28,7 +28,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				continue
 			}
 			var keys []sqltype.Value
-			if index.sqlIndex.requiresInsertionOutput() {
+			if index.SQLIndex.requiresInsertionOutput() {
 				output, ok := row.indexOutputs[index.address]
 				if !ok || !output.matches(index) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
@@ -36,7 +36,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				if !output.member {
 					continue
 				}
-				if index.sqlIndex.method == hashMethod {
+				if index.SQLIndex.method == hashMethod {
 					if output.key.IsNull() {
 						continue
 					}
@@ -45,17 +45,17 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 					keys = output.keys
 				}
 			} else {
-				matches, err := preparation.predicateMatches(&evaluation, parent, index.sqlIndex, row.values, &ordering, nil)
+				matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.values, &ordering, nil)
 				if err != nil {
 					return err
 				}
 				if !matches {
 					continue
 				}
-				if err := preparation.prepareKeys(&evaluation, parent, index.sqlIndex, &ordering, nil); err != nil {
+				if err := preparation.prepareKeys(&evaluation, parent, index.SQLIndex, &ordering, nil); err != nil {
 					return err
 				}
-				keys = make([]sqltype.Value, len(index.sqlIndex.keys))
+				keys = make([]sqltype.Value, len(index.SQLIndex.keys))
 				if err := ordering.fillKeys(row.values, keys, &evaluation); err != nil {
 					return err
 				}
@@ -74,7 +74,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	}
 	s.beginExclusionProjectionLocked(e)
 	p := cloneExclusionProjection(e.exclusionPending[s.ticket])
-	for _, c := range original.exclusionConstraints {
+	for _, c := range original.ExclusionConstraints {
 		delete(p.entries, c.Index)
 	}
 	for index, rows := range entries {

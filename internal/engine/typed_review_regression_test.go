@@ -150,7 +150,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			storage := e.storage[root.address]
 			roleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
 			root = e.CatalogRead().MustRelation(predecessor.address)
-			if root == predecessor || !root.hasSubclasses || predecessor.hasSubclasses || root.address != predecessor.address || root.rowType != predecessor.rowType || root.ofType != predecessor.ofType || root.revision == predecessor.revision || before.Get(predecessor.address) != predecessor || e.storage[root.address] != storage {
+			if root == predecessor || !root.HasSubclasses || predecessor.HasSubclasses || root.address != predecessor.address || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.revision == predecessor.revision || before.Get(predecessor.address) != predecessor || e.storage[root.address] != storage {
 				t.Fatal("successful child publication did not preserve immutable typed identity/storage and transition subclass history")
 			}
 			roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")
@@ -182,21 +182,21 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			if current.state != after || current.Get(source.address) != source || current.Get(root.address) != root || current.Get(child.address) != child || e.storage[root.address] != rootStorage || e.storage[child.address] != childStorage {
 				t.Fatal("rejected TYPE changed published graph or storage")
 			}
-			if root.ofType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}) {
+			if root.OfType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}) {
 				t.Fatal("attachment changed")
 			}
 			for _, relation := range []*relationDescriptor{source, root, child} {
-				if relation.columns[0].Usage.Type.ID() != sqltype.Int4 || relation.columns[0].Name != "id" {
+				if relation.Columns[0].Usage.Type.ID() != sqltype.Int4 || relation.Columns[0].Name != "id" {
 					t.Fatal("semantic conflict changed shape", relation)
 				}
 			}
 			holderRef := roleTableRef(t, e, "holder")
 			holder := current.MustRelation(holderRef.Address)
-			row := root.rowType
+			row := root.RowType
 			if rowName == "child" {
-				row = child.rowType
+				row = child.RowType
 			}
-			if holder.columns[0].Usage.Type.ID() != row {
+			if holder.Columns[0].Usage.Type.ID() != row {
 				t.Fatal("holder does not use actual own-row provider")
 			}
 			for _, expected := range []struct {
@@ -253,7 +253,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	defer done()
 	pair := roleTableRef(t, e, "pair")
 	source := e.CatalogRead().MustRelation(pair.Address)
-	typedReviewTypeACL(t, e, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}, authorization.ACLValue{Explicit: true})
+	typedReviewTypeACL(t, e, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}, authorization.ACLValue{Explicit: true})
 	reader, finish := roleOperation(t, e, "typed_reader")
 	defer finish()
 	roleExecute(t, e, reader, "CREATE TABLE mine(id integer)")
@@ -266,12 +266,12 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	roleExecute(t, e, reader, "ALTER TABLE mine OF pair")
 	mine := roleTableRef(t, e, "mine")
 	mineDescriptor := e.CatalogRead().MustRelation(mine.Address)
-	if mineDescriptor.ofType.ObjectID != ids.OID(source.rowType) || mineDescriptor.owner == source.owner {
+	if mineDescriptor.OfType.ObjectID != ids.OID(source.RowType) || mineDescriptor.Owner == source.Owner {
 		t.Fatal("attach did not retain reader ownership")
 	}
 	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE")
 	mineDescriptor = e.CatalogRead().MustRelation(mine.Address)
-	if len(mineDescriptor.columns) != 2 || mineDescriptor.columns[1].Usage.Type.ID() != sqltype.Bool {
+	if len(mineDescriptor.Columns) != 2 || mineDescriptor.Columns[1].Usage.Type.ID() != sqltype.Bool {
 		t.Fatal("source-owner CASCADE failed foreign-owner target")
 	}
 	typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
@@ -287,7 +287,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	typedReviewTypeACL(t, e, member, grant)
 	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE")
 	mineDescriptor = e.CatalogRead().MustRelation(mine.Address)
-	if len(mineDescriptor.columns) != 3 || mineDescriptor.columns[2].Usage.Type.ID() != sqltype.ID(member.ObjectID) {
+	if len(mineDescriptor.Columns) != 3 || mineDescriptor.Columns[2].Usage.Type.ID() != sqltype.ID(member.ObjectID) {
 		t.Fatal("granted member USAGE not reflected in actual target")
 	}
 	if store := e.storage[mine.Address]; len(store.versions) != 1 || testExport(store.versions[0].values[0]) != int64(11) || !store.versions[0].values[1].IsNull() || !store.versions[0].values[2].IsNull() {

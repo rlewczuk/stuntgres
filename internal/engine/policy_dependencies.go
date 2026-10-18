@@ -32,7 +32,7 @@ func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress,
 		if slices.Contains(targets, d.address) {
 			continue
 		}
-		for _, p := range d.policies {
+		for _, p := range d.Policies {
 			for _, target := range targets {
 				if policyDepends(p, target) {
 					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + dependencyIdentifier(p.Name) + " on table " + dependencyRelationName(catalog, d, path)})
@@ -59,11 +59,11 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.policies) == 0 {
+		if !ok || len(d.Policies) == 0 {
 			continue
 		}
 		var kept []policyDefinition
-		for _, p := range d.policies {
+		for _, p := range d.Policies {
 			drop := false
 			for _, target := range targets {
 				if policyDepends(p, target) {
@@ -75,11 +75,11 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 				kept = append(kept, p)
 			}
 		}
-		if len(kept) == len(d.policies) {
+		if len(kept) == len(d.Policies) {
 			continue
 		}
 		copy := *d
-		copy.policies = kept
+		copy.Policies = kept
 		revision, err := provider.revision(copy.revision)
 		if err != nil {
 			return err
@@ -108,15 +108,15 @@ func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error 
 		return 0
 	})
 	for _, owner := range owners {
-		for _, p := range owner.policies {
+		for _, p := range owner.Policies {
 			if !policyDepends(p, target) {
 				continue
 			}
 			provider := catalog.MustRelation(ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID})
 			column := ""
-			for i, a := range provider.attributes {
+			for i, a := range provider.Attributes {
 				if a == target.SubID {
-					column = provider.columns[i].Name
+					column = provider.Columns[i].Name
 					break
 				}
 			}

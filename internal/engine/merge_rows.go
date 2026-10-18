@@ -118,7 +118,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	frame := make([]sqltype.Value, len(b.relation.columns)+width)
+	frame := make([]sqltype.Value, len(b.relation.Columns)+width)
 	evaluation := state.evaluation(ctx)
 	evaluation.Row = frame
 	evaluation.presenceSlots = presenceSlots
@@ -148,7 +148,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		if presenceCount != 0 {
 			evaluation.presence = presence[j*presenceCount : (j+1)*presenceCount]
 		}
-		copy(frame[len(b.relation.columns):], sources[j*width:(j+1)*width])
+		copy(frame[len(b.relation.Columns):], sources[j*width:(j+1)*width])
 		bindIdentity(j)
 		matched := false
 		for i := range target.count() {
@@ -205,7 +205,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		source := nullSource
 		if candidate.sourceIndex >= 0 {
 			source = sources[candidate.sourceIndex*width : (candidate.sourceIndex+1)*width]
-			copy(frame[len(b.relation.columns):], source)
+			copy(frame[len(b.relation.Columns):], source)
 			bindIdentity(candidate.sourceIndex)
 			if presenceCount != 0 {
 				evaluation.presence = presence[candidate.sourceIndex*presenceCount : (candidate.sourceIndex+1)*presenceCount]
@@ -383,7 +383,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		result.actions = append(result.actions, mergeActionRow{action: arm.action, deletion: deletion})
 		return nil
 	}
-	row := make([]sqltype.Value, len(b.relation.columns))
+	row := make([]sqltype.Value, len(b.relation.Columns))
 	if arm.action == parser.MergeUpdateAction {
 		copy(row, old.values)
 		for i, expression := range arm.input.update.assignments {
@@ -404,7 +404,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 			row[target] = value
 		}
 	} else {
-		for i, column := range b.relation.columns {
+		for i, column := range b.relation.Columns {
 			row[i] = sqltype.Null(column.Usage.Type)
 		}
 		if err := evaluateIdentityValuesRow(scope.commentCatalog, &arm.input, arm.input.expressions[0], arm.syntax, row, false, evaluation); err != nil {

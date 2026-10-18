@@ -74,23 +74,23 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			switch phase {
 			case "owner":
 				owner, _ := refreshUnitPrincipals(e)
-				next.owner = owner
+				next.Owner = owner
 			case "schema":
 				next.namespace.ObjectID++
 			case "name":
 				next.name = "changed_name"
 			case "columns":
-				next.columns = append([]ColumnDescriptor(nil), d.columns...)
-				next.columns[0].Name = "changed_shape"
+				next.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+				next.Columns[0].Name = "changed_shape"
 			case "attributes":
-				next.attributes = append([]int32(nil), d.attributes...)
-				next.attributes[0]++
+				next.Attributes = append([]int32(nil), d.Attributes...)
+				next.Attributes[0]++
 			case "rowtype":
-				next.rowType++
+				next.RowType++
 			case "definition":
 				definition := *viewOf(d)
 				definition.invoker = !definition.invoker
-				next.view = &definition
+				next.View = &definition
 			case "ref":
 				next.address.ObjectID += 100000
 				expectedAddress = next.address
@@ -122,7 +122,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
-			if e.catalog.state.Get(expectedAddress) != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.populated {
+			if e.catalog.state.Get(expectedAddress) != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.Populated {
 				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.

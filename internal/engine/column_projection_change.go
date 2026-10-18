@@ -17,7 +17,7 @@ func projectColumnShape(scope *StatementScope, old, next *relationDescriptor, st
 }
 
 func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relationDescriptor, store *relationStorage, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool, writes []rowVersion, deletes *privateDeletionRoot) (catalogStorageChange, []rowVersion, *privateDeletionRoot, error) {
-	if slices.Equal(old.attributes, next.attributes) {
+	if slices.Equal(old.Attributes, next.Attributes) {
 		shape.relation = next
 		return shape, writes, deletes, nil
 	}
@@ -46,7 +46,7 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relati
 	}
 	deletes = projectDeletions(deletes, shape.replacement)
 	if stable && snapshotExists && !shape.rewritten {
-		if slices.Equal(snapshot.relation.attributes, old.attributes) {
+		if slices.Equal(snapshot.relation.Attributes, old.Attributes) {
 			shape.snapshot, err = projection.versions(ctx, snapshot.versions)
 		} else {
 			shape.snapshot, err = projectVersions(ctx, snapshot.versions, snapshot.relation, next, shape.fills)
@@ -151,7 +151,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	if err == nil {
 		for address, descriptor := range stage.descriptors {
 			index, ok := descriptor.(*relationDescriptor)
-			if ok && index.sqlIndex != nil && index.sqlIndex.parent == old.address {
+			if ok && index.SQLIndex != nil && index.SQLIndex.parent == old.address {
 				e.catalogChangeLocked(changes, address, index)
 			}
 		}
@@ -180,7 +180,7 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 	for address, rowShape := range stage.rowShapes {
 		old, oldOK := stage.base.Relation(address)
 		next, nextOK := stage.descriptors[address].(*relationDescriptor)
-		if !oldOK || !nextOK || slices.Equal(old.attributes, next.attributes) {
+		if !oldOK || !nextOK || slices.Equal(old.Attributes, next.Attributes) {
 			continue
 		}
 		shape := changes.storage[address]

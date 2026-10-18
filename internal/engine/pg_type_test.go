@@ -28,7 +28,7 @@ func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map
 			t.Fatal("row width", len(row))
 		}
 		for i, v := range row {
-			if v.Type() != d.columns[i].Usage.Type || i < 29 && v.IsNull() {
+			if v.Type() != d.Columns[i].Usage.Type || i < 29 && v.IsNull() {
 				t.Fatal("cell type/null", i, v)
 			}
 		}
@@ -97,10 +97,10 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, ref := pgTypeUnitSource(t, e)
 	roles := e.roleRead(catalog, e.roles)
-	if len(d.columns) != 32 || d.rowType != 71 || !d.hasIndexes {
+	if len(d.Columns) != 32 || d.RowType != 71 || !d.HasIndexes {
 		t.Fatal("source definition", d)
 	}
-	for i, c := range d.columns {
+	for i, c := range d.Columns {
 		if !c.Usage.Valid() {
 			t.Fatal("invalid registered type column usage", i, c)
 		}
@@ -133,7 +133,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if first.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
 		t.Fatal("capture mutated authority")
 	}
-	first.anonymous[0][0] = sqltype.Null(d.columns[0].Usage.Type)
+	first.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
 	first.anonymous[0] = nil
 	if !reflect.DeepEqual(pgTypeUnitBag(t, second, d), bag) {
 		t.Fatal("shared capture backing")
@@ -175,11 +175,11 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	for _, badWidth := range []bool{false, true} {
 		root := cloneCatalog(catalog.state)
 		bad := *d
-		bad.columns = append([]ColumnDescriptor(nil), d.columns...)
+		bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		if badWidth {
-			bad.columns = bad.columns[:31]
+			bad.Columns = bad.Columns[:31]
 		} else {
-			bad.columns[0].Usage.Type, _ = foreign.LookupType(sqltype.Oid)
+			bad.Columns[0].Usage.Type, _ = foreign.LookupType(sqltype.Oid)
 		}
 		root.setDescriptor(d.address, &bad)
 		view := e.catalog.read(root)
@@ -231,7 +231,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	// not equality of native descriptor pointers across catalog replacement.
 	pgTypeUnitBag(t, s, fresh)
 	pgTypeUnitBag(t, second, d)
-	if fresh == d || fresh.columns[0].Usage.Type == d.columns[0].Usage.Type {
+	if fresh == d || fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type {
 		t.Fatal("replacement did not reown source")
 	}
 	s, err = e.capturePGType(t.Context(), freshCatalog, e.roleRead(freshCatalog, e.roles), freshRef, d)

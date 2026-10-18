@@ -18,9 +18,9 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, _ := catalog.Relation(s.lockedRef.Address)
-	hasView := d != nil && (d.relationKind == viewRelation || s.materializedRefresh && d.relationKind == materializedViewRelation)
+	hasView := d != nil && (d.RelationKind == viewRelation || s.materializedRefresh && d.RelationKind == materializedViewRelation)
 	for _, leaf := range s.querySources {
-		if leaf.relation.relationKind == viewRelation {
+		if leaf.relation.RelationKind == viewRelation {
 			hasView = true
 			break
 		}
@@ -46,7 +46,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		if s.materializedRefresh && !visited {
 			s.materializedSources = append(s.materializedSources, d)
-			if ref != s.lockedRef && d.relationKind == materializedViewRelation {
+			if ref != s.lockedRef && d.RelationKind == materializedViewRelation {
 				hasMaterializedSource = true
 			}
 		}
@@ -61,7 +61,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
 			refs = append(refs, ref)
 		}
-		if d.relationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.relationKind == materializedViewRelation {
+		if d.RelationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.RelationKind == materializedViewRelation {
 			if viewOf(d).temporary != (ids.SessionToken{}) {
 				for old := range viewOf(d).references {
 					if old.Epoch != e.catalog.state.epoch {
@@ -108,7 +108,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				continue
 			}
 			relation := catalog.MustRelation(ref.Address)
-			if relation.relationKind.stored() {
+			if relation.RelationKind.stored() {
 				leaves = append(leaves, queryLeaf{ref: ref})
 			}
 		}

@@ -19,7 +19,7 @@ func TestIndexMaintenanceMalformedControlBeforeDeniedWait(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.state.MustRelation(table.Address).owner
+	owner := e.catalog.state.MustRelation(table.Address).Owner
 	user, ok := e.Roles().Lookup("im_badcontrol")
 	if !ok {
 		t.Fatal("missing role fixture")

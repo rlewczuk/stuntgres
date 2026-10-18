@@ -89,7 +89,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	relation.relationKind = compositeRelation
+	relation.RelationKind = compositeRelation
 	if err := e.stageRowTypeLocked(stage, relation); err != nil {
 		return err
 	}
@@ -125,18 +125,18 @@ func containsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
 // PostgreSQL protects physical row codecs even when the proposed SQL type is
 // unchanged. Find the real stored consumer, not an intermediate named wrapper.
 func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
-	if source.rowType == 0 {
+	if source.RowType == 0 {
 		return nil
 	}
 	var consumer *relationDescriptor
 	var column string
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.relationKind.stored() {
+		if !ok || !table.RelationKind.stored() {
 			continue
 		}
-		for _, c := range table.columns {
-			if containsRowType(c.Usage.Type, source.rowType) && (consumer == nil || table.address.ObjectID < consumer.address.ObjectID) {
+		for _, c := range table.Columns {
+			if containsRowType(c.Usage.Type, source.RowType) && (consumer == nil || table.address.ObjectID < consumer.address.ObjectID) {
 				consumer, column = table, c.Name
 				break
 			}
@@ -145,7 +145,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	if consumer == nil {
 		return nil
 	}
-	if source.relationKind == compositeRelation {
+	if source.RelationKind == compositeRelation {
 		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.name, consumer.name, column))
 	}
 	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.name, consumer.name, column))

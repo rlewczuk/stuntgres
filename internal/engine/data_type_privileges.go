@@ -15,7 +15,7 @@ const dataTypePrivilegesOID ids.OID = 16201
 
 func (e *Engine) initializeDataTypePrivileges() error {
 	d := e.catalogSourceDescriptor(dataTypePrivilegesOID, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}, "data_type_privileges", 5)
-	d.virtualView = true
+	d.VirtualView = true
 	for i, name := range []string{"object_catalog", "object_schema", "object_name", "object_type", "dtd_identifier"} {
 		id := sqltype.Name
 		if i == 3 {
@@ -29,9 +29,9 @@ func (e *Engine) initializeDataTypePrivileges() error {
 		if i == 3 {
 			usage.Collation.ID = 950
 		}
-		d.columns[i] = ColumnDescriptor{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.address.ObjectID), OriginAttribute: int16(i + 1)}
-		d.index[name] = i
-		d.attributes[i] = int32(i + 1)
+		d.Columns[i] = ColumnDescriptor{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.address.ObjectID), OriginAttribute: int16(i + 1)}
+		d.Index[name] = i
+		d.Attributes[i] = int32(i + 1)
 	}
 	e.registerCatalogSource(d)
 	return nil
@@ -59,7 +59,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 		values := [5]string{database, namespace, name, kind, identifier}
 		row := make([]sqltype.Value, len(values))
 		for i, value := range values {
-			row[i] = sqltype.String(source.columns[i].Usage.Type, value)
+			row[i] = sqltype.String(source.Columns[i].Usage.Type, value)
 		}
 		rows = append(rows, row)
 	}
@@ -88,7 +88,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			objectType := "TABLE"
 			if kind == "c" {
 				objectType = "USER-DEFINED TYPE"
-				typ, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
+				typ, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 				if !ok || !typ.typ.IsComposite() || typ.owningRelation != d.address {
 					return nil, fmt.Errorf("stuntgres: invalid composite privilege identity")
 				}
@@ -105,16 +105,16 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			ownerVisible := kind == "c"
 			if !ownerVisible {
 				var err error
-				ownerVisible, err = auth.roles.InheritsRole(auth.state.CurrentUser, d.owner)
+				ownerVisible, err = auth.roles.InheritsRole(auth.state.CurrentUser, d.Owner)
 				if err != nil {
 					return nil, err
 				}
 			}
-			for slot := range d.columns {
+			for slot := range d.Columns {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				attribute := d.attributes[slot]
+				attribute := d.Attributes[slot]
 				if attribute <= 0 {
 					return nil, fmt.Errorf("stuntgres: invalid data type privilege attribute")
 				}

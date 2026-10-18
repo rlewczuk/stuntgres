@@ -39,7 +39,7 @@ func pgRangeUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[
 		}
 		var fact [7]uint32
 		for i, v := range row {
-			if v.IsNull() || v.Type() != d.columns[i].Usage.Type {
+			if v.IsNull() || v.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("null/foreign cell", i, v)
 			}
 			var err error
@@ -70,7 +70,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	d, ref := pgRangeUnitSource(t, e)
 	checkDescriptor := func(catalog CatalogRead, d *relationDescriptor) {
 		t.Helper()
-		if d.name != "pg_range" || d.namespace.ObjectID != 11 || d.rowType != 10101 || !d.hasIndexes || d.relationKind != catalogRelation || d.attributeHighWater != 7 || len(d.columns) != 7 {
+		if d.name != "pg_range" || d.namespace.ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"rngtypid", "rngsubtype", "rngmultitypid", "rngcollation", "rngsubopc", "rngcanonical", "rngsubdiff"} {
@@ -79,19 +79,19 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 				id = sqltype.Regproc
 			}
 			owned, ok := catalog.LookupType(id)
-			c := d.columns[i]
-			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 3541 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i || owned.PostgreSQLTypeLength() != 4 {
+			c := d.Columns[i]
+			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 3541 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i || owned.PostgreSQLTypeLength() != 4 {
 				t.Fatal("column ownership", i, c)
 			}
 		}
-		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC read", d.acl)
+		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC read", d.ACL)
 		}
 		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101})
 		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})
 		ownedRow, rowOK := catalog.LookupType(10101)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10100 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.owner || array.owner != d.owner {
+		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10100 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.Owner || array.owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
 		if err := (relationProvider{}).Validate(catalog, d); err != nil {
@@ -112,7 +112,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows.anonymous[0][0] = sqltype.Null(d.columns[0].Usage.Type)
+	rows.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
 	if !reflect.DeepEqual(pgRangeUnitBag(t, second, d), bag) {
 		t.Fatal("captures share value backing")
 	}
@@ -123,21 +123,21 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	// Keep the unmodified capture for the retained-generation proof.
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*relationDescriptor{nil, {columns: d.columns[:6]}, {columns: append(append([]ColumnDescriptor(nil), d.columns...), d.columns[0])}}
+	badSources := []*relationDescriptor{nil, {Columns: d.Columns[:6]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
 	for _, slot := range []int{0, 5} {
 		invalid := *d
-		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-		invalid.columns[slot].Usage.Type, _ = foreign.LookupType(d.columns[slot].Usage.Type.ID())
+		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns[slot].Usage.Type, _ = foreign.LookupType(d.Columns[slot].Usage.Type.ID())
 		badSources = append(badSources, &invalid)
 	}
 	wrong := *d
-	wrong.columns = append([]ColumnDescriptor(nil), d.columns...)
-	wrong.columns[5].Usage.Type = d.columns[0].Usage.Type
+	wrong.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	wrong.Columns[5].Usage.Type = d.Columns[0].Usage.Type
 	badSources = append(badSources, &wrong)
 	for _, bad := range badSources {
 		got, err := capturePGRange(context.Background(), catalog, ref, bad)
 		message := "stuntgres: foreign range source type"
-		if bad == nil || len(bad.columns) != 7 {
+		if bad == nil || len(bad.Columns) != 7 {
 			message = "stuntgres: invalid range source shape"
 		}
 		if got != nil || err == nil || err.Error() != message {
@@ -167,8 +167,8 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	fresh, freshRef := pgRangeUnitSource(t, e)
 	freshCatalog := e.CatalogRead()
 	checkDescriptor(freshCatalog, fresh)
-	for i := range d.columns {
-		if d.columns[i].Usage.Type == fresh.columns[i].Usage.Type {
+	for i := range d.Columns {
+		if d.Columns[i].Usage.Type == fresh.Columns[i].Usage.Type {
 			t.Fatal("generation not reowned", i)
 		}
 	}

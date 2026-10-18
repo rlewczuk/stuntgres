@@ -91,8 +91,8 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			next := cloneCatalog(e.CatalogRead().state)
 			owner := *d
 			owner.name = "renamed"
-			owner.columns = append([]ColumnDescriptor(nil), d.columns...)
-			owner.columns[0].Name = "key"
+			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			owner.Columns[0].Name = "key"
 			next.setDescriptor(d.address, &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
@@ -101,7 +101,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if strings.Contains(sql, `"t"."id"`) && !strings.Contains(text, `"renamed"."key"`) {
 				t.Fatal("lost stable owner identity", text)
 			}
-			if expression.presentation != original || d.name != "t" || d.columns[0].Name != "id" {
+			if expression.presentation != original || d.name != "t" || d.Columns[0].Name != "id" {
 				t.Fatal("mutated published definition")
 			}
 		})
@@ -141,7 +141,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.policies = []policyDefinition{{OID: oid, Name: "p", permissive: true, command: "all", roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
+	next.Policies = []policyDefinition{{OID: oid, Name: "p", permissive: true, command: "all", roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -157,7 +157,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}
-	if e.CatalogRead().state != base.state || len(d.policies) != 0 {
+	if e.CatalogRead().state != base.state || len(d.Policies) != 0 {
 		t.Fatal("canceled publication changed immutable roots")
 	}
 }
@@ -179,7 +179,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{ref: d.owner}, {ref: d.owner}}, using: policyPayloadOf(expression)}}
+	next.Policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{ref: d.Owner}, {ref: d.Owner}}, using: policyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -205,10 +205,10 @@ func TestRLSPolicyRemap(t *testing.T) {
 			break
 		}
 	}
-	if copied == nil || len(copied.policies) != 1 || len(copied.policies[0].roles) != 2 {
+	if copied == nil || len(copied.Policies) != 1 || len(copied.Policies[0].roles) != 2 {
 		t.Fatal("lost attached policy")
 	}
-	p := copied.policies[0]
+	p := copied.Policies[0]
 	if imported.Roles().ValidatePrincipal(p.roles[0].ref) != nil || p.roles[1].ref != p.roles[0].ref {
 		t.Fatal("lost principal provenance/multiplicity")
 	}
@@ -255,7 +255,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := cloneCatalog(base.state)
 			attached := *owner
-			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
+			attached.Policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
 			state.setDescriptor(owner.address, &attached)
 			base.state = state
 			var target ids.ObjectAddress
@@ -291,7 +291,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			survivor, ok := stage.descriptors[owner.address].(*relationDescriptor)
-			if !ok || len(survivor.policies) != 0 || len(attached.policies) != 1 {
+			if !ok || len(survivor.Policies) != 0 || len(attached.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}
 			if strings.Join(stage.viewCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {

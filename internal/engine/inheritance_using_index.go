@@ -18,7 +18,7 @@ func captureUsingIndexDefinition(reader definitionReader, parent *relationDescri
 		return usingIndexAttachment{}, expr.ErrorAt("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
 	}
 	index, ok := descriptor.(*relationDescriptor)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		return usingIndexAttachment{}, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, raw.Index.Text))
 	}
 	attributes, err := usingIndexEligibility(parent, index, raw)
@@ -58,7 +58,7 @@ func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definiti
 		if slot < 0 {
 			return nil, ids.ErrCatalogReplaced
 		}
-		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.columns[slot].Name}}
+		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.Columns[slot].Name}}
 		var err error
 		next, err = notNullCandidate(op, view, next, action, notNullDirect)
 		if err != nil {
@@ -88,7 +88,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 	}
 	descriptor, present := reader.descriptor(captured.index.address)
 	index, ok := descriptor.(*relationDescriptor)
-	if !present || !ok || index.sqlIndex == nil {
+	if !present || !ok || index.SQLIndex == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	prepared.index = index
@@ -105,24 +105,24 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		return prepared, nil
 	}
 	if captured.syntax.Primary {
-		for _, constraint := range parent.uniqueConstraints {
+		for _, constraint := range parent.UniqueConstraints {
 			if constraint.Primary {
 				prepared.err = sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.name))
 				return prepared, nil
 			}
 		}
-		if index.sqlIndex.nullsNotDistinct {
+		if index.SQLIndex.nullsNotDistinct {
 			prepared.err = sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
 			return prepared, nil
 		}
-		for _, constraint := range parent.notNullConstraints {
+		for _, constraint := range parent.NotNullConstraints {
 			if constraint.NotValid && slices.Contains(captured.attributes, constraint.Attribute) {
 				prepared.err = incompatibleNotValid(constraint.Name, parent.name)
 				return prepared, nil
 			}
 		}
 	}
-	if index.sqlIndex.constraint != nil || relationConstraintNameExists(parent, name) {
+	if index.SQLIndex.constraint != nil || relationConstraintNameExists(parent, name) {
 		prepared.err = usingIndexCatalogDuplicate(parent, name)
 		return prepared, nil
 	}
@@ -133,11 +133,11 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		prepared.err = err
 		return prepared, nil
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.sqlIndex.nullsNotDistinct, Index: index.address}
+	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.nullsNotDistinct, Index: index.address}
 	next := *parent
-	next.uniqueConstraints = make([]uniqueConstraint, len(parent.uniqueConstraints)+1)
-	copy(next.uniqueConstraints, parent.uniqueConstraints)
-	next.uniqueConstraints[len(parent.uniqueConstraints)] = constraint
+	next.UniqueConstraints = make([]uniqueConstraint, len(parent.UniqueConstraints)+1)
+	copy(next.UniqueConstraints, parent.UniqueConstraints)
+	next.UniqueConstraints[len(parent.UniqueConstraints)] = constraint
 	if index.revision == ids.DefinitionRevision(^uint64(0)) {
 		prepared.err = fmt.Errorf("stuntgres: definition revision exhausted")
 		return prepared, nil
@@ -145,9 +145,9 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 	clone := *index
 	clone.name = name
 	clone.revision++
-	definition := *index.sqlIndex
+	definition := *index.SQLIndex
 	definition.constraint = uniqueBacking(&constraint)
-	clone.sqlIndex = &definition
+	clone.SQLIndex = &definition
 	prepared.next, prepared.replacement = &next, &clone
 	return prepared, nil
 }

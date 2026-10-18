@@ -28,31 +28,31 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		return parent, nil
 	}
 	var next *relationDescriptor
-	for i, old := range parent.uniqueConstraints {
+	for i, old := range parent.UniqueConstraints {
 		index, ok := stage.base.Relation(old.Index)
 		if !ok {
 			// A TYPE-reminted standalone index was already rebuilt before its
 			// USING INDEX attachment. Do not allocate another backing identity.
-			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
+			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
 				continue
 			}
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
 		}
-		if index.sqlIndex == nil {
+		if index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
 		}
-		if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
+		if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
 			index = current
 		}
-		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
+		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
 		if next == nil {
 			clone := *parent
-			clone.uniqueConstraints = slices.Clone(parent.uniqueConstraints)
+			clone.UniqueConstraints = slices.Clone(parent.UniqueConstraints)
 			next = &clone
 		}
-		c := &next.uniqueConstraints[i]
+		c := &next.UniqueConstraints[i]
 		ref := e.catalog.domain.Ref(stage.base.Epoch(), old.Index)
 		if err := stage.removeObjectLocked(ref, false); err != nil {
 			return nil, err
@@ -73,36 +73,36 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		if err != nil {
 			return nil, err
 		}
-		definition := *index.sqlIndex
-		definition.keys = slices.Clone(index.sqlIndex.keys)
+		definition := *index.SQLIndex
+		definition.keys = slices.Clone(index.SQLIndex.keys)
 		definition.constraint = uniqueBacking(c)
-		clone.sqlIndex = &definition
-		clone.columns = slices.Clone(index.columns)
+		clone.SQLIndex = &definition
+		clone.Columns = slices.Clone(index.Columns)
 		for j, key := range definition.keys {
 			attribute, expression, err := indexCatalogKey(parent, key)
 			if err != nil || expression != nil {
 				return nil, fmt.Errorf("stuntgres: invalid TYPE unique key")
 			}
-			slot := slices.Index(parent.attributes, attribute)
-			clone.columns[j].Name = parent.columns[slot].Name
-			clone.columns[j].Usage = parent.columns[slot].Usage
-			class, ok := sqltype.DefaultIndexClass(clone.columns[j].Usage.Type)
+			slot := slices.Index(parent.Attributes, attribute)
+			clone.Columns[j].Name = parent.Columns[slot].Name
+			clone.Columns[j].Usage = parent.Columns[slot].Usage
+			class, ok := sqltype.DefaultIndexClass(clone.Columns[j].Usage.Type)
 			if !ok {
-				return nil, indexDefaultClassError(clone.columns[j].Usage.Type.DiagnosticName(), btreeMethod)
+				return nil, indexDefaultClassError(clone.Columns[j].Usage.Type.DiagnosticName(), btreeMethod)
 			}
 			definition.keys[j].class = class
-			clone.columns[j].OriginTable = uint32(id)
+			clone.Columns[j].OriginTable = uint32(id)
 		}
 		for j, attribute := range definition.include {
-			slot := slices.Index(parent.attributes, attribute)
-			column := &clone.columns[len(definition.keys)+j]
-			column.Name, column.Usage, column.OriginTable = parent.columns[slot].Name, parent.columns[slot].Usage, uint32(id)
+			slot := slices.Index(parent.Attributes, attribute)
+			column := &clone.Columns[len(definition.keys)+j]
+			column.Name, column.Usage, column.OriginTable = parent.Columns[slot].Name, parent.Columns[slot].Usage, uint32(id)
 		}
-		for j, column := range clone.columns {
-			if column.Name != index.columns[j].Name {
-				clone.index = make(map[string]int, len(clone.columns))
-				for slot, renamed := range clone.columns {
-					clone.index[renamed.Name] = slot
+		for j, column := range clone.Columns {
+			if column.Name != index.Columns[j].Name {
+				clone.Index = make(map[string]int, len(clone.Columns))
+				for slot, renamed := range clone.Columns {
+					clone.Index[renamed.Name] = slot
 				}
 				break
 			}
@@ -176,24 +176,24 @@ func indexAttributeAffected(definition *indexDefinition, attribute int32) bool {
 // before building a real unique root; this is not a commit-only integrity fence.
 func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
-	if parent.partition != nil {
+	if parent.Partition != nil {
 		return nil, nil
 	}
 	var indexes []*relationDescriptor
 	if physicalRewrite || len(transformations) != 0 || len(generations) != 0 {
 		for _, descriptor := range candidate.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.valid {
+			if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.address || !index.SQLIndex.ready || !index.SQLIndex.live || !index.SQLIndex.valid {
 				continue
 			}
-			if !slices.Contains(added, index.address) && (physicalRewrite || uniqueIndexValuesAffected(index.sqlIndex, transformations, generations)) {
+			if !slices.Contains(added, index.address) && (physicalRewrite || uniqueIndexValuesAffected(index.SQLIndex, transformations, generations)) {
 				indexes = append(indexes, index)
 			}
 		}
 	}
 	for _, address := range added {
 		index, ok := candidate.Relation(address)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.address {
 			return nil, ids.ErrCatalogReplaced
 		}
 		indexes = append(indexes, index)
@@ -221,7 +221,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 	named := false
 	for _, index := range indexes {
 		var capture *indexBuildCapture
-		if index.sqlIndex.hasRuntimeDomainConversion() && !named {
+		if index.SQLIndex.hasRuntimeDomainConversion() && !named {
 			var err error
 			evaluation.Input.TypeDiagnosticName, err = auth.engine.captureTypeDiagnosticName(auth)
 			if err != nil {
@@ -229,14 +229,14 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 			}
 			named = true
 		}
-		if index.sqlIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+		if index.SQLIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
 			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.versions))}
 		}
-		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, validationStore, capture)
+		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
 		if err != nil {
 			return nil, err
 		}
-		if index.sqlIndex.valid || index.sqlIndex.constraint != nil {
+		if index.SQLIndex.valid || index.SQLIndex.constraint != nil {
 			if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &auth, true); err != nil {
 				return nil, err
 			}
@@ -253,7 +253,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 // A genuine DDL build is reusable even with an own overlay: derive the baseline
 // from produced entries, and carry exact private pins rather than invoking SQL.
 func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, source CatalogRead, parent *relationDescriptor, baseline *relationStorage, validated map[string]*alterIndexBuild, metadataOnly bool) error {
-	if parent.partition != nil {
+	if parent.Partition != nil {
 		return nil
 	}
 	var positions map[indexRowIdentity]int
@@ -284,7 +284,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 	}
 	for address, descriptor := range changes.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.valid {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.address || !index.SQLIndex.ready || !index.SQLIndex.live || !index.SQLIndex.valid {
 			continue
 		}
 		if build := validated[index.name]; build != nil && build.index.address == address && sameIndexKeySemantics(build.index, index) {
@@ -301,7 +301,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 				continue
 			}
 		}
-		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, baseline, nil)
+		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, baseline, nil)
 		if err != nil {
 			return err
 		}

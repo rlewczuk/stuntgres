@@ -15,10 +15,10 @@ func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query exp
 	var chosen *relationDescriptor
 	for _, descriptor := range b.queryAuth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.Address || index.sqlIndex.predicate == nil {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.Address || index.SQLIndex.predicate == nil {
 			continue
 		}
-		if !partialPredicateImpliedBy(query, index.sqlIndex.predicate.definition) {
+		if !partialPredicateImpliedBy(query, index.SQLIndex.predicate.definition) {
 			continue
 		}
 		if chosen == nil || index.address.ObjectID < chosen.address.ObjectID {
@@ -56,7 +56,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if !ok || !sameRelationRowShape(current, leaf.relation) {
 		return nil
 	}
-	if e.catalog.state.Get(candidate.address) != candidate || candidate.sqlIndex.parent != parent {
+	if e.catalog.state.Get(candidate.address) != candidate || candidate.SQLIndex.parent != parent {
 		return nil
 	}
 	root := e.indexRoots[candidate.address]

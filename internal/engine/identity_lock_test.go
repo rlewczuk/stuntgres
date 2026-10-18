@@ -28,14 +28,14 @@ func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
 			lockAwait(t, done, nil)
 			if action == `ALTER TABLE i ALTER id DROP IDENTITY` {
 				table := e.catalog.state.MustRelation(catalogRef(t, e, e.CatalogRead(), "i").Address)
-				if len(table.identities) != 0 || e.catalog.state.Get(ref.Address) != nil {
+				if len(table.Identities) != 0 || e.catalog.state.Get(ref.Address) != nil {
 					t.Fatal("drop lost exact linked identity")
 				}
 				sessionSQL(t, b, `INSERT INTO i VALUES(55)`)
 			} else {
 				d := e.catalog.state.MustRelation(ref.Address)
-				if d.sequence.increment != 3 {
-					t.Fatal("stale option overwrite", d.sequence.increment)
+				if d.Sequence.increment != 3 {
+					t.Fatal("stale option overwrite", d.Sequence.increment)
 				}
 				sessionSQL(t, b, `INSERT INTO i DEFAULT VALUES`)
 				want := int64(10)

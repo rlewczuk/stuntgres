@@ -233,7 +233,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 	}
 	for _, representation := range []string{"flat", "anonymous", "selected source"} {
 		t.Run(representation, func(t *testing.T) {
-			rows := newFinalRows(table.columns, 1)
+			rows := newFinalRows(table.Columns, 1)
 			switch representation {
 			case "flat":
 				rows.values = []sqltype.Value{value}

@@ -34,10 +34,10 @@ func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.Ob
 		return nil, sqlError("42809", "type "+name+" is not a composite type")
 	}
 	source, ok := catalog.Relation(typ.owningRelation)
-	if !ok || source.rowType != typ.typ.ID() {
+	if !ok || source.RowType != typ.typ.ID() {
 		return nil, fmt.Errorf("stuntgres: missing composite type authority")
 	}
-	if source.relationKind != compositeRelation {
+	if source.RelationKind != compositeRelation {
 		d := sqlError("42809", "type "+name+" is the row type of another table").(*sqlstate.Error)
 		d.Detail = "A typed table must use a stand-alone composite type created with CREATE TYPE."
 		return nil, d
@@ -61,9 +61,9 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	columns := make([]ColumnDescriptor, len(source.columns))
+	columns := make([]ColumnDescriptor, len(source.Columns))
 	declarations := make([]createColumnDeclaration, len(columns))
-	for i, member := range source.columns {
+	for i, member := range source.Columns {
 		if isSystemColumn(member.Name) {
 			return nil, nil, nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, member.Name))
 		}
@@ -75,7 +75,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 		if column == nil {
 			continue
 		}
-		slot, exists := source.index[column.Name]
+		slot, exists := source.Index[column.Name]
 		if !exists {
 			return nil, nil, nil, sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, column.Name))
 		}
@@ -99,11 +99,11 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 }
 
 func typedShape(table, source *relationDescriptor) error {
-	for i, member := range source.columns {
-		if i >= len(table.columns) {
+	for i, member := range source.Columns {
+		if i >= len(table.Columns) {
 			return sqlError("42804", fmt.Sprintf(`table is missing column "%s"`, member.Name))
 		}
-		actual := table.columns[i]
+		actual := table.Columns[i]
 		if actual.Name != member.Name {
 			return sqlError("42804", fmt.Sprintf(`table has column "%s" where type requires "%s"`, actual.Name, member.Name))
 		}
@@ -111,20 +111,20 @@ func typedShape(table, source *relationDescriptor) error {
 			return sqlError("42804", fmt.Sprintf(`table "%s" has different type for column "%s"`, table.name, member.Name))
 		}
 	}
-	if len(table.columns) > len(source.columns) {
-		return sqlError("42804", fmt.Sprintf(`table has extra column "%s"`, table.columns[len(source.columns)].Name))
+	if len(table.Columns) > len(source.Columns) {
+		return sqlError("42804", fmt.Sprintf(`table has extra column "%s"`, table.Columns[len(source.Columns)].Name))
 	}
 	return nil
 }
 
 func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) error {
-	if table.ofType == (ids.ObjectAddress{}) {
+	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
-	if table.ofType.ClassID != ids.TypeClassID || table.ofType.SubID != 0 || table.relationKind != tableRelation {
+	if table.OfType.ClassID != ids.TypeClassID || table.OfType.SubID != 0 || table.RelationKind != tableRelation {
 		return fmt.Errorf("stuntgres: invalid typed attachment")
 	}
-	typ, ok := catalog.Type(table.ofType)
+	typ, ok := catalog.Type(table.OfType)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing typed source")
 	}
@@ -132,7 +132,7 @@ func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) err
 	if err != nil {
 		return err
 	}
-	if table.inheritance != nil && len(table.inheritance.parents) != 0 {
+	if table.Inheritance != nil && len(table.Inheritance.parents) != 0 {
 		return sqlError("42809", "typed tables cannot inherit")
 	}
 	return typedShape(table, source)
@@ -152,10 +152,10 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	}
 	next := *old
 	if s.Type == nil {
-		if old.ofType == (ids.ObjectAddress{}) {
+		if old.OfType == (ids.ObjectAddress{}) {
 			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a typed table`, old.name)))
 		}
-		next.ofType = ids.ObjectAddress{}
+		next.OfType = ids.ObjectAddress{}
 	} else {
 		typ, err := e.namedType(auth, *s.Type)
 		if err != nil {
@@ -171,13 +171,13 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		}
 		// PostgreSQL18 attachment is owner-authorized without source USAGE;
 		// CREATE OF intentionally has a separate source-USAGE gate.
-		if old.inheritance != nil && len(old.inheritance.parents) != 0 {
+		if old.Inheritance != nil && len(old.Inheritance.parents) != 0 {
 			return fail(sqlError("42809", "typed tables cannot inherit"))
 		}
 		if err := typedShape(old, source); err != nil {
 			return fail(err)
 		}
-		next.ofType = typ.Address()
+		next.OfType = typ.Address()
 	}
 	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
@@ -185,8 +185,8 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	next.revision++
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	if next.ofType != (ids.ObjectAddress{}) {
-		stage.domainBases = append(stage.domainBases, auth.catalog.Get(next.ofType))
+	if next.OfType != (ids.ObjectAddress{}) {
+		stage.domainBases = append(stage.domainBases, auth.catalog.Get(next.OfType))
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -218,7 +218,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 }
 
 func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTableAction) error {
-	if table.ofType == (ids.ObjectAddress{}) {
+	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
 	for _, action := range actions {
@@ -228,7 +228,7 @@ func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTa
 		case parser.DropColumn:
 			return sqlError("42809", "cannot drop column from typed table")
 		case parser.AlterColumnType:
-			if _, exists := table.index[action.Column.Text]; !exists {
+			if _, exists := table.Index[action.Column.Text]; !exists {
 				return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, table.name))
 			}
 			return expr.ErrorAt("42809", "cannot alter column type of typed table", action.Column.Pos)
@@ -248,11 +248,11 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		}
 	} else {
 		for _, descriptor := range stage.descriptors {
-			if table, ok := descriptor.(*relationDescriptor); ok && table.ofType != (ids.ObjectAddress{}) {
+			if table, ok := descriptor.(*relationDescriptor); ok && table.OfType != (ids.ObjectAddress{}) {
 				if sources == nil {
 					sources = make(map[ids.ObjectAddress]bool)
 				}
-				sources[table.ofType] = true
+				sources[table.OfType] = true
 			}
 		}
 	}

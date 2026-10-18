@@ -47,7 +47,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 			}
 			seen[address] = true
 			table, ok := catalog.Relation(address)
-			if !ok || table.relationKind != tableRelation || address.SubID != 0 {
+			if !ok || table.RelationKind != tableRelation || address.SubID != 0 {
 				return
 			}
 			tables = append(tables, address)

@@ -39,19 +39,19 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	}
 	old := e.catalog.state.MustRelation(ref.Address)
 	copyDescriptor := *old
-	copyDescriptor.columnACL = map[int32]authorization.ACLValue{old.attributes[0]: acl, old.attributes[1]: {Explicit: true}}
-	copyDescriptor.comment = "retained view"
-	copyDescriptor.columnComments = map[int32]string{old.attributes[0]: "retained column"}
+	copyDescriptor.ColumnACL = map[int32]authorization.ACLValue{old.Attributes[0]: acl, old.Attributes[1]: {Explicit: true}}
+	copyDescriptor.Comment = "retained view"
+	copyDescriptor.ColumnComments = map[int32]string{old.Attributes[0]: "retained column"}
 	copyDescriptor.revision++
 	alterSchemaPublishDescriptor(t, e, &copyDescriptor)
 	old = e.catalog.state.MustRelation(ref.Address)
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.view == old.view || next.address != old.address || next.owner != old.owner || viewOf(next).rule != viewOf(old).rule || !reflect.DeepEqual(next.attributes[:2], old.attributes) || !reflect.DeepEqual(next.acl, old.acl) || !reflect.DeepEqual(next.columnACL, old.columnACL) || next.comment != old.comment || !reflect.DeepEqual(next.columnComments, old.columnComments) {
+	if next == old || next.View == old.View || next.address != old.address || next.Owner != old.Owner || viewOf(next).rule != viewOf(old).rule || !reflect.DeepEqual(next.Attributes[:2], old.Attributes) || !reflect.DeepEqual(next.ACL, old.ACL) || !reflect.DeepEqual(next.ColumnACL, old.ColumnACL) || next.Comment != old.Comment || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) {
 		t.Fatal("replacement lost immutable identity/ACL/comment", old, next)
 	}
-	if len(old.columns) != 2 || len(next.columns) != 3 || next.attributes[2] == old.attributes[0] || next.attributes[2] == old.attributes[1] {
-		t.Fatal(old.columns, next.columns, next.attributes)
+	if len(old.Columns) != 2 || len(next.Columns) != 3 || next.Attributes[2] == old.Attributes[0] || next.Attributes[2] == old.Attributes[1] {
+		t.Fatal(old.Columns, next.Columns, next.Attributes)
 	}
 	if got := tuples(run(t, e, "SELECT id FROM w")); !reflect.DeepEqual(got, [][]driver.Value{{int64(12)}}) {
 		t.Fatal(got)
@@ -78,7 +78,7 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	roleExecute(t, e, op, "ALTER VIEW v OWNER TO successor")
 	transferred := e.catalog.state.MustRelation(ref.Address)
 	wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
-	if transferred.owner != successor.Ref || !reflect.DeepEqual(transferred.acl, wantACL) || !reflect.DeepEqual(transferred.columnACL[old.attributes[0]], wantACL) || !reflect.DeepEqual(transferred.columnACL[old.attributes[1]], authorization.ACLValue{Explicit: true}) {
+	if transferred.Owner != successor.Ref || !reflect.DeepEqual(transferred.ACL, wantACL) || !reflect.DeepEqual(transferred.ColumnACL[old.Attributes[0]], wantACL) || !reflect.DeepEqual(transferred.ColumnACL[old.Attributes[1]], authorization.ACLValue{Explicit: true}) {
 		t.Fatal("owner ACL rewrite", transferred)
 	}
 	var dump bytes.Buffer

@@ -113,7 +113,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 			continue
 		}
 		slot := -1
-		for j, attribute := range parent.attributes {
+		for j, attribute := range parent.Attributes {
 			if attribute == key.attribute {
 				slot = j
 				break
@@ -122,10 +122,10 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 		if slot < 0 {
 			return o, fmt.Errorf("stuntgres: index attribute is missing")
 		}
-		if key.collation != 0 && parent.columns[slot].Usage.Type.Usage().Collation.ID == 0 {
-			return o, sqlError("42804", "collations are not supported by type "+parent.columns[slot].Usage.Type.DiagnosticName())
+		if key.collation != 0 && parent.Columns[slot].Usage.Type.Usage().Collation.ID == 0 {
+			return o, sqlError("42804", "collations are not supported by type "+parent.Columns[slot].Usage.Type.DiagnosticName())
 		}
-		usage := indexKeyCollation(parent.columns[slot].Usage, key)
+		usage := indexKeyCollation(parent.Columns[slot].Usage, key)
 		class := key.class
 		if class.Name == "" {
 			var exists bool
@@ -143,15 +143,15 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	return o, nil
 }
 func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error {
-	d := index.sqlIndex
-	if d == nil || len(d.keys) == 0 || len(d.keys)+len(d.include) > 32 || len(index.columns) != len(d.keys)+len(d.include) || d.parent.SubID != 0 || index.sequence != nil || index.view != nil {
+	d := index.SQLIndex
+	if d == nil || len(d.keys) == 0 || len(d.keys)+len(d.include) > 32 || len(index.Columns) != len(d.keys)+len(d.include) || d.parent.SubID != 0 || index.Sequence != nil || index.View != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
 	}
 	if d.valid && (!d.ready || !d.live) || d.ready && !d.live {
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
 	parent, ok := view.Relation(d.parent)
-	if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) || parent.owner != index.owner || parent.namespace != index.namespace {
+	if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) || parent.Owner != index.Owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.constraint != nil {
@@ -167,7 +167,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return err
 	}
 	if p := d.predicate; p != nil {
-		if p.definition == nil || p.execution == nil || p.definition.ResultUsage() != p.execution.ResultUsage() || p.execution.ResultUsage().Type == nil || p.execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.execution) != expr.Immutable || !slices.Equal(p.attributes, parent.attributes) {
+		if p.definition == nil || p.execution == nil || p.definition.ResultUsage() != p.execution.ResultUsage() || p.execution.ResultUsage().Type == nil || p.execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.execution) != expr.Immutable || !slices.Equal(p.attributes, parent.Attributes) {
 			return fmt.Errorf("stuntgres: invalid index predicate")
 		}
 		if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, p.definition); err != nil {
@@ -188,13 +188,13 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		if err != nil {
 			return err
 		}
-		if index.columns[i].Usage != usage {
+		if index.Columns[i].Usage != usage {
 			return fmt.Errorf("stuntgres: invalid index key usage")
 		}
 	}
 	for i, attribute := range d.include {
-		slot := slices.Index(parent.attributes, attribute)
-		if slot < 0 || index.columns[len(d.keys)+i].Usage != parent.columns[slot].Usage {
+		slot := slices.Index(parent.Attributes, attribute)
+		if slot < 0 || index.Columns[len(d.keys)+i].Usage != parent.Columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid included attribute usage")
 		}
 	}
@@ -371,7 +371,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 }
 func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
-	d := index.sqlIndex
+	d := index.SQLIndex
 	validate := (d.unique || d.isExclusion()) && (d.constraint != nil || d.valid || reconstruct)
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {
@@ -559,8 +559,8 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Keys)+len(s.Include) > 32 {
 			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
 		}
-		if parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation {
-			if parent.relationKind == indexRelation {
+		if parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation {
+			if parent.RelationKind == indexRelation {
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.name), Detail: "This operation is not supported for indexes."})
 			}
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
@@ -656,8 +656,8 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginTable = uint32(oid)
 			columns[i].OriginAttribute = int16(i + 1)
 		}
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition}
-		d.attributeHighWater = int32(len(attributes))
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
+		d.AttributeHighWater = int32(len(attributes))
 		if s.Concurrent.Character != 0 {
 			definition.ready, definition.valid = false, false
 			if err := e.visibilityWriteLocked(scope.txRef); err != nil {
@@ -669,9 +669,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexOutput = scope.output
 		err = stage.Create(d)
-		if err == nil && parent.partition != nil {
+		if err == nil && parent.Partition != nil {
 			if s.Only {
-				definition.valid = len(parent.partition.children) == 0
+				definition.valid = len(parent.Partition.children) == 0
 			} else {
 				err = e.stagePartitionIndexChildren(scope.op, stage, parent, d, true)
 			}

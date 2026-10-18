@@ -32,10 +32,10 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	var captures []catalogOverlayIndex
 	for a, d := range view.Descriptors() {
 		index, ok := d.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := view.Relation(index.sqlIndex.parent)
+		parent, ok := view.Relation(index.SQLIndex.parent)
 		if !ok {
 			e.mu.Unlock()
 			return CatalogConflict{}
@@ -43,22 +43,22 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		old, existed := stage.base.Relation(parent.address)
 		shape, replaced := c.storage[parent.address]
 		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.address)
-		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.attributes, parent.attributes)) {
+		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
-		if !index.sqlIndex.ready {
+		if !index.SQLIndex.ready {
 			delete(c.uniqueRoots, a)
 			delete(c.indexCandidates, a)
 			continue
 		}
 		// Virtual indexes own ancestry/validity metadata, never heap captures or
 		// installation roots. Their exact descriptor fences were captured above.
-		if parent.partition != nil {
+		if parent.Partition != nil {
 			continue
 		}
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
-		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.sqlIndex != nil && previous.sqlIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.attributes, parent.attributes) && sameIndexKeySemantics(previous, index) {
+		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
 			continue
 		}
 		store := e.privateStorageLocked(c, parent.address)
@@ -99,14 +99,14 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		indexAuth := auth
 		if r := stage.materializedReplacement; r != nil && r.concurrent && r.original.address == parent.address {
 			building = false
-			indexAuth.state.CurrentUser = parent.owner
-			if _, err := indexAuth.roles.Descriptor(parent.owner); err != nil {
+			indexAuth.state.CurrentUser = parent.Owner
+			if _, err := indexAuth.roles.Descriptor(parent.Owner); err != nil {
 				return err
 			}
 		}
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: view}
 		evaluation.routineAuthority = &auth
-		if index.sqlIndex.hasRuntimeDomainConversion() {
+		if index.SQLIndex.hasRuntimeDomainConversion() {
 			var err error
 			evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(indexAuth)
 			if err != nil {
@@ -122,13 +122,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return err
 		}
 		var outputs *indexBuildCapture
-		if index.sqlIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+		if index.SQLIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
 			outputs = &indexBuildCapture{index: index}
 		}
 		if outputs != nil {
 			outputs.outputs = make([]indexRowOutput, len(visible.versions))
 		}
-		full, err := buildIndexRoot(&evaluation, parent, index.sqlIndex, visible, outputs)
+		full, err := buildIndexRoot(&evaluation, parent, index.SQLIndex, visible, outputs)
 		if err != nil {
 			return err
 		}

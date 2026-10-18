@@ -14,22 +14,22 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T){
  run(t,e,"INSERT INTO t VALUES(1,'one',9),(2,'two',20)")
  ref:=roleTableRef(t,e,"t");oldView:=e.CatalogRead();old:=e.catalog.state.MustRelation(ref.Address)
  run(t,e,"ALTER TABLE t DROP b");next:=e.catalog.state.MustRelation(ref.Address)
- if next.comment!="table keep"||!reflect.DeepEqual(next.attributes,[]int32{1,3})||!reflect.DeepEqual(next.columnComments,map[int32]string{3:"survivor comment"})||!reflect.DeepEqual(old.columnComments,map[int32]string{2:"removed comment",3:"survivor comment"}){t.Fatal(old,next)}
+ if next.Comment!="table keep"||!reflect.DeepEqual(next.Attributes,[]int32{1,3})||!reflect.DeepEqual(next.ColumnComments,map[int32]string{3:"survivor comment"})||!reflect.DeepEqual(old.ColumnComments,map[int32]string{2:"removed comment",3:"survivor comment"}){t.Fatal(old,next)}
  for _,sub:=range []int32{2,3}{column:=ref;column.Address.SubID=sub;text,present,err:=e.Comment(oldView, column);want:=map[int32]string{2:"removed comment",3:"survivor comment"}[sub];if err!=nil||!present||text!=want{t.Fatal(text,present,err)}}
  live:=ref;live.Address.SubID=3;if text,present,err:=e.Comment(e.CatalogRead(), live);err!=nil||!present||text!="survivor comment"{t.Fatal(text,present,err)}
  dead:=ref;dead.Address.SubID=2;if _,_,err:=e.Comment(e.CatalogRead(), dead);err==nil{t.Fatal("dead attribute readable")}
- invalid:=*next;invalid.revision++;invalid.columnComments=map[int32]string{2:"invalid dropped payload",3:"survivor comment"};stage:=e.BeginCatalogStage(e.CatalogRead());defer e.DiscardCatalogStage(stage);if err:=stage.Replace(&invalid);err!=nil{t.Fatal(err)};if _,err:=e.ValidateCatalogStage(context.Background(),stage);err==nil||err.Error()!="stuntgres: invalid relation column comment"{t.Fatal(err)};if e.catalog.state.Get(ref.Address)!=next{t.Fatal("invalid stage changed metadata")}
+ invalid:=*next;invalid.revision++;invalid.ColumnComments=map[int32]string{2:"invalid dropped payload",3:"survivor comment"};stage:=e.BeginCatalogStage(e.CatalogRead());defer e.DiscardCatalogStage(stage);if err:=stage.Replace(&invalid);err!=nil{t.Fatal(err)};if _,err:=e.ValidateCatalogStage(context.Background(),stage);err==nil||err.Error()!="stuntgres: invalid relation column comment"{t.Fatal(err)};if e.catalog.state.Get(ref.Address)!=next{t.Fatal("invalid stage changed metadata")}
  root:=e.storage[ref.Address];run(t,e,"ALTER TABLE t DROP IF EXISTS missing")
- if e.catalog.state.Get(ref.Address)!=next||e.storage[ref.Address]!=root||!reflect.DeepEqual(next.columnComments,map[int32]string{3:"survivor comment"}){t.Fatal("missing skip changed comments, descriptor or rows")}
+ if e.catalog.state.Get(ref.Address)!=next||e.storage[ref.Address]!=root||!reflect.DeepEqual(next.ColumnComments,map[int32]string{3:"survivor comment"}){t.Fatal("missing skip changed comments, descriptor or rows")}
  run(t,e,"ALTER TABLE t DROP a")
  last:=e.catalog.state.MustRelation(ref.Address)
- if last.comment!="table keep"||!reflect.DeepEqual(last.attributes,[]int32{3})||!reflect.DeepEqual(last.columnComments,map[int32]string{3:"survivor comment"}){t.Fatal("last survivor comment lost",last)}
+ if last.Comment!="table keep"||!reflect.DeepEqual(last.Attributes,[]int32{3})||!reflect.DeepEqual(last.ColumnComments,map[int32]string{3:"survivor comment"}){t.Fatal("last survivor comment lost",last)}
  run(t,e,"ALTER TABLE t DROP c")
  empty:=e.catalog.state.MustRelation(ref.Address)
- if empty.comment!="table keep"||len(empty.columnComments)!=0||len(empty.columns)!=0||len(empty.attributes)!=0{t.Fatal("final column comment retained or table comment lost",empty)}
+ if empty.Comment!="table keep"||len(empty.ColumnComments)!=0||len(empty.Columns)!=0||len(empty.Attributes)!=0{t.Fatal("final column comment retained or table comment lost",empty)}
  if rows:=tuples(run(t,e,"SELECT * FROM t"));len(rows)!=2||len(rows[0])!=0||len(rows[1])!=0{t.Fatal("empty-width rows lost",rows)}
- if !reflect.DeepEqual(last.columnComments,map[int32]string{3:"survivor comment"}){t.Fatal("final drop mutated old comment payload")}
- run(t,e,"DROP TABLE t");run(t,e,"CREATE TABLE t(a INT,b TEXT,c BIGINT)");replacement:=e.catalog.state.MustRelation(roleTableRef(t,e,"t").Address);if replacement.comment!=""||len(replacement.columnComments)!=0{t.Fatal("name recreation inherited comments",replacement)}
+ if !reflect.DeepEqual(last.ColumnComments,map[int32]string{3:"survivor comment"}){t.Fatal("final drop mutated old comment payload")}
+ run(t,e,"DROP TABLE t");run(t,e,"CREATE TABLE t(a INT,b TEXT,c BIGINT)");replacement:=e.catalog.state.MustRelation(roleTableRef(t,e,"t").Address);if replacement.Comment!=""||len(replacement.ColumnComments)!=0{t.Fatal("name recreation inherited comments",replacement)}
 }
 
 func TestAlterDropColumnRevisionFrontier(t *testing.T){
@@ -39,12 +39,12 @@ func TestAlterDropColumnRevisionFrontier(t *testing.T){
    e:=New();run(t,e,"CREATE TABLE t(a INT,b INT,c INT,d INT)");ref:=roleTableRef(t,e,"t")
    if ahead{run(t,e,"CREATE TABLE other(a INT)");for i:=0;i<4;i++{run(t,e,"COMMENT ON TABLE other IS 'advance unrelated allocator'")}}
    transition:=func(q string){
-    t.Helper();old:=e.catalog.state.MustRelation(ref.Address);revision,columns,table,column:=old.revision,len(old.columns),old.comment,old.columnComments[3];frontier:=e.catalog.nextRevision
+    t.Helper();old:=e.catalog.state.MustRelation(ref.Address);revision,columns,table,column:=old.revision,len(old.Columns),old.Comment,old.ColumnComments[3];frontier:=e.catalog.nextRevision
     run(t,e,q);next:=e.catalog.state.MustRelation(ref.Address)
     if roleTableRef(t,e,"t")!=ref||next==old||next.revision<=revision{t.Errorf("%s did not publish a fresh same-identity revision: old=%d new=%d",q,revision,next.revision)}
     want:=frontier;if next.revision>=want{want=next.revision+1}
     if e.catalog.nextRevision!=want{t.Errorf("%s allocator=%d want=%d installed=%d",q,e.catalog.nextRevision,want,next.revision)}
-    if old.revision!=revision||len(old.columns)!=columns||old.comment!=table||old.columnComments[3]!=column{t.Error("retained descriptor mutated")}
+    if old.revision!=revision||len(old.Columns)!=columns||old.Comment!=table||old.ColumnComments[3]!=column{t.Error("retained descriptor mutated")}
    }
    transition("ALTER TABLE t DROP b");if drops==2{transition("ALTER TABLE t DROP d")}
    transition("COMMENT ON TABLE t IS 'fresh table'")
@@ -86,5 +86,5 @@ func TestAlterDropColumnRevisionFrontierTerminal(t *testing.T){
   if err==nil||err.Error()!=tc.message{t.Errorf("%s: got %v want %s",tc.q,err,tc.message)}
   if e.catalog.state.Get(ref.Address)!=maximum||e.storage[ref.Address]!=root||e.catalog.nextRevision!=limit{t.Errorf("%s changed terminal state",tc.q)}
  }
- if terminal.revision!=limit-1||len(terminal.columns)!=2{t.Fatal("retained terminal predecessor mutated")}
+ if terminal.revision!=limit-1||len(terminal.Columns)!=2{t.Fatal("retained terminal predecessor mutated")}
 }

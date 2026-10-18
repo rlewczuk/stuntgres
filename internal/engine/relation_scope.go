@@ -387,7 +387,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 				if err == nil {
 					d := auth.catalog.MustRelation(ref.Address)
-					if d.relationKind != viewRelation {
+					if d.RelationKind != viewRelation {
 						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.name))
 					}
 				}
@@ -562,9 +562,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return ids.ErrCatalogReplaced
 	}
 	if materializedAlterAuthority != nil &&
-		(descriptor.relationKind != materializedAlterAuthority.relationKind ||
+		(descriptor.RelationKind != materializedAlterAuthority.RelationKind ||
 			!relationDefiningAuthorityCompatible(materializedAlterAuthority, descriptor) ||
-			descriptor.sqlIndex != materializedAlterAuthority.sqlIndex) {
+			descriptor.SQLIndex != materializedAlterAuthority.SQLIndex) {
 		// Check current ownership on the admitted identity, not its old name.
 		// A still-authorized actor cannot adopt a changed defining predecessor.
 		currentAuth, authorityErr := e.statementAuthorizationLocked(s.op, authorityStmt)
@@ -587,11 +587,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		storageTarget := false
 		switch statement := stmt.(type) {
 		case *parser.Copy:
-			storageTarget = descriptor.relationKind == tableRelation || descriptor.relationKind == materializedViewRelation
+			storageTarget = descriptor.RelationKind == tableRelation || descriptor.RelationKind == materializedViewRelation
 		case *parser.Delete, *parser.Update, *parser.Merge:
-			storageTarget = descriptor.relationKind == tableRelation
+			storageTarget = descriptor.RelationKind == tableRelation
 		case *parser.Insert:
-			storageTarget = descriptor.relationKind == tableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
+			storageTarget = descriptor.RelationKind == tableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
 		}
 		if storageTarget {
 			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -622,7 +622,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
-		if descriptor.relationKind != viewRelation {
+		if descriptor.RelationKind != viewRelation {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.name))
 		}
 		return nil
@@ -696,9 +696,9 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		if err != nil {
 			return err
 		}
-		if refreshSources && (current.relationKind != materializedViewRelation || s.view == nil) {
+		if refreshSources && (current.RelationKind != materializedViewRelation || s.view == nil) {
 			s.querySources[i].relation = current
-			if current.relationKind == materializedViewRelation {
+			if current.RelationKind == materializedViewRelation {
 				s.querySources[i].storage = e.privateStorageLocked(s.owner.catalog, source.ref.Address)
 			}
 		}
@@ -745,7 +745,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.viewWrite != nil {
 		for _, layer := range s.viewWrite.layers {
 			current, ok := catalog.Relation(layer.ref.Address)
-			if !ok || current.view != layer.relation.view || !sameRelationRowShape(current, layer.relation) {
+			if !ok || current.View != layer.relation.View || !sameRelationRowShape(current, layer.relation) {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -757,12 +757,12 @@ func sameRelationRowShape(a, b *relationDescriptor) bool {
 	if a == b {
 		return true
 	}
-	if len(a.columns) != len(b.columns) || len(a.attributes) != len(a.columns) || len(b.attributes) != len(b.columns) {
+	if len(a.Columns) != len(b.Columns) || len(a.Attributes) != len(a.Columns) || len(b.Attributes) != len(b.Columns) {
 		return false
 	}
-	for i, column := range a.columns {
-		other := b.columns[i]
-		if a.attributes[i] != b.attributes[i] || column.Name != other.Name || !sameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
+	for i, column := range a.Columns {
+		other := b.Columns[i]
+		if a.Attributes[i] != b.Attributes[i] || column.Name != other.Name || !sameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
 			return false
 		}
 	}

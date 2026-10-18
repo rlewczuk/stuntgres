@@ -90,7 +90,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			}
 			state.definition.base = actualCatalog
 			state.descendant = index != 0
-			state.graph = cloneInheritance(actual.inheritance)
+			state.graph = cloneInheritance(actual.Inheritance)
 			planned := state.actions
 			if state.descendant {
 				planned, state.graph, err = e.inheritedAlterActions(state, actual)

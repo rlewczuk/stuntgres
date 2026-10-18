@@ -33,7 +33,7 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *relationDescr
 			}
 		}
 	}
-	if provider == nil || survivor == nil || index == nil || len(survivor.generations) != 1 || e.indexRoots[index.address] == nil {
+	if provider == nil || survivor == nil || index == nil || len(survivor.Generations) != 1 || e.indexRoots[index.address] == nil {
 		t.Fatal("missing genuine generated/index fixture")
 	}
 	return e, owner, provider, survivor, index
@@ -76,7 +76,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			case "CurrentRows":
 				sessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")
 			case "AffectedIndexRoot":
-				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, survivor, index.sqlIndex, e.storage[survivor.address], nil)
+				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, survivor, index.SQLIndex, e.storage[survivor.address], nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -116,7 +116,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			}
 			next := e.catalog.state.MustRelation(survivor.address)
 			rows := e.storage[survivor.address].versions
-			if len(next.columns) != 2 || next.columns[1].Name != "z" || len(next.generations) != 0 || len(oldRows) != 1 || len(oldRows[0].values) != 3 {
+			if len(next.Columns) != 2 || next.Columns[1].Name != "z" || len(next.Generations) != 0 || len(oldRows) != 1 || len(oldRows[0].values) != 3 {
 				t.Fatal("shape/snapshot incoherent")
 			}
 			v, er := rows[0].values[1].Integer()
@@ -173,7 +173,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 		t.Fatal("maximum index root reused")
 	}
 	// A real changed root invalidates the prepared attempt even at equal maxima.
-	changedRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, &maximum, maximumIndex.sqlIndex, &maximumStore, nil)
+	changedRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, &maximum, maximumIndex.SQLIndex, &maximumStore, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if er != nil || value != 9 {
 		t.Fatal("maximum projected z", value, er)
 	}
-	if len(maximum.generations) != 1 || len(survivor.generations) != 1 {
+	if len(maximum.Generations) != 1 || len(survivor.Generations) != 1 {
 		t.Fatal("captured generation mutated")
 	}
 	e.DiscardCatalogStage(stage)
@@ -227,7 +227,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	sessionSQL(t, owner, "SAVEPOINT before_shape")
 	sessionSQL(t, owner, "DROP TABLE private_shape_provider CASCADE")
 	shape := owner.transactions.catalog.storage[address]
-	if shape.original != nil || e.storage[address] != nil || len(shape.relation.columns) != 2 {
+	if shape.original != nil || e.storage[address] != nil || len(shape.relation.Columns) != 2 {
 		t.Fatal("invented committed predecessor")
 	}
 	rows := owner.transactions.writes[address]
@@ -294,9 +294,9 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 		t.Run(map[bool]string{false: "NotReady", true: "ReadyInvalid"}[ready], func(t *testing.T) {
 			e, owner, provider, survivor, index := temporaryProjectionFixture(t)
 			changed := *index
-			definition := *index.sqlIndex
+			definition := *index.SQLIndex
 			definition.ready, definition.valid = ready, false
-			changed.sqlIndex = &definition
+			changed.SQLIndex = &definition
 			e.catalog.state = cloneCatalog(e.catalog.state)
 			e.catalog.state.setDescriptor(index.address, &changed)
 			previous := e.indexRoots[index.address]
@@ -309,7 +309,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 				t.Fatal("concurrent flag projection", installed, err)
 			}
 			next := e.catalog.state.MustRelation(index.address)
-			if next.sqlIndex.ready != ready || next.sqlIndex.valid || next.sqlIndex.live != definition.live {
+			if next.SQLIndex.ready != ready || next.SQLIndex.valid || next.SQLIndex.live != definition.live {
 				t.Fatal("shape cleanup healed concurrent flags")
 			}
 			if ready && (e.indexRoots[index.address] == nil || e.indexRoots[index.address] == previous) || !ready && e.indexRoots[index.address] != nil {

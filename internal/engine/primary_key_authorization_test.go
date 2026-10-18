@@ -16,8 +16,8 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 			t.Run(mode+map[bool]string{false: "/direct", true: "/held"}[prepared], func(t *testing.T) {
 				e, owner, parent, index := primaryKeyUnitFixture(t)
 				actor, ok := e.Roles().Lookup("pk_owner")
-				if !ok || actor.Superuser || parent.owner != actor.Ref {
-					t.Fatal(actor, parent.owner)
+				if !ok || actor.Superuser || parent.Owner != actor.Ref {
+					t.Fatal(actor, parent.Owner)
 				}
 				duplicate := primaryKeyUnitInsert(1)
 				typeBuild := &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}, TypeName: parser.TypeName{Name: "bigint"}, Using: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 0}}}}}
@@ -59,7 +59,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				allowed, err := uniqueKeyDetailAllowed(auth, e.catalog.domain.Ref(view.Epoch(), parent.address), index.sqlIndex.keys)
+				allowed, err := uniqueKeyDetailAllowed(auth, e.catalog.domain.Ref(view.Epoch(), parent.address), index.SQLIndex.keys)
 				if err != nil || allowed != (mode == "keys" || mode == "table") {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}

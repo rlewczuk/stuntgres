@@ -25,7 +25,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		d.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."
 		return nil, d
 	}
-	for _, column := range parent.columns {
+	for _, column := range parent.Columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
 			ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
@@ -35,29 +35,29 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
 		}
 	}
-	d, err := e.newTableDescriptorLocked(namespace, name, auth.state.CurrentUser, slices.Clone(parent.columns), nil)
+	d, err := e.newTableDescriptorLocked(namespace, name, auth.state.CurrentUser, slices.Clone(parent.Columns), nil)
 	if err != nil {
 		return nil, err
 	}
-	d.acl = stage.creationACL(d.owner, namespace, authorization.DefaultTables)
-	for i := range d.columns {
-		d.columns[i].DeclaredDimensions = 0
+	d.ACL = stage.creationACL(d.Owner, namespace, authorization.DefaultTables)
+	for i := range d.Columns {
+		d.Columns[i].DeclaredDimensions = 0
 	}
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, err
 	}
-	declarations := make([]createColumnDeclaration, len(d.columns))
+	declarations := make([]createColumnDeclaration, len(d.Columns))
 	var seenColumns []bool
 	for _, element := range syntax.Elements {
 		if element.Column == nil {
 			continue
 		}
-		slot, ok := d.index[element.Column.Name]
+		slot, ok := d.Index[element.Column.Name]
 		if !ok {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, element.Column.Name), element.Column.Pos)
 		}
 		if seenColumns == nil {
-			seenColumns = make([]bool, len(d.columns))
+			seenColumns = make([]bool, len(d.Columns))
 		}
 		if seenColumns[slot] {
 			return nil, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, element.Column.Name))
@@ -69,30 +69,30 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		}
 		declarations[slot] = declaration
 	}
-	uniques, err := bindCreateUniques(syntax, d.index, nil, auth.catalog)
+	uniques, err := bindCreateUniques(syntax, d.Index, nil, auth.catalog)
 	if err != nil {
 		return nil, err
 	}
 	nullSyntax := *syntax
-	nullSyntax.Elements = make([]parser.TableElement, 0, len(parent.notNullConstraints)+len(syntax.Elements))
-	for _, constraint := range parent.notNullConstraints {
+	nullSyntax.Elements = make([]parser.TableElement, 0, len(parent.NotNullConstraints)+len(syntax.Elements))
+	for _, constraint := range parent.NotNullConstraints {
 		slot := parent.indexForAttribute(constraint.Attribute)
-		nullSyntax.Elements = append(nullSyntax.Elements, parser.TableElement{NotNull: &parser.NotNullConstraint{Column: parser.Identifier{Text: d.columns[slot].Name}, Name: parser.Identifier{Text: constraint.Name}}})
+		nullSyntax.Elements = append(nullSyntax.Elements, parser.TableElement{NotNull: &parser.NotNullConstraint{Column: parser.Identifier{Text: d.Columns[slot].Name}, Name: parser.Identifier{Text: constraint.Name}}})
 	}
 	nullSyntax.Elements = append(nullSyntax.Elements, syntax.Elements...)
-	d.notNullConstraints, err = bindCreateNotNull(&nullSyntax, d.columns, declarations, nil, uniques, d.index)
+	d.NotNullConstraints, err = bindCreateNotNull(&nullSyntax, d.Columns, declarations, nil, uniques, d.Index)
 	if err != nil {
 		return nil, err
 	}
 	if err = nameCreateNotNull(d, auth.catalog); err != nil {
 		return nil, err
 	}
-	for i := range d.notNullConstraints {
-		constraint := &d.notNullConstraints[i]
+	for i := range d.NotNullConstraints {
+		constraint := &d.NotNullConstraints[i]
 		slot := d.indexForAttribute(constraint.Attribute)
 		constraint.partitionLocal = declarations[slot].columnNotNull
 		for _, element := range syntax.Elements {
-			if element.NotNull != nil && element.NotNull.Column.Text == d.columns[slot].Name {
+			if element.NotNull != nil && element.NotNull.Column.Text == d.Columns[slot].Name {
 				constraint.partitionLocal = true
 			}
 		}
@@ -104,32 +104,32 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	auth.recaptureCatalog(auth.catalog)
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
-	localDefaults, err := bindCreateDefaults(binder, d.columns, declarations)
+	localDefaults, err := bindCreateDefaults(binder, d.Columns, declarations)
 	if err != nil {
 		return nil, err
 	}
-	if len(parent.defaults) != 0 || len(localDefaults) != 0 {
-		d.defaults = make(map[int32]columnDefault, len(parent.defaults)+len(localDefaults))
-		for i, attribute := range parent.attributes {
+	if len(parent.Defaults) != 0 || len(localDefaults) != 0 {
+		d.Defaults = make(map[int32]columnDefault, len(parent.Defaults)+len(localDefaults))
+		for i, attribute := range parent.Attributes {
 			if declarations[i].defaultExpr != nil || declarations[i].identity != nil || declarations[i].generation != nil {
 				continue
 			}
-			if definition, ok := parent.defaults[attribute]; ok {
+			if definition, ok := parent.Defaults[attribute]; ok {
 				definition.OID = 0
-				d.defaults[d.attributes[i]] = definition
+				d.Defaults[d.Attributes[i]] = definition
 			}
 		}
 		for attribute, definition := range localDefaults {
-			d.defaults[attribute] = definition
+			d.Defaults[attribute] = definition
 		}
 	}
 	if err = e.bindCreateGenerations(op, auth, d, declarations, scope.input); err != nil {
 		return nil, err
 	}
-	inherited := make(map[string]checkConstraint, len(parent.checkConstraints))
-	if len(parent.checkConstraints) != 0 {
-		slots := make(map[int32]int, len(d.attributes))
-		for i, attribute := range d.attributes {
+	inherited := make(map[string]checkConstraint, len(parent.CheckConstraints))
+	if len(parent.CheckConstraints) != 0 {
+		slots := make(map[int32]int, len(d.Attributes))
+		for i, attribute := range d.Attributes {
 			slots[attribute] = i
 		}
 		rowRef := func(old ids.ObjectRef) ids.ObjectRef {
@@ -137,14 +137,14 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				attribute := old.Address.SubID
 				old.Address = d.address
 				if attribute != 0 {
-					old.Address.SubID = d.attributes[parent.indexForAttribute(attribute)]
+					old.Address.SubID = d.Attributes[parent.indexForAttribute(attribute)]
 				}
 				old = e.catalog.domain.Ref(old.Epoch, old.Address)
 				old.Epoch = auth.catalog.Epoch()
 			}
 			return old
 		}
-		for _, original := range parent.checkConstraints {
+		for _, original := range parent.CheckConstraints {
 			if original.NoInherit {
 				continue
 			}
@@ -169,7 +169,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				}
 				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
 			}
-			d.checkConstraints = append(d.checkConstraints, definition)
+			d.CheckConstraints = append(d.CheckConstraints, definition)
 			inherited[definition.Name] = definition
 		}
 	}

@@ -477,7 +477,7 @@ func testFDWForeignMetadataPolicy(t *testing.T) {
 	if got == syntax || got.Elements[0].Like == like || tableLikeOptions(got.Elements[0].Like.Options) != want || tableLikeOptions(like.Options) != likeAll || got.Elements[1].Column != column {
 		t.Fatal("foreign LIKE changed syntax or copied physical properties")
 	}
-	relation := &relationDescriptor{attributes: []int32{1, 4, 7}, columns: make([]ColumnDescriptor, 3), generations: map[int32]columnGeneration{7: {kind: generationVirtual, planned: columnExpression{slot: 0}}}}
+	relation := &relationDescriptor{Attributes: []int32{1, 4, 7}, Columns: make([]ColumnDescriptor, 3), Generations: map[int32]columnGeneration{7: {kind: generationVirtual, planned: columnExpression{slot: 0}}}}
 	for _, tc := range []struct {
 		uses []int
 		want []int32

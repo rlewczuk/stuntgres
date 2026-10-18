@@ -28,8 +28,8 @@ func sequenceKind(d *relationDescriptor) error {
 	if d == nil {
 		return fmt.Errorf("stuntgres: missing sequence descriptor")
 	}
-	if d.relationKind != sequenceRelation {
-		if d.relationKind == indexRelation {
+	if d.RelationKind != sequenceRelation {
+		if d.RelationKind == indexRelation {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.name), Detail: "This operation is not supported for indexes."}
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.name), Detail: "This operation is not supported for tables."}
@@ -37,18 +37,18 @@ func sequenceKind(d *relationDescriptor) error {
 	return nil
 }
 func tableKind(d *relationDescriptor, operation string) error {
-	if d.relationKind == tableRelation || d.relationKind == partitionedRelation {
+	if d.RelationKind == tableRelation || d.RelationKind == partitionedRelation {
 		return nil
 	}
-	if d.relationKind == compositeRelation {
+	if d.RelationKind == compositeRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for composite types."}
 	}
-	if d.relationKind == materializedViewRelation && operation == "change" {
+	if d.RelationKind == materializedViewRelation && operation == "change" {
 		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.name))
 	}
 	if operation == "ADD COLUMN" {
 		kind := ""
-		switch d.relationKind {
+		switch d.RelationKind {
 		case viewRelation:
 			kind = "views"
 		case materializedViewRelation:
@@ -62,16 +62,16 @@ func tableKind(d *relationDescriptor, operation string) error {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ADD COLUMN cannot be performed on relation "%s"`, d.name), Detail: "This operation is not supported for " + kind + "."}
 		}
 	}
-	if d.relationKind == materializedViewRelation {
+	if d.RelationKind == materializedViewRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for materialized views."}
 	}
-	if d.relationKind == indexRelation {
+	if d.RelationKind == indexRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for indexes."}
 	}
-	if d.relationKind == viewRelation {
+	if d.RelationKind == viewRelation {
 		return sqlError("0A000", "view mutation is unsupported")
 	}
-	if d.relationKind == catalogRelation {
+	if d.RelationKind == catalogRelation {
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}
 	message := fmt.Sprintf(`cannot change sequence "%s"`, d.name)
@@ -161,22 +161,22 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if !ok {
 		return ids.ObjectAddress{}, ids.ErrCatalogReplaced
 	}
-	if r.relationKind != tableRelation && r.relationKind != partitionedRelation {
+	if r.RelationKind != tableRelation && r.RelationKind != partitionedRelation {
 		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.name))
 	}
-	if r.owner != d.owner {
+	if r.Owner != d.Owner {
 		return ids.ObjectAddress{}, sqlError("55000", "sequence must have same owner as table it is linked to")
 	}
 	if r.namespace != d.namespace {
 		return ids.ObjectAddress{}, sqlError("55000", "sequence must be in same schema as table it is linked to")
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
-	slot, ok := r.index[name]
+	slot, ok := r.Index[name]
 	if !ok {
 		return ids.ObjectAddress{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, r.name))
 	}
 	a := r.address
-	a.SubID = r.attributes[slot]
+	a.SubID = r.Attributes[slot]
 	return a, nil
 }
 func sequenceLinkedError(d *relationDescriptor, table *relationDescriptor, move bool) error {
@@ -262,9 +262,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		columns := e.sequenceColumnsLocked()
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
-		d.acl = e.creationACLChangesLocked(changes, auth.catalog, d.owner, d.namespace, authorization.DefaultSequences)
-		d.attributeHighWater = 3
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, SequencePlanStamp: rev, Owner: auth.state.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: sequenceRelation, Sequence: &options}
+		d.ACL = e.creationACLChangesLocked(changes, auth.catalog, d.Owner, d.namespace, authorization.DefaultSequences)
+		d.AttributeHighWater = 3
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
@@ -340,7 +340,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if err != nil {
 				return Result{}, err
 			}
-			if ownerTarget == old.owner {
+			if ownerTarget == old.Owner {
 				return Result{}, op.Context().Err()
 			}
 		}
@@ -349,7 +349,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if state == nil {
 			return Result{}, fmt.Errorf("stuntgres: sequence state missing")
 		}
-		options, restart, err := bindSequenceOptions(old.sequence, *state, s.Options)
+		options, restart, err := bindSequenceOptions(old.Sequence, *state, s.Options)
 		if err != nil {
 			return Result{}, err
 		}
@@ -359,11 +359,11 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		d := *old
 		d.revision = rev
-		d.sequence = &options
+		d.Sequence = &options
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				if old.sequence.identity {
-					a := old.sequence.owned
+				if old.Sequence.identity {
+					a := old.Sequence.owned
 					a.SubID = 0
 					table := auth.catalog.MustRelation(a)
 					return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, old.name, table.name)}
@@ -381,7 +381,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		case "rename":
 			d.name = s.Target.Text
 		case "logged", "unlogged":
-			if old.sequence.persistence == "temporary" {
+			if old.Sequence.persistence == "temporary" {
 				ns := auth.catalog.MustNamespace(old.namespace)
 				diagnostic := sqlError("42P16", fmt.Sprintf(`cannot change logged status of table "%s" because it is temporary`, old.name)).(*sqlstate.Error)
 				diagnostic.Schema, diagnostic.Table = ns.name, old.name
@@ -411,8 +411,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 					return Result{}, err
 				}
 			}
-			d.owner = target
-			d.acl = authorization.SchemaACLOwner(d.acl, old.owner, d.owner)
+			d.Owner = target
+			d.ACL = authorization.SchemaACLOwner(d.ACL, old.Owner, d.Owner)
 		case "schema":
 			if options.owned != (ids.ObjectAddress{}) {
 				a := options.owned
@@ -448,9 +448,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		for _, option := range s.Options {
 			rewrite = rewrite || option.Name != "owned"
 		}
-		persistenceChanged := options.persistence != old.sequence.persistence
-		if rewrite || d.name != old.name || d.namespace != old.namespace || d.owner != old.owner || persistenceChanged {
-			d.sequencePlanStamp = rev
+		persistenceChanged := options.persistence != old.Sequence.persistence
+		if rewrite || d.name != old.name || d.namespace != old.namespace || d.Owner != old.Owner || persistenceChanged {
+			d.SequencePlanStamp = rev
 		}
 		key := descriptorNameKey(&d)
 		if a, exists := auth.catalog.LookupName(key); exists && a != d.address {
@@ -500,8 +500,8 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, er
 		}
 		d := auth.catalog.MustRelation(ref.Address)
-		if d.relationKind != sequenceRelation {
-			if d.relationKind == indexRelation {
+		if d.RelationKind != sequenceRelation {
+			if d.RelationKind == indexRelation {
 				e.mu.Unlock()
 				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.name), Hint: "Use DROP INDEX to remove an index."}
 			}
@@ -512,7 +512,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, er
 		}
-		if d.sequence.identity {
+		if d.Sequence.identity {
 			e.mu.Unlock()
 			return Result{}, identitySequenceDropError(auth.catalog, d)
 		}
@@ -589,7 +589,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if err = relationDropOwner(auth, ref, d); err != nil {
 			return Result{}, err
 		}
-		if d.sequence.identity {
+		if d.Sequence.identity {
 			return Result{}, identitySequenceDropError(auth.catalog, d)
 		}
 		e.catalogChangeLocked(changes, ref.Address, nil)
@@ -601,7 +601,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if !ok || !oldOK {
 			continue
 		}
-		for _, attribute := range old.attributes {
+		for _, attribute := range old.Attributes {
 			if !next.hasAttribute(attribute) {
 				target := address
 				target.SubID = attribute

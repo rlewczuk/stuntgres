@@ -183,29 +183,29 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *relationDescriptor:
 			n := *d
 			var err error
-			n.owner, err = remap(d.owner)
+			n.Owner, err = remap(d.Owner)
 			if err != nil {
 				return nil, err
 			}
-			n.acl, err = acl(d.acl)
+			n.ACL, err = acl(d.ACL)
 			if err != nil {
 				return nil, err
 			}
-			if len(d.columnACL) != 0 {
-				n.columnACL = make(map[int32]authorization.ACLValue, len(d.columnACL))
-				for sub, a := range d.columnACL {
-					n.columnACL[sub], err = acl(a)
+			if len(d.ColumnACL) != 0 {
+				n.ColumnACL = make(map[int32]authorization.ACLValue, len(d.ColumnACL))
+				for sub, a := range d.ColumnACL {
+					n.ColumnACL[sub], err = acl(a)
 					if err != nil {
 						return nil, err
 					}
 				}
 			}
-			if len(d.policies) != 0 {
-				n.policies = append([]policyDefinition(nil), d.policies...)
-				for i := range n.policies {
-					n.policies[i].roles = append([]policyRole(nil), d.policies[i].roles...)
-					for j := range n.policies[i].roles {
-						role := &n.policies[i].roles[j]
+			if len(d.Policies) != 0 {
+				n.Policies = append([]policyDefinition(nil), d.Policies...)
+				for i := range n.Policies {
+					n.Policies[i].roles = append([]policyRole(nil), d.Policies[i].roles...)
+					for j := range n.Policies[i].roles {
+						role := &n.Policies[i].roles[j]
 						if role.public {
 							continue
 						}

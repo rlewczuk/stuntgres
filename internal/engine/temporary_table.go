@@ -294,7 +294,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 	for a, d := range stage.descriptors {
 		e.catalogChangeLocked(changes, a, d)
-		if table, ok := d.(*relationDescriptor); ok && table.relationKind.stored() && e.privateStorageLocked(changes, a) == nil {
+		if table, ok := d.(*relationDescriptor); ok && table.RelationKind.stored() && e.privateStorageLocked(changes, a) == nil {
 			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
 		}
 	}

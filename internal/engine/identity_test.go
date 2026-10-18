@@ -19,42 +19,42 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	read := e.CatalogRead()
 	ref := roleTableRef(t, e, "i")
 	old := read.MustRelation(ref.Address)
-	if len(old.identities) != 2 || old.identities[1].sequence == old.identities[2].sequence {
-		t.Fatal(old.identities)
+	if len(old.Identities) != 2 || old.Identities[1].sequence == old.Identities[2].sequence {
+		t.Fatal(old.Identities)
 	}
 	if err := (relationProvider{}).Validate(read, old); err != nil {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*relationDescriptor){
 		func(d *relationDescriptor) {
-			identity := d.identities[1]
+			identity := d.Identities[1]
 			identity.mode = parser.IdentityNone
-			d.identities[1] = identity
+			d.Identities[1] = identity
 		},
 		func(d *relationDescriptor) {
-			identity := d.identities[1]
+			identity := d.Identities[1]
 			identity.sequence = ids.ObjectAddress{}
-			d.identities[1] = identity
+			d.Identities[1] = identity
 		},
-		func(d *relationDescriptor) { d.identities[99] = d.identities[1] },
-		func(d *relationDescriptor) { d.identities[1] = d.identities[2] },
+		func(d *relationDescriptor) { d.Identities[99] = d.Identities[1] },
+		func(d *relationDescriptor) { d.Identities[1] = d.Identities[2] },
 		func(d *relationDescriptor) {
-			d.columns = append([]ColumnDescriptor(nil), d.columns...)
-			d.columns[0].Nullable = true
+			d.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			d.Columns[0].Nullable = true
 		},
 	} {
 		next := *old
-		next.identities = maps.Clone(old.identities)
+		next.Identities = maps.Clone(old.Identities)
 		mutate(&next)
 		if err := (relationProvider{}).Validate(read, &next); err == nil {
 			t.Fatal("invalid identity admitted")
 		}
 	}
-	sequence := read.MustRelation(old.identities[1].sequence)
+	sequence := read.MustRelation(old.Identities[1].sequence)
 	next := *sequence
-	options := *sequence.sequence
+	options := *sequence.Sequence
 	options.owned = ids.ObjectAddress{}
-	next.sequence = &options
+	next.Sequence = &options
 	if err := (relationProvider{}).Validate(read, &next); err == nil {
 		t.Fatal("unowned internal sequence admitted")
 	}

@@ -30,12 +30,12 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	for address, carrier := range e.indexRoots {
 		index, ok := data.catalog.Relation(address)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.method != hashMethod || index.sqlIndex.parent != a || carrier == nil || carrier.hash == nil {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.method != hashMethod || index.SQLIndex.parent != a || carrier == nil || carrier.hash == nil {
 			continue
 		}
 		// Readiness permits maintenance, not complete query coverage. A
 		// grandfathered commit may legitimately be absent from an invalid root.
-		if !index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live {
+		if !index.SQLIndex.ready || !index.SQLIndex.valid || !index.SQLIndex.live {
 			continue
 		}
 		live, ok := e.catalog.state.Relation(address)
@@ -46,14 +46,14 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		if root.storage != store || root.generation != store.generation || root.prefix != len(source.committed) || root.ends != data.ends[a] {
 			continue
 		}
-		usage, err := indexKeyUsage(leaf.relation, index.sqlIndex.keys[0])
+		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.keys[0])
 		if err != nil {
 			return err
 		}
 		if usage != root.binding.usage {
 			continue
 		}
-		source.hashIndexes = append(source.hashIndexes, capturedHashIndex{definition: index.sqlIndex, root: root, usage: usage})
+		source.hashIndexes = append(source.hashIndexes, capturedHashIndex{definition: index.SQLIndex, root: root, usage: usage})
 	}
 	return nil
 }

@@ -108,18 +108,18 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 		t.Fatal("replacement REGCLASS array descriptor is missing")
 	}
 	sourceStage, sourceCopy := queryCreateStage(t, source, "copy", 1)
-	sourceCopy.columns[0].Usage = array.Usage()
+	sourceCopy.Columns[0].Usage = array.Usage()
 	if err = source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, source, sourceStage)
 	stage, d := queryCreateStage(t, target, "copy", 1)
-	d.columns[0].Usage = targetArray.Usage()
+	d.Columns[0].Usage = targetArray.Usage()
 	queryCreatePublish(t, target, stage)
 	candidate := cloneCatalog(target.CatalogRead().state)
 	imported := *d
-	imported.columns = append([]ColumnDescriptor(nil), d.columns...)
-	imported.columns[0].Usage = array.Usage()
+	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	imported.Columns[0].Usage = array.Usage()
 	candidate.setDescriptor(d.address, &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.address: source.storage[sourceCopy.address]}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.address: targetAnchor.address}
@@ -139,7 +139,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	if err != nil || old != before {
 		t.Fatal("retained original array mutated", old, err)
 	}
-	if candidate.MustRelation(d.address).columns[0].Usage.Type != targetArray {
+	if candidate.MustRelation(d.address).Columns[0].Usage.Type != targetArray {
 		t.Fatal("stored Usage was not reowned")
 	}
 }
@@ -213,24 +213,24 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	}
 	rows = append(rows, []sqltype.Value{sqltype.Null(sourceType)})
 	sourceStage, sourceCopy := queryCreateStage(t, source, "xid_copy", 1)
-	sourceCopy.columns[0].Usage = sourceType.Usage()
+	sourceCopy.Columns[0].Usage = sourceType.Usage()
 	if err := source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, source, sourceStage)
 	stage, d := queryCreateStage(t, target, "xid_copy", 1)
-	d.columns[0].Usage = targetType.Usage()
+	d.Columns[0].Usage = targetType.Usage()
 	queryCreatePublish(t, target, stage)
 	candidate := cloneCatalog(target.CatalogRead().state)
 	imported := *d
-	imported.columns = append([]ColumnDescriptor(nil), d.columns...)
-	imported.columns[0].Usage = sourceType.Usage()
+	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	imported.Columns[0].Usage = sourceType.Usage()
 	candidate.setDescriptor(d.address, &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.address: source.storage[sourceCopy.address]}
 	if err := reownCatalogScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)
 	}
-	if candidate.MustRelation(d.address).columns[0].Usage.Type != targetType {
+	if candidate.MustRelation(d.address).Columns[0].Usage.Type != targetType {
 		t.Fatal("XID column Usage retained foreign generation")
 	}
 	for i, row := range stores[d.address].versions {

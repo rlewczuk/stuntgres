@@ -262,17 +262,17 @@ func (e indexPropertyExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing index property catalog snapshot")
 		}
 		relation, ok := c.liveScope().commentCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
-		if !ok || relation.sqlIndex == nil {
+		if !ok || relation.SQLIndex == nil {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 		if e.kind == wholeIndexProperty {
-			switch relation.sqlIndex.method {
+			switch relation.SQLIndex.method {
 			case btreeMethod, hashMethod, gistMethod:
 				switch property {
 				case "clusterable":
-					result, known = relation.sqlIndex.method != hashMethod, true
+					result, known = relation.SQLIndex.method != hashMethod, true
 				case "backward_scan":
-					result, known = relation.sqlIndex.method != gistMethod, true
+					result, known = relation.SQLIndex.method != gistMethod, true
 				case "index_scan", "bitmap_scan":
 					result, known = true, true
 				}
@@ -282,7 +282,7 @@ func (e indexPropertyExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			result, known = indexColumnCapability(relation.sqlIndex, ordinal, property)
+			result, known = indexColumnCapability(relation.SQLIndex, ordinal, property)
 		}
 	}
 	if !known {

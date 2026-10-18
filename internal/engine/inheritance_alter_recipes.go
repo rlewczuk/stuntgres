@@ -10,25 +10,25 @@ import (
 // or generation recipe. ONLY changes to a provider can leave a valid descendant
 // recipe that must be replayed without making its attribute local.
 func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribute int32, provenance inheritedColumn) (inheritedColumn, error) {
-	childDefault, hasDefault := child.defaults[attribute]
-	childGeneration, generated := child.generations[attribute]
+	childDefault, hasDefault := child.Defaults[attribute]
+	childGeneration, generated := child.Generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
 	for _, origin := range provenance.origins {
 		parent, ok := view.Relation(origin.parent)
 		if !ok {
 			return provenance, ids.ErrCatalogReplaced
 		}
-		if definition, exists := parent.defaults[origin.attribute]; exists {
+		if definition, exists := parent.Defaults[origin.attribute]; exists {
 			suppliedDefault = true
 			if !hasDefault || !sameInheritedExpression(definition.expression, childDefault.expression, child, view) {
 				provenance.explicitDefault = true
 			}
 		}
-		if definition, exists := parent.generations[origin.attribute]; exists && generated {
+		if definition, exists := parent.Generations[origin.attribute]; exists && generated {
 			suppliedGeneration = true
-			mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
-			for i, column := range parent.columns {
-				slot, ok := child.index[column.Name]
+			mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+			for i, column := range parent.Columns {
+				slot, ok := child.Index[column.Name]
 				if !ok {
 					return provenance, ids.ErrCatalogReplaced
 				}
@@ -84,19 +84,19 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog Catalo
 }
 
 func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *relationDescriptor) bool {
-	if !raw.Only || len(raw.Name.Parts) != 2 || relation.inheritance == nil {
+	if !raw.Only || len(raw.Name.Parts) != 2 || relation.Inheritance == nil {
 		return false
 	}
-	slot, exists := relation.index[raw.Column.Text]
+	slot, exists := relation.Index[raw.Column.Text]
 	if !exists {
 		return false
 	}
-	provenance := relation.inheritance.columns[relation.attributes[slot]]
+	provenance := relation.Inheritance.columns[relation.Attributes[slot]]
 	return !provenance.local && len(provenance.origins) != 0 && provenance.explicitDefault
 }
 
 func (t *dumpRelation) prepareInheritedRecipes(view CatalogRead) error {
-	graph := t.descriptor.inheritance
+	graph := t.descriptor.Inheritance
 	if graph == nil {
 		return nil
 	}

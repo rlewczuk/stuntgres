@@ -79,11 +79,11 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 		if !ok {
 			continue
 		}
-		if r.sqlIndex != nil && group[r.sqlIndex.parent] {
+		if r.SQLIndex != nil && group[r.SQLIndex.parent] {
 			group[a] = true
 		}
-		if r.sequence != nil {
-			parent := r.sequence.owned
+		if r.Sequence != nil {
+			parent := r.Sequence.owned
 			parent.SubID = 0
 			if group[parent] {
 				group[a] = true

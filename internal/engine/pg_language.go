@@ -13,10 +13,10 @@ func capturePGLanguage(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.columns) != 9 {
+	if len(source.Columns) != 9 {
 		return nil, fmt.Errorf("stuntgres: invalid language source shape")
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		id := sqltype.Oid
 		switch i {
 		case 1:
@@ -36,15 +36,15 @@ func capturePGLanguage(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 		if i == 1 || i == 3 || i == 4 {
 			continue
 		}
-		value, err := sqltype.OIDValue(source.columns[i].Usage.Type, oid)
+		value, err := sqltype.OIDValue(source.Columns[i].Usage.Type, oid)
 		if err != nil {
 			return nil, err
 		}
 		row[i] = value
 	}
-	row[1] = sqltype.String(source.columns[1].Usage.Type, "internal")
-	row[3] = sqltype.Boolean(source.columns[3].Usage.Type, false)
-	row[4] = sqltype.Boolean(source.columns[4].Usage.Type, false)
-	row[8] = sqltype.Null(source.columns[8].Usage.Type)
+	row[1] = sqltype.String(source.Columns[1].Usage.Type, "internal")
+	row[3] = sqltype.Boolean(source.Columns[3].Usage.Type, false)
+	row[4] = sqltype.Boolean(source.Columns[4].Usage.Type, false)
+	row[8] = sqltype.Null(source.Columns[8].Usage.Type)
 	return &querySource{ref: ref, anonymous: [][]sqltype.Value{row}}, nil
 }

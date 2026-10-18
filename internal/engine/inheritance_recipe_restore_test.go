@@ -125,8 +125,8 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	// Real inherited origins, not mere graph connectivity, remain mandatory.
 	before := e.catalog.state
 	child := *before.MustRelation(refs["c"].Address)
-	child.inheritance = cloneInheritance(child.inheritance)
-	child.inheritance.columns[2] = inheritedColumn{origins: []inheritanceOrigin{{parent: refs["q"].Address, attribute: 1}}}
+	child.Inheritance = cloneInheritance(child.Inheritance)
+	child.Inheritance.columns[2] = inheritedColumn{origins: []inheritanceOrigin{{parent: refs["q"].Address, attribute: 1}}}
 	changed := cloneCatalog(before)
 	changed.setDescriptor(child.address, &child)
 	e.catalog.state = changed
@@ -153,7 +153,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	roleExecute(t, e, op, "ALTER TABLE public.q ADD CONSTRAINT positive CHECK(a>0)")
 	current := e.CatalogRead().MustRelation(refs["c"].Address)
-	if provenance := current.inheritance.checks["positive"]; provenance.local || len(provenance.origins) != 1 || provenance.origins[0].parent != refs["q"].Address {
+	if provenance := current.Inheritance.checks["positive"]; provenance.local || len(provenance.origins) != 1 || provenance.origins[0].parent != refs["q"].Address {
 		t.Fatal("actual ADD did not rebuild exact other-parent support", provenance)
 	}
 	retained, err := e.closeRestoredRecipesForData(op, statement(t, "INSERT INTO public.c(a) VALUES(1)").(*parser.Insert), []restoredGenerationRecipe{repair})
@@ -209,10 +209,10 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 	e.importTargets = targets
 	before := e.CatalogRead().MustRelation(refs["c"].Address)
-	nn := restoredNotNull{ref: refs["c"], attribute: 1, constraint: before.notNullConstraints[0].OID}
+	nn := restoredNotNull{ref: refs["c"], attribute: 1, constraint: before.NotNullConstraints[0].OID}
 	roleExecute(t, e, op, "ALTER TABLE public.c OWNER TO captured_owner")
 	after := e.CatalogRead().MustRelation(refs["c"].Address)
-	if after.owner != owner.Ref || before.owner == owner.Ref || after.notNullConstraints[0].OID != nn.constraint {
+	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.NotNullConstraints[0].OID != nn.constraint {
 		t.Fatal("actual owner transfer changed source capture or physical NN identity")
 	}
 	if err := e.restoreInheritedOwner(op, raw, pair); err == nil {
@@ -225,7 +225,7 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	if err := e.restoreNoInheritNotNull(op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual NN identity", err)
 	}
-	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.owner != owner.Ref || !current.notNullConstraints[0].NoInherit || current.notNullConstraints[0].OID != nn.constraint {
+	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.NotNullConstraints[0].NoInherit || current.NotNullConstraints[0].OID != nn.constraint {
 		t.Fatal("paired NN repair changed final captured owner/identity")
 	}
 }

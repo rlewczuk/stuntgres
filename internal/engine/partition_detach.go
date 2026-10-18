@@ -30,13 +30,13 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, nil
 	}
 	parent := scope.lockedDescriptor.(*relationDescriptor)
-	if parent.partition == nil {
+	if parent.Partition == nil {
 		return fail(partitionDetachKindError(auth.catalog, parent, false))
 	}
 	if err := e.partitionAttachName(auth, raw.Name, scope.lockedRef); err != nil {
 		return fail(err)
 	}
-	defaultAddress := parent.partition.defaultChild
+	defaultAddress := parent.Partition.defaultChild
 	if defaultAddress != (ids.ObjectAddress{}) {
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.observePartitionRelationLocked(e, ref); err != nil {
@@ -58,7 +58,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	if err == nil {
 		child := auth.catalog.MustRelation(candidate.Address)
-		if child.relationKind == indexRelation || child.relationKind == compositeRelation {
+		if child.RelationKind == indexRelation || child.RelationKind == compositeRelation {
 			err = partitionDetachKindError(auth.catalog, child, true)
 		}
 		if err == nil {
@@ -123,7 +123,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 }
 
 func partitionDetachMembership(parent, child *relationDescriptor) error {
-	if child.membership == nil || child.membership.parent != parent.address || !slices.Contains(parent.partition.children, child.address) {
+	if child.Membership == nil || child.Membership.parent != parent.address || !slices.Contains(parent.Partition.children, child.address) {
 		return sqlError("42P01", fmt.Sprintf(`relation "%s" is not a partition of relation "%s"`, child.name, parent.name))
 	}
 	return nil
@@ -131,7 +131,7 @@ func partitionDetachMembership(parent, child *relationDescriptor) error {
 
 func partitionDetachKindError(view CatalogRead, d *relationDescriptor, opening bool) error {
 	kind := "relations"
-	switch d.relationKind {
+	switch d.RelationKind {
 	case tableRelation:
 		kind = "tables"
 	case viewRelation:
@@ -144,7 +144,7 @@ func partitionDetachKindError(view CatalogRead, d *relationDescriptor, opening b
 		kind = "composite types"
 	case indexRelation:
 		kind = "indexes"
-		if table, ok := view.Relation(d.sqlIndex.parent); ok && table.partition != nil {
+		if table, ok := view.Relation(d.SQLIndex.parent); ok && table.Partition != nil {
 			kind = "partitioned indexes"
 		}
 	}
@@ -164,35 +164,35 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	if parent.revision == ids.DefinitionRevision(^uint64(0)) || child.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
-	nextParent, definition := *parent, *parent.partition
+	nextParent, definition := *parent, *parent.Partition
 	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(a ids.ObjectAddress) bool { return a == child.address })
 	if definition.defaultChild == child.address {
 		definition.defaultChild = ids.ObjectAddress{}
 	}
-	nextParent.partition = &definition
+	nextParent.Partition = &definition
 	nextParent.revision++
 	nextChild := *child
-	nextChild.membership = nil
+	nextChild.Membership = nil
 	nextChild.revision++
-	if len(child.notNullConstraints) != 0 {
-		nextChild.notNullConstraints = slices.Clone(child.notNullConstraints)
-		for i := range nextChild.notNullConstraints {
-			nextChild.notNullConstraints[i].partitionLocal = true
+	if len(child.NotNullConstraints) != 0 {
+		nextChild.NotNullConstraints = slices.Clone(child.NotNullConstraints)
+		for i := range nextChild.NotNullConstraints {
+			nextChild.NotNullConstraints[i].partitionLocal = true
 		}
 	}
-	if len(child.uniqueConstraints) != 0 {
-		nextChild.uniqueConstraints = slices.Clone(child.uniqueConstraints)
-		for i := range nextChild.uniqueConstraints {
-			c := &nextChild.uniqueConstraints[i]
+	if len(child.UniqueConstraints) != 0 {
+		nextChild.UniqueConstraints = slices.Clone(child.UniqueConstraints)
+		for i := range nextChild.UniqueConstraints {
+			c := &nextChild.UniqueConstraints[i]
 			c.Parent = 0
 			c.IsLocal = true
 		}
 	}
-	if len(child.exclusionConstraints) != 0 {
-		nextChild.exclusionConstraints = slices.Clone(child.exclusionConstraints)
-		for i := range nextChild.exclusionConstraints {
-			nextChild.exclusionConstraints[i].Parent = 0
-			nextChild.exclusionConstraints[i].IsLocal = true
+	if len(child.ExclusionConstraints) != 0 {
+		nextChild.ExclusionConstraints = slices.Clone(child.ExclusionConstraints)
+		for i := range nextChild.ExclusionConstraints {
+			nextChild.ExclusionConstraints[i].Parent = 0
+			nextChild.ExclusionConstraints[i].IsLocal = true
 		}
 	}
 	if err := stage.Replace(&nextParent); err != nil {
@@ -203,21 +203,21 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	}
 	for _, descriptor := range stage.base.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != child.address || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != child.address || index.SQLIndex.partitionParent == (ids.ObjectAddress{}) {
 			continue
 		}
-		ancestor, ok := stage.base.Relation(index.sqlIndex.partitionParent)
-		if !ok || ancestor.sqlIndex == nil || ancestor.sqlIndex.parent != parent.address {
+		ancestor, ok := stage.base.Relation(index.SQLIndex.partitionParent)
+		if !ok || ancestor.SQLIndex == nil || ancestor.SQLIndex.parent != parent.address {
 			return fmt.Errorf("stuntgres: invalid partition index ancestry")
 		}
 		if index.revision == ids.DefinitionRevision(^uint64(0)) {
 			return fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next, definition := *index, *index.sqlIndex
+		next, definition := *index, *index.SQLIndex
 		definition.partitionParent = ids.ObjectAddress{}
 		// The backing contains own identity/kind, not inheritance provenance;
 		// retain it while the table constraint alone becomes local.
-		next.sqlIndex = &definition
+		next.SQLIndex = &definition
 		next.revision++
 		if err := stage.Replace(&next); err != nil {
 			return err

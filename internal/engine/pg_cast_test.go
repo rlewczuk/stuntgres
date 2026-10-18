@@ -24,7 +24,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 func TestPGCastShapeAndOwnership(t *testing.T) {
 	e := New()
 	d, _ := pgCastUnitSource(t, e)
-	if d.name != "pg_cast" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 6 || len(d.columns) != 6 {
+	if d.name != "pg_cast" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 6 || len(d.Columns) != 6 {
 		t.Fatal(d)
 	}
 	for i, name := range []string{"oid", "castsource", "casttarget", "castfunc", "castcontext", "castmethod"} {
@@ -32,9 +32,9 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 		if i >= 4 {
 			id = sqltype.Char
 		}
-		c := d.columns[i]
+		c := d.Columns[i]
 		owned, ok := e.CatalogRead().LookupType(id)
-		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Type.ID() != id || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2605 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i {
+		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Type.ID() != id || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2605 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("descriptor", i, c)
 		}
 	}
@@ -43,16 +43,16 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[0].Usage.Type = foreign
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[0].Usage.Type = foreign
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	if rows, err := capturePGCast(context.Background(), e.CatalogRead(), ids.ObjectRef{}, &invalid); err == nil || rows != nil {
 		t.Fatal("foreign source capture", rows, err)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
@@ -67,8 +67,8 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 		}
 		name, _ := row[1].Text()
 		ns, _ := row[2].OID()
-		kind, _ := row[class.index["relkind"]].Text()
-		count, _ := row[class.index["relnatts"]].Integer()
+		kind, _ := row[class.Index["relkind"]].Text()
+		count, _ := row[class.Index["relnatts"]].Integer()
 		if name != "pg_cast" || ns != 11 || kind != "r" || count != 6 {
 			t.Fatal("pg_class projection", row)
 		}
@@ -88,7 +88,7 @@ func pgCastUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[u
 		}
 		values := make([]any, 6)
 		for i, value := range row {
-			if value.IsNull() || value.Type() != d.columns[i].Usage.Type {
+			if value.IsNull() || value.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("unowned/NULL value", i, value)
 			}
 			if i < 4 {
@@ -205,11 +205,11 @@ func TestPGCastCancellationAndGenerations(t *testing.T) {
 	if !reflect.DeepEqual(pgCastUnitBag(t, newRows, fresh), bag) || !reflect.DeepEqual(pgCastUnitBag(t, old, d), bag) {
 		t.Fatal("reconstruction changed fixed metadata")
 	}
-	for i := range d.columns {
-		if fresh.columns[i].Usage.Type == d.columns[i].Usage.Type {
+	for i := range d.Columns {
+		if fresh.Columns[i].Usage.Type == d.Columns[i].Usage.Type {
 			t.Fatal("generation not reminted", i)
 		}
-		if old.anonymous[0][i].Type() != d.columns[i].Usage.Type || newRows.anonymous[0][i].Type() != fresh.columns[i].Usage.Type {
+		if old.anonymous[0][i].Type() != d.Columns[i].Usage.Type || newRows.anonymous[0][i].Type() != fresh.Columns[i].Usage.Type {
 			t.Fatal("captured generation changed", i)
 		}
 	}

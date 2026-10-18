@@ -150,22 +150,22 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				copy := *d
 				switch phase {
 				case "owner":
-					copy.owner = authorization.PrincipalRef{}
+					copy.Owner = authorization.PrincipalRef{}
 				case "schema":
 					copy.namespace.ObjectID++
 				case "name":
 					copy.name = "renamed"
 				case "view":
 					definition := *viewOf(&copy)
-					copy.view = &definition
+					copy.View = &definition
 				case "columns":
-					copy.columns = append([]ColumnDescriptor(nil), copy.columns...)
+					copy.Columns = append([]ColumnDescriptor(nil), copy.Columns...)
 				case "attributes":
-					copy.attributes = append([]int32(nil), copy.attributes...)
+					copy.Attributes = append([]int32(nil), copy.Attributes...)
 				case "rowtype":
-					copy.rowType++
+					copy.RowType++
 				case "ordinary_table":
-					copy.relationKind = tableRelation
+					copy.RelationKind = tableRelation
 				}
 				e.catalog.state.setDescriptor(d.address, &copy)
 			}

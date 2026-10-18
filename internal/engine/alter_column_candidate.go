@@ -25,10 +25,10 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
-	if old.relationKind != compositeRelation && isSystemColumn(a.Column.Text) {
+	if old.RelationKind != compositeRelation && isSystemColumn(a.Column.Text) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot drop system column "%s"`, a.Column.Text))
 	}
-	slot, exists := old.index[a.Column.Text]
+	slot, exists := old.Index[a.Column.Text]
 	if !exists {
 		if !a.IfExists {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.name))
@@ -42,9 +42,9 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	history.name = fmt.Sprintf("........pg.dropped.%d........", history.number)
 	history.typeID, history.notNull, history.hasDefault, history.generated, history.dropped = 0, false, false, "", true
 	target := ref.Address
-	target.SubID = old.attributes[slot]
-	for _, attribute := range old.attributes {
-		definition, generated := old.generations[attribute]
+	target.SubID = old.Attributes[slot]
+	for _, attribute := range old.Attributes {
+		definition, generated := old.Generations[attribute]
 		if !generated || attribute == target.SubID {
 			continue
 		}
@@ -65,12 +65,12 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.name)
 			}
 			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.columns[generatedSlot].Name, old.name, a.Column.Text, old.name)
+			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.Columns[generatedSlot].Name, old.name, a.Column.Text, old.name)
 			diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 			return nil, diagnostic
 		}
 		dependentAction := a
-		dependentAction.Column = parser.Identifier{Text: old.columns[generatedSlot].Name}
+		dependentAction.Column = parser.Identifier{Text: old.Columns[generatedSlot].Name}
 		remaining, err := ordinaryColumnDrop(provider, old, ref, dependentAction)
 		if err != nil {
 			return nil, err
@@ -81,7 +81,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	if err := provider.replace(old); err != nil {
 		return nil, err
 	}
-	if old.relationKind == compositeRelation {
+	if old.RelationKind == compositeRelation {
 		if err := provider.compositeFieldChecks(old, target.SubID, a.Mode); err != nil {
 			return nil, err
 		}
@@ -117,78 +117,78 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ids.ObjectAddress) Descriptor, old *relationDescriptor, target ids.ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
 	slot := old.indexForAttribute(target.SubID)
 	next := *old
-	if old.foreign != nil {
-		foreign := *old.foreign
-		foreign.columns = maps.Clone(old.foreign.columns)
+	if old.Foreign != nil {
+		foreign := *old.Foreign
+		foreign.columns = maps.Clone(old.Foreign.columns)
 		delete(foreign.columns, target.SubID)
-		next.foreign = &foreign
+		next.Foreign = &foreign
 	}
-	next.droppedAttributes = maps.Clone(old.droppedAttributes)
-	if next.droppedAttributes == nil {
-		next.droppedAttributes = make(map[int32]attributeMetadata)
+	next.DroppedAttributes = maps.Clone(old.DroppedAttributes)
+	if next.DroppedAttributes == nil {
+		next.DroppedAttributes = make(map[int32]attributeMetadata)
 	}
-	next.droppedAttributes[history.number] = history
-	next.columns = make([]ColumnDescriptor, 0, len(old.columns)-1)
-	next.attributes = make([]int32, 0, len(old.attributes)-1)
-	next.index = make(map[string]int, len(old.index)-1)
-	for i, column := range old.columns {
+	next.DroppedAttributes[history.number] = history
+	next.Columns = make([]ColumnDescriptor, 0, len(old.Columns)-1)
+	next.Attributes = make([]int32, 0, len(old.Attributes)-1)
+	next.Index = make(map[string]int, len(old.Index)-1)
+	for i, column := range old.Columns {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if i == slot {
 			continue
 		}
-		next.index[column.Name] = len(next.columns)
-		next.columns = append(next.columns, column)
-		next.attributes = append(next.attributes, old.attributes[i])
+		next.Index[column.Name] = len(next.Columns)
+		next.Columns = append(next.Columns, column)
+		next.Attributes = append(next.Attributes, old.Attributes[i])
 	}
-	next.notNullConstraints = nil
-	for _, constraint := range old.notNullConstraints {
-		if constraint.Attribute != old.attributes[slot] {
-			next.notNullConstraints = append(next.notNullConstraints, constraint)
+	next.NotNullConstraints = nil
+	for _, constraint := range old.NotNullConstraints {
+		if constraint.Attribute != old.Attributes[slot] {
+			next.NotNullConstraints = append(next.NotNullConstraints, constraint)
 		}
 	}
-	next.uniqueConstraints = nil
-	for _, constraint := range old.uniqueConstraints {
+	next.UniqueConstraints = nil
+	for _, constraint := range old.UniqueConstraints {
 		dependent := false
 		for _, attribute := range constraint.Attributes {
-			if attribute == old.attributes[slot] {
+			if attribute == old.Attributes[slot] {
 				dependent = true
 				break
 			}
 		}
 		index, ok := descriptor(constraint.Index).(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column unique index")
 		}
-		dependent = dependent || slices.Contains(index.sqlIndex.include, old.attributes[slot])
+		dependent = dependent || slices.Contains(index.SQLIndex.include, old.Attributes[slot])
 		if !dependent {
-			next.uniqueConstraints = append(next.uniqueConstraints, constraint)
+			next.UniqueConstraints = append(next.UniqueConstraints, constraint)
 		}
 	}
-	next.exclusionConstraints = nil
-	for _, constraint := range old.exclusionConstraints {
+	next.ExclusionConstraints = nil
+	for _, constraint := range old.ExclusionConstraints {
 		index, ok := descriptor(constraint.Index).(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
-		if !uniqueIndexTypeAffected(index.sqlIndex, []columnTransformation{{attribute: old.attributes[slot]}}) {
-			next.exclusionConstraints = append(next.exclusionConstraints, constraint)
+		if !uniqueIndexTypeAffected(index.SQLIndex, []columnTransformation{{attribute: old.Attributes[slot]}}) {
+			next.ExclusionConstraints = append(next.ExclusionConstraints, constraint)
 		}
 	}
-	next.foreignKeys = nil
-	for _, f := range old.foreignKeys {
-		if !slices.Contains(f.Attributes, old.attributes[slot]) {
-			next.foreignKeys = append(next.foreignKeys, f)
+	next.ForeignKeys = nil
+	for _, f := range old.ForeignKeys {
+		if !slices.Contains(f.Attributes, old.Attributes[slot]) {
+			next.ForeignKeys = append(next.ForeignKeys, f)
 		}
 	}
-	next.checkConstraints = nil
-	if len(old.checkConstraints) != 0 {
-		slots := make(map[int32]int, len(next.attributes))
-		for i, attr := range next.attributes {
+	next.CheckConstraints = nil
+	if len(old.CheckConstraints) != 0 {
+		slots := make(map[int32]int, len(next.Attributes))
+		for i, attr := range next.Attributes {
 			slots[attr] = i
 		}
-		for _, c := range old.checkConstraints {
+		for _, c := range old.CheckConstraints {
 			dependent := false
 			for _, dep := range c.dependencies {
 				if dep.ref.Address == target {
@@ -204,28 +204,28 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 				return nil, err
 			}
 			c.expression = expression
-			next.checkConstraints = append(next.checkConstraints, c)
+			next.CheckConstraints = append(next.CheckConstraints, c)
 		}
 	}
-	if _, exists := old.defaults[old.attributes[slot]]; exists {
-		next.defaults = nil
-		if len(old.defaults) > 1 {
-			next.defaults = make(map[int32]columnDefault, len(old.defaults)-1)
-			for attribute, definition := range old.defaults {
-				if attribute != old.attributes[slot] {
-					next.defaults[attribute] = definition
+	if _, exists := old.Defaults[old.Attributes[slot]]; exists {
+		next.Defaults = nil
+		if len(old.Defaults) > 1 {
+			next.Defaults = make(map[int32]columnDefault, len(old.Defaults)-1)
+			for attribute, definition := range old.Defaults {
+				if attribute != old.Attributes[slot] {
+					next.Defaults[attribute] = definition
 				}
 			}
 		}
 	}
-	next.generations = nil
-	if len(old.generations) != 0 {
-		slots := make(map[int32]int, len(next.attributes))
-		for i, attribute := range next.attributes {
+	next.Generations = nil
+	if len(old.Generations) != 0 {
+		slots := make(map[int32]int, len(next.Attributes))
+		for i, attribute := range next.Attributes {
 			slots[attribute] = i
 		}
-		next.generations = make(map[int32]columnGeneration, len(old.generations))
-		for attribute, definition := range old.generations {
+		next.Generations = make(map[int32]columnGeneration, len(old.Generations))
+		for attribute, definition := range old.Generations {
 			if attribute == target.SubID {
 				continue
 			}
@@ -239,48 +239,48 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 				return nil, err
 			}
 			definition.expression = node
-			next.generations[attribute] = definition
+			next.Generations[attribute] = definition
 		}
 	}
 	if err := refreshGenerationChecks(&next, catalog); err != nil {
 		return nil, err
 	}
-	if _, exists := old.identities[old.attributes[slot]]; exists {
-		next.identities = make(map[int32]columnIdentity, len(old.identities)-1)
-		for attribute, identity := range old.identities {
-			if attribute != old.attributes[slot] {
-				next.identities[attribute] = identity
+	if _, exists := old.Identities[old.Attributes[slot]]; exists {
+		next.Identities = make(map[int32]columnIdentity, len(old.Identities)-1)
+		for attribute, identity := range old.Identities {
+			if attribute != old.Attributes[slot] {
+				next.Identities[attribute] = identity
 			}
 		}
 	}
-	if _, exists := old.columnACL[old.attributes[slot]]; exists {
-		next.columnACL = nil
-		for sub, acl := range old.columnACL {
+	if _, exists := old.ColumnACL[old.Attributes[slot]]; exists {
+		next.ColumnACL = nil
+		for sub, acl := range old.ColumnACL {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if sub == old.attributes[slot] {
+			if sub == old.Attributes[slot] {
 				continue
 			}
-			if next.columnACL == nil {
-				next.columnACL = make(map[int32]authorization.ACLValue, len(old.columnACL)-1)
+			if next.ColumnACL == nil {
+				next.ColumnACL = make(map[int32]authorization.ACLValue, len(old.ColumnACL)-1)
 			}
-			next.columnACL[sub] = acl
+			next.ColumnACL[sub] = acl
 		}
 	}
-	if _, exists := old.columnComments[old.attributes[slot]]; exists {
-		next.columnComments = nil
-		for sub, text := range old.columnComments {
+	if _, exists := old.ColumnComments[old.Attributes[slot]]; exists {
+		next.ColumnComments = nil
+		for sub, text := range old.ColumnComments {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if sub == old.attributes[slot] {
+			if sub == old.Attributes[slot] {
 				continue
 			}
-			if next.columnComments == nil {
-				next.columnComments = make(map[int32]string, len(old.columnComments)-1)
+			if next.ColumnComments == nil {
+				next.ColumnComments = make(map[int32]string, len(old.ColumnComments)-1)
 			}
-			next.columnComments[sub] = text
+			next.ColumnComments[sub] = text
 		}
 	}
 	transitionPhysicalNotNull(old, &next)

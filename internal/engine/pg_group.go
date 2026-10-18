@@ -61,7 +61,7 @@ func capturePGGroup(ctx context.Context, roles authorization.Read, ref ids.Objec
 		if !ok || !roles.GroupMember(edge.Member) {
 			continue
 		}
-		element, err := sqltype.OIDValue(source.columns[2].Usage.Type.Element(), uint32(edge.Member.ID()))
+		element, err := sqltype.OIDValue(source.Columns[2].Usage.Type.Element(), uint32(edge.Member.ID()))
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +74,7 @@ func capturePGGroup(ctx context.Context, roles authorization.Read, ref ids.Objec
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		id, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(principal.ID()))
+		id, err := sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}
@@ -82,11 +82,11 @@ func capturePGGroup(ctx context.Context, roles authorization.Read, ref ids.Objec
 		if g.count != 0 {
 			dimensions = []sqltype.ArrayDimension{{Lower: 1, Length: int32(g.count)}}
 		}
-		members, err := sqltype.OwnedArrayValue(source.columns[2].Usage.Type, dimensions, g.elements)
+		members, err := sqltype.OwnedArrayValue(source.Columns[2].Usage.Type, dimensions, g.elements)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, []sqltype.Value{sqltype.String(source.columns[0].Usage.Type, g.name), id, members})
+		rows = append(rows, []sqltype.Value{sqltype.String(source.Columns[0].Usage.Type, g.name), id, members})
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

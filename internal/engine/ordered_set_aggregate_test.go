@@ -717,8 +717,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	// Bind real catalog columns privately; input origins exist, but aggregate
 	// outputs are computed descriptors, including enum/domain associated arrays.
 	table := domainUnitTable(t, e, op, `CREATE TABLE public.os_unit_authority(v VARCHAR(4) COLLATE "C",w VARCHAR(4) COLLATE "POSIX",n NUMERIC(10,4),i INTERVAL,e os_unit_enum,d os_unit_domain)`)
-	if table.columns[0].Usage.Typmod != 8 || table.columns[0].Usage.Collation.ID != 950 {
-		t.Fatal("genuine sized/collated source descriptor", table.columns[0])
+	if table.Columns[0].Usage.Typmod != 8 || table.Columns[0].Usage.Collation.ID != 950 {
+		t.Fatal("genuine sized/collated source descriptor", table.Columns[0])
 	}
 	for _, expression := range []string{
 		"percentile_cont(.5) WITHIN GROUP(ORDER BY n)",
@@ -744,8 +744,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		if column.Usage != call.provider.ResultUsage() {
 			t.Fatal("schema/provider authority drift", column, call.provider.ResultUsage())
 		}
-		if strings.Contains(expression, "ORDER BY v)") && column.Usage.Collation != table.columns[0].Usage.Collation {
-			t.Fatal("lost source-column collation authority", expression, column.Usage, table.columns[0].Usage)
+		if strings.Contains(expression, "ORDER BY v)") && column.Usage.Collation != table.Columns[0].Usage.Collation {
+			t.Fatal("lost source-column collation authority", expression, column.Usage, table.Columns[0].Usage)
 		}
 		provider := call.provider.(*functions.OrderedSet)
 		for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {

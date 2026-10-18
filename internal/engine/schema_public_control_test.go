@@ -103,7 +103,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					td := e.CatalogRead().MustRelation(roleTableRef(t, e, tc.namespace+".t").Address)
 					// Namespace OWNER does not restamp the independently owned table.
 					oldTable := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: before.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.namespace}), Name: "t"}))
-					if td.owner != oldTable.owner || td.acl.Explicit || len(td.acl.Entries) != 0 {
+					if td.Owner != oldTable.Owner || td.ACL.Explicit || len(td.ACL.Entries) != 0 {
 						t.Fatal("table owner/ACL changed")
 					}
 				}
@@ -162,7 +162,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					}
 				}
 				table := before.MustRelation(roleTableRef(t, e, "restored_data.t").Address)
-				if table.owner != owner.Ref || table.acl.Explicit || len(table.acl.Entries) != 0 {
+				if table.Owner != owner.Ref || table.ACL.Explicit || len(table.ACL.Entries) != 0 {
 					t.Fatal("restored table owner/ACL", table)
 				}
 				for _, q := range []string{"CREATE SCHEMA additional", "CREATE SCHEMA nested CREATE TABLE t(id INT NOT NULL) CREATE TABLE u(id INT)"} {

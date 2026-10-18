@@ -26,26 +26,26 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 	events := state.events[before.address]
 	switch a.Action {
 	case parser.AddColumn:
-		if slot, exists := after.index[a.Definition.Name]; exists {
-			if _, old := before.index[a.Definition.Name]; !old {
-				events = append(events, inheritanceAlterEvent{action: a, attribute: after.attributes[slot]})
+		if slot, exists := after.Index[a.Definition.Name]; exists {
+			if _, old := before.Index[a.Definition.Name]; !old {
+				events = append(events, inheritanceAlterEvent{action: a, attribute: after.Attributes[slot]})
 			}
 		}
 	case parser.DropColumn:
-		for slot, attribute := range before.attributes {
+		for slot, attribute := range before.Attributes {
 			if after.hasAttribute(attribute) {
 				continue
 			}
 			action := a
-			action.Column = parser.Identifier{Text: before.columns[slot].Name}
+			action.Column = parser.Identifier{Text: before.Columns[slot].Name}
 			event := inheritanceAlterEvent{action: action, attribute: attribute}
-			for _, c := range before.notNullConstraints {
-				if c.Attribute == attribute && !slices.ContainsFunc(after.notNullConstraints, func(next notNullConstraint) bool { return next.OID == c.OID }) {
+			for _, c := range before.NotNullConstraints {
+				if c.Attribute == attribute && !slices.ContainsFunc(after.NotNullConstraints, func(next notNullConstraint) bool { return next.OID == c.OID }) {
 					event.retiredNotNull = append(event.retiredNotNull, c)
 				}
 			}
-			for _, c := range before.checkConstraints {
-				if !slices.ContainsFunc(after.checkConstraints, func(next checkConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.dependencies, func(dependency expressionDependency) bool {
+			for _, c := range before.CheckConstraints {
+				if !slices.ContainsFunc(after.CheckConstraints, func(next checkConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.dependencies, func(dependency expressionDependency) bool {
 					return dependency.ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.address.ObjectID, SubID: attribute}
 				}) {
 					event.retiredChecks = append(event.retiredChecks, c)
@@ -54,16 +54,16 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			events = append(events, event)
 		}
 	case parser.DropConstraint, parser.DropNotNull:
-		for _, old := range before.notNullConstraints {
-			if !old.NoInherit && !slices.ContainsFunc(after.notNullConstraints, func(c notNullConstraint) bool { return c.Attribute == old.Attribute }) {
+		for _, old := range before.NotNullConstraints {
+			if !old.NoInherit && !slices.ContainsFunc(after.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == old.Attribute }) {
 				action := a
 				action.Action = parser.DropNotNull
-				action.Column = parser.Identifier{Text: before.columns[before.indexForAttribute(old.Attribute)].Name}
+				action.Column = parser.Identifier{Text: before.Columns[before.indexForAttribute(old.Attribute)].Name}
 				events = append(events, inheritanceAlterEvent{action: action, attribute: old.Attribute, constraint: old.OID})
 			}
 		}
-		for _, old := range before.checkConstraints {
-			if !old.NoInherit && !slices.ContainsFunc(after.checkConstraints, func(c checkConstraint) bool { return c.OID == old.OID }) {
+		for _, old := range before.CheckConstraints {
+			if !old.NoInherit && !slices.ContainsFunc(after.CheckConstraints, func(c checkConstraint) bool { return c.OID == old.OID }) {
 				action := a
 				action.Action = parser.DropConstraint
 				action.Constraint = parser.Identifier{Text: old.Name}
@@ -76,16 +76,16 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 		}
 	}
 	if !state.only {
-		for _, next := range after.notNullConstraints {
+		for _, next := range after.NotNullConstraints {
 			if next.NoInherit {
 				continue
 			}
-			index := slices.IndexFunc(before.notNullConstraints, func(old notNullConstraint) bool { return old.Attribute == next.Attribute })
-			validation := index >= 0 && before.notNullConstraints[index].NotValid && !next.NotValid
+			index := slices.IndexFunc(before.NotNullConstraints, func(old notNullConstraint) bool { return old.Attribute == next.Attribute })
+			validation := index >= 0 && before.NotNullConstraints[index].NotValid && !next.NotValid
 			if index >= 0 && !validation {
 				continue
 			}
-			action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: after.columns[after.indexForAttribute(next.Attribute)].Name}, Constraint: parser.Identifier{Text: next.Name}, NotValid: next.NotValid}
+			action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: after.Columns[after.indexForAttribute(next.Attribute)].Name}, Constraint: parser.Identifier{Text: next.Name}, NotValid: next.NotValid}
 			if validation || a.Action == parser.SetNotNull {
 				action.Action = parser.SetNotNull
 			}
@@ -100,8 +100,8 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *relationDesc
 	if state == nil || state.only {
 		return
 	}
-	for _, c := range after.checkConstraints {
-		if c.NoInherit || c.ordinal < start || slices.ContainsFunc(before.checkConstraints, func(old checkConstraint) bool { return old.OID == c.OID }) {
+	for _, c := range after.CheckConstraints {
+		if c.NoInherit || c.ordinal < start || slices.ContainsFunc(before.CheckConstraints, func(old checkConstraint) bool { return old.OID == c.OID }) {
 			continue
 		}
 		index := c.ordinal - start
@@ -129,21 +129,21 @@ func inheritanceEventName(a parser.AlterTableAction) string {
 func inheritanceParentActions(state *inheritanceAlterState, old *relationDescriptor) []parser.AlterTableAction {
 	var actions []parser.AlterTableAction
 	state.validating = nil
-	if old.inheritance == nil {
+	if old.Inheritance == nil {
 		return actions
 	}
-	for _, parent := range old.inheritance.parents {
+	for _, parent := range old.Inheritance.parents {
 		for _, event := range state.events[parent] {
 			a := event.action
 			if a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint {
 				var origins []inheritanceOrigin
 				if a.Action == parser.DropConstraint {
-					origins = old.inheritance.checks[a.Constraint.Text].origins
-				} else if slot, ok := old.index[a.Column.Text]; ok {
+					origins = old.Inheritance.checks[a.Constraint.Text].origins
+				} else if slot, ok := old.Index[a.Column.Text]; ok {
 					if a.Action == parser.DropColumn {
-						origins = old.inheritance.columns[old.attributes[slot]].origins
+						origins = old.Inheritance.columns[old.Attributes[slot]].origins
 					} else {
-						origins = old.inheritance.notNull[old.attributes[slot]].origins
+						origins = old.Inheritance.notNull[old.Attributes[slot]].origins
 					}
 				}
 				reached := slices.ContainsFunc(origins, func(origin inheritanceOrigin) bool {
@@ -249,13 +249,13 @@ func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *rel
 	if state == nil || !state.only || state.descendant || len(state.targets) < 2 {
 		return nil
 	}
-	for _, fact := range after.notNullConstraints {
-		if !fact.NoInherit && !slices.ContainsFunc(before.notNullConstraints, func(old notNullConstraint) bool { return old.Attribute == fact.Attribute }) {
+	for _, fact := range after.NotNullConstraints {
+		if !fact.NoInherit && !slices.ContainsFunc(before.NotNullConstraints, func(old notNullConstraint) bool { return old.Attribute == fact.Attribute }) {
 			return sqlError("42P16", "constraint must be added to child tables too")
 		}
 	}
-	for _, fact := range after.checkConstraints {
-		if !fact.NoInherit && !slices.ContainsFunc(before.checkConstraints, func(old checkConstraint) bool { return old.Name == fact.Name }) {
+	for _, fact := range after.CheckConstraints {
+		if !fact.NoInherit && !slices.ContainsFunc(before.CheckConstraints, func(old checkConstraint) bool { return old.Name == fact.Name }) {
 			return sqlError("42P16", "constraint must be added to child tables too")
 		}
 	}

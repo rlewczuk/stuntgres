@@ -40,27 +40,27 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 		key := partitionKeyEntry{}
 		var usage sqltype.Usage
 		if r.Expression == nil {
-			slot, ok := d.index[r.Column.Text]
+			slot, ok := d.Index[r.Column.Text]
 			if !ok {
 				if id, _ := sqltype.SystemAttributeType(r.Column.Text); id != 0 {
 					return nil, expr.ErrorAt("42P17", fmt.Sprintf(`cannot use system column "%s" in partition key`, r.Column.Text), r.Pos)
 				}
 				return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" named in partition key does not exist`, r.Column.Text), r.Pos)
 			}
-			key.attribute = d.attributes[slot]
-			usage = d.columns[slot].Usage
+			key.attribute = d.Attributes[slot]
+			usage = d.Columns[slot].Usage
 			key.label = r.Column.Text
-			if _, generated := d.generations[key.attribute]; generated {
+			if _, generated := d.Generations[key.attribute]; generated {
 				diagnostic := sqlError("42P17", "cannot use generated column in partition key")
 				return nil, partitionGeneratedError(diagnostic, r.Pos, key.label)
 			}
 		} else {
 			ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
-			columns := make([]queryColumn, len(d.columns))
-			for j, c := range d.columns {
+			columns := make([]queryColumn, len(d.Columns))
+			for j, c := range d.Columns {
 				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}
 			}
-			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}}, frame: d.columns}
+			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}}, frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.partitionConsumer, binder.noParameters, binder.queryAuth = "partition key expression", true, &auth
 			binder.queryNamespace = &namespace
@@ -81,11 +81,11 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
 			for _, slot := range binder.querySources[0].uses {
-				if _, generated := d.generations[d.attributes[slot]]; generated {
-					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.columns[slot].Name)
+				if _, generated := d.Generations[d.Attributes[slot]]; generated {
+					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}
-			key.derived = &derivedIndexKey{definition: node, execution: planned, attributes: d.attributes}
+			key.derived = &derivedIndexKey{definition: node, execution: planned, attributes: d.Attributes}
 			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &key.derived.dependencies}).sql(op.Context(), auth.catalog, node)
 			if err != nil {
 				return nil, err
@@ -125,8 +125,8 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 // Transformation remains deferred: a later bind error must not mask an earlier
 // NULL or prevent a required nontransactional sequence draw.
 func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBound) (*partitionMembership, error) {
-	bound := &partitionMembership{parent: parent.address, strategy: parent.partition.strategy, defaultBound: raw.Default}
-	if parent.partition.strategy == parser.PartitionHash {
+	bound := &partitionMembership{parent: parent.address, strategy: parent.Partition.strategy, defaultBound: raw.Default}
+	if parent.Partition.strategy == parser.PartitionHash {
 		if raw.Default {
 			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")
 		}
@@ -148,7 +148,7 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 	if raw.Default {
 		return bound, nil
 	}
-	keys := parent.partition.keys
+	keys := parent.Partition.keys
 	if len(raw.Lower) != len(keys) {
 		return nil, sqlError("42P16", "FROM must specify exactly one value per partitioning column")
 	}
@@ -220,7 +220,7 @@ func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evalu
 			}
 			// PostgreSQL advances the key type cursor only for finite datums,
 			// including malformed finite entries after an infinite datum.
-			node, err := p.bindPartitionDatum(scope, datum, p.parent.partition.keys[finite])
+			node, err := p.bindPartitionDatum(scope, datum, p.parent.Partition.keys[finite])
 			if err != nil {
 				return err
 			}

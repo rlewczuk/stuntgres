@@ -84,10 +84,10 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		captures[i].storage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if ref != childRef {
 			parent, ok := auth.catalog.Relation(ref.Address)
-			if ok && parent.relationKind == tableRelation {
+			if ok && parent.RelationKind == tableRelation {
 				var attributes []int32
 				if len(action.ForeignKey.Referenced) == 0 {
-					for _, key := range parent.uniqueConstraints {
+					for _, key := range parent.UniqueConstraints {
 						if key.Primary {
 							attributes = key.Attributes
 							break
@@ -177,7 +177,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
 	e := s.op.session.Engine()
-	for _, f := range child.foreignKeys {
+	for _, f := range child.ForeignKeys {
 		if f.NotValid || !slices.Contains(added, f.OID) {
 			continue
 		}
@@ -213,7 +213,7 @@ func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f forei
 	if !ok {
 		return false
 	}
-	for _, old := range parent.foreignKeys {
+	for _, old := range parent.ForeignKeys {
 		if old.Name == f.Name && old.Target == f.Target && old.Full == f.Full && old.NotValid == f.NotValid && old.UpdateAction == f.UpdateAction && old.DeleteAction == f.DeleteAction && slices.Equal(old.DeleteAttributes, f.DeleteAttributes) && slices.Equal(old.Attributes, f.Attributes) && slices.Equal(old.Referenced, f.Referenced) {
 			return true
 		}

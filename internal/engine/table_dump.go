@@ -43,7 +43,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog Catalog
 			return err
 		}
 		prefix := "ALTER TABLE "
-		if t.descriptor.partition == nil && t.descriptor.membership == nil {
+		if t.descriptor.Partition == nil && t.descriptor.Membership == nil {
 			prefix += "ONLY "
 		}
 		if err := emit(prefix + qualified + " ALTER COLUMN " + quoteIdentifier(c.Name) + " SET DEFAULT " + text + ";\n"); err != nil {
@@ -75,7 +75,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 		line.WriteString("INSERT INTO " + qualified)
 		// Hierarchy reconstruction can place inherited columns before local
 		// columns added earlier. Address captured values by name, not replay slot.
-		if t.descriptor.membership != nil || t.descriptor.inheritance != nil {
+		if t.descriptor.Membership != nil || t.descriptor.Inheritance != nil {
 			line.WriteString(" (")
 			for i, column := range t.columns {
 				if i != 0 {
@@ -93,7 +93,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			if _, generated := t.descriptor.generations[t.attributes[i]]; generated {
+			if _, generated := t.descriptor.Generations[t.attributes[i]]; generated {
 				line.WriteString("DEFAULT")
 				continue
 			}
@@ -166,8 +166,8 @@ func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefa
 	if inheritedDefaultReplay(s, d) {
 		return nil
 	}
-	slot, ok := d.index[s.Column.Text]
-	if !ok || !defaultReplayDeferrable(d.defaults[d.attributes[slot]]) {
+	slot, ok := d.Index[s.Column.Text]
+	if !ok || !defaultReplayDeferrable(d.Defaults[d.Attributes[slot]]) {
 		return sqlError("0A000", "restore accepts only deferred captured-reference or regclass defaults")
 	}
 	return nil

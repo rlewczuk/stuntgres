@@ -341,9 +341,9 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	consumer := func(ref ids.ObjectRef) *relationDescriptor {
 		return &relationDescriptor{
 			address:          ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
-			checkConstraints: []checkConstraint{{dependencies: []expressionDependency{{ref: ref, revision: dictionary.revision}}}},
-			defaults:         map[int32]columnDefault{1: {dependencies: []ids.ObjectRef{ref}}},
-			generations:      map[int32]columnGeneration{1: {dependencies: []ids.ObjectRef{ref}}},
+			CheckConstraints: []checkConstraint{{dependencies: []expressionDependency{{ref: ref, revision: dictionary.revision}}}},
+			Defaults:         map[int32]columnDefault{1: {dependencies: []ids.ObjectRef{ref}}},
+			Generations:      map[int32]columnGeneration{1: {dependencies: []ids.ObjectRef{ref}}},
 		}
 	}
 	for name, validate := range map[string]func(CatalogRead, *relationDescriptor) error{

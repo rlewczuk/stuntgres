@@ -23,7 +23,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	index, oldRoot := btreeRoot(t, e, "decorated")
 	plain, oldSibling := btreeRoot(t, e, "plain")
 	got, names := indexMaintenanceMetadata(t, e, capture, "decorated")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 2)
+	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, 2)
 	want.IndNatts = 5
 	want.IndKey = []int16{2, 3, 4, 4, 5}
 	want.IndClass = []ids.OID{1981, 10004}
@@ -64,7 +64,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	}
 	got.IndKey[2] = 0
 	detached, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "renamed")
-	if !reflect.DeepEqual(detached, want) || index.sqlIndex.include[0] != 4 {
+	if !reflect.DeepEqual(detached, want) || index.SQLIndex.include[0] != 4 {
 		t.Fatal("include vector aliases immutable definition")
 	}
 	run(t, e, "UPDATE t SET payload='changed' WHERE n=2")
@@ -85,8 +85,8 @@ func TestIndexMaintenanceKeyEquivalenceDecorations(t *testing.T) {
 	for _, change := range []string{"include_order", "include_repeat", "include_removed", "class", "collation"} {
 		t.Run(change, func(t *testing.T) {
 			next := *index
-			definition := *index.sqlIndex
-			next.sqlIndex = &definition
+			definition := *index.SQLIndex
+			next.SQLIndex = &definition
 			definition.keys = append([]indexKey(nil), definition.keys...)
 			definition.include = append([]int32(nil), definition.include...)
 			switch change {
@@ -98,7 +98,7 @@ func TestIndexMaintenanceKeyEquivalenceDecorations(t *testing.T) {
 				definition.include = definition.include[:1]
 			case "class":
 				other, _ := btreeRoot(t, e, "plain")
-				definition.keys[0].class = other.sqlIndex.keys[0].class
+				definition.keys[0].class = other.SQLIndex.keys[0].class
 			case "collation":
 				definition.keys[1].collation = 951
 			}
@@ -143,14 +143,14 @@ func TestIndexMaintenanceMetadataAliasAndPatternClasses(t *testing.T) {
 		} {
 			t.Run(phase+"/"+c.name, func(t *testing.T) {
 				index, _ := btreeRoot(t, e, c.name)
-				want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, c.nkeys)
+				want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, c.nkeys)
 				want.IndNatts = c.natts
 				want.IndKey = c.attrs
 				want.IndClass = c.classes
 				want.IndCollation = c.collations
 				want.IndOption = c.options
 				if c.name == "mixed" {
-					want.IndexExpressions = []expr.Expr{index.sqlIndex.keys[0].derived.definition}
+					want.IndexExpressions = []expr.Expr{index.SQLIndex.keys[0].derived.definition}
 				}
 				got, names := indexMaintenanceMetadata(t, e, e.CatalogRead(), c.name)
 				if !reflect.DeepEqual(got, want) || names.IndexDef != c.definition || names.Tablespace != nil {

@@ -41,10 +41,10 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 			owner = relation
 		}
 	}
-	if owner == nil || owner.partition.keys[0].derived == nil {
+	if owner == nil || owner.Partition.keys[0].derived == nil {
 		t.Fatal("missing genuinely bound partition owner")
 	}
-	original := owner.partition.keys[0].derived
+	original := owner.Partition.keys[0].derived
 	refs := slices.Clone(original.dependencies)
 	for _, id := range []ids.OID{1811, 1374, 141} {
 		if !slices.ContainsFunc(refs, func(ref ids.ObjectRef) bool {
@@ -55,7 +55,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	text := func(raw string) sqltype.Value {
 		t.Helper()
-		value, err := owner.columns[0].Usage.Type.Input(context.Background(), raw, -1)
+		value, err := owner.Columns[0].Usage.Type.Input(context.Background(), raw, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,9 +96,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	probe := func(name string, dependencies []ids.ObjectRef) {
 		t.Helper()
 		t.Run(name, func(t *testing.T) {
-			copyOwner, partition, key := *owner, *owner.partition, *original
+			copyOwner, partition, key := *owner, *owner.Partition, *original
 			partition.keys = slices.Clone(partition.keys)
-			copyOwner.partition = &partition
+			copyOwner.Partition = &partition
 			partition.keys[0].derived = &key
 			key.dependencies = dependencies
 			local := newEvaluation(auth)
@@ -171,17 +171,17 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	// A sibling's freshly selected manifest cannot borrow the already admitted
 	// owner's cache entry, even within the same actor/statement phase.
-	sibling, siblingPartition, siblingKey := *owner, *owner.partition, *original
+	sibling, siblingPartition, siblingKey := *owner, *owner.Partition, *original
 	siblingPartition.keys = slices.Clone(siblingPartition.keys)
-	sibling.partition = &siblingPartition
+	sibling.Partition = &siblingPartition
 	siblingPartition.keys[0].derived = &siblingKey
 	siblingKey.dependencies = []ids.ObjectRef{}
 	if _, err := evaluatePartitionRecipe(&evaluation, &sibling, 0, row); err == nil || len(evaluation.statementScope.partitionPrograms) != 1 {
 		t.Fatal("sibling borrowed an admitted owner's manifest")
 	}
-	multiOwner, multiPartition := *owner, *owner.partition
+	multiOwner, multiPartition := *owner, *owner.Partition
 	multiPartition.keys = append(slices.Clone(multiPartition.keys), siblingPartition.keys[0])
-	multiOwner.partition = &multiPartition
+	multiOwner.Partition = &multiPartition
 	multiEvaluation := newEvaluation(auth)
 	if _, err := evaluatePartitionRecipe(&multiEvaluation, &multiOwner, 0, row); err == nil {
 		t.Fatal("later key's missing original manifest was ignored")
@@ -199,7 +199,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		}
 	}
 	nullEvaluation := newEvaluation(denied)
-	_, nullErr := evaluatePartitionRecipe(&nullEvaluation, owner, 0, []sqltype.Value{sqltype.Null(owner.columns[0].Usage.Type)})
+	_, nullErr := evaluatePartitionRecipe(&nullEvaluation, owner, 0, []sqltype.Value{sqltype.Null(owner.Columns[0].Usage.Type)})
 	requireDenied(nullErr)
 	// No Eval here: a previously consumed body must be fenced after recapture.
 	if err := evaluation.statementScope.readmitPreparedPrograms(denied); err == nil {

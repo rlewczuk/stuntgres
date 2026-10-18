@@ -61,8 +61,8 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				e, _, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
 				view := e.CatalogRead()
 				r, conflict := ruleNamedDependencyAction(t, event, modifier)
-				constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID}
-				backing := parent.uniqueConstraints[0].Index
+				constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.UniqueConstraints[0].OID}
+				backing := parent.UniqueConstraints[0].Index
 				want := constraint
 				if inferred {
 					want = ids.ObjectAddress{}
@@ -146,14 +146,14 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						if inferred {
 							want = 2
 						}
-						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.descriptors[parent.address].(*relationDescriptor).uniqueConstraints) != 0 {
+						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.descriptors[parent.address].(*relationDescriptor).UniqueConstraints) != 0 {
 							t.Fatal("retirement changed unrelated rule or missed provider", rulesOf(current))
 						}
-						if stage.removals[parent.uniqueConstraints[0].Index].ref.Address != parent.uniqueConstraints[0].Index {
+						if stage.removals[parent.UniqueConstraints[0].Index].ref.Address != parent.UniqueConstraints[0].Index {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.catalog.state != before || len(rulesOf(event)) != 2 || len(parent.uniqueConstraints) != 1 {
+					if e.catalog.state != before || len(rulesOf(event)) != 2 || len(parent.UniqueConstraints) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})
@@ -182,13 +182,13 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 			var id ids.OID
 			switch kind {
 			case "unique":
-				id = parent.uniqueConstraints[0].OID
+				id = parent.UniqueConstraints[0].OID
 			case "exclusion":
-				id = parent.exclusionConstraints[0].OID
+				id = parent.ExclusionConstraints[0].OID
 			case "check":
-				id = parent.checkConstraints[0].OID
+				id = parent.CheckConstraints[0].OID
 			case "not_null":
-				id = parent.notNullConstraints[0].OID
+				id = parent.NotNullConstraints[0].OID
 			}
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: id}
 			if conflict.constraint != provider || !slices.Contains(r.references, provider) {
@@ -258,13 +258,13 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			view := e.catalog.read(next)
 			mappedParent := next.MustRelation(parent.address)
-			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.uniqueConstraints[0].OID}
+			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.UniqueConstraints[0].OID}
 			if provider == oldConstraint {
 				t.Fatal("actual import collision did not remint constraint")
 			}
 			mappedEvent := next.MustRelation(event.address)
 			mappedRule, mappedConflict := ruleNamedDependencyAction(t, mappedEvent, modifier)
-			if mappedConflict.constraint != provider || mappedConflict.namedIndex != mappedParent.uniqueConstraints[0].Index || !slices.Contains(mappedRule.references, provider) || slices.Contains(mappedRule.references, oldConstraint) {
+			if mappedConflict.constraint != provider || mappedConflict.namedIndex != mappedParent.UniqueConstraints[0].Index || !slices.Contains(mappedRule.references, provider) || slices.Contains(mappedRule.references, oldConstraint) {
 				t.Fatal("canonical import failed constraint/binding/normal-edge cutover", mappedConflict.constraint, mappedRule.references)
 			}
 			if modifier {
@@ -321,7 +321,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			if !found {
 				t.Fatal("remapped provider lost canonical retirement edge", edges)
 			}
-			if oldConflict.constraint != oldConstraint || !slices.Contains(oldRule.references, oldConstraint) || parent.uniqueConstraints[0].OID != oldConstraint.ObjectID {
+			if oldConflict.constraint != oldConstraint || !slices.Contains(oldRule.references, oldConstraint) || parent.UniqueConstraints[0].OID != oldConstraint.ObjectID {
 				t.Fatal("import remint mutated analyzed predecessor")
 			}
 		})

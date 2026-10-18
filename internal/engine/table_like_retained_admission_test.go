@@ -21,7 +21,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TEMP TABLE src(v BIGINT DEFAULT nextval('pg_temp.seed'))")
 			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 			provider := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
-			original := source.defaults[1]
+			original := source.Defaults[1]
 			manifest := slices.Clone(original.dependencies)
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
@@ -86,10 +86,10 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			copied := destination.defaults[1]
+			copied := destination.Defaults[1]
 			assertStored := func() {
 				t.Helper()
-				if !reflect.DeepEqual(copied.expression, original.expression) || !slices.Equal(copied.dependencies, manifest) || !reflect.DeepEqual(source.defaults[1].expression, original.expression) || !slices.Equal(source.defaults[1].dependencies, manifest) {
+				if !reflect.DeepEqual(copied.expression, original.expression) || !slices.Equal(copied.dependencies, manifest) || !reflect.DeepEqual(source.Defaults[1].expression, original.expression) || !slices.Equal(source.Defaults[1].dependencies, manifest) {
 					t.Fatal("acquisition rewrote stored node or manifest")
 				}
 			}
@@ -127,7 +127,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				queryCreatePublish(t, e, change)
-				if e.CatalogRead().Get(current.Address) != &replacement || replacement.address != provider.address || replacement.relationKind != provider.relationKind {
+				if e.CatalogRead().Get(current.Address) != &replacement || replacement.address != provider.address || replacement.RelationKind != provider.RelationKind {
 					t.Fatal("same-address provider replacement fixture failed")
 				}
 			}
@@ -154,7 +154,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.sequence.start, generation: replacement.revision}}
+					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.Sequence.start, generation: replacement.revision}}
 					queryCreatePublish(t, e, change)
 					if replacement.address == provider.address {
 						t.Fatal("recreated provider reused old identity")

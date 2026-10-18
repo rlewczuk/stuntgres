@@ -47,9 +47,9 @@ func (m exclusionModes) deferred(c *exclusionConstraint) bool {
 	return c.InitiallyDeferred
 }
 func exclusionDefinition(parent *relationDescriptor, index *relationDescriptor) *exclusionConstraint {
-	for i := range parent.exclusionConstraints {
-		c := &parent.exclusionConstraints[i]
-		if c.Index == index.address && c.OID == index.sqlIndex.constraint.OID {
+	for i := range parent.ExclusionConstraints {
+		c := &parent.ExclusionConstraints[i]
+		if c.Index == index.address && c.OID == index.SQLIndex.constraint.OID {
 			return c
 		}
 	}
@@ -151,7 +151,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		return rowVersion{}, err
 	}
 	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.sqlIndex.hasRuntimeDomainConversion() || bound.index.sqlIndex.method == hashMethod) {
+	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() || bound.index.SQLIndex.method == hashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
@@ -233,7 +233,7 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate deleteCandidate) {
 	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
-	if !ok || len(parent.exclusionConstraints) == 0 {
+	if !ok || len(parent.ExclusionConstraints) == 0 {
 		return
 	}
 	s.beginExclusionProjectionLocked(e)
@@ -244,7 +244,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 	}
 	ends[candidate.row] = candidate.version
 	p.ended[candidate.ref.Address] = ends
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		entries := p.entries[c.Index]
 		next := make([]exclusionEntry, 0, len(entries))
 		for _, entry := range entries {
@@ -284,7 +284,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 		return exclusionScan{}, err
 	}
 	if admission := s.foreignActionAdmissions[ref.Address]; admission != nil && admission.mutated {
-		auth = foreignActionOwner(auth, admission.relation.owner)
+		auth = foreignActionOwner(auth, admission.relation.Owner)
 	}
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
@@ -356,15 +356,15 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			if own != nil && own.ended[ref.Address][entry.row.row] == entry.row.version && committed {
 				return nil
 			}
-			match, err := exclusionKeysMatch(s.op.Context(), index.sqlIndex, current.keys, entry.keys)
+			match, err := exclusionKeysMatch(s.op.Context(), index.SQLIndex, current.keys, entry.keys)
 			if err != nil || !match {
 				return err
 			}
-			if purpose != indexProbeRevalidation && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+			if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 				if err := bound.ordering.fillKeys(entry.row.values, bound.scratch, &evaluation); err != nil {
 					return err
 				}
-				match, err = exclusionKeysMatch(s.op.Context(), index.sqlIndex, current.keys, bound.scratch)
+				match, err = exclusionKeysMatch(s.op.Context(), index.SQLIndex, current.keys, bound.scratch)
 				if err != nil || !match {
 					return err
 				}
@@ -385,7 +385,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			}
 			if hit.index == nil {
 				existing := entry.keys
-				if purpose != indexProbeRevalidation && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+				if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 					existing = slices.Clone(bound.scratch)
 				} else if committed && scan.root.hash != nil {
 					existing = slices.Clone(existing)
@@ -484,7 +484,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		}
 		indexRef := ref
 		indexRef.Address = index.address
-		if index.sqlIndex.exactEqualityClaims() {
+		if index.SQLIndex.exactEqualityClaims() {
 			if err := s.acquireUnique(indexRef, bound, keys); err != nil {
 				return uniqueConflict{}, err
 			}

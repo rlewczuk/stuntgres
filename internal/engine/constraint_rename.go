@@ -31,39 +31,39 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		return fail(err)
 	}
 	parent := scope.lockedDescriptor.(*relationDescriptor)
-	if parent.relationKind == sequenceRelation {
+	if parent.RelationKind == sequenceRelation {
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.name), Detail: "This operation is not supported for sequences."})
 	}
 	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
 	var backing ids.ObjectAddress
 	kind := byte(0)
-	for _, c := range parent.notNullConstraints {
+	for _, c := range parent.NotNullConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'n'
 			break
 		}
 	}
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'c'
 			break
 		}
 	}
-	for _, c := range parent.uniqueConstraints {
+	for _, c := range parent.UniqueConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'u'
 			backing = c.Index
 			break
 		}
 	}
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'x'
 			backing = c.Index
 			break
 		}
 	}
-	for _, c := range parent.foreignKeys {
+	for _, c := range parent.ForeignKeys {
 		if c.Name == raw.Constraint.Text {
 			kind = 'f'
 			break
@@ -148,27 +148,27 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 		}
 		return nil
 	}
-	for _, c := range parent.notNullConstraints {
+	for _, c := range parent.NotNullConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.uniqueConstraints {
+	for _, c := range parent.UniqueConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.foreignKeys {
+	for _, c := range parent.ForeignKeys {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
@@ -179,27 +179,27 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 	next := *parent
 	next.revision++
 	if kind == 'n' {
-		next.notNullConstraints = slices.Clone(parent.notNullConstraints)
-		for i := range next.notNullConstraints {
-			if next.notNullConstraints[i].Name == old {
-				next.notNullConstraints[i].Name = destination
+		next.NotNullConstraints = slices.Clone(parent.NotNullConstraints)
+		for i := range next.NotNullConstraints {
+			if next.NotNullConstraints[i].Name == old {
+				next.NotNullConstraints[i].Name = destination
 				return &next, nil
 			}
 		}
 	} else if kind == 'f' {
-		next.foreignKeys = slices.Clone(parent.foreignKeys)
-		for i := range next.foreignKeys {
-			if next.foreignKeys[i].Name == old {
-				next.foreignKeys[i].Name = destination
+		next.ForeignKeys = slices.Clone(parent.ForeignKeys)
+		for i := range next.ForeignKeys {
+			if next.ForeignKeys[i].Name == old {
+				next.ForeignKeys[i].Name = destination
 				return &next, nil
 			}
 		}
 	} else {
-		next.checkConstraints = slices.Clone(parent.checkConstraints)
-		for i := range next.checkConstraints {
-			if next.checkConstraints[i].Name == old {
-				next.checkConstraints[i].Name = destination
-				slices.SortFunc(next.checkConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+		next.CheckConstraints = slices.Clone(parent.CheckConstraints)
+		for i := range next.CheckConstraints {
+			if next.CheckConstraints[i].Name == old {
+				next.CheckConstraints[i].Name = destination
+				slices.SortFunc(next.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
 				return &next, nil
 			}
 		}

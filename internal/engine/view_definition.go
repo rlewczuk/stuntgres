@@ -78,9 +78,9 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		leaf := &definition.sources[occurrence]
 		leaf.ref, leaf.mark, leaf.only = source.ref, source.mark, source.only
 		leaf.analysisOnly = source.analysisOnly
-		leaf.attributes = append([]int32(nil), source.relation.attributes...)
+		leaf.attributes = append([]int32(nil), source.relation.Attributes...)
 		for _, slot := range source.uses {
-			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
+			leaf.reads = append(leaf.reads, source.relation.Attributes[slot])
 		}
 		if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)

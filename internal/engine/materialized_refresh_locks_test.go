@@ -50,8 +50,8 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			queryCreatePublish(t, e, stage)
 			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, source.address)
 			definition := *viewOf(d)
-			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
-			d.view = &definition
+			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.Attributes, reads: source.Attributes}}
+			d.View = &definition
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := sourceRef
@@ -159,7 +159,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if noData {
 				firstCount = 0
 			}
-			if descriptorA.populated == noData || len(afterA.versions) != firstCount || e.commitSeq != before+1 || len(original.versions) != 3 {
+			if descriptorA.Populated == noData || len(afterA.versions) != firstCount || e.commitSeq != before+1 || len(original.versions) != 3 {
 				t.Fatal("first refresh did not publish its exact immutable transition")
 			}
 			if err := a.Finish(nil); err != nil {
@@ -175,7 +175,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				t.Fatal(err)
 			}
 			final := e.catalog.state.MustRelation(d.address)
-			if e.commitSeq != before+2 || e.storage[d.address] == afterA || len(e.storage[d.address].versions) != 1 || len(afterA.versions) != firstCount || !final.populated || final.address != d.address || final.view != d.view || final.rowType != d.rowType {
+			if e.commitSeq != before+2 || e.storage[d.address] == afterA || len(e.storage[d.address].versions) != 1 || len(afterA.versions) != firstCount || !final.Populated || final.address != d.address || final.View != d.View || final.RowType != d.RowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}
 			values := e.storage[d.address].versions[0].values

@@ -52,7 +52,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 	for address, descriptor := range catalog.Descriptors() {
 		if parents != nil {
 			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.sqlIndex == nil || parents[index.sqlIndex.parent] == nil {
+			if !ok || index.SQLIndex == nil || parents[index.SQLIndex.parent] == nil {
 				continue
 			}
 		}
@@ -70,10 +70,10 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 			snapshot.partitionRows[address] = partitionRowHistory{relation: relation, store: *store, frontier: frontier}
 		}
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.ready || !index.SQLIndex.live {
 			continue
 		}
-		parent, ok := catalog.Relation(index.sqlIndex.parent)
+		parent, ok := catalog.Relation(index.SQLIndex.parent)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -82,14 +82,14 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if parent.partition != nil {
+		if parent.Partition != nil {
 			continue
 		}
 		store, root := storage[parent.address], roots[address]
 		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.address) || root != actualRoot(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.hash != nil) != (index.sqlIndex.method == hashMethod) {
+		if (root.hash != nil) != (index.SQLIndex.method == hashMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if root.hash != nil && (root.hash.storage != indexStorageIdentity(store) || root.hash.generation != store.generation || root.hash.ends != store.ends || root.hash.prefix != len(store.versions)) {
@@ -121,7 +121,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if len(entry.keys) != len(index.sqlIndex.keys) {
+				if len(entry.keys) != len(index.SQLIndex.keys) {
 					return nil, ids.ErrCatalogReplaced
 				}
 				if err := check(entry.row, entry.version, entry.position); err != nil {
@@ -214,10 +214,10 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 		}
 		address := snapshot.destination(sourceAddress)
 		index, ok := next.Relation(address)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != snapshot.destination(source.parent.address) || len(index.sqlIndex.keys) != len(source.index.sqlIndex.keys) || index.sqlIndex.method != source.index.sqlIndex.method {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != snapshot.destination(source.parent.address) || len(index.SQLIndex.keys) != len(source.index.SQLIndex.keys) || index.SQLIndex.method != source.index.SQLIndex.method {
 			return nil, ids.ErrCatalogReplaced
 		}
-		parent, ok := next.Relation(index.sqlIndex.parent)
+		parent, ok := next.Relation(index.SQLIndex.parent)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -245,8 +245,8 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 			}
 			checkedParents[parent.address] = true
 		}
-		usage := make([]sqltype.Usage, len(index.sqlIndex.keys))
-		for i, key := range index.sqlIndex.keys {
+		usage := make([]sqltype.Usage, len(index.SQLIndex.keys))
+		for i, key := range index.SQLIndex.keys {
 			var err error
 			usage[i], err = indexKeyUsage(parent, key)
 			if err != nil {
@@ -254,7 +254,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 			}
 		}
 		if source.root.hash != nil {
-			binding, err := bindHashIndex(parent, index.sqlIndex)
+			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -281,12 +281,12 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 					hash.buckets[h] = append(hash.buckets[h], entry)
 				}
 			}
-			if err := hash.captureRowEntries(ctx, index.sqlIndex); err != nil {
+			if err := hash.captureRowEntries(ctx, index.SQLIndex); err != nil {
 				return nil, err
 			}
 			roots[address] = &logicalIndexRoot{hash: hash}
 		} else {
-			ordering, err := bindIndexKeys(parent, index.sqlIndex)
+			ordering, err := bindIndexKeys(parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -317,12 +317,12 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 				row := store.versions[position]
 				entries = append(entries, logicalIndexEntry{keys: keys, row: row.row, version: row.version, position: position})
 			}
-			if index.sqlIndex.method == btreeMethod {
+			if index.SQLIndex.method == btreeMethod {
 				if err := ordering.sort(ctx, entries); err != nil {
 					return nil, err
 				}
 			}
-			roots[address] = newLogicalIndexRoot(index.sqlIndex, entries)
+			roots[address] = newLogicalIndexRoot(index.SQLIndex, entries)
 		}
 	}
 	return roots, ctx.Err()

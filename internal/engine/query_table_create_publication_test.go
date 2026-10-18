@@ -91,7 +91,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			for i := range rows {
 				rows[i] = make([]sqltype.Value, tc.width)
 				if tc.width != 0 {
-					rows[i][0], _ = sqltype.Integer(d.columns[0].Usage.Type, 7)
+					rows[i][0], _ = sqltype.Integer(d.Columns[0].Usage.Type, 7)
 				}
 			}
 			if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
@@ -145,7 +145,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			registry := queryCreateTypes(e)
 			stage, d := queryCreateStage(t, e, "copy", 1)
 			defer e.DiscardCatalogStage(stage)
-			value, _ := sqltype.Integer(d.columns[0].Usage.Type, 7)
+			value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 			rows := [][]sqltype.Value{{value}}
 			if phase == "row_identity" {
 				e.nextRow = math.MaxUint64
@@ -314,7 +314,7 @@ func (p queryCreateProbeProvider) Validate(view CatalogRead, d Descriptor) error
 func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	e := New()
 	stage, d := queryCreateStage(t, e, "copy", 1)
-	value, _ := sqltype.Integer(d.columns[0].Usage.Type, 7)
+	value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +336,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	e := New()
 	ordinaryStage, ordinary := queryCreateStage(t, e, "ordinary", 1)
 	queryCreatePublish(t, e, ordinaryStage)
-	value, _ := sqltype.Integer(ordinary.columns[0].Usage.Type, 7)
+	value, _ := sqltype.Integer(ordinary.Columns[0].Usage.Type, 7)
 	discarded, d := queryCreateStage(t, e, "discarded", 1)
 	if err := e.stageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)

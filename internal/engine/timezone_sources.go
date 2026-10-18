@@ -13,19 +13,19 @@ import (
 // input belong to this execution; provider loading never extends catalog locks.
 func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor, input sqltype.InputEnvironment) (*querySource, error) {
 	var rows [][]sqltype.Value
-	offsetIndex := len(d.columns) - 2
+	offsetIndex := len(d.Columns) - 2
 	appendFact := func(name, abbrev string, east int32, daylight bool) error {
-		offset, err := sqltype.IntervalValue(d.columns[offsetIndex].Usage.Type, 0, 0, int64(east)*1000000)
+		offset, err := sqltype.IntervalValue(d.Columns[offsetIndex].Usage.Type, 0, 0, int64(east)*1000000)
 		if err != nil {
 			return err
 		}
-		row := make([]sqltype.Value, len(d.columns))
+		row := make([]sqltype.Value, len(d.Columns))
 		if offsetIndex == 2 {
-			row[0] = sqltype.String(d.columns[0].Usage.Type, name)
+			row[0] = sqltype.String(d.Columns[0].Usage.Type, name)
 		}
-		row[offsetIndex-1] = sqltype.String(d.columns[offsetIndex-1].Usage.Type, abbrev)
+		row[offsetIndex-1] = sqltype.String(d.Columns[offsetIndex-1].Usage.Type, abbrev)
 		row[offsetIndex] = offset
-		row[offsetIndex+1] = sqltype.Boolean(d.columns[offsetIndex+1].Usage.Type, daylight)
+		row[offsetIndex+1] = sqltype.Boolean(d.Columns[offsetIndex+1].Usage.Type, daylight)
 		rows = append(rows, row)
 		return nil
 	}

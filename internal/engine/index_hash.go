@@ -112,7 +112,7 @@ func bindHashIndex(parent *relationDescriptor, d *indexDefinition) (hashIndexBin
 		}
 		b.slot, b.expression = -1, key.derived.execution
 	} else {
-		b.slot = slices.Index(parent.attributes, key.attribute)
+		b.slot = slices.Index(parent.Attributes, key.attribute)
 		if b.slot < 0 {
 			return b, fmt.Errorf("stuntgres: missing hash attribute")
 		}
@@ -225,7 +225,7 @@ func publicationSlot(p *rowPublication, i int) int {
 
 func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old *logicalIndexRoot, p *rowPublication, reconstruct, materialize bool) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
-	d := index.sqlIndex
+	d := index.SQLIndex
 	if d.method != hashMethod || len(d.keys) != 1 || len(d.include) != 0 || d.unique {
 		return nil, fmt.Errorf("stuntgres: invalid hash merge definition")
 	}
@@ -251,7 +251,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 		if class.Name == "" {
 			class, _ = d.method.defaultClass(usage.Type)
 		}
-		slot := slices.Index(parent.attributes, key.attribute)
+		slot := slices.Index(parent.Attributes, key.attribute)
 		if key.derived != nil {
 			slot = -1
 		}

@@ -109,7 +109,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		view := e.CatalogRead()
 		table := view.MustRelation(roleTableRef(t, e, "body_defaults").Address)
 		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
-		def := table.defaults[table.attributes[0]]
+		def := table.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.expression, refs: def.dependencies},
 			{consumer: stored, node: viewOf(stored).query.Root.(*projectNode).expressions[0], checks: viewOf(stored).dependencies},
@@ -155,7 +155,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	targetAuth := authority(target)
 	imported := capture(target)
 	for i, item := range imported {
-		if item.consumer == original[i].consumer || item.consumer.owner != target.authorizationDomain.Principal(item.consumer.owner.ID()) {
+		if item.consumer == original[i].consumer || item.consumer.Owner != target.authorizationDomain.Principal(item.consumer.Owner.ID()) {
 			t.Fatal("stored consumer retained source ownership", i)
 		}
 		call, err := expressionRoutineDescriptor(item.node)

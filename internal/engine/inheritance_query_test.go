@@ -45,11 +45,11 @@ func TestInheritanceQueryClosure(t *testing.T) {
 func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *relationDescriptor {
 	d := inheritanceLifecycleTable(e, id, "layout")
 	for i, name := range names {
-		d.columns = append(d.columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
-		d.attributes = append(d.attributes, int32(i+1))
-		d.index[name] = i
+		d.Columns = append(d.Columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
+		d.Attributes = append(d.Attributes, int32(i+1))
+		d.Index[name] = i
 	}
-	d.attributeHighWater = int32(len(names))
+	d.AttributeHighWater = int32(len(names))
 	return d
 }
 
@@ -95,7 +95,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if values := (&inheritanceQuerySegment{layout: zero}).mapValues(values); len(values) != 0 {
 		t.Fatal(values)
 	}
-	child.columns[1].Usage = testUsage(e, sqltype.Int8)
+	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
 	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}

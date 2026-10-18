@@ -23,10 +23,10 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 	if guardedCatalogRelation(d) {
 		return guardedCatalogMutationError(auth, d, true)
 	}
-	if d.relationKind == foreignRelation {
+	if d.RelationKind == foreignRelation {
 		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
 	}
-	if d.relationKind != tableRelation && d.relationKind != partitionedRelation {
+	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
 		return sqlError("42809", fmt.Sprintf("%q is not a table", d.name))
 	}
 	if privilege {
@@ -34,7 +34,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 			return err
 		}
 	}
-	if only && d.partition != nil {
+	if only && d.Partition != nil {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot truncate only a partitioned table", Hint: "Do not specify the ONLY keyword, or use TRUNCATE ONLY on the partitions directly."}
 	}
 	return nil
@@ -99,7 +99,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			// Do not acquire, select or descend into another session's TEMP branch.
 			return nil
 		}
-		if before.membership != nil {
+		if before.Membership != nil {
 			if err = s.acquirePartitionAncestors(ref); err != nil {
 				return err
 			}
@@ -164,8 +164,8 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil && recurse && !expanded[ref.Address] {
 			expanded[ref.Address] = true
 			children = inheritanceChildren(auth.catalog, ref.Address)
-			if d.partition != nil {
-				for _, address := range d.partition.children {
+			if d.Partition != nil {
+				for _, address := range d.Partition.children {
 					child, ok := auth.catalog.Relation(address)
 					if !ok {
 						err = ids.ErrCatalogReplaced
@@ -258,7 +258,7 @@ func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int
 		if !ok || selected[address] != 0 {
 			continue
 		}
-		for _, fk := range d.foreignKeys {
+		for _, fk := range d.ForeignKeys {
 			if selected[fk.Target] != 0 {
 				parent, _ := catalog.Relation(fk.Target)
 				if parent != nil {

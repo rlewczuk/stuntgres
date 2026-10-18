@@ -121,7 +121,7 @@ func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func
 	}
 	backing := roleTableRef(t, e, "pair")
 	sourceRelation := e.CatalogRead().MustRelation(backing.Address)
-	source := e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceRelation.rowType)})
+	source := e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceRelation.RowType)})
 	reader, done := roleOperation(t, e, "typed_reader")
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, source.Address(), grant)
@@ -150,14 +150,14 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 			relation = table
 		}
 	}
-	if relation == nil || relation.ofType != source.Address() || private.storage[relation.address].replacement == nil {
+	if relation == nil || relation.OfType != source.Address() || private.storage[relation.address].replacement == nil {
 		t.Fatal("successful statement did not install actual private TEMP attachment/store")
 	}
 	typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 	winner := e.CatalogRead().Get(observed)
 	roleExecute(t, e, reader, "COMMIT")
 	view := e.CatalogRead()
-	if view.Get(relation.address) != relation || view.Get(observed) != winner || e.storage[relation.address] == nil || relation.ofType != source.Address() {
+	if view.Get(relation.address) != relation || view.Get(observed) != winner || e.storage[relation.address] == nil || relation.OfType != source.Address() {
 		t.Fatal("outer COMMIT reauthorized successful statement or lost attachment/store/ACL winner")
 	}
 	roleError(t, e, reader, "CREATE TEMP TABLE fresh OF pair", "42501", "permission denied for type pair", "")

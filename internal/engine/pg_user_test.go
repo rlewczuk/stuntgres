@@ -66,24 +66,24 @@ func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) autho
 func TestPGUserDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgUserUnitSource(t, e)
-	if d.name != "pg_user" || !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != 9 || len(d.attributes) != 9 || len(d.index) != 9 || d.attributeHighWater != 9 {
+	if d.name != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}
 	types := []sqltype.ID{sqltype.Name, sqltype.Oid, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Text, sqltype.Timestamptz, 1009}
 	collations := []uint32{950, 0, 0, 0, 0, 0, 100, 0, 950}
-	for i, c := range d.columns {
-		if c.Name != names[i] || c.Usage.Type.ID() != types[i] || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12014 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[c.Name] != i {
+	for i, c := range d.Columns {
+		if c.Name != names[i] || c.Usage.Type.ID() != types[i] || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12014 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i {
 			t.Fatal("exact pg_user metadata", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	if d.rowType != 12016 {
+	if d.RowType != 12016 {
 		t.Fatal("existing row identity not reused")
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016})
@@ -127,7 +127,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 	}
 	for id, row := range bag {
 		for i, value := range row {
-			if value.Type() != d.columns[i].Usage.Type {
+			if value.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("wrong concrete descriptor", i)
 			}
 		}
@@ -213,11 +213,11 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.name = name
-		view.relationKind = viewRelation
-		view.virtualView = false
+		view.RelationKind = viewRelation
+		view.VirtualView = false
 		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
-		attrs := append([]int32(nil), d.attributes...)
-		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
+		attrs := append([]int32(nil), d.Attributes...)
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
 		e.catalog.state.setDescriptor(view.address, &view)
 		return viewRef
 	}
@@ -272,8 +272,8 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 		}
 	}
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
 	if source, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
@@ -318,8 +318,8 @@ func TestPGUserResolvedWriteTargets(t *testing.T) {
 	}
 	// Resolved attribute identity, not coincidental name spelling, chooses mask rejection.
 	renamed := *d
-	renamed.columns = append([]ColumnDescriptor(nil), d.columns...)
-	renamed.columns[6].Name = "alias"
+	renamed.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	renamed.Columns[6].Name = "alias"
 	if !reflect.DeepEqual(virtualViewWriteError(d, "update", []int{6}), virtualViewWriteError(&renamed, "update", []int{6})) {
 		t.Fatal("write diagnostic depends on text spelling")
 	}

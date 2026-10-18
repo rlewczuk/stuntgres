@@ -79,15 +79,15 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 		return false, scope.op.Context().Err()
 	}
 	var keys [32]expr.Expr
-	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
-	for i, column := range parent.columns {
-		slot, ok := relation.index[column.Name]
+	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+	for i, column := range parent.Columns {
+		slot, ok := relation.Index[column.Name]
 		if !ok {
 			return false, ids.ErrCatalogReplaced
 		}
 		in.targetSlots[i] = slot
 	}
-	for i, key := range parent.partition.keys {
+	for i, key := range parent.Partition.keys {
 		var node expr.Expr
 		if key.derived != nil {
 			var err error
@@ -98,15 +98,15 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 		} else {
 			slot := in.targetSlots[parent.indexForAttribute(key.attribute)]
 			ref := catalog.owner.domain.Ref(catalog.Epoch(), relation.address)
-			ref.Address.SubID = relation.attributes[slot]
-			node = columnExpression{Info: expr.Info{Usage: relation.columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+			ref.Address.SubID = relation.Attributes[slot]
+			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}
 		if node.ResultUsage().Collation.ID != key.usage.Collation.ID {
 			node = collationExpression{Info: expr.Info{Usage: key.usage, Property: node.Properties()}, child: node}
 		}
 		keys[i] = node
 	}
-	proof := partitionProof{scope: scope, relation: relation, keys: keys[:len(parent.partition.keys)], entries: parent.partition.keys}
+	proof := partitionProof{scope: scope, relation: relation, keys: keys[:len(parent.Partition.keys)], entries: parent.Partition.keys}
 	goalFor := func(membership *partitionMembership, complement bool) (*partitionProofGoal, bool) {
 		if complement {
 			return partitionProofOr(partitionProofTuple(membership.lower, 0, false), partitionProofTuple(membership.upper, 0, true)), true
@@ -116,12 +116,12 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 	goal := &partitionProofGoal{op: "true"}
 	nullAllowed := exclude || bound.defaultBound
 	if bound.defaultBound {
-		for _, address := range parent.partition.children {
+		for _, address := range parent.Partition.children {
 			child := catalog.MustRelation(address)
-			if child.membership.defaultBound {
+			if child.Membership.defaultBound {
 				continue
 			}
-			part, _ := goalFor(child.membership, true)
+			part, _ := goalFor(child.Membership, true)
 			goal = partitionProofAnd(goal, part)
 		}
 	} else {
@@ -154,13 +154,13 @@ func partitionProofSame(a, b expr.Expr) bool {
 
 func (p *partitionProof) nonNull(key expr.Expr) bool {
 	if column, ok := key.(columnExpression); ok {
-		for _, constraint := range p.relation.notNullConstraints {
+		for _, constraint := range p.relation.NotNullConstraints {
 			if constraint.Attribute == column.origin.Address.SubID && !constraint.NotValid {
 				return true
 			}
 		}
 	}
-	for _, check := range p.relation.checkConstraints {
+	for _, check := range p.relation.CheckConstraints {
 		if !check.NotValid && partitionCheckNonNull(check.expression, key) {
 			return true
 		}
@@ -197,7 +197,7 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 		}
 		return p.implies(goal.right)
 	}
-	for _, check := range p.relation.checkConstraints {
+	for _, check := range p.relation.CheckConstraints {
 		if check.NotValid {
 			continue
 		}

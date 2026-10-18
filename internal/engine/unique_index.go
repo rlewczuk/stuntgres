@@ -13,7 +13,7 @@ func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDes
 	var indexes []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent && (index.sqlIndex.unique || index.sqlIndex.isExclusion()) {
+		if ok && index.SQLIndex != nil && index.SQLIndex.parent == parent && (index.SQLIndex.unique || index.SQLIndex.isExclusion()) {
 			indexes = append(indexes, index)
 		}
 	}
@@ -40,7 +40,7 @@ func validateUniqueProviders(parent *relationDescriptor, definition *indexDefini
 		if key.derived != nil {
 			return insertError("0A000", "unique expression indexes are unsupported", position)
 		}
-		usage := parent.columns[slices.Index(parent.attributes, key.attribute)].Usage
+		usage := parent.Columns[slices.Index(parent.Attributes, key.attribute)].Usage
 		if (key.class.Name == "bpchar_ops" || key.class.Name == "bpchar_pattern_ops") && usage.Type.BaseType().ID() != sqltype.BPChar {
 			if len(raw) != 0 && raw[i].Opclass != nil {
 				position = raw[i].Opclass.Parts[0].Pos

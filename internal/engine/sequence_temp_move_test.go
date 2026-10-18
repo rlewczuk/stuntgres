@@ -166,7 +166,7 @@ func TestSequenceTemporaryMovePrecedenceAndPersistentMove(t *testing.T) {
 				t.Fatal("ordinary persistent move", err)
 			}
 			after := e.catalog.state.MustRelation(ref.Address)
-			if after.address != before.address || after.namespace == before.namespace || after.sequencePlanStamp == before.sequencePlanStamp || !reflect.DeepEqual(after.sequence, before.sequence) || *e.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
+			if after.address != before.address || after.namespace == before.namespace || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
 				t.Fatal("persistent move changed identity/options/cache or failed to invalidate")
 			}
 			_, err = sequencePreparedExecute(e, s, ast, &held)

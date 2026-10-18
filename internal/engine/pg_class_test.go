@@ -20,21 +20,21 @@ func TestPgClassProjection(t *testing.T) {
 	source := pgClassUnitSource(t, e)
 	names := []string{"oid", "relname", "relnamespace", "reltype", "reloftype", "relowner", "relam", "relfilenode", "reltablespace", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relhasindex", "relisshared", "relpersistence", "relkind", "relnatts", "relchecks", "relhasrules", "relhastriggers", "relhassubclass", "relrowsecurity", "relforcerowsecurity", "relispopulated", "relreplident", "relispartition", "relrewrite", "relfrozenxid", "relminmxid", "relacl", "reloptions", "relpartbound"}
 	typeIDs := []sqltype.ID{26, 19, 26, 26, 26, 26, 26, 26, 26, 23, 700, 23, 23, 26, 16, 16, 18, 18, 21, 21, 16, 16, 16, 16, 16, 16, 18, 16, 26, 28, 28, 1034, 1009, 194}
-	if len(source.columns) != 34 || source.attributeHighWater != 34 {
-		t.Fatal("full catalog schema", source.columns, source.attributeHighWater)
+	if len(source.Columns) != 34 || source.AttributeHighWater != 34 {
+		t.Fatal("full catalog schema", source.Columns, source.AttributeHighWater)
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		if column.Name != names[i] || column.Usage.Type.ID() != typeIDs[i] || !column.NullabilityKnown || column.Nullable != (i >= 31) || column.OriginTable != 1259 || column.OriginAttribute != int16(i+1) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "projection", owner: e.authorizationDomain.Principal(10), rowType: 200002, ofType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, attributeHighWater: 2, hasIndexes: true, hasSubclasses: true, rlsEnabled: true, rlsForced: true, checkConstraints: make([]checkConstraint, 2)}
+	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, HasIndexes: true, HasSubclasses: true, RLSEnabled: true, RLSForced: true, CheckConstraints: make([]checkConstraint, 2)}
 	row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
 	}
 	for i, value := range row {
-		if value.Type() != source.columns[i].Usage.Type || value.IsNull() != (i >= 31) {
+		if value.Type() != source.Columns[i].Usage.Type || value.IsNull() != (i >= 31) {
 			t.Fatal("value carrier", i, value)
 		}
 	}
@@ -94,21 +94,21 @@ func TestPgClassKinds(t *testing.T) {
 		kind relationKind
 		want string
 	}{{tableRelation, "r"}, {sequenceRelation, "S"}, {viewRelation, "v"}, {materializedViewRelation, "m"}, {compositeRelation, "c"}, {partitionedRelation, "p"}} {
-		if got := pgClassKind(catalog, &relationDescriptor{relationKind: tc.kind}); got != tc.want {
+		if got := pgClassKind(catalog, &relationDescriptor{RelationKind: tc.kind}); got != tc.want {
 			t.Fatal(tc, got)
 		}
 	}
 	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
 		d := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		before := d.virtualView
-		if got := pgClassKind(catalog, d); got != "v" || d.virtualView != before {
+		before := d.VirtualView
+		if got := pgClassKind(catalog, d); got != "v" || d.VirtualView != before {
 			t.Fatal("classification changed dispatch", oid, got)
 		}
 	}
 	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200010}
 	state := cloneCatalog(catalog.state)
-	state.setDescriptor(parentAddress, &relationDescriptor{address: parentAddress, partition: &partitionDefinition{}})
-	index := &relationDescriptor{relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress}}
+	state.setDescriptor(parentAddress, &relationDescriptor{address: parentAddress, Partition: &partitionDefinition{}})
+	index := &relationDescriptor{RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: parentAddress}}
 	if got := pgClassKind(e.catalog.read(state), index); got != "I" {
 		t.Fatal(got)
 	}
@@ -125,7 +125,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE acl_translation_grantor")
 	roles := e.Roles()
-	array := pgClassUnitSource(t, e).columns[31].Usage.Type
+	array := pgClassUnitSource(t, e).Columns[31].Usage.Type
 	owner := e.authorizationDomain.Principal(10)
 	for _, tc := range []struct {
 		privilege authorization.Privileges

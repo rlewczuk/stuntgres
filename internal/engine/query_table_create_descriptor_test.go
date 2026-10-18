@@ -66,18 +66,18 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal(err, skipped)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if len(d.columns) != 2 || d.columns[0].Name != "renamed" || d.columns[1].Name != "d" || d.columns[0].Usage != sized || d.columns[1].Usage != domain.typ.Usage() {
-		t.Fatal(d.columns)
+	if len(d.Columns) != 2 || d.Columns[0].Name != "renamed" || d.Columns[1].Name != "d" || d.Columns[0].Usage != sized || d.Columns[1].Usage != domain.typ.Usage() {
+		t.Fatal(d.Columns)
 	}
-	if &d.columns[0] == &schema[0] || schema[0].Name != "old" || schema[0].Nullable || schema[0].OriginTable != 19000 {
+	if &d.Columns[0] == &schema[0] || schema[0].Name != "old" || schema[0].Nullable || schema[0].OriginTable != 19000 {
 		t.Fatal("source metadata mutated", schema)
 	}
-	for i, column := range d.columns {
-		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(d.address.ObjectID) || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[column.Name] != i {
-			t.Fatal(column, d.attributes, d.index)
+	for i, column := range d.Columns {
+		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(d.address.ObjectID) || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[column.Name] != i {
+			t.Fatal(column, d.Attributes, d.Index)
 		}
 	}
-	if len(d.notNullConstraints)+len(d.checkConstraints)+len(d.uniqueConstraints)+len(d.defaults)+len(d.generations)+len(d.identities)+len(d.columnACL) != 0 || !reflect.DeepEqual(d.acl, authorization.ACLValue{}) || d.owner != auth.state.CurrentUser {
+	if len(d.NotNullConstraints)+len(d.CheckConstraints)+len(d.UniqueConstraints)+len(d.Defaults)+len(d.Generations)+len(d.Identities)+len(d.ColumnACL) != 0 || !reflect.DeepEqual(d.ACL, authorization.ACLValue{}) || d.Owner != auth.state.CurrentUser {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)

@@ -51,17 +51,17 @@ func TestPGDependShape(t *testing.T) {
 	if !ok {
 		t.Fatal("missing pg_depend descriptor")
 	}
-	if source.name != "pg_depend" || source.namespace.ObjectID != 11 || source.relationKind != catalogRelation || source.attributeHighWater != 7 || len(source.columns) != 7 {
+	if source.name != "pg_depend" || source.namespace.ObjectID != 11 || source.RelationKind != catalogRelation || source.AttributeHighWater != 7 || len(source.Columns) != 7 {
 		t.Fatal(source)
 	}
 	names := []string{"classid", "objid", "objsubid", "refclassid", "refobjid", "refobjsubid", "deptype"}
 	types := []sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Char}
-	for i, column := range source.columns {
-		if column.Name != names[i] || column.Usage.Type.ID() != types[i] || column.Nullable || !column.NullabilityKnown || column.OriginTable != 2608 || column.OriginAttribute != int16(i+1) || source.attributes[i] != int32(i+1) {
+	for i, column := range source.Columns {
+		if column.Name != names[i] || column.Usage.Type.ID() != types[i] || column.Nullable || !column.NullabilityKnown || column.OriginTable != 2608 || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	if _, ok := source.index["oid"]; ok {
+	if _, ok := source.Index["oid"]; ok {
 		t.Fatal("fabricated oid")
 	}
 	if err := (relationProvider{}).Validate(catalog, source); err != nil {
@@ -86,14 +86,14 @@ func TestPGDependConstructionBags(t *testing.T) {
 	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
 	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
 	uq := uniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
-	table := &relationDescriptor{address: tableAddress, namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: tableRelation, attributes: []int32{2, 3, 4, 5}, attributeHighWater: 5, columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, notNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, checkConstraints: []checkConstraint{{OID: 42002, expression: repeated}, {OID: 42004, expression: constant}}, uniqueConstraints: []uniqueConstraint{uq}, defaults: map[int32]columnDefault{3: {OID: 43001, expression: constant}}, generations: map[int32]columnGeneration{4: {kind: generationStored, OID: 43002, expression: repeated}}}
+	table := &relationDescriptor{address: tableAddress, namespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: tableRelation, Attributes: []int32{2, 3, 4, 5}, AttributeHighWater: 5, Columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, NotNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, CheckConstraints: []checkConstraint{{OID: 42002, expression: repeated}, {OID: 42004, expression: constant}}, UniqueConstraints: []uniqueConstraint{uq}, Defaults: map[int32]columnDefault{3: {OID: 43001, expression: constant}}, Generations: map[int32]columnGeneration{4: {kind: generationStored, OID: 43002, expression: repeated}}}
 	catalog.state.setDescriptor(tableAddress, table)
-	simple := &relationDescriptor{address: pgDependUnitAddress(1259, 44001, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, keys: []indexKey{{attribute: 2}, {attribute: 2}}, include: []int32{3}}}
-	expression := &relationDescriptor{address: pgDependUnitAddress(1259, 44002, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, keys: []indexKey{{derived: &derivedIndexKey{definition: repeated}}}}}
-	backing := &relationDescriptor{address: pgDependUnitAddress(1259, 44003, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, unique: true, keys: []indexKey{{attribute: 5}}, include: []int32{3}, constraint: uniqueBacking(&uq)}}
-	standalone := &relationDescriptor{address: pgDependUnitAddress(1259, 44004, 0), relationKind: indexRelation, sqlIndex: &indexDefinition{parent: tableAddress, unique: true, keys: []indexKey{{attribute: 2}}, include: []int32{3}}}
-	sequence := &relationDescriptor{address: pgDependUnitAddress(1259, 45001, 0), namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: sequenceRelation, sequence: &sequenceOptions{owned: column}}
-	identity := &relationDescriptor{address: pgDependUnitAddress(1259, 45002, 0), namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: sequenceRelation, sequence: &sequenceOptions{owned: column, identity: true}}
+	simple := &relationDescriptor{address: pgDependUnitAddress(1259, 44001, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: tableAddress, keys: []indexKey{{attribute: 2}, {attribute: 2}}, include: []int32{3}}}
+	expression := &relationDescriptor{address: pgDependUnitAddress(1259, 44002, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: tableAddress, keys: []indexKey{{derived: &derivedIndexKey{definition: repeated}}}}}
+	backing := &relationDescriptor{address: pgDependUnitAddress(1259, 44003, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: tableAddress, unique: true, keys: []indexKey{{attribute: 5}}, include: []int32{3}, constraint: uniqueBacking(&uq)}}
+	standalone := &relationDescriptor{address: pgDependUnitAddress(1259, 44004, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: tableAddress, unique: true, keys: []indexKey{{attribute: 2}}, include: []int32{3}}}
+	sequence := &relationDescriptor{address: pgDependUnitAddress(1259, 45001, 0), namespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{owned: column}}
+	identity := &relationDescriptor{address: pgDependUnitAddress(1259, 45002, 0), namespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{owned: column, identity: true}}
 	for _, d := range []*relationDescriptor{simple, expression, backing, standalone, sequence, identity} {
 		catalog.state.setDescriptor(d.address, d)
 	}

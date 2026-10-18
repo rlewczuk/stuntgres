@@ -61,7 +61,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	stage.indexSets = g.indexSets
 	for address, observed := range g.descriptors {
-		if observed.sqlIndex != nil {
+		if observed.SQLIndex != nil {
 			stage.domainBases = append(stage.domainBases, g.descriptors[address])
 		}
 	}
@@ -70,10 +70,10 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
 			original := g.descriptors[ref.Address]
-			if !original.sqlIndex.ready || !original.sqlIndex.valid || !original.sqlIndex.live {
-				next, definition := *original, *original.sqlIndex
+			if !original.SQLIndex.ready || !original.SQLIndex.valid || !original.SQLIndex.live {
+				next, definition := *original, *original.SQLIndex
 				definition.ready, definition.valid, definition.live = true, true, true
-				next.sqlIndex = &definition
+				next.SQLIndex = &definition
 				if next.revision == ids.DefinitionRevision(^uint64(0)) {
 					e.mu.Unlock()
 					return Result{}, fmt.Errorf("stuntgres: index revision exhausted")
@@ -148,7 +148,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		}
 	}
 	for address, observed := range s.indexRebuilds {
-		if observed == nil || observed.sqlIndex == nil || current.Get(address) != observed || s.base.Get(address) != observed {
+		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.base.Get(address) != observed {
 			return CatalogConflict{}
 		}
 	}
@@ -156,7 +156,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		actual := 0
 		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*relationDescriptor)
-			if !ok || d.sqlIndex == nil || d.sqlIndex.parent != parent {
+			if !ok || d.SQLIndex == nil || d.SQLIndex.parent != parent {
 				continue
 			}
 			// Replacement observes the existing complete index set; it does

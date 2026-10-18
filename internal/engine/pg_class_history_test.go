@@ -10,7 +10,7 @@ import (
 
 func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
 	state := cloneCatalog(e.CatalogRead().state)
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "history_parent", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "history_parent", revision: 1, Owner: e.authorizationDomain.Principal(10)}
 	state.setDescriptor(parent.address, parent)
 	state.bindName(descriptorNameKey(parent), parent.address)
 	return e.catalog.read(state), parent
@@ -23,16 +23,16 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			base, parent := pgClassHistoryCatalog(e)
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, namespace: parent.namespace, name: "history_child", revision: 1, owner: parent.owner}
+			child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, namespace: parent.namespace, name: "history_child", revision: 1, Owner: parent.Owner}
 			switch edge {
 			case "inheritance":
-				child.inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}}
+				child.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}}
 			case "table_partition":
-				child.membership = &partitionMembership{parent: parent.address}
+				child.Membership = &partitionMembership{parent: parent.address}
 			case "index_partition":
-				child.sqlIndex = &indexDefinition{partitionParent: parent.address}
+				child.SQLIndex = &indexDefinition{partitionParent: parent.address}
 			case "ordinary_index":
-				child.sqlIndex = &indexDefinition{parent: parent.address}
+				child.SQLIndex = &indexDefinition{parent: parent.address}
 			}
 			if err := stage.Create(child); err != nil {
 				t.Fatal(err)
@@ -51,7 +51,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			}
 			got := stage.descriptors[parent.address].(*relationDescriptor)
 			want := edge != "ordinary_index"
-			if got.hasSubclasses != want || got.name != next.name || got.revision != next.revision || parent.hasSubclasses || next.hasSubclasses {
+			if got.HasSubclasses != want || got.name != next.name || got.revision != next.revision || parent.HasSubclasses || next.HasSubclasses {
 				t.Fatal("candidate/source immutability", got, parent, &next)
 			}
 			if base.Get(parent.address) != parent {
@@ -63,7 +63,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if _, err := e.ValidateCatalogStage(canceled, stage); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if parent.hasSubclasses {
+			if parent.HasSubclasses {
 				t.Fatal("canceled candidate mutated base")
 			}
 		})
@@ -73,8 +73,8 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "same_stage", revision: 7, rowType: 200112, owner: e.authorizationDomain.Principal(10)}
-	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, namespace: parent.namespace, name: "same_child", revision: 8, owner: parent.owner, inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "same_stage", revision: 7, RowType: 200112, Owner: e.authorizationDomain.Principal(10)}
+	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, namespace: parent.namespace, name: "same_child", revision: 8, Owner: parent.Owner, Inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
 	if err := stage.Create(parent); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := stage.descriptors[parent.address].(*relationDescriptor)
-	if !got.hasSubclasses || got.revision != 7 || got.rowType != 200112 || parent.hasSubclasses {
+	if !got.HasSubclasses || got.revision != 7 || got.RowType != 200112 || parent.HasSubclasses {
 		t.Fatal("same-stage identity/history", got)
 	}
 }
@@ -96,22 +96,22 @@ func TestPgClassSubclassPublication(t *testing.T) {
 func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	catalog, parent := pgClassHistoryCatalog(e)
-	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
+	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
 	catalog.state.setDescriptor(child.address, child)
-	history := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, hasSubclasses: true, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+	history := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 	catalog.state.setDescriptor(history.address, history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), catalog); err != nil {
 		t.Fatal(err)
 	}
 	got := catalog.MustRelation(parent.address)
-	if !got.hasSubclasses || got == parent || parent.hasSubclasses || !history.hasSubclasses {
+	if !got.HasSubclasses || got == parent || parent.HasSubclasses || !history.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
 	base := e.catalog.read(cloneCatalog(catalog.state))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
-	cleared.hasSubclasses = false
+	cleared.HasSubclasses = false
 	if err := stage.Replace(&cleared); err == nil {
 		t.Fatal("same-identity replacement cleared lazy history")
 	}

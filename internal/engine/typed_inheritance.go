@@ -22,7 +22,7 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 		}
 	}
 	for _, descriptor := range catalog.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.ofType == source {
+		if table, ok := descriptor.(*relationDescriptor); ok && table.OfType == source {
 			visit(table)
 		}
 	}
@@ -32,14 +32,14 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 	rowTypes := make([]sqltype.ID, 1, len(result)+1)
 	rowTypes[0] = sqltype.ID(source.ObjectID)
 	for _, descriptor := range result {
-		rowTypes = append(rowTypes, descriptor.(*relationDescriptor).rowType)
+		rowTypes = append(rowTypes, descriptor.(*relationDescriptor).RowType)
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.relationKind.stored() || result[table.address] != nil {
+		if !ok || !table.RelationKind.stored() || result[table.address] != nil {
 			continue
 		}
-		for _, column := range table.columns {
+		for _, column := range table.Columns {
 			typ := column.Usage.Type
 			if !typ.IsDomain() && !typ.IsArray() && !typ.IsComposite() {
 				continue
@@ -88,7 +88,7 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 		}
 	}
 	for _, descriptor := range catalog.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.ofType == source {
+		if table, ok := descriptor.(*relationDescriptor); ok && table.OfType == source {
 			selectTable(table)
 		}
 	}
@@ -100,8 +100,8 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 			return
 		}
 		seen[table.address] = true
-		if table.inheritance != nil {
-			for _, parent := range table.inheritance.parents {
+		if table.Inheritance != nil {
+			for _, parent := range table.Inheritance.parents {
 				if d := selected[parent]; d != nil {
 					visit(d)
 				}
@@ -131,40 +131,40 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bool) ([]typedColumnAction, map[int32]string) {
 	var actions []typedColumnAction
 	renames := make(map[int32]string)
-	for i, attribute := range old.attributes {
-		target := table.attributes[i]
-		name := table.columns[i].Name
+	for i, attribute := range old.Attributes {
+		target := table.Attributes[i]
+		name := table.Columns[i].Name
 		slot := next.indexForAttribute(attribute)
 		if slot < 0 {
 			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: name}, Mode: parser.DropCascade}})
 			continue
 		}
-		if next.columns[slot].Name != name {
-			renames[target] = next.columns[slot].Name
+		if next.Columns[slot].Name != name {
+			renames[target] = next.Columns[slot].Name
 		}
-		if forced[attribute] || next.columns[slot].Usage != table.columns[i].Usage {
-			usage := next.columns[slot].Usage
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: name}}, usage: &usage, declaredDimensions: next.columns[slot].DeclaredDimensions})
+		if forced[attribute] || next.Columns[slot].Usage != table.Columns[i].Usage {
+			usage := next.Columns[slot].Usage
+			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: name}}, usage: &usage, declaredDimensions: next.Columns[slot].DeclaredDimensions})
 		}
 	}
-	for i, attribute := range next.attributes {
+	for i, attribute := range next.Attributes {
 		if old.hasAttribute(attribute) {
 			continue
 		}
-		usage := next.columns[i].Usage
-		actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: next.columns[i].Name}}, usage: &usage, declaredDimensions: next.columns[i].DeclaredDimensions})
+		usage := next.Columns[i].Usage
+		actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: next.Columns[i].Name}}, usage: &usage, declaredDimensions: next.Columns[i].DeclaredDimensions})
 	}
 	return actions, renames
 }
 
 func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *tableInheritance, error) {
-	graph := *old.inheritance
+	graph := *old.Inheritance
 	graph.columns = maps.Clone(graph.columns)
 	graph.checks = maps.Clone(graph.checks)
 	graph.notNull = maps.Clone(graph.notNull)
 	var actions []typedColumnAction
 	renames := make(map[int32]string)
-	for i, attribute := range old.attributes {
+	for i, attribute := range old.Attributes {
 		provenance := graph.columns[attribute]
 		var origins []inheritanceOrigin
 		var desired *ColumnDescriptor
@@ -178,11 +178,11 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 			}
 			forceType = forceType || forced[origin.parent][origin.attribute]
 			if forced[origin.parent][origin.attribute] {
-				requestedDimensions = parent.columns[slot].DeclaredDimensions
+				requestedDimensions = parent.Columns[slot].DeclaredDimensions
 			}
-			member := &parent.columns[slot]
+			member := &parent.Columns[slot]
 			if desired != nil && (desired.Name != member.Name || desired.Usage != member.Usage) {
-				return nil, nil, nil, sqlError("42P16", fmt.Sprintf(`cannot alter inherited column "%s"`, old.columns[i].Name))
+				return nil, nil, nil, sqlError("42P16", fmt.Sprintf(`cannot alter inherited column "%s"`, old.Columns[i].Name))
 			}
 			desired = member
 			origins = append(origins, origin)
@@ -191,21 +191,21 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 		graph.columns[attribute] = provenance
 		if desired == nil {
 			if !provenance.local {
-				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.columns[i].Name}, Mode: parser.DropCascade}})
+				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.Columns[i].Name}, Mode: parser.DropCascade}})
 				delete(graph.columns, attribute)
 			}
 			continue
 		}
-		if desired.Name != old.columns[i].Name {
+		if desired.Name != old.Columns[i].Name {
 			renames[attribute] = desired.Name
 		}
-		if forceType || desired.Usage != old.columns[i].Usage {
+		if forceType || desired.Usage != old.Columns[i].Usage {
 			usage := desired.Usage
 			dimensions := desired.DeclaredDimensions
 			if forceType {
 				dimensions = requestedDimensions
 			}
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.columns[i].Name}}, usage: &usage, declaredDimensions: dimensions})
+			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.Columns[i].Name}}, usage: &usage, declaredDimensions: dimensions})
 		}
 	}
 	// New attributes merge with an existing local/sibling attribute by live name,
@@ -213,8 +213,8 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 	pending := make(map[string]int)
 	for _, address := range graph.parents {
 		parent := view.MustRelation(address)
-		for i, member := range parent.columns {
-			origin := inheritanceOrigin{parent: address, attribute: parent.attributes[i]}
+		for i, member := range parent.Columns {
+			origin := inheritanceOrigin{parent: address, attribute: parent.Attributes[i]}
 			found := false
 			for _, provenance := range graph.columns {
 				if slices.Contains(provenance.origins, origin) {
@@ -225,12 +225,12 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 			if found {
 				continue
 			}
-			if slot, exists := old.index[member.Name]; exists {
-				attribute := old.attributes[slot]
+			if slot, exists := old.Index[member.Name]; exists {
+				attribute := old.Attributes[slot]
 				if _, survives := graph.columns[attribute]; !survives {
 					continue
 				}
-				if err := inheritanceColumnConflict(view, old.columns[slot], member, graph.columns[attribute].local); err != nil {
+				if err := inheritanceColumnConflict(view, old.Columns[slot], member, graph.columns[attribute].local); err != nil {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.name, member.Name))
 				}
 				provenance := graph.columns[attribute]
@@ -253,21 +253,21 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 }
 
 func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *tableInheritance) {
-	for i, attribute := range next.attributes {
+	for i, attribute := range next.Attributes {
 		provenance, exists := graph.columns[attribute]
 		if !exists {
 			for _, address := range graph.parents {
 				parent := view.MustRelation(address)
-				if slot, found := parent.index[next.columns[i].Name]; found {
-					provenance.origins = append(provenance.origins, inheritanceOrigin{parent: address, attribute: parent.attributes[slot]})
+				if slot, found := parent.Index[next.Columns[i].Name]; found {
+					provenance.origins = append(provenance.origins, inheritanceOrigin{parent: address, attribute: parent.Attributes[slot]})
 				}
 			}
 		}
-		if _, retained := next.defaults[attribute]; retained && !provenance.explicitDefault {
+		if _, retained := next.Defaults[attribute]; retained && !provenance.explicitDefault {
 			supplied := false
 			for _, origin := range provenance.origins {
 				parent := view.MustRelation(origin.parent)
-				_, supplied = parent.defaults[origin.attribute]
+				_, supplied = parent.Defaults[origin.attribute]
 				if supplied {
 					break
 				}
@@ -279,14 +279,14 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		graph.columns[attribute] = provenance
 	}
 	for name, provenance := range graph.checks {
-		if !slices.ContainsFunc(next.checkConstraints, func(c checkConstraint) bool { return c.Name == name }) {
+		if !slices.ContainsFunc(next.CheckConstraints, func(c checkConstraint) bool { return c.Name == name }) {
 			delete(graph.checks, name)
 			continue
 		}
 		var origins []inheritanceOrigin
 		for _, origin := range provenance.origins {
 			parent := view.MustRelation(origin.parent)
-			for _, constraint := range parent.checkConstraints {
+			for _, constraint := range parent.CheckConstraints {
 				if constraint.Name == name && !constraint.NoInherit {
 					origin.constraint = constraint.OID
 					origins = append(origins, origin)
@@ -311,7 +311,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		var origins []inheritanceOrigin
 		for _, origin := range provenance.origins {
 			parent := view.MustRelation(origin.parent)
-			for _, constraint := range parent.notNullConstraints {
+			for _, constraint := range parent.NotNullConstraints {
 				if constraint.Attribute == origin.attribute {
 					origin.constraint = constraint.OID
 					origins = append(origins, origin)
@@ -325,7 +325,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		}
 		graph.notNull[attribute] = provenance
 	}
-	next.inheritance = graph
+	next.Inheritance = graph
 }
 
 func typedSortedAddresses(tables []*relationDescriptor) []ids.ObjectAddress {

@@ -42,7 +42,7 @@ func rlsBaseLockCancellation(t *testing.T, e *Engine, d *relationDescriptor) {
 	lockAwait(t, done, context.Canceled)
 	joined = true
 	current := e.CatalogRead().MustRelation(d.address)
-	if current != d || current.rlsEnabled || current.rlsForced {
+	if current != d || current.RLSEnabled || current.RLSForced {
 		t.Fatal("canceled no-op changed immutable descriptor")
 	}
 }

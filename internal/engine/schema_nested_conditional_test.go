@@ -46,7 +46,7 @@ func TestSchemaNestedConditionalTables(t *testing.T) {
 			for _, table := range []string{"t", "clone"} {
 				ref := roleTableRef(t, e, "nc."+table)
 				d := e.catalog.state.MustRelation(ref.Address)
-				if d.owner != owner.Ref || len(d.columns) != 1 || d.columns[0].Name != "id" || d.columns[0].Usage.Type.DatabaseName() != "INT4" || d.columns[0].Nullable || !d.columns[0].NullabilityKnown || d.acl.Explicit || len(d.columnACL) != 0 || d.columns[0].OriginTable != uint32(ref.Address.ObjectID) || d.columns[0].OriginAttribute != 1 {
+				if d.Owner != owner.Ref || len(d.Columns) != 1 || d.Columns[0].Name != "id" || d.Columns[0].Usage.Type.DatabaseName() != "INT4" || d.Columns[0].Nullable || !d.Columns[0].NullabilityKnown || d.ACL.Explicit || len(d.ColumnACL) != 0 || d.Columns[0].OriginTable != uint32(ref.Address.ObjectID) || d.Columns[0].OriginAttribute != 1 {
 					t.Fatal("conditional retained shape/owner/origin", table, d)
 				}
 				if got := roleExecute(t, e, op, "SELECT * FROM nc."+table); got.Count != 0 || len(got.Rows.Schema()) != 1 {

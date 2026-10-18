@@ -60,7 +60,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	case *namespaceDescriptor:
 		return t.temporary == (ids.SessionToken{}) && t.address.ObjectID != ids.PGCatalogNamespaceOID && t.address.ObjectID != ids.PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
-		return t.relationKind != catalogRelation && t.relationKind != indexRelation && t.relationKind != compositeRelation && (t.sequence == nil || t.sequence.owned == (ids.ObjectAddress{}))
+		return t.RelationKind != catalogRelation && t.RelationKind != indexRelation && t.RelationKind != compositeRelation && (t.Sequence == nil || t.Sequence.owned == (ids.ObjectAddress{}))
 	case *typeDescriptor:
 		if !t.typ.IsUserDefined() || t.typ.IsArray() {
 			return false
@@ -69,7 +69,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 			return true
 		}
 		r, ok := catalog.Relation(t.owningRelation)
-		return ok && r.relationKind == compositeRelation
+		return ok && r.RelationKind == compositeRelation
 	case *collationDescriptor:
 		return !t.seeded() && t.owner != (authorization.PrincipalRef{})
 	case *conversionDescriptor:
@@ -161,38 +161,38 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		}
 		if old.owningRelation != (ids.ObjectAddress{}) && !old.typ.IsArray() {
 			r, ok := stage.base.Relation(old.owningRelation)
-			if !ok || r.rowType != old.typ.ID() {
+			if !ok || r.RowType != old.typ.ID() {
 				return CatalogConflict{}
 			}
 			return stageOwnership(stage, r, target)
 		}
 	case *relationDescriptor:
 		next := *old
-		next.owner = target
+		next.Owner = target
 		next.revision = revision
-		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
-		if old.sequence != nil {
-			next.sequencePlanStamp = revision
+		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
+		if old.Sequence != nil {
+			next.SequencePlanStamp = revision
 		}
-		if len(old.columnACL) != 0 {
-			next.columnACL = make(map[int32]authorization.ACLValue, len(old.columnACL))
-			for sub, acl := range old.columnACL {
-				next.columnACL[sub] = authorization.SchemaACLOwner(acl, old.owner, target)
+		if len(old.ColumnACL) != 0 {
+			next.ColumnACL = make(map[int32]authorization.ACLValue, len(old.ColumnACL))
+			for sub, acl := range old.ColumnACL {
+				next.ColumnACL[sub] = authorization.SchemaACLOwner(acl, old.Owner, target)
 			}
 		}
 		// Replace synchronizes the row type and its array against this owner.
 		if err = stage.Replace(&next); err != nil {
 			return err
 		}
-		if old.relationKind == tableRelation || old.relationKind == partitionedRelation || old.relationKind == materializedViewRelation {
+		if old.RelationKind == tableRelation || old.RelationKind == partitionedRelation || old.RelationKind == materializedViewRelation {
 			for _, associated := range stage.base.Descriptors() {
 				r, ok := associated.(*relationDescriptor)
 				if !ok {
 					continue
 				}
-				linked := r.sqlIndex != nil && r.sqlIndex.parent == old.address
-				if r.sequence != nil {
-					parent := r.sequence.owned
+				linked := r.SQLIndex != nil && r.SQLIndex.parent == old.address
+				if r.Sequence != nil {
+					parent := r.Sequence.owned
 					parent.SubID = 0
 					linked = linked || parent == old.address
 				}
@@ -262,10 +262,10 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		if err := alterViewAuthority(auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
 			return fail(err)
 		}
-	} else if kind == "view" && old.relationKind != viewRelation {
+	} else if kind == "view" && old.RelationKind != viewRelation {
 		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, old.name, kind)))
 	}
-	if old.relationKind == catalogRelation || old.relationKind == indexRelation || old.relationKind == compositeRelation {
+	if old.RelationKind == catalogRelation || old.RelationKind == indexRelation || old.RelationKind == compositeRelation {
 		return fail(tableKind(old, "change"))
 	}
 	if kind != "materialized view" {
@@ -277,13 +277,13 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if err != nil {
 		return fail(err)
 	}
-	if target == old.owner {
+	if target == old.Owner {
 		e.mu.Unlock()
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if old.sequence != nil && old.sequence.owned != (ids.ObjectAddress{}) {
-		parent := old.sequence.owned
+	if old.Sequence != nil && old.Sequence.owned != (ids.ObjectAddress{}) {
+		parent := old.Sequence.owned
 		parent.SubID = 0
 		return fail(sequenceLinkedError(old, auth.catalog.MustRelation(parent), false))
 	}
@@ -357,7 +357,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	}
 	if old.owningRelation != (ids.ObjectAddress{}) {
 		r := auth.catalog.MustRelation(old.owningRelation)
-		if r.relationKind != compositeRelation {
+		if r.RelationKind != compositeRelation {
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."})
 		}
 	}

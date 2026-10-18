@@ -26,11 +26,11 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 	case *parser.LockTable:
 		message = "locking partition hierarchies is unsupported"
 	case *parser.CreateIndex:
-		if d.partition != nil && !s.Unique {
+		if d.Partition != nil && !s.Unique {
 			message = "partitioned indexes are unsupported"
 		}
 	case *parser.Reindex:
-		if d.partition != nil {
+		if d.Partition != nil {
 			message = "partitioned indexes are unsupported"
 		}
 	case *parser.AlterTable:
@@ -50,12 +50,12 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 			if action.Action != parser.DropColumn {
 				continue
 			}
-			if s.Only && d.partition != nil && len(d.partition.children) != 0 {
+			if s.Only && d.Partition != nil && len(d.Partition.children) != 0 {
 				err := sqlError("42P16", "cannot drop column from only the partitioned table when partitions exist").(*sqlstate.Error)
 				err.Hint = "Do not specify the ONLY keyword."
 				return err
 			}
-			if slot, ok := d.index[action.Column.Text]; ok && partitionKeyUsesAttribute(d, d.attributes[slot]) {
+			if slot, ok := d.Index[action.Column.Text]; ok && partitionKeyUsesAttribute(d, d.Attributes[slot]) {
 				return sqlError("42P16", fmt.Sprintf(`cannot drop column "%s" because it is part of the partition key of relation "%s"`, action.Column.Text, d.name))
 			}
 		}
@@ -124,10 +124,10 @@ func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationV
 }
 
 func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
-	if d.partition == nil {
+	if d.Partition == nil {
 		return false
 	}
-	for _, key := range d.partition.keys {
+	for _, key := range d.Partition.keys {
 		if key.attribute == attribute {
 			return true
 		}
@@ -194,8 +194,8 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 		return ids.ErrCatalogReplaced
 	}
 	var ancestors []ids.ObjectRef
-	for d.membership != nil {
-		d, ok = catalog.Relation(d.membership.parent)
+	for d.Membership != nil {
+		d, ok = catalog.Relation(d.Membership.parent)
 		if !ok {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
@@ -228,11 +228,11 @@ func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode loc
 		return err
 	}
 	var children []ids.ObjectAddress
-	if d.partition != nil {
+	if d.Partition != nil {
 		if captured := s.partitionRelations[ref.Address]; captured != nil {
 			d = captured
 		}
-		children = d.partition.children
+		children = d.Partition.children
 	}
 	e.mu.Unlock()
 	for _, address := range children {
@@ -261,8 +261,8 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 		return err
 	}
 	var child ids.ObjectRef
-	if d.partition != nil && d.partition.defaultChild != (ids.ObjectAddress{}) {
-		child = parent.Domain().Ref(parent.Epoch, d.partition.defaultChild)
+	if d.Partition != nil && d.Partition.defaultChild != (ids.ObjectAddress{}) {
+		child = parent.Domain().Ref(parent.Epoch, d.Partition.defaultChild)
 	}
 	e.mu.Unlock()
 	if child.Domain() == nil {
@@ -277,17 +277,17 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 // The stored defining arrays/key providers remain identical. Only an appended
 // child manifest may cross the read admission fence; no name/shape retargeting.
 func partitionAppendCompatible(old, current *relationDescriptor) bool {
-	if old == nil || current == nil || old.partition == nil || current.partition == nil ||
-		!relationDefiningAuthorityCompatible(old, current) || old.relationKind != current.relationKind ||
-		old.membership != current.membership || old.inheritance != current.inheritance ||
-		old.partition.strategy != current.partition.strategy ||
-		len(old.partition.keys) != len(current.partition.keys) ||
-		len(current.partition.children) <= len(old.partition.children) ||
-		&old.partition.keys[0] != &current.partition.keys[0] ||
-		!slices.Equal(old.partition.children, current.partition.children[:len(old.partition.children)]) {
+	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
+		!relationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
+		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||
+		old.Partition.strategy != current.Partition.strategy ||
+		len(old.Partition.keys) != len(current.Partition.keys) ||
+		len(current.Partition.children) <= len(old.Partition.children) ||
+		&old.Partition.keys[0] != &current.Partition.keys[0] ||
+		!slices.Equal(old.Partition.children, current.Partition.children[:len(old.Partition.children)]) {
 		return false
 	}
-	return old.partition.defaultChild == (ids.ObjectAddress{}) || old.partition.defaultChild == current.partition.defaultChild
+	return old.Partition.defaultChild == (ids.ObjectAddress{}) || old.Partition.defaultChild == current.Partition.defaultChild
 }
 
 // One existing visibility capture owns the admitted descriptors. Copy metadata

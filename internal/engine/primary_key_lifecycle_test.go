@@ -16,30 +16,30 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	candidate := *parent
-	candidate.columns = slices.Clone(parent.columns)
-	candidate.columns[0].Usage = indexClausesTypes()[sqltype.Int8].Usage()
+	candidate.Columns = slices.Clone(parent.Columns)
+	candidate.Columns[0].Usage = indexClausesTypes()[sqltype.Int8].Usage()
 	e.mu.Lock()
-	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []columnTransformation{{attribute: parent.attributes[0]}})
+	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []columnTransformation{{attribute: parent.Attributes[0]}})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, rebuilt := parent.uniqueConstraints[0], next.uniqueConstraints[0]
-	if next.address != parent.address || !rebuilt.Primary || rebuilt.Name != old.Name || rebuilt.OID == old.OID || rebuilt.Index == old.Index || next.notNullConstraints[0].OID == parent.notNullConstraints[0].OID || rebuilt.OID >= next.notNullConstraints[0].OID || next.notNullConstraints[1] != parent.notNullConstraints[1] {
+	old, rebuilt := parent.UniqueConstraints[0], next.UniqueConstraints[0]
+	if next.address != parent.address || !rebuilt.Primary || rebuilt.Name != old.Name || rebuilt.OID == old.OID || rebuilt.Index == old.Index || next.NotNullConstraints[0].OID == parent.NotNullConstraints[0].OID || rebuilt.OID >= next.NotNullConstraints[0].OID || next.NotNullConstraints[1] != parent.NotNullConstraints[1] {
 		t.Fatal("affected p/index/n remint and order", parent, next)
 	}
 	private := e.stageRead(stage)
 	backing := private.MustRelation(rebuilt.Index)
-	if backing.sqlIndex.constraint == nil || !backing.sqlIndex.constraint.Primary || backing.sqlIndex.constraint.OID != rebuilt.OID || backing.sqlIndex.constraint.Index != backing.address || backing.columns[0].Usage.Type.ID() != sqltype.Int8 {
+	if backing.SQLIndex.constraint == nil || !backing.SQLIndex.constraint.Primary || backing.SQLIndex.constraint.OID != rebuilt.OID || backing.SQLIndex.constraint.Index != backing.address || backing.Columns[0].Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(backing)
 	}
 	if _, exists := private.Find(index.address); exists {
 		t.Fatal("old backing retained in candidate")
 	}
-	if e.CatalogRead().state != base.state || !reflect.DeepEqual(parent.uniqueConstraints[0], old) || index.sqlIndex.constraint.OID != old.OID || parent.notNullConstraints[0].OID == next.notNullConstraints[0].OID || parent.columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if e.CatalogRead().state != base.state || !reflect.DeepEqual(parent.UniqueConstraints[0], old) || index.SQLIndex.constraint.OID != old.OID || parent.NotNullConstraints[0].OID == next.NotNullConstraints[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate changed retained source/savepoint state")
 	}
-	for _, transformations := range [][]columnTransformation{nil, {{attribute: parent.attributes[2]}}} {
+	for _, transformations := range [][]columnTransformation{nil, {{attribute: parent.Attributes[2]}}} {
 		e.mu.Lock()
 		unchanged, err := e.rebuildAlterUniquesLocked(e.BeginCatalogStage(base), parent, transformations)
 		e.mu.Unlock()
@@ -54,14 +54,14 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	annotated := *index
-	definition := *index.sqlIndex
-	definition.keys = slices.Clone(index.sqlIndex.keys)
+	definition := *index.SQLIndex
+	definition.keys = slices.Clone(index.SQLIndex.keys)
 	class, ok := sqltype.LookupIndexClass("text_pattern_ops")
 	if !ok {
 		t.Fatal("missing real text provider")
 	}
 	definition.keys[1].class, definition.keys[1].explicitClass = class, true
-	annotated.sqlIndex, annotated.comment = &definition, "native descriptor comment"
+	annotated.SQLIndex, annotated.Comment = &definition, "native descriptor comment"
 	if err := stage.Replace(&annotated); err != nil {
 		t.Fatal(err)
 	}
@@ -85,18 +85,18 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		}
 	})
 	clone := primaryKeyUnitRelation(t, e, "clone")
-	if len(clone.uniqueConstraints) != 2 || !clone.uniqueConstraints[0].Primary || clone.uniqueConstraints[0].Name != "clone_pkey" || clone.uniqueConstraints[1].Primary || clone.uniqueConstraints[1].Name != "chosen" || !reflect.DeepEqual(clone.uniqueConstraints[0].Attributes, []int32{2, 3}) {
-		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.uniqueConstraints)
+	if len(clone.UniqueConstraints) != 2 || !clone.UniqueConstraints[0].Primary || clone.UniqueConstraints[0].Name != "clone_pkey" || clone.UniqueConstraints[1].Primary || clone.UniqueConstraints[1].Name != "chosen" || !reflect.DeepEqual(clone.UniqueConstraints[0].Attributes, []int32{2, 3}) {
+		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.UniqueConstraints)
 	}
-	c := clone.uniqueConstraints[0]
+	c := clone.UniqueConstraints[0]
 	copied := e.catalog.state.MustRelation(c.Index)
-	if c.OID == parent.uniqueConstraints[0].OID || c.Index == source.address || copied.comment != "native descriptor comment" || copied.sqlIndex.keys[1].class != class || !copied.sqlIndex.keys[1].explicitClass || copied.sqlIndex.keys[0].attribute != 2 || copied.sqlIndex.keys[1].attribute != 3 || copied.sqlIndex.parent != clone.address || !copied.sqlIndex.constraint.Primary {
+	if c.OID == parent.UniqueConstraints[0].OID || c.Index == source.address || copied.Comment != "native descriptor comment" || copied.SQLIndex.keys[1].class != class || !copied.SQLIndex.keys[1].explicitClass || copied.SQLIndex.keys[0].attribute != 2 || copied.SQLIndex.keys[1].attribute != 3 || copied.SQLIndex.parent != clone.address || !copied.SQLIndex.constraint.Primary {
 		t.Fatal("LIKE lost real provider/comment/attachment", copied)
 	}
-	if e.indexRoots[c.Index] == sourceRoot || len(e.indexRoots[c.Index].entries) != 0 || len(sourceRoot.entries) != 2 || index.comment != "" || index.sqlIndex.keys[1].explicitClass {
+	if e.indexRoots[c.Index] == sourceRoot || len(e.indexRoots[c.Index].entries) != 0 || len(sourceRoot.entries) != 2 || index.Comment != "" || index.SQLIndex.keys[1].explicitClass {
 		t.Fatal("LIKE transplanted root or mutated retained source")
 	}
-	bound, err := bindCreateUniques(ddl, clone.index, []createLikeInput{{source: parent, offset: 1, options: likeIndexes | likeComments}}, e.CatalogRead())
+	bound, err := bindCreateUniques(ddl, clone.Index, []createLikeInput{{source: parent, offset: 1, options: likeIndexes | likeComments}}, e.CatalogRead())
 	if err != nil || len(bound) != 2 || bound[0].source != source || bound[0].like == nil || !bound[0].copyComments || bound[1].source != nil {
 		t.Fatal("bound source provenance", bound, err)
 	}

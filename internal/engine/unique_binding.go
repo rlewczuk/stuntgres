@@ -79,7 +79,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 		if in.options&likeIndexes == 0 {
 			continue
 		}
-		for _, old := range in.source.uniqueConstraints {
+		for _, old := range in.source.UniqueConstraints {
 			if !old.Primary {
 				continue
 			}
@@ -87,12 +87,12 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, table))
 			}
 			source, ok := catalog.Relation(old.Index)
-			if !ok || source.sqlIndex == nil {
+			if !ok || source.SQLIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}
 			c := createUniqueConstraint{uniqueConstraint: uniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, source: source, like: in, copyComments: in.options&likeComments != 0}
 			for i, attribute := range old.Attributes {
-				slot := slices.Index(in.source.attributes, attribute)
+				slot := slices.Index(in.source.Attributes, attribute)
 				if slot < 0 {
 					return nil, fmt.Errorf("stuntgres: missing LIKE primary attribute")
 				}

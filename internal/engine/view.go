@@ -86,7 +86,7 @@ func (b *expressionBinder) freezeViewColumns(columns []queryColumn) []viewNamesp
 	for i, c := range columns {
 		out[i] = viewNamespaceColumn{name: c.descriptor.Name, slot: c.slot, leaf: c.leaf}
 		if c.leaf >= 0 {
-			out[i].attribute = b.querySources[c.leaf].relation.attributes[c.physical]
+			out[i].attribute = b.querySources[c.leaf].relation.Attributes[c.physical]
 		}
 	}
 	return out
@@ -322,7 +322,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.relationKind != viewRelation {
+		if old.RelationKind != viewRelation {
 			e.mu.Unlock()
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a view`, name))
 		}
@@ -354,7 +354,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err := checkViewPrefix(auth.catalog, old.columns, b.query.Root.Schema()); err != nil {
+		if err := checkViewPrefix(auth.catalog, old.Columns, b.query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -430,38 +430,38 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: viewPayloadOf(definition), columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, Owner: auth.state.CurrentUser, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
-		d.revision, d.view = revision, viewPayloadOf(definition)
-		d.columns = append([]ColumnDescriptor(nil), b.query.Root.Schema()...)
-		d.attributes = make([]int32, len(d.columns))
-		copy(d.attributes, old.attributes)
-		d.index = make(map[string]int, len(d.columns))
+		d.revision, d.View = revision, viewPayloadOf(definition)
+		d.Columns = append([]ColumnDescriptor(nil), b.query.Root.Schema()...)
+		d.Attributes = make([]int32, len(d.Columns))
+		copy(d.Attributes, old.Attributes)
+		d.Index = make(map[string]int, len(d.Columns))
 	}
 	if old == nil {
-		d.acl = stage.creationACL(d.owner, d.namespace, authorization.DefaultTables)
+		d.ACL = stage.creationACL(d.Owner, d.namespace, authorization.DefaultTables)
 	}
 	if scope.viewPersistence == "temporary" {
 		definition.consumer = d.address
 	}
-	attribute := d.attributeHighWater
-	for _, id := range d.attributes {
+	attribute := d.AttributeHighWater
+	for _, id := range d.Attributes {
 		if id > attribute {
 			attribute = id
 		}
 	}
-	for i := range d.columns {
-		d.index[d.columns[i].Name] = i
-		if old == nil || i >= len(old.attributes) {
+	for i := range d.Columns {
+		d.Index[d.Columns[i].Name] = i
+		if old == nil || i >= len(old.Attributes) {
 			attribute++
-			d.attributes[i] = attribute
+			d.Attributes[i] = attribute
 		}
-		d.columns[i].OriginTable = uint32(oid)
-		d.columns[i].OriginAttribute = int16(d.attributes[i])
-		d.columns[i].DeclaredDimensions = 0
+		d.Columns[i].OriginTable = uint32(oid)
+		d.Columns[i].OriginAttribute = int16(d.Attributes[i])
+		d.Columns[i].DeclaredDimensions = 0
 	}
-	d.attributeHighWater = attribute
+	d.AttributeHighWater = attribute
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		e.mu.Unlock()
 		return Result{}, err

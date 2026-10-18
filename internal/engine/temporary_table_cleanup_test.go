@@ -16,11 +16,11 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	options.persistence, options.owned = "temporary", table.address
 	options.owned.SubID = 1
-	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, namespace: table.namespace, name: "owned", revision: 1, sequencePlanStamp: 1, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
-	class, _ := sqltype.DefaultIndexClass(table.columns[0].Usage.Type)
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, owner: table.owner, columns: table.columns, index: table.index, attributes: table.attributes, attributeHighWater: 1, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: table.address, keys: []indexKey{{attribute: 1, class: class}}}}
+	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, namespace: table.namespace, name: "owned", revision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
+	class, _ := sqltype.DefaultIndexClass(table.Columns[0].Usage.Type)
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: table.address, keys: []indexKey{{attribute: 1, class: class}}}}
 	peer := sessionStart(t, e, nil)
-	peerNamespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, owner: table.owner, temporary: peer.token}
+	peerNamespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, owner: table.Owner, temporary: peer.token}
 	peerTable := *table
 	peerTable.address.ObjectID = 20006
 	peerTable.namespace = peerNamespace.address
@@ -29,7 +29,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	e.catalog.state = e.privateCatalogLocked(c).state
 	op.session.temporaryNamespace = table.namespace
-	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}
+	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
 	store := &relationStorage{versions: rows}
 	peerStore := &relationStorage{}
 	e.storage[table.address], e.storage[peerTable.address] = store, peerStore
@@ -80,7 +80,7 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescr
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "cleanup_survivor"})
 	survivor := e.catalog.state.MustRelation(address)
-	if len(survivor.checkConstraints) != 1 || len(survivor.checkConstraints[0].dependencies) == 0 {
+	if len(survivor.CheckConstraints) != 1 || len(survivor.CheckConstraints[0].dependencies) == 0 {
 		t.Fatal("missing real CHECK manifest")
 	}
 	return e, op, owner, sequence, survivor
@@ -122,7 +122,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		}
 		for _, original := range []*relationDescriptor{survivor, late} {
 			replacement := e.catalog.state.MustRelation(original.address)
-			if replacement == original || len(replacement.checkConstraints) != 0 || len(original.checkConstraints) != 1 || replacement.revision != original.revision+1 || e.catalog.state.NameAddress(descriptorNameKey(original)) != original.address {
+			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.revision != original.revision+1 || e.catalog.state.NameAddress(descriptorNameKey(original)) != original.address {
 				t.Fatal("reprepare missed consumer or changed captured definition")
 			}
 		}
@@ -152,7 +152,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
 		assertTemporaryNamespacePair(t, e, op.session.token, owner.namespace)
-		if len(survivor.checkConstraints) != 1 || len(e.catalog.state.MustRelation(survivor.address).checkConstraints) != 0 || e.storage[owner.address] != nil || e.sequences[sequence.address] != nil {
+		if len(survivor.CheckConstraints) != 1 || len(e.catalog.state.MustRelation(survivor.address).CheckConstraints) != 0 || e.storage[owner.address] != nil || e.sequences[sequence.address] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
 		e.DiscardCatalogStage(stage)
@@ -175,7 +175,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
 	replacement, ok := stage.descriptors[survivor.address].(*relationDescriptor)
-	if !ok || replacement == &maximum || replacement.revision != maximum.revision || len(replacement.checkConstraints) != 0 || len(maximum.checkConstraints) != 1 {
+	if !ok || replacement == &maximum || replacement.revision != maximum.revision || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 {
 		t.Fatal("terminal saturation changed original or omitted replacement")
 	}
 	e.DiscardCatalogStage(stage)
@@ -215,7 +215,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	replacement := e.catalog.state.MustRelation(survivor.address)
-	if replacement == &maximum || replacement.revision != maximum.revision || len(replacement.checkConstraints) != 0 || len(maximum.checkConstraints) != 1 || e.catalog.nextRevision != maximum.revision {
+	if replacement == &maximum || replacement.revision != maximum.revision || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 || e.catalog.nextRevision != maximum.revision {
 		t.Fatal("saturated replacement identity/frontier")
 	}
 	assertTemporaryNamespacePair(t, e, op.session.token, owner.namespace)
@@ -248,7 +248,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 				roleExecute(t, e, op, "CREATE TABLE public.cleanup_defaults(v BIGINT DEFAULT nextval('public.cleanup_default_source'))")
 				sequence = e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.namespace, Name: "cleanup_default_source"}))
 				consumer = e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.namespace, Name: "cleanup_defaults"}))
-				if len(consumer.defaults) != 1 {
+				if len(consumer.Defaults) != 1 {
 					t.Fatal("missing actual DEFAULT")
 				}
 			}
@@ -276,7 +276,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					if err != nil || !ok || replacement == &maximum || replacement.revision != maximum.revision {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
-					if kind == "CHECK" && (len(replacement.checkConstraints) != 0 || len(maximum.checkConstraints) != 1) || kind == "DEFAULT" && (len(replacement.defaults) != 0 || len(maximum.defaults) != 1) {
+					if kind == "CHECK" && (len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1) || kind == "DEFAULT" && (len(replacement.Defaults) != 0 || len(maximum.Defaults) != 1) {
 						t.Fatal("replacement changed captured definition")
 					}
 				}

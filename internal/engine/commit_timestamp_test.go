@@ -139,7 +139,7 @@ func TestCommitTimePublication(t *testing.T) {
 					if route == "catalog" {
 						stage.initialTx = ref
 					}
-					d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
+					d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "commit_time_unit", revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}
@@ -152,7 +152,7 @@ func TestCommitTimePublication(t *testing.T) {
 							t.Fatal(err)
 						}
 						old = e.catalog.state
-						value, err := sqltype.Integer(d.columns[0].Usage.Type, 7)
+						value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 						if err != nil {
 							t.Fatal(err)
 						}

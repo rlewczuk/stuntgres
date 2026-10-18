@@ -8,7 +8,7 @@ import (
 
 func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogChanges) bool {
 	d, ok := e.privateCatalogLocked(catalog).Relation(ref.Address)
-	if !ok || d.relationKind != tableRelation {
+	if !ok || d.RelationKind != tableRelation {
 		return false
 	}
 	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.namespace)

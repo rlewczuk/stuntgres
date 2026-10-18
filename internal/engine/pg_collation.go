@@ -26,22 +26,22 @@ func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ids.Object
 			if i == 1 {
 				continue
 			}
-			v, err := sqltype.OIDValue(source.columns[i].Usage.Type, n)
+			v, err := sqltype.OIDValue(source.Columns[i].Usage.Type, n)
 			if err != nil {
 				return nil, err
 			}
 			row[i] = v
 		}
-		row[1] = sqltype.String(source.columns[1].Usage.Type, d.name)
-		row[4] = sqltype.String(source.columns[4].Usage.Type, d.provider)
-		row[5] = sqltype.Boolean(source.columns[5].Usage.Type, d.deterministic)
-		v, err := sqltype.Integer(source.columns[6].Usage.Type, int64(d.encoding))
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.name)
+		row[4] = sqltype.String(source.Columns[4].Usage.Type, d.provider)
+		row[5] = sqltype.Boolean(source.Columns[5].Usage.Type, d.deterministic)
+		v, err := sqltype.Integer(source.Columns[6].Usage.Type, int64(d.encoding))
 		if err != nil {
 			return nil, err
 		}
 		row[6] = v
 		for i, text := range []*string{d.collate, d.ctype, d.locale, d.rules, d.version} {
-			typ := source.columns[7+i].Usage.Type
+			typ := source.Columns[7+i].Usage.Type
 			if text == nil {
 				row[7+i] = sqltype.Null(typ)
 			} else {

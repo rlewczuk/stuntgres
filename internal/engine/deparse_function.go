@@ -288,7 +288,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			if !ok {
 				continue
 			}
-			for _, def := range relation.notNullConstraints {
+			for _, def := range relation.NotNullConstraints {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -305,7 +305,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					text += " NOT VALID"
 				}
 			}
-			for _, def := range relation.checkConstraints {
+			for _, def := range relation.CheckConstraints {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -323,7 +323,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					text += " NOT VALID"
 				}
 			}
-			for _, def := range relation.uniqueConstraints {
+			for _, def := range relation.UniqueConstraints {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -333,7 +333,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 			}
-			for _, def := range relation.foreignKeys {
+			for _, def := range relation.ForeignKeys {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -343,7 +343,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 			}
-			for _, def := range relation.exclusionConstraints {
+			for _, def := range relation.ExclusionConstraints {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -390,9 +390,9 @@ func deparseAttribute(relation *relationDescriptor, attr int32) (string, error) 
 	if relation == nil {
 		return "", sqlError("22023", "expression contains variables")
 	}
-	for i, live := range relation.attributes {
+	for i, live := range relation.Attributes {
 		if live == attr {
-			return pgIdentifier(relation.columns[i].Name), nil
+			return pgIdentifier(relation.Columns[i].Name), nil
 		}
 	}
 	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.name))
@@ -458,7 +458,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 	var text string
 	var err error
 	if e.signature == deparseIndex || e.signature == deparseIndexColumn {
-		if relation.sqlIndex == nil {
+		if relation.SQLIndex == nil {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 		var column int64
@@ -470,7 +470,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 		}
 		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath, temporary: temporaryNamespace(scope.deparseAuth), output: scope.output})
 	} else {
-		if relation.view == nil {
+		if relation.View == nil {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 		var wrap int64
@@ -481,7 +481,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.deparsePath, columns: relation.columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.deparsePath, columns: relation.Columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
 		text += ";"
 	}
 	if err != nil {

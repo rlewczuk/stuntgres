@@ -82,10 +82,10 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	if ref.Epoch == catalog.Epoch() {
 		return true
 	}
-	if consumer == nil || consumer.view == nil {
+	if consumer == nil || consumer.View == nil {
 		return false
 	}
-	owner, temporary := consumer.view.TemporaryConsumer()
+	owner, temporary := consumer.View.TemporaryConsumer()
 	if owner != consumer.address || catalog.Get(consumer.address) != consumer {
 		return false
 	}
@@ -93,11 +93,11 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	if !ok || namespace.temporary == (ids.SessionToken{}) || namespace.temporary != temporary || namespace.temporary.Domain() != catalog.Domain() {
 		return false
 	}
-	captured, exists := consumer.view.CapturedReference(ref)
+	captured, exists := consumer.View.CapturedReference(ref)
 	if !exists || captured == nil {
 		return false
 	}
-	if relation, ok := target.(*relationDescriptor); ok && relation.relationKind == catalogRelation {
+	if relation, ok := target.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
 		return target == captured && pgDependPinned(catalog, address) && (ref.Address.SubID == 0 || relation.hasAttribute(ref.Address.SubID))
 	}
 	if !storedReferenceEpochValid(catalog, consumer, ref) {
@@ -106,7 +106,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	switch actual := target.(type) {
 	case *relationDescriptor:
 		old, ok := captured.(*relationDescriptor)
-		return ok && actual.namespace == old.namespace && actual.relationKind == old.relationKind
+		return ok && actual.namespace == old.namespace && actual.RelationKind == old.RelationKind
 	case *typeDescriptor:
 		old, ok := captured.(*typeDescriptor)
 		return ok && actual.typ == old.typ
@@ -156,7 +156,7 @@ func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.
 		return false
 	}
 	sequence, ok := view.Relation(ref.Address)
-	if !ok || sequence.relationKind != sequenceRelation {
+	if !ok || sequence.RelationKind != sequenceRelation {
 		return false
 	}
 	ns, ok := view.Namespace(sequence.namespace)

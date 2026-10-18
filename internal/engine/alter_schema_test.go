@@ -26,8 +26,8 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 	tableAddress := NameAddressForTempMove(t, e, source, "t")
 	table := e.catalog.state.MustRelation(tableAddress)
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
-	for _, subID := range []int32{0, table.attributes[0]} {
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
+	for _, subID := range []int32{0, table.Attributes[0]} {
 		address := tableAddress
 		address.SubID = subID
 		if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, address), acl); err != nil {
@@ -64,10 +64,10 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 		copy := *after
 		copy.namespace, copy.revision = before[i].namespace, before[i].revision
 		if i != 0 {
-			if after.sequencePlanStamp <= before[i].sequencePlanStamp {
+			if after.SequencePlanStamp <= before[i].SequencePlanStamp {
 				t.Fatal("missing sequence invalidation")
 			}
-			copy.sequencePlanStamp = before[i].sequencePlanStamp
+			copy.SequencePlanStamp = before[i].SequencePlanStamp
 		}
 		if !reflect.DeepEqual(&copy, before[i]) {
 			t.Fatal("move changed nonnamespace definition", before[i], after)

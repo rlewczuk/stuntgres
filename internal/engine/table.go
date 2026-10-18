@@ -60,20 +60,20 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			continue
 		}
 		relation := auth.catalog.MustRelation(ref.Address)
-		if relation.relationKind != tableRelation && relation.relationKind != partitionedRelation {
-			if relation.relationKind == indexRelation {
+		if relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation {
+			if relation.RelationKind == indexRelation {
 				e.mu.Unlock()
 				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP INDEX to remove an index."}
 			}
 			e.mu.Unlock()
 			hint := "Use DROP SEQUENCE to remove a sequence."
-			if relation.relationKind == viewRelation {
+			if relation.RelationKind == viewRelation {
 				hint = "Use DROP VIEW to remove a view."
 			}
-			if relation.relationKind == compositeRelation {
+			if relation.RelationKind == compositeRelation {
 				hint = "Use DROP TYPE to remove a type."
 			}
-			if relation.relationKind == materializedViewRelation {
+			if relation.RelationKind == materializedViewRelation {
 				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: hint}

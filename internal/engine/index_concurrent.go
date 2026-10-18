@@ -74,10 +74,10 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 		return nil, nil, auth, err
 	}
 	index, ok := e.catalog.state.Relation(address)
-	if !ok || index.sqlIndex == nil || index.sqlIndex.parent != scope.lockedRef.Address {
+	if !ok || index.SQLIndex == nil || index.SQLIndex.parent != scope.lockedRef.Address {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
-	parent, ok := e.catalog.state.Relation(index.sqlIndex.parent)
+	parent, ok := e.catalog.state.Relation(index.SQLIndex.parent)
 	if !ok {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
@@ -95,7 +95,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.mu.Unlock()
 			return 0, err
 		}
-		if index.sqlIndex.valid || !index.sqlIndex.live || index.sqlIndex.ready == first {
+		if index.SQLIndex.valid || !index.SQLIndex.live || index.SQLIndex.ready == first {
 			e.mu.Unlock()
 			return 0, fmt.Errorf("stuntgres: invalid concurrent index phase")
 		}
@@ -107,7 +107,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		visibility := e.visibility[scope.txRef]
 		visibility.snapshot = false
 		e.visibility[scope.txRef] = visibility
-		safe, err := simpleConcurrentIndex(parent, index.sqlIndex)
+		safe, err := simpleConcurrentIndex(parent, index.SQLIndex)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -123,9 +123,9 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			return 0, ids.ErrCatalogReplaced
 		}
 		snapshot := *store
-		next, definition := *index, *index.sqlIndex
+		next, definition := *index, *index.SQLIndex
 		definition.ready = true
-		next.sqlIndex = &definition
+		next.SQLIndex = &definition
 		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
@@ -182,7 +182,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		if !index.sqlIndex.ready || !index.sqlIndex.live || index.sqlIndex.valid || e.indexRoots[address] == nil {
+		if !index.SQLIndex.ready || !index.SQLIndex.live || index.SQLIndex.valid || e.indexRoots[address] == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: invalid concurrent index validity phase")
 		}
@@ -190,9 +190,9 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		next, definition := *index, *index.sqlIndex
+		next, definition := *index, *index.SQLIndex
 		definition.valid = true
-		next.sqlIndex = &definition
+		next.SQLIndex = &definition
 		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()

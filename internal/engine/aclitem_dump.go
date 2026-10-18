@@ -72,7 +72,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 		if ns, ok := catalog.Namespace(relation.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if relation.relationKind == catalogRelation {
+		if relation.RelationKind == catalogRelation {
 			continue
 		}
 		if storage := e.storage[relation.address]; storage != nil {
@@ -81,53 +81,53 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 					continue
 				}
 				for i, value := range version.values {
-					if _, generated := relation.generations[relation.attributes[i]]; generated {
+					if _, generated := relation.Generations[relation.Attributes[i]]; generated {
 						continue
 					}
 					check(value)
 				}
 			}
 		}
-		for _, definition := range relation.defaults {
+		for _, definition := range relation.Defaults {
 			expression(definition.expression)
 		}
-		for _, definition := range relation.generations {
+		for _, definition := range relation.Generations {
 			expression(definition.expression)
 		}
-		for _, constraint := range relation.checkConstraints {
+		for _, constraint := range relation.CheckConstraints {
 			expression(constraint.expression)
 		}
-		if relation.view != nil {
+		if relation.View != nil {
 			for _, literal := range viewOf(relation).literals {
 				check(literal.value)
 			}
 		}
-		if relation.sqlIndex != nil {
-			for _, key := range relation.sqlIndex.keys {
+		if relation.SQLIndex != nil {
+			for _, key := range relation.SQLIndex.keys {
 				if key.derived != nil {
 					expression(key.derived.definition)
 				}
 			}
-			if relation.sqlIndex.predicate != nil {
-				expression(relation.sqlIndex.predicate.definition)
+			if relation.SQLIndex.predicate != nil {
+				expression(relation.SQLIndex.predicate.definition)
 			}
 		}
-		if relation.partition != nil {
-			for _, key := range relation.partition.keys {
+		if relation.Partition != nil {
+			for _, key := range relation.Partition.keys {
 				if key.derived != nil {
 					expression(key.derived.definition)
 				}
 			}
 		}
-		if relation.membership != nil {
-			for _, datum := range relation.membership.lower {
+		if relation.Membership != nil {
+			for _, datum := range relation.Membership.lower {
 				check(datum.value)
 			}
-			for _, datum := range relation.membership.upper {
+			for _, datum := range relation.Membership.upper {
 				check(datum.value)
 			}
 		}
-		for _, policy := range relation.policies {
+		for _, policy := range relation.Policies {
 			if policy.using != nil {
 				expression(policyExpressionOf(policy.using).expression)
 			}

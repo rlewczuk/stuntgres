@@ -35,7 +35,7 @@ func (e *Engine) capturePartitionReplayTeardown(op *Operation, s *parser.AlterTa
 	}
 	p := auth.catalog.MustRelation(parent.Address)
 	c := auth.catalog.MustRelation(child.Address)
-	if p.partition == nil || len(p.partition.children) != 1 || c.partition != nil || c.membership == nil || !c.membership.defaultBound || c.membership.parent != p.address {
+	if p.Partition == nil || len(p.Partition.children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.defaultBound || c.Membership.parent != p.address {
 		return partitionReplayTeardown{}, nil
 	}
 	store := e.storage[child.Address]
@@ -62,7 +62,7 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 	}
 	child, ok := auth.catalog.Relation(ref.Address)
 	parent, live := auth.catalog.Relation(record.parent.Address)
-	if !ok || !live || record.parent.Epoch != auth.catalog.Epoch() || child.membership != nil || child.partition != nil || parent.partition == nil || len(parent.partition.children) != 0 {
+	if !ok || !live || record.parent.Epoch != auth.catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.children) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	store := e.storage[ref.Address]
@@ -71,7 +71,7 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent.address && !index.sqlIndex.valid && index.sqlIndex.ready && index.sqlIndex.live {
+		if ok && index.SQLIndex != nil && index.SQLIndex.parent == parent.address && !index.SQLIndex.valid && index.SQLIndex.ready && index.SQLIndex.live {
 			delete(records, ref.Address)
 			return nil
 		}

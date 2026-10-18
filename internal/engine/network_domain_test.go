@@ -77,7 +77,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				}
 			}
 			restored := storage[table.address]
-			if restored == original || restored.versions[0].values[0].Type() != importedChain.typ || next.MustRelation(table.address).columns[0].Usage.Type != importedChain.typ {
+			if restored == original || restored.versions[0].values[0].Type() != importedChain.typ || next.MustRelation(table.address).Columns[0].Usage.Type != importedChain.typ {
 				t.Fatal("scalar storage remap")
 			}
 			out, err := importedChain.typ.Output(context.Background(), restored.versions[0].values[0])

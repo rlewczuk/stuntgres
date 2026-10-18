@@ -19,37 +19,37 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 	}
 	names := []string{"missing-attribute", "wrong-destination", "missing-dependencies", "parameter-dependent-valid-oid", "nonnull-literal-type-mismatch-valid-oid", "missing-oid"}
 	for i, mutate := range []func(*relationDescriptor){
-		func(d *relationDescriptor) { d.defaults = map[int32]columnDefault{99: old.defaults[1]} },
-		func(d *relationDescriptor) { d.defaults = map[int32]columnDefault{1: old.defaults[2]} },
+		func(d *relationDescriptor) { d.Defaults = map[int32]columnDefault{99: old.Defaults[1]} },
+		func(d *relationDescriptor) { d.Defaults = map[int32]columnDefault{1: old.Defaults[2]} },
 		func(d *relationDescriptor) {
-			bad := old.defaults[1]
+			bad := old.Defaults[1]
 			bad.dependencies = nil
-			d.defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]columnDefault{1: bad}
 		},
 		func(d *relationDescriptor) {
-			u := old.columns[0].Usage
+			u := old.Columns[0].Usage
 			node := parameterExpression{Info: expr.Info{Usage: u, Property: expr.Properties{ParameterDependent: true}}, number: 1}
-			bad := old.defaults[1]
+			bad := old.Defaults[1]
 			bad.expression = node
-			d.defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]columnDefault{1: bad}
 			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
 				t.Fatal("parameter invariant not reached", err)
 			}
 		},
 		func(d *relationDescriptor) {
-			u := old.columns[0].Usage
-			node := literalExpression{Info: expr.Info{Usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
-			bad := old.defaults[1]
+			u := old.Columns[0].Usage
+			node := literalExpression{Info: expr.Info{Usage: u}, value: sqltype.Boolean(old.Columns[1].Usage.Type, true)}
+			bad := old.Defaults[1]
 			bad.expression = node
-			d.defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]columnDefault{1: bad}
 			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
 				t.Fatal("literal type invariant not reached", err)
 			}
 		},
 		func(d *relationDescriptor) {
-			bad := old.defaults[1]
+			bad := old.Defaults[1]
 			bad.OID = 0
-			d.defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]columnDefault{1: bad}
 			if err := (relationProvider{}).Validate(view, d); err == nil || err.Error() != "stuntgres: invalid column default destination" {
 				t.Fatal("missing identity invariant not reached", err)
 			}
@@ -63,7 +63,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 				want = "stuntgres: invalid column default destination"
 			}
 			if err := (relationProvider{}).Validate(view, &next); err == nil || err.Error() != want {
-				t.Fatal("wrong invariant failure", next.defaults, err, want)
+				t.Fatal("wrong invariant failure", next.Defaults, err, want)
 			}
 		})
 	}
@@ -93,13 +93,13 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 		{"null-child", 1, func(node expr.Expr) expr.Expr { n := node.(nullTestExpression); n.child = nil; return n }},
 		{"null-result-type", 1, func(node expr.Expr) expr.Expr {
 			n := node.(nullTestExpression)
-			n.Usage = old.columns[3].Usage
+			n.Usage = old.Columns[3].Usage
 			return n
 		}},
 		{"null-foreign-child", 1, func(node expr.Expr) expr.Expr { n := node.(nullTestExpression); n.child = foreignChild; return n }},
 		{"null-dependent-child", 1, func(node expr.Expr) expr.Expr {
 			n := node.(nullTestExpression)
-			child := old.defaults[4].expression.(literalExpression)
+			child := old.Defaults[4].expression.(literalExpression)
 			child.Property.RowDependent = true
 			n.child = child
 			return n
@@ -107,7 +107,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 		{"truth-child", 2, func(node expr.Expr) expr.Expr { n := node.(truthTestExpression); n.child = nil; return n }},
 		{"truth-child-type", 2, func(node expr.Expr) expr.Expr {
 			n := node.(truthTestExpression)
-			n.child = old.defaults[4].expression
+			n.child = old.Defaults[4].expression
 			return n
 		}},
 		{"truth-enum", 2, func(node expr.Expr) expr.Expr { n := node.(truthTestExpression); n.truth = Truth(255); return n }},
@@ -119,19 +119,19 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 		}},
 		{"distinct-operand", 3, func(node expr.Expr) expr.Expr {
 			n := node.(distinctExpression)
-			n.right = old.defaults[2].expression
+			n.right = old.Defaults[2].expression
 			return n
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next := *old
-			next.defaults = make(map[int32]columnDefault, len(old.defaults))
-			for attribute, definition := range old.defaults {
-				next.defaults[attribute] = definition
+			next.Defaults = make(map[int32]columnDefault, len(old.Defaults))
+			for attribute, definition := range old.Defaults {
+				next.Defaults[attribute] = definition
 			}
-			bad := next.defaults[tc.attribute]
+			bad := next.Defaults[tc.attribute]
 			bad.expression = tc.mutate(bad.expression)
-			next.defaults[tc.attribute] = bad
+			next.Defaults[tc.attribute] = bad
 			if err := (relationProvider{}).Validate(view, &next); err == nil {
 				t.Fatal("invalid predicate definition accepted", tc.name)
 			}
@@ -148,7 +148,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("definition validation evaluated an explicit cast", err)
 	}
-	text, err := defaultSQL(context.Background(), view, old.defaults[2].expression)
+	text, err := defaultSQL(context.Background(), view, old.Defaults[2].expression)
 	if err != nil || !strings.Contains(text, "CAST(CAST('oops' AS TEXT) AS ") {
 		t.Fatal("lost known TEXT input type", text, err)
 	}
@@ -160,9 +160,9 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 		func(n coercionExpression) coercionExpression { n.child = nil; return n },
 	} {
 		next := *old
-		bad := old.defaults[1]
+		bad := old.Defaults[1]
 		bad.expression = mutate(bad.expression.(coercionExpression))
-		next.defaults = map[int32]columnDefault{1: bad, 2: old.defaults[2]}
+		next.Defaults = map[int32]columnDefault{1: bad, 2: old.Defaults[2]}
 		if err := (relationProvider{}).Validate(view, &next); err == nil {
 			t.Fatal("invalid cast definition accepted", bad)
 		}
@@ -178,7 +178,7 @@ func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal("provider evaluated a discarded conversion", err)
 	}
-	for _, definition := range d.defaults {
+	for _, definition := range d.Defaults {
 		text, err := defaultSQL(context.Background(), view, definition.expression)
 		if err != nil {
 			t.Fatal(err)

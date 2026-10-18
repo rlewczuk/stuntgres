@@ -51,7 +51,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			}
 			op.Done()
 			private := f.e.privateCatalogLocked(owner.transactions.catalog)
-			if private.MustRelation(ref.Address).membership != nil || f.e.catalog.state.Get(ref.Address) != f.child {
+			if private.MustRelation(ref.Address).Membership != nil || f.e.catalog.state.Get(ref.Address) != f.child {
 				t.Fatal("detach overlay did not remain private")
 			}
 			if !reflect.DeepEqual(beforeRows, owner.transactions.roots) {
@@ -93,7 +93,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			standalone := f.e.catalog.state.MustRelation(ref.Address).membership == nil
+			standalone := f.e.catalog.state.MustRelation(ref.Address).Membership == nil
 			if standalone != (end == "commit") {
 				t.Fatal("wrong end graph")
 			}
@@ -220,7 +220,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				if veto == "cancel" && f.e.catalog.state != before {
 					t.Fatal("canceled late admission changed catalog")
 				}
-				if veto != "epoch" && f.e.catalog.state.MustRelation(f.child.address).membership == nil {
+				if veto != "epoch" && f.e.catalog.state.MustRelation(f.child.address).Membership == nil {
 					t.Fatal("wait failure partially detached")
 				}
 				_ = holder.Finish(nil)

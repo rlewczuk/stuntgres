@@ -129,8 +129,8 @@ func TestTruncateGraph(t *testing.T) {
 			if kind == "inheritance" {
 				sessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
 				c := roleTableRef(t, e, "c")
-				inheritance = e.catalog.state.MustRelation(c.Address).inheritance
-				truncateUnitReplace(t, e, c, func(d *relationDescriptor) { d.inheritance = nil })
+				inheritance = e.catalog.state.MustRelation(c.Address).Inheritance
+				truncateUnitReplace(t, e, c, func(d *relationDescriptor) { d.Inheritance = nil })
 			} else {
 				sessionSQL(t, s, "CREATE TABLE c(id INT)")
 			}
@@ -140,7 +140,7 @@ func TestTruncateGraph(t *testing.T) {
 			if kind == "foreign-key" {
 				truncateUnitFK(t, e, p, child)
 			} else {
-				truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.inheritance = inheritance })
+				truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.Inheritance = inheritance })
 			}
 			if err := scope.Finish(nil); err != (CatalogConflict{}) {
 				t.Fatalf("late host graph: %v", err)
@@ -289,8 +289,8 @@ func TestTruncateAdmission(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE c(extra INT) INHERITS(p)")
 			sessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
 			child := roleTableRef(t, e, "c")
-			inheritance := e.catalog.state.MustRelation(child.Address).inheritance
-			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.inheritance = nil })
+			inheritance := e.catalog.state.MustRelation(child.Address).Inheritance
+			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.Inheritance = nil })
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
@@ -298,7 +298,7 @@ func TestTruncateAdmission(t *testing.T) {
 			stmt.Targets[0].Only = only
 			done, _ := truncateUnitAsync(t, e, waiter, stmt)
 			lockPending(t, e, 1)
-			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.inheritance = inheritance })
+			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.Inheritance = inheritance })
 			transactionEnd(t, holder, tx, false)
 			truncateUnitJoin(t, done, "")
 			want := 0

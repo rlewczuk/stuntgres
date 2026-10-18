@@ -131,12 +131,12 @@ func objectRelationKind(view CatalogRead, d *relationDescriptor) string {
 }
 func objectAttributeName(view CatalogRead, d *relationDescriptor, sub int32) string {
 	sub = int32(int16(sub))
-	for i, attr := range d.attributes {
+	for i, attr := range d.Attributes {
 		if attr == sub {
-			return d.columns[i].Name
+			return d.Columns[i].Name
 		}
 	}
-	if old, ok := d.droppedAttributes[sub]; ok {
+	if old, ok := d.DroppedAttributes[sub]; ok {
 		return old.name
 	}
 	if sub < 0 && sub >= -6 && hasSystemAttributes(view, d) {
@@ -386,44 +386,44 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32) {
 	switch a.ClassID {
 	case 2606:
-		for _, x := range d.notNullConstraints {
+		for _, x := range d.NotNullConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.checkConstraints {
+		for _, x := range d.CheckConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.uniqueConstraints {
+		for _, x := range d.UniqueConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.exclusionConstraints {
+		for _, x := range d.ExclusionConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.foreignKeys {
+		for _, x := range d.ForeignKeys {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
 	case 2604:
-		for sub, x := range d.defaults {
+		for sub, x := range d.Defaults {
 			if x.OID == a.ObjectID {
 				return "default", sub
 			}
 		}
-		for sub, x := range d.generations {
+		for sub, x := range d.Generations {
 			if x.OID == a.ObjectID {
 				return "generation", sub
 			}
 		}
 	case 2618:
-		if d.view != nil && d.view.RuleOID() == a.ObjectID {
+		if d.View != nil && d.View.RuleOID() == a.ObjectID {
 			return "_RETURN", 0
 		}
 		for _, x := range rulesOf(d) {
@@ -432,7 +432,7 @@ func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32
 			}
 		}
 	case 3256:
-		for _, x := range d.policies {
+		for _, x := range d.Policies {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}

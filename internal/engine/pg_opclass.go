@@ -11,10 +11,10 @@ func capturePGOpclass(ctx context.Context, catalog CatalogRead, ref ids.ObjectRe
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.columns) != 9 {
+	if len(source.Columns) != 9 {
 		return nil, fmt.Errorf("stuntgres: invalid operator class source shape")
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		id := sqltype.Oid
 		if i == 2 {
 			id = sqltype.Name
@@ -43,14 +43,14 @@ func capturePGOpclass(ctx context.Context, catalog CatalogRead, ref ids.ObjectRe
 			if j == 2 || j == 7 {
 				continue
 			}
-			value, err := sqltype.OIDValue(source.columns[j].Usage.Type, oid)
+			value, err := sqltype.OIDValue(source.Columns[j].Usage.Type, oid)
 			if err != nil {
 				return nil, err
 			}
 			row[j] = value
 		}
-		row[2] = sqltype.String(source.columns[2].Usage.Type, fact.Name)
-		row[7] = sqltype.Boolean(source.columns[7].Usage.Type, fact.Default)
+		row[2] = sqltype.String(source.Columns[2].Usage.Type, fact.Name)
+		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, fact.Default)
 		rows[i] = row
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

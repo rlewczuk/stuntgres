@@ -267,7 +267,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	case *namespaceDescriptor:
 		return d.owner, d.acl, nil
 	case *relationDescriptor:
-		return d.owner, d.acl, d.columnACL
+		return d.Owner, d.ACL, d.ColumnACL
 	case *typeDescriptor:
 		return d.owner, d.acl, nil
 	case *collationDescriptor:
@@ -310,7 +310,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	if d.Kind() == ids.NamespaceObject {
 		return authorization.UsagePrivilege | authorization.CreatePrivilege
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
 		return authorization.SelectPrivilege | authorization.UsagePrivilege | authorization.UpdatePrivilege
 	}
 	return authorization.TableGrantPrivileges
@@ -444,18 +444,18 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "foreign-data wrapper"
 		} else if d.Kind() == ids.ForeignServerObject {
 			kind = "foreign server"
-		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+		} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
 			kind = "sequence"
-		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == foreignRelation {
+		} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == foreignRelation {
 			kind = "foreign table"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == viewRelation {
 			kind = "view"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == materializedViewRelation {
 			kind = "materialized view"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == indexRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == indexRelation {
 			kind = "index"
 		}
 		if req.Object.Address.SubID > 0 && d.Kind() == ids.RelationObject {
@@ -501,15 +501,15 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "foreign-data wrapper"
 	} else if d.Kind() == ids.ForeignServerObject {
 		kind = "foreign server"
-	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+	} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
 		kind = "sequence"
-	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == foreignRelation {
+	} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == foreignRelation {
 		kind = "foreign table"
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
+	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == viewRelation {
 		kind = "view"
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
+	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == materializedViewRelation {
 		kind = "materialized view"
 	}
 	name := d.Name()
@@ -542,7 +542,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 		return err
 	}
 	if relation, ok := d.(*relationDescriptor); ok {
-		for _, policy := range relation.policies {
+		for _, policy := range relation.Policies {
 			for _, role := range policy.roles {
 				if role.public {
 					if role.ref != (authorization.PrincipalRef{}) {
@@ -583,7 +583,7 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	owner, acl, cols := descriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*relationDescriptor); ok {
-		for _, policy := range relation.policies {
+		for _, policy := range relation.Policies {
 			for _, role := range policy.roles {
 				if !role.public {
 					refs = append(refs, role.ref)
@@ -718,7 +718,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if source.relation.relationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
+		if source.relation.RelationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
 			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.state.CurrentUser); err != nil {
 				return err
 			}
@@ -727,7 +727,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	return nil
 }
 func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
-	if b.relation.relationKind == sequenceRelation && mask != authorization.SelectPrivilege {
+	if b.relation.RelationKind == sequenceRelation && mask != authorization.SelectPrivilege {
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
 	whole, err := v.Effective(b.ref, false)
@@ -740,7 +740,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 	if len(indices) == 0 {
 		// An empty SELECT/INSERT manifest still needs authority, but any
 		// live column can supply it. Attribute IDs survive dense-slot edits.
-		for _, attribute := range b.relation.attributes {
+		for _, attribute := range b.relation.Attributes {
 			ref := b.ref
 			ref.Address.SubID = attribute
 			rights, err := v.Effective(ref, false)
@@ -757,8 +757,8 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 	// Larger column-only ACL manifests use one bit per stable column position.
 	var small uint64
 	var seen []uint64
-	if len(b.relation.columns) > 64 {
-		seen = make([]uint64, (len(b.relation.columns)+63)/64)
+	if len(b.relation.Columns) > 64 {
+		seen = make([]uint64, (len(b.relation.Columns)+63)/64)
 	}
 	check := func(index int) error {
 		word := &small
@@ -771,7 +771,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 		}
 		*word |= bit
 		ref := b.ref
-		ref.Address.SubID = b.relation.attributes[index]
+		ref.Address.SubID = b.relation.Attributes[index]
 		return v.Check(AccessRequirement{Object: ref, Privileges: mask})
 	}
 	for _, index := range indices {
@@ -850,16 +850,16 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		}
 		n := *d
 		if ref.Address.SubID == 0 {
-			n.acl = acl
+			n.ACL = acl
 		} else {
-			n.columnACL = make(map[int32]authorization.ACLValue, len(d.columnACL)+1)
-			for k, v := range d.columnACL {
-				n.columnACL[k] = v
+			n.ColumnACL = make(map[int32]authorization.ACLValue, len(d.ColumnACL)+1)
+			for k, v := range d.ColumnACL {
+				n.ColumnACL[k] = v
 			}
 			if acl.Explicit {
-				n.columnACL[ref.Address.SubID] = acl
+				n.ColumnACL[ref.Address.SubID] = acl
 			} else {
-				delete(n.columnACL, ref.Address.SubID)
+				delete(n.ColumnACL, ref.Address.SubID)
 			}
 		}
 		next = &n
@@ -882,12 +882,12 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if n, ok := next.(*relationDescriptor); ok && n.relationKind == sequenceRelation && ref.Address.SubID == 0 {
+	if n, ok := next.(*relationDescriptor); ok && n.RelationKind == sequenceRelation && ref.Address.SubID == 0 {
 		stamp, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
-		n.sequencePlanStamp = stamp
+		n.SequencePlanStamp = stamp
 	}
 	if _, ok := next.(*namespaceDescriptor); ok {
 		if err := state.advanceNamespaceGeneration(); err != nil {

@@ -431,7 +431,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				return relation.address, nil
 			}
 			column := names[len(names)-1]
-			for _, sub := range relation.attributes {
+			for _, sub := range relation.Attributes {
 				if objectAttributeName(view, relation, sub) == column {
 					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
 				}
@@ -494,46 +494,46 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 func ownedAddressByName(d *relationDescriptor, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
-		for _, x := range d.notNullConstraints {
+		for _, x := range d.NotNullConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.checkConstraints {
+		for _, x := range d.CheckConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.uniqueConstraints {
+		for _, x := range d.UniqueConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.exclusionConstraints {
+		for _, x := range d.ExclusionConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.foreignKeys {
+		for _, x := range d.ForeignKeys {
 			if x.Name == name {
 				return x.OID
 			}
 		}
 	case 2604:
-		for i, col := range d.columns {
+		for i, col := range d.Columns {
 			if col.Name == name {
-				sub := d.attributes[i]
-				if def, ok := d.defaults[sub]; ok {
+				sub := d.Attributes[i]
+				if def, ok := d.Defaults[sub]; ok {
 					return def.OID
 				}
-				if def, ok := d.generations[sub]; ok {
+				if def, ok := d.Generations[sub]; ok {
 					return def.OID
 				}
 			}
 		}
 	case 2618:
-		if name == "_RETURN" && d.view != nil {
-			return d.view.RuleOID()
+		if name == "_RETURN" && d.View != nil {
+			return d.View.RuleOID()
 		}
 		for _, x := range rulesOf(d) {
 			if x.Name == name {
@@ -541,7 +541,7 @@ func ownedAddressByName(d *relationDescriptor, class ids.OID, name string) ids.O
 			}
 		}
 	case 3256:
-		for _, x := range d.policies {
+		for _, x := range d.Policies {
 			if x.Name == name {
 				return x.OID
 			}

@@ -72,15 +72,15 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgParameterACLUnitSource(t, e, catalog)
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	if d.name != "pg_parameter_acl" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.owner != owner || d.owner.ID() != 10 || d.relationKind != catalogRelation || d.virtualView || len(d.columns) != 3 || d.attributeHighWater != 3 || !d.hasIndexes {
+	if d.name != "pg_parameter_acl" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	for i, name := range []string{"oid", "parname", "paracl"} {
 		id := []sqltype.ID{26, 25, 1034}[i]
 		collation := []uint32{0, 950, 0}[i]
 		typ, _ := catalog.LookupType(id)
-		c := d.columns[i]
-		if c.Name != name || c.Usage.Type != typ || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable != (i == 2) || !c.NullabilityKnown || c.OriginTable != 6243 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i {
+		c := d.Columns[i]
+		if c.Name != name || c.Usage.Type != typ || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable != (i == 2) || !c.NullabilityKnown || c.OriginTable != 6243 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
 		}
 		fact := relationAttributeMetadata(d, i)
@@ -95,13 +95,13 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
 	ownedArray, ok := catalog.LookupArray(row.typ)
-	if !ok || d.rowType != 10097 || row.array != 10096 || ownedArray != array.typ || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	if !ok || d.RowType != 10097 || row.array != 10096 || ownedArray != array.typ || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
@@ -231,7 +231,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if _, exists := e.catalog.state.Find(emptyAddress); exists {
 		t.Fatal("baseline not removed")
 	}
-	implicit, err := e.pgClassACL(roles, d.columns[2].Usage.Type, authorization.ACLValue{})
+	implicit, err := e.pgClassACL(roles, d.Columns[2].Usage.Type, authorization.ACLValue{})
 	if err != nil || !implicit.IsNull() {
 		t.Fatal("implicit carrier", implicit, err)
 	}
@@ -382,14 +382,14 @@ func TestPGParameterACLAuthorization(t *testing.T) {
 		d, _ := pgParameterACLUnitSource(t, e, base)
 		next := *d
 		next.revision++
-		next.acl = authorization.ACLValue{Explicit: true}
-		next.columnACL = nil
-		entry := authorization.ACLEntry{Grantor: d.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}
+		next.ACL = authorization.ACLValue{Explicit: true}
+		next.ColumnACL = nil
+		entry := authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}
 		if table {
-			next.acl.Entries = []authorization.ACLEntry{entry}
+			next.ACL.Entries = []authorization.ACLEntry{entry}
 		}
 		if column {
-			next.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{entry}}}
+			next.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{entry}}}
 		}
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)

@@ -33,7 +33,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 		index, attributes := attachment.index, attachment.attributes
 		// A real TYPE reconstruction precedes attachment and gets a new backing
 		// identity. A previous capture of the same index may already have reminted it.
-		if stage.base.Get(index.address) != nil && uniqueIndexTypeAffected(index.sqlIndex, transformations) {
+		if stage.base.Get(index.address) != nil && uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			e.mu.Lock()
 			id, allocateErr := e.catalog.allocateOIDLocked()
 			var revision ids.DefinitionRevision
@@ -47,20 +47,20 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 			clone := *index
 			clone.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 			clone.revision = revision
-			clone.columns = slices.Clone(index.columns)
+			clone.Columns = slices.Clone(index.Columns)
 			for i, attribute := range attributes {
-				clone.columns[i].Name = parent.columns[slices.Index(parent.attributes, attribute)].Name
-				clone.columns[i].OriginTable = uint32(id)
+				clone.Columns[i].Name = parent.Columns[slices.Index(parent.Attributes, attribute)].Name
+				clone.Columns[i].OriginTable = uint32(id)
 			}
-			for i, attribute := range index.sqlIndex.include {
-				clone.columns[len(attributes)+i].Name = parent.columns[slices.Index(parent.attributes, attribute)].Name
-				clone.columns[len(attributes)+i].OriginTable = uint32(id)
+			for i, attribute := range index.SQLIndex.include {
+				clone.Columns[len(attributes)+i].Name = parent.Columns[slices.Index(parent.Attributes, attribute)].Name
+				clone.Columns[len(attributes)+i].OriginTable = uint32(id)
 			}
-			for j, column := range clone.columns {
-				if column.Name != index.columns[j].Name {
-					clone.index = make(map[string]int, len(clone.columns))
-					for slot, renamed := range clone.columns {
-						clone.index[renamed.Name] = slot
+			for j, column := range clone.Columns {
+				if column.Name != index.Columns[j].Name {
+					clone.Index = make(map[string]int, len(clone.Columns))
+					for slot, renamed := range clone.Columns {
+						clone.Index[renamed.Name] = slot
 					}
 					break
 				}
@@ -82,7 +82,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 }
 
 func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingIndexConstraint) ([]int32, error) {
-	definition := index.sqlIndex
+	definition := index.SQLIndex
 	fail := func(code, message string, detail bool) ([]int32, error) {
 		diagnostic := expr.ErrorAt(code, message, raw.Pos).(*sqlstate.Error)
 		if detail {
@@ -126,7 +126,7 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 		return fail("42809", fmt.Sprintf(`index "%s" is not a btree`, name), false)
 	}
 	for i, key := range definition.keys {
-		usage := parent.columns[slices.Index(parent.attributes, attributes[i])].Usage
+		usage := parent.Columns[slices.Index(parent.Attributes, attributes[i])].Usage
 		class, ok := sqltype.DefaultIndexClass(usage.Type)
 		keyUsage, err := indexKeyUsage(parent, key)
 		if err != nil {
@@ -142,7 +142,7 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 			if raw.Primary {
 				kind = "primary key"
 			}
-			return fail("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, parent.columns[slices.Index(parent.attributes, attribute)].Name, kind), false)
+			return fail("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, parent.Columns[slices.Index(parent.Attributes, attribute)].Name, kind), false)
 		}
 	}
 	return slices.Clone(attributes[:len(definition.keys)]), nil
@@ -196,5 +196,5 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 // CREATE's inline UNIQUE/PK surface cannot represent included attributes.
 // Emit the actual backing index and attach it through the selected ALTER path.
 func usingIndexDump(index *relationDescriptor) bool {
-	return index.sqlIndex != nil && index.sqlIndex.constraint != nil && index.sqlIndex.constraint.kind == uniqueBackingKind && len(index.sqlIndex.include) != 0
+	return index.SQLIndex != nil && index.SQLIndex.constraint != nil && index.SQLIndex.constraint.kind == uniqueBackingKind && len(index.SQLIndex.include) != 0
 }

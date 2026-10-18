@@ -56,14 +56,14 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 		if name == "" {
 			return
 		}
-		slot, ok := relation.index[column]
+		slot, ok := relation.Index[column]
 		if !ok {
 			return
 		}
-		attribute := relation.attributes[slot]
-		for _, constraint := range relation.notNullConstraints {
+		attribute := relation.Attributes[slot]
+		for _, constraint := range relation.NotNullConstraints {
 			if constraint.Name == name && constraint.Attribute == attribute && !constraint.NotValid {
-				if graph := relation.inheritance; graph != nil {
+				if graph := relation.Inheritance; graph != nil {
 					fact := graph.notNull[attribute]
 					if !fact.local || fact.count() != 0 {
 						return
@@ -104,12 +104,12 @@ func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, orig
 	if !ok {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
-	slot, ok := relation.index[raw.Actions[0].Column.Text]
+	slot, ok := relation.Index[raw.Actions[0].Column.Text]
 	if !ok {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
-	for _, constraint := range relation.notNullConstraints {
-		if constraint.Attribute != relation.attributes[slot] || constraint.NotValid {
+	for _, constraint := range relation.NotNullConstraints {
+		if constraint.Attribute != relation.Attributes[slot] || constraint.NotValid {
 			continue
 		}
 		origin, exists := origins[constraint.OID]
@@ -152,36 +152,36 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		return err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.relationKind != tableRelation || origin.ref != ref {
+	if !ok || old.RelationKind != tableRelation || origin.ref != ref {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
-	slot, ok := old.index[column]
-	if !ok || old.attributes[slot] != origin.attribute || old.columns[slot].Nullable {
+	slot, ok := old.Index[column]
+	if !ok || old.Attributes[slot] != origin.attribute || old.Columns[slot].Nullable {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
-	index := slices.IndexFunc(old.notNullConstraints, func(c notNullConstraint) bool {
+	index := slices.IndexFunc(old.NotNullConstraints, func(c notNullConstraint) bool {
 		return c.OID == origin.constraint && c.Name == label && c.Attribute == origin.attribute && !c.NotValid
 	})
 	if index < 0 {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
-	for _, constraint := range old.uniqueConstraints {
+	for _, constraint := range old.UniqueConstraints {
 		if constraint.Primary && slices.Contains(constraint.Attributes, origin.attribute) {
 			e.mu.Unlock()
 			return sqlError("0A000", restoreNoInheritBoundary)
 		}
 	}
-	if graph := old.inheritance; graph != nil {
+	if graph := old.Inheritance; graph != nil {
 		fact := graph.notNull[origin.attribute]
 		if !fact.local || fact.count() != 0 {
 			e.mu.Unlock()
 			return sqlError("0A000", restoreNoInheritBoundary)
 		}
 	}
-	if old.notNullConstraints[index].NoInherit {
+	if old.NotNullConstraints[index].NoInherit {
 		e.mu.Unlock()
 		return nil
 	}
@@ -191,8 +191,8 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	}
 	next := *old
 	next.revision++
-	next.notNullConstraints = slices.Clone(old.notNullConstraints)
-	next.notNullConstraints[index].NoInherit = true
+	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
+	next.NotNullConstraints[index].NoInherit = true
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()

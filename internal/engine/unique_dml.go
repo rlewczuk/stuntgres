@@ -65,26 +65,26 @@ retry:
 	var checkedNonunique []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.live {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.address || !index.SQLIndex.live {
 			continue
 		}
-		if index.sqlIndex.ready && index.sqlIndex.requiresInsertionOutput() {
+		if index.SQLIndex.ready && index.SQLIndex.requiresInsertionOutput() {
 			b.checked = true
-			if !index.sqlIndex.unique && !index.sqlIndex.isExclusion() {
+			if !index.SQLIndex.unique && !index.SQLIndex.isExclusion() {
 				checkedNonunique = append(checkedNonunique, index)
 			}
 		}
-		if !index.sqlIndex.unique && !index.sqlIndex.isExclusion() {
+		if !index.SQLIndex.unique && !index.SQLIndex.isExclusion() {
 			continue
 		}
 		// REL18 row-key eligibility is independent of readiness/validity.
 		// An expression anywhere excludes the whole index; INCLUDE is payload.
 		var slots [32]int
-		if len(index.sqlIndex.keys) > len(slots) {
+		if len(index.SQLIndex.keys) > len(slots) {
 			return nil, errors.New("stuntgres: invalid unique index key count")
 		}
 		simple := true
-		for at, key := range index.sqlIndex.keys {
+		for at, key := range index.SQLIndex.keys {
 			attribute, node, err := indexCatalogKey(parent, key)
 			if err != nil {
 				return nil, err
@@ -93,16 +93,16 @@ retry:
 				simple = false
 				break
 			}
-			slots[at] = slices.Index(parent.attributes, attribute)
+			slots[at] = slices.Index(parent.Attributes, attribute)
 		}
-		if index.sqlIndex.unique && simple && index.sqlIndex.predicate == nil {
-			for _, slot := range slots[:len(index.sqlIndex.keys)] {
+		if index.SQLIndex.unique && simple && index.SQLIndex.predicate == nil {
+			for _, slot := range slots[:len(index.SQLIndex.keys)] {
 				if !slices.Contains(b.keySlots, slot) {
 					b.keySlots = append(b.keySlots, slot)
 				}
 			}
 		}
-		if index.sqlIndex.ready {
+		if index.SQLIndex.ready {
 			indexes = append(indexes, index)
 		}
 	}
@@ -120,25 +120,25 @@ retry:
 		bound := &b.keys[i]
 		bound.index = index
 		bound.parent = parent
-		if index.sqlIndex.isExclusion() {
-			bound.ordering, err = bindExclusionOrdering(parent, index.sqlIndex)
+		if index.SQLIndex.isExclusion() {
+			bound.ordering, err = bindExclusionOrdering(parent, index.SQLIndex)
 		} else {
-			bound.ordering, err = bindIndexOrdering(parent, index.sqlIndex)
+			bound.ordering, err = bindIndexOrdering(parent, index.SQLIndex)
 		}
 		if err != nil {
 			return nil, err
 		}
-		n := len(index.sqlIndex.keys)
-		if index.sqlIndex.method != gistMethod {
+		n := len(index.SQLIndex.keys)
+		if index.SQLIndex.method != gistMethod {
 			bound.grouping = make([]sqltype.Grouping, n)
 		}
 		bound.key, bound.scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
-		for j, key := range index.sqlIndex.keys {
+		for j, key := range index.SQLIndex.keys {
 			usage, usageErr := indexKeyUsage(parent, key)
 			if usageErr != nil {
 				return nil, usageErr
 			}
-			if index.sqlIndex.method == gistMethod {
+			if index.SQLIndex.method == gistMethod {
 				continue
 			}
 			// network_ops owns typed comparison but not generic grouping. Its
@@ -160,10 +160,10 @@ retry:
 		}
 		for _, index := range checkedNonunique {
 			bound := indexInsertionBinding{index: index, parent: parent}
-			if index.sqlIndex.method == hashMethod {
-				bound.hash, err = bindHashIndex(parent, index.sqlIndex)
+			if index.SQLIndex.method == hashMethod {
+				bound.hash, err = bindHashIndex(parent, index.SQLIndex)
 			} else {
-				bound.ordering, err = bindIndexKeys(parent, index.sqlIndex)
+				bound.ordering, err = bindIndexKeys(parent, index.SQLIndex)
 			}
 			if err != nil {
 				return nil, err
@@ -220,14 +220,14 @@ func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *EvalContext) ([]s
 }
 
 func (b *uniqueBoundKey) fillKeys(row, keys []sqltype.Value, evaluation *EvalContext) error {
-	if err := b.preparation.prepareKeys(evaluation, b.parent, b.index.sqlIndex, &b.ordering, nil); err != nil {
+	if err := b.preparation.prepareKeys(evaluation, b.parent, b.index.SQLIndex, &b.ordering, nil); err != nil {
 		return err
 	}
 	return b.ordering.fillKeys(row, keys, evaluation)
 }
 
 func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.Value) (bool, error) {
-	member, err := b.preparation.predicateMatches(evaluation, b.parent, b.index.sqlIndex, values, &b.ordering, nil)
+	member, err := b.preparation.predicateMatches(evaluation, b.parent, b.index.SQLIndex, values, &b.ordering, nil)
 	if err != nil || !member {
 		return false, err
 	}
@@ -255,12 +255,12 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
-		if index.sqlIndex.isExclusion() {
+		if index.SQLIndex.isExclusion() {
 			c := exclusionDefinition(binding.parent, index)
 			if c == nil {
 				return ids.ErrCatalogReplaced
 			}
-			if c.Deferrable || !index.sqlIndex.exactEqualityClaims() {
+			if c.Deferrable || !index.SQLIndex.exactEqualityClaims() {
 				continue
 			}
 		}
@@ -271,7 +271,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 		if !member {
 			continue
 		}
-		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
+		if !index.SQLIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
@@ -317,11 +317,11 @@ type uniqueConflict struct {
 }
 
 func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
-	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.sqlIndex.keys)
+	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.SQLIndex.keys)
 	if err != nil {
 		return err
 	}
-	if c.index.sqlIndex.isExclusion() {
+	if c.index.SQLIndex.isExclusion() {
 		return exclusionDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.existing, c.schema, s.output, allowed, false, c.view)
 	}
 	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
@@ -347,7 +347,7 @@ retry:
 		purpose = indexProbeTracked
 	}
 	parent := binding.parent
-	if len(row) != len(parent.columns) {
+	if len(row) != len(parent.Columns) {
 		return uniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
 	e := s.op.session.Engine()
@@ -386,7 +386,7 @@ retry:
 			bound = &binding.keys[i]
 		}
 		index := bound.index
-		if index.sqlIndex.isExclusion() {
+		if index.SQLIndex.isExclusion() {
 			if conflict, err := s.probeExclusionRow(ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.index != nil {
 				return conflict, err
 			}
@@ -402,7 +402,7 @@ retry:
 		if !member {
 			continue
 		}
-		if !index.sqlIndex.nullsNotDistinct && uniqueHasNull(key) {
+		if !index.SQLIndex.nullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
@@ -439,7 +439,7 @@ retry:
 			}
 		}
 		var versions []rowVersion
-		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.sqlIndex.hasRuntimeDomainKeyConversion()) {
+		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.hasRuntimeDomainKeyConversion()) {
 			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
 				versions = storage.versions
 			}
@@ -508,12 +508,12 @@ retry:
 				}
 			}
 			if !replaced {
-				if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.sqlIndex.hasRuntimeDomainKeyConversion()) {
+				if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.hasRuntimeDomainKeyConversion()) {
 					head, err := conflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err
 					}
-					if purpose != indexProbeRevalidation && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+					if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 						if err := bound.fillKeys(head.values, bound.scratch, &evaluation); err != nil {
 							return uniqueConflict{}, err
 						}
@@ -531,7 +531,7 @@ retry:
 				return uniqueConflict{}, err
 			}
 			if found {
-				if purpose != indexProbeRevalidation && action != nil && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+				if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 					if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
 						return uniqueConflict{}, err
 					}
@@ -555,7 +555,7 @@ retry:
 						return uniqueConflict{}, err
 					}
 					if equal {
-						if purpose != indexProbeRevalidation && action != nil && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+						if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 							if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
 								return uniqueConflict{}, err
 							}

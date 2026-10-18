@@ -49,14 +49,14 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID})
-	if !d.virtualView || d.relationKind != catalogRelation || d.rowType != 12075 {
+	if !d.VirtualView || d.RelationKind != catalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	for _, id := range []ids.OID{12075, 12074} {
 		typ := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})

@@ -68,17 +68,17 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	c := &boundInsertConflict{targets: b.targets}
 	b.conflict = c
 	if raw.Constraint.Text != "" {
-		for _, u := range b.relation.uniqueConstraints {
+		for _, u := range b.relation.UniqueConstraints {
 			if u.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
 				c.namedIndex = u.Index
 				for _, a := range u.Attributes {
-					c.reads = append(c.reads, slices.Index(b.relation.attributes, a))
+					c.reads = append(c.reads, slices.Index(b.relation.Attributes, a))
 				}
 				return nil
 			}
 		}
-		for _, definition := range b.relation.exclusionConstraints {
+		for _, definition := range b.relation.ExclusionConstraints {
 			if definition.Name != raw.Constraint.Text {
 				continue
 			}
@@ -88,14 +88,14 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}
-			for _, key := range index.sqlIndex.keys {
+			for _, key := range index.SQLIndex.keys {
 				if key.derived == nil {
-					c.reads = append(c.reads, slices.Index(b.relation.attributes, key.attribute))
+					c.reads = append(c.reads, slices.Index(b.relation.Attributes, key.attribute))
 					continue
 				}
 				for _, dependency := range key.derived.dependencies {
 					if dependency.Address.ClassID == b.ref.Address.ClassID && dependency.Address.ObjectID == b.ref.Address.ObjectID && dependency.Address.SubID != 0 {
-						slot := slices.Index(b.relation.attributes, dependency.Address.SubID)
+						slot := slices.Index(b.relation.Attributes, dependency.Address.SubID)
 						if !slices.Contains(c.reads, slot) {
 							c.reads = append(c.reads, slot)
 						}
@@ -104,13 +104,13 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			}
 			return nil
 		}
-		for _, check := range b.relation.checkConstraints {
+		for _, check := range b.relation.CheckConstraints {
 			if check.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
-		for _, nn := range b.relation.notNullConstraints {
+		for _, nn := range b.relation.NotNullConstraints {
 			if nn.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil
@@ -198,10 +198,10 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		def := index.sqlIndex
+		def := index.SQLIndex
 		if def.parent != parent.address || !def.live || !def.ready || (!def.unique && !def.isExclusion()) {
 			continue
 		}

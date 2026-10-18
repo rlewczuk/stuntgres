@@ -141,13 +141,13 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	}
 	if t.owningRelation != (ids.ObjectAddress{}) {
 		relation, ok := view.Relation(t.owningRelation)
-		if !ok || relation.namespace != t.Namespace() || relation.owner != t.owner {
+		if !ok || relation.namespace != t.Namespace() || relation.Owner != t.owner {
 			return fmt.Errorf("stuntgres: invalid row type ownership")
 		}
-		if !t.typ.IsArray() && (relation.rowType != t.typ.ID() || relation.name != t.Name()) {
+		if !t.typ.IsArray() && (relation.RowType != t.typ.ID() || relation.name != t.Name()) {
 			return CatalogConflict{}
 		}
-		if t.typ.IsArray() && relation.rowType != t.typ.Element().ID() {
+		if t.typ.IsArray() && relation.RowType != t.typ.Element().ID() {
 			return CatalogConflict{}
 		}
 	}
@@ -158,13 +158,13 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	}
 	if t.typ.IsComposite() {
 		relation, ok := view.Relation(t.owningRelation)
-		if !ok || len(relation.columns) != t.typ.CompositeLen() {
+		if !ok || len(relation.Columns) != t.typ.CompositeLen() {
 			return fmt.Errorf("stuntgres: missing composite backing definition")
 		}
-		for i, column := range relation.columns {
+		for i, column := range relation.Columns {
 			member := t.typ.CompositeMember(i)
 			actual, exists := view.LookupType(member.Usage.Type.ID())
-			if !exists || actual != member.Usage.Type || member.Attribute != relation.attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
+			if !exists || actual != member.Usage.Type || member.Attribute != relation.Attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
 				return fmt.Errorf("stuntgres: inconsistent composite member generation")
 			}
 		}
@@ -497,7 +497,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 // Existing row-bearing relations reserve their reciprocal type identity.
 func relationTypeNameOccupied(view CatalogRead, namespace ids.ObjectAddress, name string) bool {
 	for _, address := range view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) {
-		if relation, ok := view.Relation(address); ok && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
+		if relation, ok := view.Relation(address); ok && (relation.RelationKind == tableRelation || relation.RelationKind == partitionedRelation || relation.RelationKind == viewRelation || relation.RelationKind == compositeRelation) {
 			return true
 		}
 	}

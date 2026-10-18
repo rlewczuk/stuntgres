@@ -13,14 +13,14 @@ const temporaryTypedReplacementError = "stuntgres: catalog replacement with live
 func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.ofType == (ids.ObjectAddress{}) {
+		if !ok || table.OfType == (ids.ObjectAddress{}) {
 			continue
 		}
 		namespace := e.catalog.state.MustNamespace(table.namespace)
 		if namespace.temporary == (ids.SessionToken{}) {
 			continue
 		}
-		source, ok := e.catalog.state.Type(table.ofType)
+		source, ok := e.catalog.state.Type(table.OfType)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing typed source")
 		}

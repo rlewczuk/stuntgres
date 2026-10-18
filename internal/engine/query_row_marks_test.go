@@ -134,8 +134,8 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
 	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
-		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
 	}}
 	marks := []queryRowMark{{mode: lock.ForUpdate, wait: parser.RowLockSkip}, {mode: lock.ForShare, wait: parser.RowLockNowait}}
 	pending := appendPendingRowMarks(nil, marks, inputs)
@@ -151,7 +151,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
 	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
-	table := &relationDescriptor{relationKind: tableRelation}
+	table := &relationDescriptor{RelationKind: tableRelation}
 	requested := queryRowMark{mode: lock.ForUpdate, wait: parser.RowLockNowait, diagnosticMode: lock.ForUpdate, order: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{
 		{leaf: queryLeaf{relation: view, mark: requested}, mark: effectiveQueryRowMark(view, requested)},

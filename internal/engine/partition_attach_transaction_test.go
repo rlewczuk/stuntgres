@@ -45,7 +45,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids
 	rows := make([][]sqltype.Value, len(values))
 	d := e.catalog.state.MustRelation(ref.Address)
 	for i, n := range values {
-		value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
+		value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,7 +82,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 	t.Run("latest_validation_preserves_rr_and_owner_effects", func(t *testing.T) {
 		e := New()
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
-		child.relationKind = tableRelation
+		child.RelationKind = tableRelation
 		partitionAttachUnitInstall(t, e, child)
 		ref := e.catalog.domain.Ref(e.catalog.state.epoch, child.address)
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -163,7 +163,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_tx_parent", 46210)
 			child := inheritanceUnitRelation(e, "attach_tx_child", 46211, "k")
-			child.relationKind = tableRelation
+			child.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
 			parent = e.catalog.state.MustRelation(parent.address)
 			child = e.catalog.state.MustRelation(child.address)
@@ -200,7 +200,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			attachOp.Done()
 			private := e.privateCatalogLocked(owner.transactions.catalog)
-			if private.MustRelation(child.address).membership == nil || e.catalog.state.Get(child.address) != child || len(parent.partition.children) != 0 {
+			if private.MustRelation(child.address).Membership == nil || e.catalog.state.Get(child.address) != child || len(parent.Partition.children) != 0 {
 				t.Fatal("overlay was not private and reciprocal")
 			}
 			if end == "savepoint" {
@@ -237,7 +237,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			attached := e.catalog.state.MustRelation(child.address).membership != nil
+			attached := e.catalog.state.MustRelation(child.address).Membership != nil
 			if attached != (end == "commit") {
 				t.Fatal("transaction end published wrong topology", attached)
 			}

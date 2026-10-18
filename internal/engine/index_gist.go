@@ -31,7 +31,7 @@ func bindLogicalExclusionKeys(parent *relationDescriptor, d *indexDefinition) (i
 			}
 			o.slots[i], o.derived[i] = -1, key.derived.execution
 		} else {
-			o.slots[i] = slices.Index(parent.attributes, key.attribute)
+			o.slots[i] = slices.Index(parent.Attributes, key.attribute)
 			if o.slots[i] < 0 {
 				return o, fmt.Errorf("stuntgres: missing logical GiST attribute")
 			}

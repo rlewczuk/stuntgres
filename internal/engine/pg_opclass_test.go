@@ -33,7 +33,7 @@ func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) ma
 		}
 		values := make([]any, 9)
 		for i, v := range row {
-			if v.IsNull() || v.Type() != d.columns[i].Usage.Type {
+			if v.IsNull() || v.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("unowned/null cell", i, v)
 			}
 			var err error
@@ -62,7 +62,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgOpclassUnitSource(t, e)
-	if d.name != "pg_opclass" || d.namespace.ObjectID != 11 || d.rowType != 10013 || !d.hasIndexes || d.relationKind != catalogRelation || d.attributeHighWater != 9 || len(d.columns) != 9 {
+	if d.name != "pg_opclass" || d.namespace.ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
 		t.Fatal("descriptor", d)
 	}
 	for i, name := range []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"} {
@@ -76,13 +76,13 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 			id = sqltype.Bool
 		}
 		owned, ok := catalog.LookupType(id)
-		c := d.columns[i]
-		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2616 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i {
+		c := d.Columns[i]
+		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2616 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
 		}
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC read", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC read", d.ACL)
 	}
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
@@ -105,9 +105,9 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[0].Usage.Type = foreign
-	for _, source := range []*relationDescriptor{&invalid, {columns: d.columns[:8]}} {
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[0].Usage.Type = foreign
+	for _, source := range []*relationDescriptor{&invalid, {Columns: d.Columns[:8]}} {
 		if rows, err := capturePGOpclass(context.Background(), catalog, ref, source); rows != nil || err == nil {
 			t.Fatal("invalid source accepted", rows, err)
 		}
@@ -129,7 +129,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fresh.columns[0].Usage.Type == d.columns[0].Usage.Type {
+	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type {
 		t.Fatal("generation not reowned")
 	}
 	if !reflect.DeepEqual(pgOpclassUnitBag(t, freshRows, fresh), bag) || !reflect.DeepEqual(pgOpclassUnitBag(t, rows, d), bag) {
@@ -177,15 +177,15 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
-		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
-		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
+		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", RelationKind: tableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
+		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
 		e.catalog.state.setDescriptor(parent.address, parent)
 		e.catalog.state.setDescriptor(index.address, index)
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.sqlIndex, &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}, nil)
+		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}, nil)
 		if err != nil || root == nil || (root.hash != nil) != (tc.method == hashMethod) {
 			t.Fatal("real root", tc, root, err)
 		}

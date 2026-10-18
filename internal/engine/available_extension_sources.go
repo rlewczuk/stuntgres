@@ -22,12 +22,12 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]extensi
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid available extension source")
 	}
-	if len(source.columns) != len(typeIDs) {
+	if len(source.Columns) != len(typeIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid available extension source shape")
 	}
 	for i, id := range typeIDs {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign available extension source type")
 		}
 	}
@@ -53,11 +53,11 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]extensi
 // Metadata-only component seam: fixed control schema is not the installed
 // target namespace, and an unknown installed version never creates a package.
 func projectAvailableExtension(name string, registration extensionControl, installed *extensionDescriptor, source *relationDescriptor) ([]sqltype.Value, error) {
-	row := make([]sqltype.Value, len(source.columns))
-	for i, column := range source.columns {
+	row := make([]sqltype.Value, len(source.Columns))
+	for i, column := range source.Columns {
 		row[i] = sqltype.Null(column.Usage.Type)
 	}
-	text := func(i int, value string) { row[i] = sqltype.String(source.columns[i].Usage.Type, value) }
+	text := func(i int, value string) { row[i] = sqltype.String(source.Columns[i].Usage.Type, value) }
 	optional := func(i int, value *string) {
 		if value != nil {
 			text(i, *value)
@@ -72,11 +72,11 @@ func projectAvailableExtension(name string, registration extensionControl, insta
 		optional(3, registration.comment)
 	} else {
 		for i, value := range []bool{installed != nil && installed.version == registration.version, registration.superuser, registration.trusted, registration.relocatable} {
-			row[i+2] = sqltype.Boolean(source.columns[i+2].Usage.Type, value)
+			row[i+2] = sqltype.Boolean(source.Columns[i+2].Usage.Type, value)
 		}
 		optional(6, registration.schema)
 		if len(registration.requires) != 0 {
-			value, err := sqltype.Names(source.columns[7].Usage.Type, registration.requires)
+			value, err := sqltype.Names(source.Columns[7].Usage.Type, registration.requires)
 			if err != nil {
 				return nil, err
 			}

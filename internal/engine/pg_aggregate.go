@@ -37,12 +37,12 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source || len(source.columns) != len(aggregateColumnTypes) {
+	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source || len(source.Columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {
 		typ, ok := catalog.LookupType(id)
-		if !ok || typ != source.columns[i].Usage.Type {
+		if !ok || typ != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign aggregate source type")
 		}
 	}
@@ -61,7 +61,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 		}
 		row := cells[index*22 : (index+1)*22]
 		for i := range row {
-			typ := source.columns[i].Usage.Type
+			typ := source.Columns[i].Usage.Type
 			var err error
 			switch {
 			case i == 0:

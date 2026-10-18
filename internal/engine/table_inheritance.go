@@ -40,7 +40,7 @@ type createInheritanceInput struct {
 
 func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, parent) {
+		if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.parents, parent) {
 			return true
 		}
 	}
@@ -54,7 +54,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 			continue
 		}
 		d, ok := v.Relation(address)
-		if ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, parent) {
+		if ok && d.Inheritance != nil && slices.Contains(d.Inheritance.parents, parent) {
 			children = append(children, d)
 		}
 	}
@@ -70,7 +70,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 	return children
 }
 func inheritanceParticipant(v CatalogRead, d *relationDescriptor) bool {
-	return d.inheritance != nil || inheritanceHasChildren(v, d.address)
+	return d.Inheritance != nil || inheritanceHasChildren(v, d.address)
 }
 
 func inheritanceTypeName(u sqltype.Usage) string {
@@ -128,21 +128,21 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			return nil, nil, nil, err
 		}
 		source := auth.catalog.MustRelation(ref.Address)
-		if source.relationKind == compositeRelation {
+		if source.RelationKind == compositeRelation {
 			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.name)).(*sqlstate.Error)
 			d.Detail = "This operation is not supported for composite types."
 			return nil, nil, nil, d
 		}
-		if source.partition != nil {
+		if source.Partition != nil {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partitioned table "%s"`, source.name))
 		}
-		if source.membership != nil {
+		if source.Membership != nil {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.name))
 		}
-		if source.relationKind == foreignRelation {
+		if source.RelationKind == foreignRelation {
 			return nil, nil, nil, sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
 		}
-		if source.relationKind != tableRelation {
+		if source.RelationKind != tableRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.name))
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
@@ -157,8 +157,8 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		}
 		seen[ref.Address] = true
 		b.createInheritance = append(b.createInheritance, createInheritanceInput{ref, source})
-		for sourceSlot, c := range source.columns {
-			definition, isGenerated := source.generations[source.attributes[sourceSlot]]
+		for sourceSlot, c := range source.Columns {
+			definition, isGenerated := source.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
 				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
 				if err := inheritanceColumnConflict(auth.catalog, merged[slot], c, false); err != nil {
@@ -228,16 +228,16 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 	}
 	for i := range b.createLikes {
 		in := &b.createLikes[i]
-		in.targetSlots = make([]int, len(in.source.columns))
+		in.targetSlots = make([]int, len(in.source.Columns))
 		for j := range in.targetSlots {
 			in.targetSlots[j] = mapping[in.offset+j]
 		}
 	}
 	for _, in := range b.createLikes {
 		if in.options&likeGenerated != 0 {
-			for i, attribute := range in.source.attributes {
-				if _, exists := in.source.generations[attribute]; exists {
-					name := in.source.columns[i].Name
+			for i, attribute := range in.source.Attributes {
+				if _, exists := in.source.Generations[attribute]; exists {
+					name := in.source.Columns[i].Name
 					if isGenerated, inherited := generated[name]; inherited && !isGenerated {
 						diagnostic := sqlError("42611", fmt.Sprintf(`child column "%s" specifies generation expression`, name)).(*sqlstate.Error)
 						diagnostic.Hint = "A child table column cannot be generated unless its parent column is."
@@ -250,10 +250,10 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		if in.options&likeDefaults == 0 {
 			continue
 		}
-		for i, attribute := range in.source.attributes {
-			_, specified := in.source.defaults[attribute]
-			if in.source.inheritance != nil {
-				specified = specified || in.source.inheritance.columns[attribute].explicitDefault
+		for i, attribute := range in.source.Attributes {
+			_, specified := in.source.Defaults[attribute]
+			if in.source.Inheritance != nil {
+				specified = specified || in.source.Inheritance.columns[attribute].explicitDefault
 			}
 			if specified {
 				resultDeclarations[in.targetSlot(i)].copiedDefault = true

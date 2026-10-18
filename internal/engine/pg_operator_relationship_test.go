@@ -16,7 +16,7 @@ import (
 func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, right *sqltype.Descriptor) (expr.Expr, error) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, attributes: []int32{1, 2}, index: map[string]int{"l": 0, "r": 1}}
+	b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}

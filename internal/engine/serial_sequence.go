@@ -42,15 +42,15 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 	}
 	relation := catalog.MustRelation(ref.Address)
 	owner := ref.Address
-	for i, descriptor := range relation.columns {
+	for i, descriptor := range relation.Columns {
 		if descriptor.Name == column {
-			owner.SubID = relation.attributes[i]
+			owner.SubID = relation.Attributes[i]
 			break
 		}
 	}
 	if owner.SubID == 0 {
 		if isSystemColumn(column) {
-			switch relation.relationKind {
+			switch relation.RelationKind {
 			case tableRelation, sequenceRelation, catalogRelation, indexRelation:
 				return sqltype.Null(e.Usage.Type), nil
 			}
@@ -62,7 +62,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 			return sqltype.Value{}, err
 		}
 		sequence, ok := descriptor.(*relationDescriptor)
-		if !ok || sequence.relationKind != sequenceRelation || sequence.sequence == nil || sequence.sequence.owned != owner {
+		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.owned != owner {
 			continue
 		}
 		namespace, ok := catalog.Namespace(sequence.namespace)

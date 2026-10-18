@@ -24,19 +24,19 @@ func (e *Engine) capturePGTablespace(ctx context.Context, catalog CatalogRead, r
 		if err := validateACL(roles, d); err != nil {
 			return nil, err
 		}
-		id, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(d.address.ObjectID))
+		id, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(d.address.ObjectID))
 		if err != nil {
 			return nil, err
 		}
-		owner, err := sqltype.OIDValue(source.columns[2].Usage.Type, uint32(d.owner.ID()))
+		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(d.owner.ID()))
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.columns[3].Usage.Type, d.acl)
+		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, d.acl)
 		if err != nil {
 			return nil, err
 		}
-		rows[i] = []sqltype.Value{id, sqltype.String(source.columns[1].Usage.Type, d.name), owner, acl, sqltype.Null(source.columns[4].Usage.Type)}
+		rows[i] = []sqltype.Value{id, sqltype.String(source.Columns[1].Usage.Type, d.name), owner, acl, sqltype.Null(source.Columns[4].Usage.Type)}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

@@ -56,16 +56,16 @@ type generatedRepairFixture struct {
 func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	t.Helper()
 	e, view, d := generatedUnitDescriptor(t)
-	d.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	d.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	oldAddress := d.address
 	d.address.ObjectID = 26000
 	oid, _ := view.LookupType(sqltype.Oid)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	floating, _ := view.LookupType(sqltype.Float8)
-	d.columns[1].Usage = oid.Usage()
+	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
-	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
+	d.Generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
 	probe := functions.Random{Info: expr.Info{Usage: floating.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
@@ -82,8 +82,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, origin: columnRef, scope: 1, frame: 1, slot: 1}
 	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: repairedCell, right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, predicate: predicate, operator: "="}
 	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: probe, not: true}
-	d.checkConstraints = []checkConstraint{{Name: "scoped_gate", expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
-	base, err := sqltype.Integer(d.columns[0].Usage.Type, 2)
+	d.CheckConstraints = []checkConstraint{{Name: "scoped_gate", expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
+	base, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,10 +101,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
 	temp := *d
 	temp.address, temp.namespace, temp.name = tempAddress, tempNamespace, "retained"
-	temp.generations, temp.checkConstraints = nil, nil
+	temp.Generations, temp.CheckConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: e.catalog.domain.Session(99)})
+	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.Owner, revision: 1, temporary: e.catalog.domain.Session(99)})
 	e.catalog.state.setDescriptor(tempAddress, &temp)
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()

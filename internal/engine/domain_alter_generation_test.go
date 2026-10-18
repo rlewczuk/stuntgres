@@ -94,7 +94,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				if err != nil || before != after {
 					t.Fatal("index scalar payload changed", before, after, err)
 				}
-				usage, err := indexKeyUsage(currentParent, currentIndex.sqlIndex.keys[position])
+				usage, err := indexKeyUsage(currentParent, currentIndex.SQLIndex.keys[position])
 				if err != nil || current.Type() != usage.Type {
 					t.Fatal("index key retained stale logical conversion authority", err)
 				}

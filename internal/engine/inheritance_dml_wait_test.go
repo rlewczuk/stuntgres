@@ -20,7 +20,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
-	c.inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{c.attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	c.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{c.Attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.Attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		}
 		queryCreatePublish(t, e, remove)
 		stage, next := queryCreateStage(t, e, "c", 1)
-		next.inheritance = cloneInheritance(c.inheritance)
+		next.Inheritance = cloneInheritance(c.Inheritance)
 		queryCreatePublish(t, e, stage)
 		if next.address == old.Address || e.storage[next.address] == e.storage[old.Address] {
 			t.Fatal("replacement did not mint a fresh physical identity")

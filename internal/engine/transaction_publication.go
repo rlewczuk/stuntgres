@@ -314,7 +314,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 						if runtimeOwners == nil {
 							runtimeOwners = make(map[ids.ObjectAddress]authorization.PrincipalRef)
 						}
-						runtimeOwners[address] = shape.relation.owner
+						runtimeOwners[address] = shape.relation.Owner
 					}
 				}
 			}
@@ -443,7 +443,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					shape.original.materializedLineage = token
 					shape.replacement.materializedLineage = token
 				}
-				if shape.rewritten && shape.relation.relationKind == materializedViewRelation {
+				if shape.rewritten && shape.relation.RelationKind == materializedViewRelation {
 					for i := range shape.replacement.versions {
 						shape.replacement.versions[i].born = e.commitSeq + 1
 					}

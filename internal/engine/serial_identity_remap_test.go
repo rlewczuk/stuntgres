@@ -23,7 +23,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
 			temp := description.sequences.constants[0].ref.Address
 			original := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.consumer").Address)
-			leaf := serialLeaf(original.defaults[1].expression)
+			leaf := serialLeaf(original.Defaults[1].expression)
 			if leaf.ref.Address != temp {
 				t.Fatal("fixture lacks actual identity provider collision", leaf.ref.Address, temp)
 			}
@@ -39,12 +39,12 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 				t.Fatal(err)
 			}
 			consumer := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.consumer").Address)
-			current := serialLeaf(consumer.defaults[1].expression)
-			if current.ref.Address == temp || !closedSequenceDefault(consumer.defaults[1].expression) {
+			current := serialLeaf(consumer.Defaults[1].expression)
+			if current.ref.Address == temp || !closedSequenceDefault(consumer.Defaults[1].expression) {
 				t.Fatal("identity provider reference not remapped", current.ref)
 			}
 			provider := dest.catalog.state.MustRelation(current.ref.Address)
-			if !provider.sequence.identity || current.identity {
+			if !provider.Sequence.identity || current.identity {
 				t.Fatal("ordinary default inherited identity privilege/width semantics")
 			}
 			sessionSQL(t, b, `INSERT INTO portable.consumer DEFAULT VALUES`)
@@ -52,7 +52,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `INSERT INTO portable.producer DEFAULT VALUES`)
 			sequenceScalar(t, b, `SELECT id FROM portable.producer`, 9)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
-			if serialLeaf(original.defaults[1].expression).ref != leaf.ref {
+			if serialLeaf(original.Defaults[1].expression).ref != leaf.ref {
 				t.Fatal("source provider identity mutated")
 			}
 			checkReviewDependencyValid(t, dest)

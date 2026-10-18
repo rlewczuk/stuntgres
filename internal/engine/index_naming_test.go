@@ -11,7 +11,7 @@ func TestBtreeIndexReleaseNaming(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT,"+a+" INT,"+b+" INT,"+c+" INT)")
 	run(t, e, "CREATE INDEX ON t(a,a)")
 	index, _ := btreeRoot(t, e, "t_a_a1_idx")
-	if index.columns[0].Name != "a" || index.columns[1].Name != "a1" || index.sqlIndex.keys[0].attribute != index.sqlIndex.keys[1].attribute {
+	if index.Columns[0].Name != "a" || index.Columns[1].Name != "a1" || index.SQLIndex.keys[0].attribute != index.SQLIndex.keys[1].attribute {
 		t.Fatal(index)
 	}
 	run(t, e, "CREATE INDEX ON t(a,a)")
@@ -30,7 +30,7 @@ func TestBtreeIndexReleaseNaming(t *testing.T) {
 	run(t, e, `CREATE TABLE "éTable"("列" INT,index TEXT)`)
 	run(t, e, `CREATE INDEX "éIndex" ON "éTable"("列",index DESC)`)
 	index, _ = btreeRoot(t, e, `"éIndex"`)
-	if index.columns[0].Name != "列" || !index.sqlIndex.keys[1].desc {
+	if index.Columns[0].Name != "列" || !index.SQLIndex.keys[1].desc {
 		t.Fatal(index)
 	}
 }
@@ -48,7 +48,7 @@ func TestBtreeIndexUtf8AndRepeatedLabels(t *testing.T) {
 	run(t, e, "CREATE TABLE dup(a INT,a1 INT)")
 	run(t, e, "CREATE INDEX ON dup(a,a,a1)")
 	index, _ = btreeRoot(t, e, "dup_a_a1_a11_idx")
-	if index.columns[2].Name != "a11" {
-		t.Fatal(index.columns)
+	if index.Columns[2].Name != "a11" {
+		t.Fatal(index.Columns)
 	}
 }

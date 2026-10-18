@@ -265,7 +265,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if grantErr != nil {
 		t.Fatal(grantErr)
 	}
-	if e.catalog.state != state || e.roles != roles || e.storage[address] != store || state.MustRelation(address).owner == target {
+	if e.catalog.state != state || e.roles != roles || e.storage[address] != store || state.MustRelation(address).Owner == target {
 		t.Fatal("stale publication erased membership or changed table")
 	}
 }

@@ -34,14 +34,14 @@ type boundMergeArm struct {
 }
 
 func mergeRelationKind(relation *relationDescriptor) error {
-	if relation.relationKind == tableRelation || relation.relationKind == partitionedRelation {
+	if relation.RelationKind == tableRelation || relation.RelationKind == partitionedRelation {
 		return nil
 	}
-	if relation.relationKind == viewRelation {
+	if relation.RelationKind == viewRelation {
 		return sqlError("0A000", "MERGE into views is unsupported")
 	}
 	err := sqlError("0A000", fmt.Sprintf(`cannot execute MERGE on relation "%s"`, relation.name)).(*sqlstate.Error)
-	switch relation.relationKind {
+	switch relation.RelationKind {
 	case sequenceRelation:
 		err.Detail = "This operation is not supported for sequences."
 	case indexRelation:
@@ -82,7 +82,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		}
 	}
 	out.storage = e.authorizationStorageLocked(auth, ref.Address)
-	if out.storage == nil && out.relation.relationKind != partitionedRelation && !guardedCatalogRelation(out.relation) {
+	if out.storage == nil && out.relation.RelationKind != partitionedRelation && !guardedCatalogRelation(out.relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	binder.relation, binder.ref = out.relation, ref
@@ -209,7 +209,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 				return err
 			}
 			if len(arm.input.insertProjection) == 0 {
-				arm.input.insertProjection = make([]int, len(out.relation.columns))
+				arm.input.insertProjection = make([]int, len(out.relation.Columns))
 				for j := range arm.input.insertProjection {
 					arm.input.insertProjection[j] = -1
 				}
@@ -301,7 +301,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 			}
 			folded, _, err := preflightCoercions(&owner, expression)
 			if err != nil {
-				return insertValueError(catalog, err, arm.input.relation.columns[arm.input.targets[j]], arm.syntax[j], nil)
+				return insertValueError(catalog, err, arm.input.relation.Columns[arm.input.targets[j]], arm.syntax[j], nil)
 			}
 			arm.input.expressions[0][j] = folded
 		}
@@ -310,8 +310,8 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 				continue
 			}
 			defaultOwner := owner
-			attribute := arm.input.relation.attributes[j]
-			defaultOwner.quoteOrigin = quoteOrigin{owner: arm.input.ref, attribute: attribute, definition: arm.input.relation.defaults[attribute].OID}
+			attribute := arm.input.relation.Attributes[j]
+			defaultOwner.quoteOrigin = quoteOrigin{owner: arm.input.ref, attribute: attribute, definition: arm.input.relation.Defaults[attribute].OID}
 			arm.input.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err

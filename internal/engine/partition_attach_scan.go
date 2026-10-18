@@ -25,9 +25,9 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			return err
 		}
 		if proven && !exclude {
-			for child := parent; child.membership != nil; {
-				ancestor := view.MustRelation(child.membership.parent)
-				proven, err = partitionConstraintProven(s, view, ancestor, d, child.membership, false)
+			for child := parent; child.Membership != nil; {
+				ancestor := view.MustRelation(child.Membership.parent)
+				proven, err = partitionConstraintProven(s, view, ancestor, d, child.Membership, false)
 				if err != nil || !proven {
 					break
 				}
@@ -40,11 +40,11 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 		if proven {
 			return nil
 		}
-		if d.partition == nil {
+		if d.Partition == nil {
 			scans = append(scans, partitionAttachScan{leaf: d, exclude: exclude})
 			return nil
 		}
-		for _, address := range d.partition.children {
+		for _, address := range d.Partition.children {
 			child, ok := view.Relation(address)
 			if !ok {
 				return ids.ErrCatalogReplaced
@@ -128,7 +128,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 			if err != nil {
 				return err
 			}
-			constraint := partitionAttachRowConstraint{parent: p, child: relationDescriptor{membership: m}, layout: layout}
+			constraint := partitionAttachRowConstraint{parent: p, child: relationDescriptor{Membership: m}, layout: layout}
 			if layout != nil {
 				constraint.scratch = make([]sqltype.Value, len(layout))
 			}
@@ -139,9 +139,9 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 			return err
 		}
 		if !job.exclude {
-			for child := parent; child.membership != nil; {
-				ancestor := catalog.MustRelation(child.membership.parent)
-				if err := add(ancestor, child.membership); err != nil {
+			for child := parent; child.Membership != nil; {
+				ancestor := catalog.MustRelation(child.Membership.parent)
+				if err := add(ancestor, child.Membership); err != nil {
 					return err
 				}
 				child = ancestor

@@ -148,7 +148,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 					continue
 				}
 				current := auth.catalog.MustRelation(layer.ref.Address)
-				source.principal = current.owner
+				source.principal = current.Owner
 				if viewOf(current).invoker {
 					source.principal = auth.state.CurrentUser
 				}
@@ -173,7 +173,7 @@ func freezeViewWriteSources(scope *StatementScope, source *querySource, leaves [
 		if sources != nil {
 			child = sources[i]
 		}
-		child = frozenViewSource(scope, child, leaf.frozenAttributes, leaf.relation.attributes)
+		child = frozenViewSource(scope, child, leaf.frozenAttributes, leaf.relation.Attributes)
 		if sources != nil {
 			sources[i] = child
 		} else {

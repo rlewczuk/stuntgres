@@ -23,9 +23,9 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 	r.reserved[d.name] = true
 	slots := make(map[int]string, len(leaf.attributes))
 	for i, attribute := range leaf.attributes {
-		for j, current := range d.attributes {
+		for j, current := range d.Attributes {
 			if current == attribute {
-				slots[i] = quoteIdentifier(d.name) + "." + quoteIdentifier(d.columns[j].Name)
+				slots[i] = quoteIdentifier(d.name) + "." + quoteIdentifier(d.Columns[j].Name)
 				break
 			}
 		}
@@ -38,20 +38,20 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.policies) == 0 {
+		if !ok || len(d.Policies) == 0 {
 			continue
 		}
 		ns := view.MustNamespace(d.namespace)
 		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
-		owner, err := roles.Descriptor(d.owner)
+		owner, err := roles.Descriptor(d.Owner)
 		if err != nil {
 			return nil, err
 		}
 		table := quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name)
 		var sql strings.Builder
-		for _, policy := range d.policies {
+		for _, policy := range d.Policies {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}

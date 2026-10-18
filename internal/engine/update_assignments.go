@@ -26,8 +26,8 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				return expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
 			}
 		}
-		if slot, exists := b.relation.index[a.Target.Text]; exists {
-			if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
+		if slot, exists := b.relation.Index[a.Target.Text]; exists {
+			if _, generated := b.relation.Generations[b.relation.Attributes[slot]]; generated {
 				if _, requested := a.Value.(parser.DefaultExpr); !requested {
 					return generationWriteError(a.Target.Text, true)
 				}
@@ -35,14 +35,14 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			}
 		}
 		if _, requested := a.Value.(parser.DefaultExpr); requested {
-			if b.relation.relationKind == viewRelation {
+			if b.relation.RelationKind == viewRelation {
 				continue // Rewrite diagnoses computed/generated destinations.
 			}
 			return expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
 		}
 		expected := sqltype.Usage{}
-		if slot, ok := b.relation.index[a.Target.Text]; ok {
-			expected = b.relation.columns[slot].Usage
+		if slot, ok := b.relation.Index[a.Target.Text]; ok {
+			expected = b.relation.Columns[slot].Usage
 			if len(a.Steps) != 0 {
 				expected = targetUsage(expected, a.Steps)
 			}
@@ -54,7 +54,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 	}
 	seen := make(map[int]bool, len(assignments))
 	for i, a := range assignments {
-		slot, ok := b.relation.index[a.Target.Text]
+		slot, ok := b.relation.Index[a.Target.Text]
 		if !ok {
 			switch a.Target.Text {
 			case "ctid", "tableoid", "xmin", "xmax", "cmin", "cmax":
@@ -75,11 +75,11 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
 		seen[slot] = partial
-		if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
+		if _, generated := b.relation.Generations[b.relation.Attributes[slot]]; generated {
 			b.targets = append(b.targets, slot)
 			continue
 		}
-		if identity, ok := b.relation.identities[b.relation.attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
+		if identity, ok := b.relation.Identities[b.relation.Attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
 			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
 			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
 			diagnostic.Hint = ""
@@ -87,8 +87,8 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		}
 		b.targets = append(b.targets, slot)
 		source := u.assignments[i]
-		dest := b.relation.columns[slot]
-		if source == nil && b.relation.relationKind == viewRelation {
+		dest := b.relation.Columns[slot]
+		if source == nil && b.relation.RelationKind == viewRelation {
 			continue
 		}
 		var target *arrayAssignmentTarget

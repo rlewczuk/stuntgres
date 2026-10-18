@@ -114,14 +114,14 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	}
 	parent := e.catalog.state.MustRelation(ref.Address)
 	index, _ := btreeRoot(t, e, "public.ui_index")
-	if !index.sqlIndex.unique || index.sqlIndex.nullsNotDistinct != nnd || len(index.sqlIndex.keys) != count {
+	if !index.SQLIndex.unique || index.SQLIndex.nullsNotDistinct != nnd || len(index.SQLIndex.keys) != count {
 		t.Fatal("invalid unique fixture")
 	}
 	if attached {
-		if index.sqlIndex.constraint == nil || len(parent.uniqueConstraints) != 1 || parent.uniqueConstraints[0].Index != index.address {
+		if index.SQLIndex.constraint == nil || len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Index != index.address {
 			t.Fatal("attachment must be genuine")
 		}
-	} else if index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 {
+	} else if index.SQLIndex.constraint != nil || len(parent.UniqueConstraints) != 0 {
 		t.Fatal("standalone fixture fabricated attachment")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -145,7 +145,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) ro
 	t.Helper()
 	values := make([]sqltype.Value, 3)
 	for i, text := range []string{a, b} {
-		typ := f.parent.columns[i].Usage.Type
+		typ := f.parent.Columns[i].Usage.Type
 		values[i] = sqltype.Null(typ)
 		if text != "" {
 			var err error
@@ -155,7 +155,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) ro
 			}
 		}
 	}
-	values[2] = sqltype.String(f.parent.columns[2].Usage.Type, fmt.Sprintf("new%d", offset))
+	values[2] = sqltype.String(f.parent.Columns[2].Usage.Type, fmt.Sprintf("new%d", offset))
 	return rowVersion{row: ids.RowID(f.nextRow + uint64(offset)), version: ids.VersionID(f.nextVersion + uint64(offset)), values: values}
 }
 

@@ -596,10 +596,10 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
 					replacement.revision++
 					if mode == "shape" {
-						replacement.attributes = append([]int32(nil), replacement.attributes...)
-						replacement.attributes[0]++
+						replacement.Attributes = append([]int32(nil), replacement.Attributes...)
+						replacement.Attributes[0]++
 					} else {
-						replacement.comment = "compatible metadata revision"
+						replacement.Comment = "compatible metadata revision"
 					}
 					e.catalog.state.setDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.setDescriptor(address, original) }
@@ -686,7 +686,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			view := e.CatalogRead()
 			ref := roleTableRef(t, e, "d")
 			d := view.MustRelation(ref.Address)
-			original := d.defaults[d.attributes[0]]
+			original := d.Defaults[d.Attributes[0]]
 			c := &EvalContext{Context: context.Background()}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.expression, true)
 			if err != nil || !changed {
@@ -722,7 +722,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			if err := (relationProvider{}).Validate(view, d); err != nil {
 				t.Fatal("stored definition invalid", err)
 			}
-			if !reflect.DeepEqual(d.defaults[d.attributes[0]], original) {
+			if !reflect.DeepEqual(d.Defaults[d.Attributes[0]], original) {
 				t.Fatal("stored default changed")
 			}
 		})
@@ -737,7 +737,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 		run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+expr+"))")
 		ref := roleTableRef(t, e, "d")
 		d := e.CatalogRead().MustRelation(ref.Address)
-		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.defaults[d.attributes[0]].expression, true)
+		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.Defaults[d.Attributes[0]].expression, true)
 		state(t, err, "22P02")
 		run(t, e, "INSERT INTO d VALUES(FALSE)")
 	}

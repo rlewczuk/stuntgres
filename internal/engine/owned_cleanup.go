@@ -98,7 +98,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		var policies []policyDefinition
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			var different bool
-			policies, different = ownedPolicies(relation.policies, sources)
+			policies, different = ownedPolicies(relation.Policies, sources)
 			changed = changed || different
 		}
 		if !changed {
@@ -146,11 +146,11 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			err = stage.Replace(&next)
 		case *relationDescriptor:
 			next := *old
-			next.acl = nextACL
+			next.ACL = nextACL
 			next.revision = revision
-			next.policies = policies
+			next.Policies = policies
 			if nextColumns != nil {
-				next.columnACL = nextColumns
+				next.ColumnACL = nextColumns
 			}
 			err = stage.Replace(&next)
 		default:
@@ -218,7 +218,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	for address, descriptor := range stage.descriptors {
 		next, ok := descriptor.(*relationDescriptor)
 		original, existed := stage.base.Relation(address)
-		if ok && existed && len(next.policies) < len(original.policies) {
+		if ok && existed && len(next.Policies) < len(original.Policies) {
 			return true
 		}
 	}
@@ -226,8 +226,8 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// They are excluded from independent mutation roots, not from collection.
 	for _, descriptor := range stage.base.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
-		if ok && relation.relationKind == sequenceRelation && relation.sequence != nil &&
-			relation.sequence.owned != (ids.ObjectAddress{}) && sources[relation.owner] {
+		if ok && relation.RelationKind == sequenceRelation && relation.Sequence != nil &&
+			relation.Sequence.owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
 			return true
 		}
 	}
@@ -238,7 +238,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 		if !ok {
 			continue
 		}
-		for _, policy := range relation.policies {
+		for _, policy := range relation.Policies {
 			selected := len(policy.roles) > 0
 			for _, role := range policy.roles {
 				if role.public || !sources[role.ref] {

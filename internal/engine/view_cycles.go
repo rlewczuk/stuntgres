@@ -13,7 +13,7 @@ import (
 func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
-		if leaf.relation.relationKind == viewRelation {
+		if leaf.relation.RelationKind == viewRelation {
 			hasView = true
 			break
 		}
@@ -25,7 +25,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 	visibilityDemand := false
 	var visit func(*relationDescriptor) error
 	visit = func(d *relationDescriptor) error {
-		if d.relationKind != viewRelation || done[d.address] {
+		if d.RelationKind != viewRelation || done[d.address] {
 			return nil
 		}
 		if active[d.address] {
@@ -47,7 +47,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.relation.relationKind != viewRelation {
+		if leaf.relation.RelationKind != viewRelation {
 			continue
 		}
 		current, ok := catalog.Relation(leaf.relation.address)

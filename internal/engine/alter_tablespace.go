@@ -117,7 +117,7 @@ func checkAlterTablespaceCreate(auth AuthorizationView, ref ids.ObjectRef) error
 }
 
 func alterTablespaceKind(d *relationDescriptor) error {
-	switch d.relationKind {
+	switch d.RelationKind {
 	case tableRelation, partitionedRelation, indexRelation, materializedViewRelation:
 		return nil
 	}

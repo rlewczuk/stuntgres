@@ -140,12 +140,12 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	array := table.columns[1].Usage.Type
+	array := table.Columns[1].Usage.Type
 	arrayValue, err := array.Input(context.Background(), "[0:1]={-1,NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	composite, err := table.columns[2].Usage.Type.Input(context.Background(), "(-1)", -1)
+	composite, err := table.Columns[2].Usage.Type.Input(context.Background(), "(-1)", -1)
 	if err != nil {
 		t.Fatal(err)
 	}

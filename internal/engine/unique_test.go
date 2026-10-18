@@ -15,15 +15,15 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v TEXT)")
 	ref := roleTableRef(t, e, "t")
 	parent := e.catalog.state.MustRelation(ref.Address)
-	if len(parent.uniqueConstraints) != 1 {
-		t.Fatal(parent.uniqueConstraints)
+	if len(parent.UniqueConstraints) != 1 {
+		t.Fatal(parent.UniqueConstraints)
 	}
-	c := parent.uniqueConstraints[0]
+	c := parent.UniqueConstraints[0]
 	index, empty := btreeRoot(t, e, "u")
-	if c.OID == 0 || c.Index != index.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.parent != parent.address || index.owner != parent.owner || index.namespace != parent.namespace || len(empty.entries) != 0 {
+	if c.OID == 0 || c.Index != index.address || !index.SQLIndex.unique || index.SQLIndex.constraint == nil || index.SQLIndex.constraint.OID != c.OID || index.SQLIndex.parent != parent.address || index.Owner != parent.Owner || index.namespace != parent.namespace || len(empty.entries) != 0 {
 		t.Fatal("broken parent/index closure")
 	}
-	if index.attributeHighWater != int32(len(index.attributes)) {
+	if index.AttributeHighWater != int32(len(index.Attributes)) {
 		t.Fatal("backing column identities exceed their allocation high-water")
 	}
 	run(t, e, "INSERT INTO t VALUES(1,'a'),(NULL,'n'),(NULL,'n')")
@@ -46,7 +46,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next.address != parent.address || next.uniqueConstraints[0].OID == c.OID || next.uniqueConstraints[0].Index == c.Index {
+	if next.address != parent.address || next.UniqueConstraints[0].OID == c.OID || next.UniqueConstraints[0].Index == c.Index {
 		t.Fatal("TYPE identity contract")
 	}
 	if _, ok := e.catalog.state.Find(c.Index); ok {
@@ -80,13 +80,13 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "u")
 	ref := e.catalog.domain.Ref(e.catalog.state.epoch, index.address)
-	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
-	ordering, err := bindIndexOrdering(parent, index.sqlIndex)
+	parent := e.catalog.state.MustRelation(index.SQLIndex.parent)
+	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ := index.columns[0].Usage.Type
-	group, err := sqltype.BindGrouping(index.columns[0].Usage)
+	typ := index.Columns[0].Usage.Type
+	group, err := sqltype.BindGrouping(index.Columns[0].Usage)
 	if err != nil {
 		t.Fatal(err)
 	}

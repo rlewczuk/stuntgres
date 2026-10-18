@@ -118,7 +118,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		if d, ok := descriptor.(*relationDescriptor); ok && len(d.foreignKeys) != 0 {
+		if d, ok := descriptor.(*relationDescriptor); ok && len(d.ForeignKeys) != 0 {
 			present = true
 			break
 		}
@@ -135,7 +135,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue
 		}
-		for _, f := range edge.relation.foreignKeys {
+		for _, f := range edge.relation.ForeignKeys {
 			if f.OID == edge.address.ObjectID {
 				// The column's existing shape pass owns local AUTO removal,
 				// even if discovery first reached this FK through its index.
@@ -202,14 +202,14 @@ func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) err
 		if replacement, ok := provider.replacement(old.address).(*relationDescriptor); ok {
 			old = replacement
 		}
-		for i, f := range old.foreignKeys {
+		for i, f := range old.ForeignKeys {
 			if f.OID != edge.address.ObjectID {
 				continue
 			}
 			next := *old
-			next.foreignKeys = make([]foreignKeyConstraint, 0, len(old.foreignKeys)-1)
-			next.foreignKeys = append(next.foreignKeys, old.foreignKeys[:i]...)
-			next.foreignKeys = append(next.foreignKeys, old.foreignKeys[i+1:]...)
+			next.ForeignKeys = make([]foreignKeyConstraint, 0, len(old.ForeignKeys)-1)
+			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[:i]...)
+			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[i+1:]...)
 			var err error
 			next.revision, err = provider.revision(old.revision)
 			if err != nil {
@@ -231,11 +231,11 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 	view := e.stageRead(stage)
 	for _, descriptor := range view.Descriptors() {
 		old, ok := descriptor.(*relationDescriptor)
-		if !ok || len(old.foreignKeys) == 0 {
+		if !ok || len(old.ForeignKeys) == 0 {
 			continue
 		}
 		var next *relationDescriptor
-		for i, f := range old.foreignKeys {
+		for i, f := range old.ForeignKeys {
 			affected := false
 			for _, change := range transformations {
 				affected = affected || (old.address == parent.address && slices.Contains(f.Attributes, change.attribute)) || (f.Target == parent.address && slices.Contains(f.Referenced, change.attribute))
@@ -245,14 +245,14 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 			}
 			if next == nil {
 				copy := *old
-				copy.foreignKeys = slices.Clone(old.foreignKeys)
+				copy.ForeignKeys = slices.Clone(old.ForeignKeys)
 				next = &copy
 				if old.address == parent.address {
 					*next = *parent
-					next.foreignKeys = slices.Clone(parent.foreignKeys)
+					next.ForeignKeys = slices.Clone(parent.ForeignKeys)
 				}
 			}
-			c := &next.foreignKeys[i]
+			c := &next.ForeignKeys[i]
 			target, ok := view.Relation(c.Target)
 			if c.Target == parent.address {
 				target = parent
@@ -299,7 +299,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if child.address != address && f.Target != address {
 				continue
 			}
@@ -341,7 +341,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if f.NotValid || child.address != address && f.Target != address {
 				continue
 			}
@@ -376,7 +376,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if installedForeignKey(stage, address, f) {
 				continue
 			}
@@ -423,7 +423,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if installedForeignKey(stage, address, f) {
 				continue
 			}

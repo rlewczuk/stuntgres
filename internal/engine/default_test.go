@@ -45,8 +45,8 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
-			probe.Info = expr.Info{Usage: old.columns[1].Usage}
-			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe}}
+			probe.Info = expr.Info{Usage: old.Columns[1].Usage}
+			next.Defaults = map[int32]columnDefault{old.Attributes[1]: {expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
 			state := cloneCatalog(e.catalog.state)
@@ -183,7 +183,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 	run(t, e, `CREATE TABLE src(id INT)`)
 	ref := roleTableRef(t, e, "d")
 	old := e.CatalogRead().MustRelation(ref.Address)
-	definition := old.defaults[old.attributes[1]]
+	definition := old.Defaults[old.Attributes[1]]
 	if n := run(t, e, `INSERT INTO d(id) SELECT id FROM src`).Count; n != 0 {
 		t.Fatal(n)
 	}
@@ -193,7 +193,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 			t.Fatal(n)
 		}
 		current := e.CatalogRead().MustRelation(ref.Address)
-		stored := current.defaults[current.attributes[1]]
+		stored := current.Defaults[current.Attributes[1]]
 		cast, ok := stored.expression.(coercionExpression)
 		if !ok || cast.mode != sqltype.Explicit || !reflect.DeepEqual(stored, definition) {
 			t.Fatal("execution preflight replaced stored default", stored, definition)
@@ -225,7 +225,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			view := e.CatalogRead()
 			ref := roleTableRef(t, e, "d")
 			d := view.MustRelation(ref.Address)
-			original := d.defaults[d.attributes[0]]
+			original := d.Defaults[d.Attributes[0]]
 			c := &EvalContext{Context: context.Background()}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.expression, true)
 			if err != nil || !changed {
@@ -250,7 +250,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			if err := (relationProvider{}).Validate(view, d); err != nil {
 				t.Fatal("execution planning changed the stored definition", err)
 			}
-			if !reflect.DeepEqual(d.defaults[d.attributes[0]], original) {
+			if !reflect.DeepEqual(d.Defaults[d.Attributes[0]], original) {
 				t.Fatal("stored expression was replaced")
 			}
 		})

@@ -24,25 +24,25 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 		return nil
 	}
 	index, ok := after.Relation(address)
-	if !ok || index.sqlIndex == nil || index.sqlIndex.constraint != nil {
+	if !ok || index.SQLIndex == nil || index.SQLIndex.constraint != nil {
 		return nil
 	}
 	parent := after.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text})
 	ref := created[parent]
-	if index.sqlIndex.parent != parent || ref.Address != parent || ref.Domain() != e.catalog.domain || ref.Epoch != after.Epoch() {
+	if index.SQLIndex.parent != parent || ref.Address != parent || ref.Domain() != e.catalog.domain || ref.Epoch != after.Epoch() {
 		return nil
 	}
 	return index
 }
 
 func physicalImportedIndexMatches(source *relationDescriptor, constructor *physicalNotNullConstructor, current *relationDescriptor, primary *uniqueConstraint) bool {
-	if source == nil || source.address != primary.Index || source.name != constructor.indexName || source.namespace != current.namespace || source.sqlIndex == nil || source.sqlIndex.parent != current.address || source.sqlIndex.constraint != nil || len(source.sqlIndex.keys) != len(primary.Attributes) || len(source.columns) < len(primary.Attributes) {
+	if source == nil || source.address != primary.Index || source.name != constructor.indexName || source.namespace != current.namespace || source.SQLIndex == nil || source.SQLIndex.parent != current.address || source.SQLIndex.constraint != nil || len(source.SQLIndex.keys) != len(primary.Attributes) || len(source.Columns) < len(primary.Attributes) {
 		return false
 	}
 	for i, attribute := range primary.Attributes {
-		key, expression, err := indexCatalogKey(constructor.before, source.sqlIndex.keys[i])
+		key, expression, err := indexCatalogKey(constructor.before, source.SQLIndex.keys[i])
 		slot := current.indexForAttribute(attribute)
-		if err != nil || expression != nil || key != attribute || slot < 0 || source.columns[i].Usage != current.columns[slot].Usage {
+		if err != nil || expression != nil || key != attribute || slot < 0 || source.Columns[i].Usage != current.Columns[slot].Usage {
 			return false
 		}
 	}
@@ -77,15 +77,15 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 		return nil, err
 	}
 	old := pair.current
-	if ref != pair.ref || old.relationKind != tableRelation || old.partition != nil || old.membership != nil || inheritanceHasChildren(auth.catalog, old.address) || slices.ContainsFunc(old.uniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+	if ref != pair.ref || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.address) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	for _, column := range definition.Columns {
-		slot, exists := old.index[column.Text]
+		slot, exists := old.Index[column.Text]
 		if !exists {
 			return reject()
 		}
-		if _, physical := old.physicalNotNull[old.attributes[slot]]; physical {
+		if _, physical := old.PhysicalNotNull[old.Attributes[slot]]; physical {
 			return reject()
 		}
 	}
@@ -96,9 +96,9 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 	reject := func() error { return sqlError("0A000", restorePhysicalNotNullBoundary) }
 	definition := constructor.deferred
 	var primary *uniqueConstraint
-	for i := range current.uniqueConstraints {
-		if current.uniqueConstraints[i].Primary == definition.Primary && current.uniqueConstraints[i].Name == definition.Name.Text {
-			primary = &current.uniqueConstraints[i]
+	for i := range current.UniqueConstraints {
+		if current.UniqueConstraints[i].Primary == definition.Primary && current.UniqueConstraints[i].Name == definition.Name.Text {
+			primary = &current.UniqueConstraints[i]
 			break
 		}
 	}
@@ -107,12 +107,12 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 	}
 	for i, attribute := range primary.Attributes {
 		slot, before := current.indexForAttribute(attribute), constructor.before.indexForAttribute(attribute)
-		if slot < 0 || before < 0 || current.columns[slot].Name != definition.Columns[i].Text || current.columns[slot].Usage != constructor.before.columns[before].Usage {
+		if slot < 0 || before < 0 || current.Columns[slot].Name != definition.Columns[i].Text || current.Columns[slot].Usage != constructor.before.Columns[before].Usage {
 			return reject()
 		}
 	}
-	for attribute, proof := range constructor.before.physicalNotNull {
-		retained, exists := current.physicalNotNull[attribute]
+	for attribute, proof := range constructor.before.PhysicalNotNull {
+		retained, exists := current.PhysicalNotNull[attribute]
 		if !exists || retained.cause != proof.cause || retained.usage != proof.usage {
 			return reject()
 		}

@@ -25,25 +25,25 @@ func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.Object
 		if !role.Login || principal.ID() > math.MaxUint32 {
 			continue
 		}
-		id, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(principal.ID()))
+		id, err := sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}
-		expiry := sqltype.Null(source.columns[7].Usage.Type)
+		expiry := sqltype.Null(source.Columns[7].Usage.Type)
 		if role.HasValidUntil {
-			expiry, err = sqltype.TimestampValue(source.columns[7].Usage.Type, role.ValidUntil)
+			expiry, err = sqltype.TimestampValue(source.Columns[7].Usage.Type, role.ValidUntil)
 			if err != nil {
 				return nil, err
 			}
 		}
 		rows = append(rows, []sqltype.Value{
-			sqltype.String(source.columns[0].Usage.Type, role.Name), id,
-			sqltype.Boolean(source.columns[2].Usage.Type, role.CreateDB),
-			sqltype.Boolean(source.columns[3].Usage.Type, role.Superuser),
-			sqltype.Boolean(source.columns[4].Usage.Type, role.Replication),
-			sqltype.Boolean(source.columns[5].Usage.Type, role.BypassRLS),
-			sqltype.String(source.columns[6].Usage.Type, "********"), expiry,
-			sqltype.Null(source.columns[8].Usage.Type),
+			sqltype.String(source.Columns[0].Usage.Type, role.Name), id,
+			sqltype.Boolean(source.Columns[2].Usage.Type, role.CreateDB),
+			sqltype.Boolean(source.Columns[3].Usage.Type, role.Superuser),
+			sqltype.Boolean(source.Columns[4].Usage.Type, role.Replication),
+			sqltype.Boolean(source.Columns[5].Usage.Type, role.BypassRLS),
+			sqltype.String(source.Columns[6].Usage.Type, "********"), expiry,
+			sqltype.Null(source.Columns[8].Usage.Type),
 		})
 	}
 	if err := ctx.Err(); err != nil {
@@ -69,7 +69,7 @@ func virtualViewWriteError(d *relationDescriptor, operation string, targets []in
 		verb, action = "delete from", "deleting from"
 	}
 	for _, slot := range targets {
-		if d.attributes[slot] == 7 {
+		if d.Attributes[slot] == 7 {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column \"passwd\" of view \"pg_user\"", verb), Detail: "View columns that are not columns of their base relation are not updatable."}
 		}
 	}

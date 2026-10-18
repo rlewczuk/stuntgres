@@ -27,8 +27,8 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *d
-			copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
-			tc.change(copy.checkConstraints)
+			copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
+			tc.change(copy.CheckConstraints)
 			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("malformed declaration ordinal accepted")
 			}
@@ -49,8 +49,8 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	sessionSQL(t, a, "ALTER TABLE t DROP COLUMN b")
 	view = e.CatalogRead()
 	d = view.MustRelation(catalogRef(t, e, view, "t").Address)
-	if len(d.checkConstraints) != 1 || d.checkConstraints[0].Name != "a" || d.checkConstraints[0].ordinal != 2 {
-		t.Fatal("DROP COLUMN rewrote surviving declaration identity", d.checkConstraints)
+	if len(d.CheckConstraints) != 1 || d.CheckConstraints[0].Name != "a" || d.CheckConstraints[0].ordinal != 2 {
+		t.Fatal("DROP COLUMN rewrote surviving declaration identity", d.CheckConstraints)
 	}
 	if err := validateChecks(view, d, map[string]bool{}); err != nil {
 		t.Fatal("nondense post-DROP COLUMN descriptor rejected", err)

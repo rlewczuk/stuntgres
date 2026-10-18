@@ -31,7 +31,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		if root.relationKind != tableRelation {
+		if root.RelationKind != tableRelation {
 			e.mu.Unlock()
 			return nil
 		}
@@ -204,7 +204,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 		}
 		return notNullDetailError(physicalSchema, relation.name, column, detail)
 	}
-	for i, column := range relation.columns {
+	for i, column := range relation.Columns {
 		if !column.Nullable {
 			value, err := logicalColumnValue(relation, i, row, &generationEval)
 			if err != nil {

@@ -83,7 +83,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.stageRead(stage).MustRelation(event.address)
-	if current.view != event.view || len(rulesOf(current)) != 1 || rulesOf(current)[0].Name != "keep_r" {
+	if current.View != event.View || len(rulesOf(current)) != 1 || rulesOf(current)[0].Name != "keep_r" {
 		t.Fatal("rule-only retirement changed SELECT identity or unrelated ordinary rule")
 	}
 	if len(rulesOf(event)) != 2 {

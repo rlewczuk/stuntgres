@@ -26,26 +26,26 @@ func capturePGConversion(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			if i == 1 {
 				continue
 			}
-			value, err := sqltype.OIDValue(source.columns[i].Usage.Type, n)
+			value, err := sqltype.OIDValue(source.Columns[i].Usage.Type, n)
 			if err != nil {
 				return nil, err
 			}
 			row[i] = value
 		}
-		row[1] = sqltype.String(source.columns[1].Usage.Type, d.name)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.name)
 		for i, n := range [2]int{d.source, d.destination} {
-			value, err := sqltype.Integer(source.columns[i+4].Usage.Type, int64(n))
+			value, err := sqltype.Integer(source.Columns[i+4].Usage.Type, int64(n))
 			if err != nil {
 				return nil, err
 			}
 			row[i+4] = value
 		}
-		value, err := sqltype.RegprocValue(source.columns[6].Usage.Type, uint32(d.handler.ObjectID))
+		value, err := sqltype.RegprocValue(source.Columns[6].Usage.Type, uint32(d.handler.ObjectID))
 		if err != nil {
 			return nil, err
 		}
 		row[6] = value
-		row[7] = sqltype.Boolean(source.columns[7].Usage.Type, d.defaultConversion)
+		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, d.defaultConversion)
 		rows = append(rows, row)
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

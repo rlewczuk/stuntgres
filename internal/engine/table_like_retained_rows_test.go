@@ -24,15 +24,15 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			sessionSQL(t, owner, "INSERT INTO src(a,n,active) VALUES(3,2,true)")
 			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 			oldEpoch := e.CatalogRead().Epoch()
-			generations := maps.Clone(source.generations)
+			generations := maps.Clone(source.Generations)
 			for attribute, generation := range generations {
 				generation.dependencies = slices.Clone(generation.dependencies)
 				generations[attribute] = generation
 			}
-			check := source.checkConstraints[0]
+			check := source.CheckConstraints[0]
 			originalChecks := slices.Clone(check.dependencies)
 			indexes := []*relationDescriptor{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
-			sourceTrees := []expr.Expr{generations[3].expression, generations[3].planned, generations[4].expression, generations[4].planned, check.expression, indexes[0].sqlIndex.keys[0].derived.definition, indexes[0].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.keys[0].derived.definition, indexes[1].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.predicate.definition, indexes[1].sqlIndex.predicate.execution}
+			sourceTrees := []expr.Expr{generations[3].expression, generations[3].planned, generations[4].expression, generations[4].planned, check.expression, indexes[0].SQLIndex.keys[0].derived.definition, indexes[0].SQLIndex.keys[0].derived.execution, indexes[1].SQLIndex.keys[0].derived.definition, indexes[1].SQLIndex.keys[0].derived.execution, indexes[1].SQLIndex.predicate.definition, indexes[1].SQLIndex.predicate.execution}
 			rowRefs := func(nodes []expr.Expr) []ids.ObjectRef {
 				var refs []ids.ObjectRef
 				for _, node := range nodes {
@@ -92,7 +92,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				}
 			}
 			for attribute, old := range generations {
-				copied := destination.generations[attribute]
+				copied := destination.Generations[attribute]
 				if copied.OID == old.OID {
 					t.Fatal("generation identity retained")
 				}
@@ -106,7 +106,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					t.Fatal("generation manifest lacks current local authority", copied.dependencies, expected)
 				}
 			}
-			copiedCheck := destination.checkConstraints[0]
+			copiedCheck := destination.CheckConstraints[0]
 			if copiedCheck.OID == check.OID {
 				t.Fatal("CHECK identity retained")
 			}
@@ -121,20 +121,20 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			var clonedIndexes []*relationDescriptor
 			for _, descriptor := range stage.descriptors {
 				index, ok := descriptor.(*relationDescriptor)
-				if !ok || index.sqlIndex == nil {
+				if !ok || index.SQLIndex == nil {
 					continue
 				}
 				clonedIndexes = append(clonedIndexes, index)
-				key := index.sqlIndex.keys[0].derived
+				key := index.SQLIndex.keys[0].derived
 				assertTree(key.definition)
 				assertTree(key.execution)
 				expected := local(2)
-				if index.sqlIndex.predicate != nil {
+				if index.SQLIndex.predicate != nil {
 					expected = local(5)
-					assertTree(index.sqlIndex.predicate.definition)
-					assertTree(index.sqlIndex.predicate.execution)
-					if !slices.Contains(index.sqlIndex.predicate.dependencies, local(6)) {
-						t.Fatal("predicate manifest lacks current destination attribute", index.sqlIndex.predicate.dependencies)
+					assertTree(index.SQLIndex.predicate.definition)
+					assertTree(index.SQLIndex.predicate.execution)
+					if !slices.Contains(index.SQLIndex.predicate.dependencies, local(6)) {
+						t.Fatal("predicate manifest lacks current destination attribute", index.SQLIndex.predicate.dependencies)
 					}
 				}
 				if !slices.Contains(key.dependencies, expected) {
@@ -144,7 +144,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if len(clonedIndexes) != 2 {
 				t.Fatal("indexes omitted")
 			}
-			if !slices.Equal(rowRefs(sourceTrees), originalRefs) || !reflect.DeepEqual(source.generations, generations) || !slices.Equal(check.dependencies, originalChecks) {
+			if !slices.Equal(rowRefs(sourceTrees), originalRefs) || !reflect.DeepEqual(source.Generations, generations) || !slices.Equal(check.dependencies, originalChecks) {
 				t.Fatal("source cooked definitions mutated")
 			}
 			candidate, _, collision := tableLikeBuild(t, e, op, "CREATE "+prefix+"TABLE failed(LIKE pg_temp.src INCLUDING ALL,a INT)")
@@ -194,10 +194,10 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 	anchor := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "anchor")
 	oldRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), anchor.address)
-	oldGeneration := source.generations[2]
-	oldCheck := source.checkConstraints[0]
+	oldGeneration := source.Generations[2]
+	oldCheck := source.CheckConstraints[0]
 	oldIndex := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")
-	oldManifest := slices.Clone(oldIndex.sqlIndex.predicate.dependencies)
+	oldManifest := slices.Clone(oldIndex.SQLIndex.predicate.dependencies)
 	if !slices.Contains(oldGeneration.dependencies, oldRef) || !slices.Contains(oldManifest, oldRef) {
 		t.Fatal("fixture lacks retained external literal provider")
 	}
@@ -214,7 +214,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generation := destination.generations[3]
+	generation := destination.Generations[3]
 	if !slices.Contains(generation.dependencies, oldRef) {
 		t.Fatal("external literal manifest reminted", generation.dependencies)
 	}
@@ -236,25 +236,25 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	assertNode(generation.expression)
 	assertNode(generation.planned)
 	found := false
-	for _, dependency := range destination.checkConstraints[0].dependencies {
+	for _, dependency := range destination.CheckConstraints[0].dependencies {
 		found = found || dependency.ref == oldRef
 	}
 	if !found {
 		t.Fatal("CHECK external manifest reminted")
 	}
-	assertNode(destination.checkConstraints[0].expression)
+	assertNode(destination.CheckConstraints[0].expression)
 	for _, descriptor := range stage.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		if !slices.Contains(index.sqlIndex.predicate.dependencies, oldRef) {
+		if !slices.Contains(index.SQLIndex.predicate.dependencies, oldRef) {
 			t.Fatal("predicate external manifest reminted")
 		}
-		assertNode(index.sqlIndex.predicate.definition)
-		assertNode(index.sqlIndex.predicate.execution)
+		assertNode(index.SQLIndex.predicate.definition)
+		assertNode(index.SQLIndex.predicate.execution)
 	}
-	if !reflect.DeepEqual(source.generations[2], oldGeneration) || !reflect.DeepEqual(source.checkConstraints[0], oldCheck) || !slices.Equal(oldIndex.sqlIndex.predicate.dependencies, oldManifest) {
+	if !reflect.DeepEqual(source.Generations[2], oldGeneration) || !reflect.DeepEqual(source.CheckConstraints[0], oldCheck) || !slices.Equal(oldIndex.SQLIndex.predicate.dependencies, oldManifest) {
 		t.Fatal("retained source definitions changed")
 	}
 	// An old external TEMP constant never borrows the mapper's fresh local-row

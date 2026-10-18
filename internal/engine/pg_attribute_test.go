@@ -64,10 +64,10 @@ func TestPGAttributeShape(t *testing.T) {
 	d, _ := pgAttributeUnitSource(t, e, catalog)
 	names := []string{"attrelid", "attname", "atttypid", "attlen", "attnum", "atttypmod", "attndims", "attbyval", "attalign", "attstorage", "attcompression", "attnotnull", "atthasdef", "atthasmissing", "attidentity", "attgenerated", "attisdropped", "attislocal", "attinhcount", "attcollation", "attstattarget", "attacl", "attoptions", "attfdwoptions", "attmissingval"}
 	typeIDs := []sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
-	if d.rowType != 75 || d.attributeHighWater != 25 || len(d.columns) != 25 || !d.hasIndexes || d.virtualView {
+	if d.RowType != 75 || d.AttributeHighWater != 25 || len(d.Columns) != 25 || !d.HasIndexes || d.VirtualView {
 		t.Fatal("released identity", d)
 	}
-	for i, c := range d.columns {
+	for i, c := range d.Columns {
 		if c.Name != names[i] || c.Usage.Type.ID() != typeIDs[i] || c.Nullable != (i >= 20) || !c.NullabilityKnown || c.OriginTable != 1249 || c.OriginAttribute != int16(i+1) {
 			t.Fatal("column", i, c)
 		}
@@ -80,8 +80,8 @@ func TestPGAttributeShape(t *testing.T) {
 		t.Fatal("array ownership", array)
 	}
 	bad := *d
-	bad.columns = append([]ColumnDescriptor(nil), d.columns...)
-	bad.columns[23].Usage = d.columns[24].Usage
+	bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	bad.Columns[23].Usage = d.Columns[24].Usage
 	if err := (relationProvider{}).Validate(catalog, &bad); err == nil {
 		t.Fatal("pseudo carrier escaped attribute25")
 	}
@@ -98,7 +98,7 @@ func TestPGAttributeCapture(t *testing.T) {
 			t.Fatal("width", len(row))
 		}
 		for i, value := range row {
-			if !value.ValidResult(d.columns[i].Usage) || value.IsNull() != (i >= 20) {
+			if !value.ValidResult(d.Columns[i].Usage) || value.IsNull() != (i >= 20) {
 				t.Fatal("carrier", i, value)
 			}
 		}
@@ -125,14 +125,14 @@ func TestPGAttributeCapture(t *testing.T) {
 	if got, err := e.capturePGAttribute(context.Background(), catalog, e.Roles(), wrong, d); got != nil || err == nil {
 		t.Fatal("stale source", got, err)
 	}
-	privateColumn := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, attributes: []int32{1}, columnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}
+	privateColumn := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, Columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, Attributes: []int32{1}, ColumnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}
 	explicit, err := e.pgAttributeRow(e.Roles(), d, privateColumn, relationAttributeMetadata(privateColumn, 0))
 	if err != nil || explicit[21].IsNull() || explicit[21].ArrayLen() != 0 {
 		t.Fatal("private explicit empty column ACL lost", explicit, err)
 	}
 	modified := *d
-	modified.columns = append([]ColumnDescriptor(nil), d.columns...)
-	modified.columns[24].Usage.Typmod = 0
+	modified.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	modified.Columns[24].Usage.Typmod = 0
 	privateState := cloneCatalog(catalog.state)
 	privateState.setDescriptor(d.address, &modified)
 	if got, err := e.capturePGAttribute(context.Background(), e.catalog.read(privateState), e.Roles(), ref, &modified); got != nil || err == nil {
@@ -154,7 +154,7 @@ func TestPGAttributePublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	u := testUsage(e, sqltype.Int4)
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "attribute_unit", revision: 1, owner: e.authorizationDomain.Principal(10), columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"a": 0}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "attribute_unit", revision: 1, Owner: e.authorizationDomain.Principal(10), Columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"a": 0}}
 	if err := stage.Create(table); err != nil {
 		t.Fatal(err)
 	}
@@ -177,8 +177,8 @@ func TestPGAttributePublication(t *testing.T) {
 	nextStage := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(nextStage)
 	next := *current.MustRelation(table.address)
-	next.columns = append([]ColumnDescriptor(nil), next.columns...)
-	next.columns[0].Nullable = false
+	next.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+	next.Columns[0].Nullable = false
 	if err := nextStage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -198,22 +198,22 @@ func TestPGAttributeDeclaredRank(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.columns[1].DeclaredDimensions != 2 || next.columns[1].Usage.Type.ID() != 1007 || old.columns[0].DeclaredDimensions != 0 {
-		t.Fatal("declaration rank", next.columns, old.columns)
+	if next.Columns[1].DeclaredDimensions != 2 || next.Columns[1].Usage.Type.ID() != 1007 || old.Columns[0].DeclaredDimensions != 0 {
+		t.Fatal("declaration rank", next.Columns, old.Columns)
 	}
 	for _, tc := range []struct {
 		rank int16
 		want string
 	}{{0, `"pg_catalog"."_int4"`}, {1, "INTEGER[]"}, {2, "INTEGER[][]"}} {
-		column := next.columns[1]
+		column := next.Columns[1]
 		column.DeclaredDimensions = tc.rank
 		text, err := catalogColumnDeclaration(auth.catalog, column)
 		if err != nil || text != tc.want {
 			t.Fatal("rank rendering", tc, text, err)
 		}
 	}
-	source := &relationDescriptor{columns: []ColumnDescriptor{{Name: "a", Usage: next.columns[1].Usage, DeclaredDimensions: 2}}, attributes: []int32{1}, index: map[string]int{"a": 0}}
-	typed := &relationDescriptor{columns: []ColumnDescriptor{{Name: "a", Usage: next.columns[1].Usage}}, attributes: []int32{1}}
+	source := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: next.Columns[1].Usage, DeclaredDimensions: 2}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
+	typed := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: next.Columns[1].Usage}}, Attributes: []int32{1}}
 	actions, _ := typedShapeActions(source, source, typed, nil)
 	if len(actions) != 0 {
 		t.Fatal("unrequested copied rank propagated", actions)
@@ -226,8 +226,8 @@ func TestPGAttributeDeclaredRank(t *testing.T) {
 
 func TestPGAttributeDroppedHistory(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	old.columns[0].Usage = testUsage(e, sqltype.ID(1007))
-	old.columns[0].DeclaredDimensions = 2
+	old.Columns[0].Usage = testUsage(e, sqltype.ID(1007))
+	old.Columns[0].DeclaredDimensions = 2
 	initial := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(initial)
 	if err := initial.Create(old); err != nil {
@@ -249,8 +249,8 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	history := next.droppedAttributes[1]
-	if history.name != "........pg.dropped.1........" || history.typeID != 0 || history.number != 1 || history.dimensions != 2 || history.facts.Length != -1 || history.facts.ByValue || history.facts.Alignment != "i" || history.facts.Storage != "x" || !history.dropped || history.notNull || history.hasDefault || len(next.columns) != 0 || next.attributeHighWater != 3 || len(old.droppedAttributes) != 0 || len(old.columns) != 1 {
+	history := next.DroppedAttributes[1]
+	if history.name != "........pg.dropped.1........" || history.typeID != 0 || history.number != 1 || history.dimensions != 2 || history.facts.Length != -1 || history.facts.ByValue || history.facts.Alignment != "i" || history.facts.Storage != "x" || !history.dropped || history.notNull || history.hasDefault || len(next.Columns) != 0 || next.AttributeHighWater != 3 || len(old.DroppedAttributes) != 0 || len(old.Columns) != 1 {
 		t.Fatal("owned tombstone", history, next, old)
 	}
 	rows := pgAttributeUnitRows(t, pgAttributeUnitCapture(t, e, e.stageRead(stage)), 20000)
@@ -261,7 +261,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 		t.Fatal("dropped type dependency retained")
 	}
 	identityColumn := *old
-	identityColumn.identities = map[int32]columnIdentity{1: {mode: parser.IdentityAlways}}
+	identityColumn.Identities = map[int32]columnIdentity{1: {mode: parser.IdentityAlways}}
 	metadata := relationAttributeMetadata(&identityColumn, 0)
 	if metadata.identity != "a" {
 		t.Fatal("identity before dependency removal", metadata)
@@ -272,12 +272,12 @@ func TestPGAttributeCarrier(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, _ := pgAttributeUnitSource(t, e, catalog)
-	u := d.columns[24].Usage
+	u := d.Columns[24].Usage
 	value := sqltype.CatalogResultNull(u)
 	if err := validateProducedValue(value, u); err != nil {
 		t.Fatal("produced canonical NULL rejected", err)
 	}
-	result, err := anonymousResult([]ColumnDescriptor{d.columns[24]}, [][]sqltype.Value{{value}}, 1)
+	result, err := anonymousResult([]ColumnDescriptor{d.Columns[24]}, [][]sqltype.Value{{value}}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,15 +295,15 @@ func TestPGAttributeCarrier(t *testing.T) {
 	if err := validateProducedValue(foreign, u); err == nil {
 		t.Fatal("foreign produced NULL admitted")
 	}
-	if _, err := anonymousResult([]ColumnDescriptor{d.columns[24]}, [][]sqltype.Value{{foreign}}, 1); err == nil {
+	if _, err := anonymousResult([]ColumnDescriptor{d.Columns[24]}, [][]sqltype.Value{{foreign}}, 1); err == nil {
 		t.Fatal("foreign carrier descriptor admitted")
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
-	ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "bad", owner: e.authorizationDomain.Principal(10), columns: []ColumnDescriptor{{Name: "a", Usage: u}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"a": 0}}
+	ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "bad", Owner: e.authorizationDomain.Principal(10), Columns: []ColumnDescriptor{{Name: "a", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"a": 0}}
 	if err := (relationProvider{}).Validate(catalog, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}
-	_, err = e.pgClassACL(New().Roles(), d.columns[21].Usage.Type, authorization.ACLValue{Explicit: true})
+	_, err = e.pgClassACL(New().Roles(), d.Columns[21].Usage.Type, authorization.ACLValue{Explicit: true})
 	if err == nil {
 		t.Fatal("foreign empty ACL authority admitted")
 	}

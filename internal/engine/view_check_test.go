@@ -79,7 +79,7 @@ func TestViewCheckStack(t *testing.T) {
 	f := viewWriteMechanics(t)
 	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
 	project := viewOf(f.view).query.Root.(*projectNode)
-	project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: guard}
+	project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: guard}
 	layers := []*relationDescriptor{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
 	for depth := range 2 {
@@ -89,14 +89,14 @@ func TestViewCheckStack(t *testing.T) {
 		view.address.ObjectID = ids.OID(20002 + depth)
 		view.name = fmt.Sprintf("layer%d", depth)
 		syntax := &parser.Select{From: &parser.TableReference{}}
-		sourceNode := &sourceNode{querySchema: querySchema(source.columns), ref: ref, occurrence: 0}
-		expressions := make([]expr.Expr, len(source.columns))
-		for i, column := range source.columns {
+		sourceNode := &sourceNode{querySchema: querySchema(source.Columns), ref: ref, occurrence: 0}
+		expressions := make([]expr.Expr, len(source.Columns))
+		for i, column := range source.Columns {
 			origin := ref
-			origin.Address.SubID = source.attributes[i]
+			origin.Address.SubID = source.Attributes[i]
 			expressions[i] = columnExpression{Info: expr.Info{Usage: column.Usage}, origin: origin, scope: 1, frame: 1, slot: i}
 		}
-		view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.columns), syntax: syntax, frame: 1, expressions: expressions, child: &filterNode{querySchema: querySchema(source.columns), child: sourceNode, predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.attributes}}}
+		view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.Columns), syntax: syntax, frame: 1, expressions: expressions, child: &filterNode{querySchema: querySchema(source.Columns), child: sourceNode, predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
 		f.e.catalog.state.setDescriptor(view.address, &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.domain.Ref(f.e.catalog.state.epoch, view.address))
@@ -138,10 +138,10 @@ func TestViewCheckMapping(t *testing.T) {
 	project := viewOf(f.view).query.Root.(*projectNode)
 	column := project.expressions[0]
 	// Reorder live physical columns while preserving frozen attribute identities.
-	f.base.attributes = []int32{11, 7, 19}
-	f.base.columns = []ColumnDescriptor{f.base.columns[1], f.base.columns[0], f.base.columns[2]}
+	f.base.Attributes = []int32{11, 7, 19}
+	f.base.Columns = []ColumnDescriptor{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
 	viewOf(f.view).checkOption = viewCheckLocal
-	project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: column}
+	project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
 	mapped, ok := viewDirectColumn(b.viewWrite.checks[0].predicates[0])
@@ -197,7 +197,7 @@ func TestViewCheckAdmission(t *testing.T) {
 		})
 		b := binding{relation: f.base, ref: f.baseRef, targets: []int{0, 1, 2}, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{guard}}}}}
 		originals := f.e.storage[f.base.address].versions
-		cursor := &insertConflictInputCursor{schema: f.base.columns, rows: [][]sqltype.Value{originals[0].values, originals[1].values}}
+		cursor := &insertConflictInputCursor{schema: f.base.Columns, rows: [][]sqltype.Value{originals[0].values, originals[1].values}}
 		if closeFailure {
 			cursor.closeError = failure
 		}

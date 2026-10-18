@@ -31,7 +31,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		if err == nil {
 			err = fresh.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		}
-		childSlot, exists := old.index[raw.Column.Text]
+		childSlot, exists := old.Index[raw.Column.Text]
 		if err == nil && !exists {
 			err = ids.ErrCatalogReplaced
 		}
@@ -49,21 +49,21 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		}
 		next := *old
 		next.revision++
-		next.defaults = maps.Clone(old.defaults)
-		attribute := old.attributes[childSlot]
+		next.Defaults = maps.Clone(old.Defaults)
+		attribute := old.Attributes[childSlot]
 		if definition.expression == nil {
-			delete(next.defaults, attribute)
+			delete(next.Defaults, attribute)
 		} else {
-			if next.defaults == nil {
-				next.defaults = make(map[int32]columnDefault)
+			if next.Defaults == nil {
+				next.Defaults = make(map[int32]columnDefault)
 			}
-			next.defaults[attribute] = definition
+			next.Defaults[attribute] = definition
 		}
-		if next.inheritance != nil {
-			next.inheritance = cloneInheritance(old.inheritance)
-			provenance := next.inheritance.columns[attribute]
+		if next.Inheritance != nil {
+			next.Inheritance = cloneInheritance(old.Inheritance)
+			provenance := next.Inheritance.columns[attribute]
 			provenance.explicitDefault = true
-			next.inheritance.columns[attribute] = provenance
+			next.Inheritance.columns[attribute] = provenance
 		}
 		store := e.privateStorageLocked(scope.owner.catalog, old.address)
 		if store == nil {

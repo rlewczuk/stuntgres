@@ -133,7 +133,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					d := e.catalog.state.MustRelation(address)
 					want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: 9223372036854775807, start: 60, cache: 3, persistence: "temporary"}
 					g := e.sequences[address]
-					if d.namespace != ns.address || d.owner != e.Roles().LookupRef("postgres") || d.relationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.sequencePlanStamp != d.revision {
+					if d.namespace != ns.address || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.SequencePlanStamp != d.revision {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
 					wantGeneration := catalog.namespaceGeneration

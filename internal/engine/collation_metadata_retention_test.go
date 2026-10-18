@@ -18,7 +18,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 	snapshot := e.CatalogRead()
 	tableRef := catalogRef(t, e, snapshot, "retained_metadata_t")
 	oldTable := snapshot.MustRelation(tableRef.Address)
-	oldDefault := oldTable.defaults[oldTable.attributes[0]].expression
+	oldDefault := oldTable.Defaults[oldTable.Attributes[0]].expression
 	original, err := defaultSQL(context.Background(), snapshot, oldDefault)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 		if current.state == snapshot.state || table == oldTable {
 			t.Fatal("replacement did not produce a genuine successor catalog")
 		}
-		assertMetadata(table.defaults[table.attributes[0]].expression)
+		assertMetadata(table.Defaults[table.Attributes[0]].expression)
 		assertMetadata(viewOf(view).query.Root)
 	}
 	// An explicitly user-held old read remains a legitimate snapshot; removal of

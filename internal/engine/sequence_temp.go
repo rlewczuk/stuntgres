@@ -230,7 +230,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.sqlIndex != nil && !candidate.matches(e.storage[index.sqlIndex.parent]) {
+		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.parent]) {
 			return true
 		}
 	}
@@ -336,7 +336,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
 	for address := range stage.removals {
 		index, ok := stage.base.Relation(address)
-		if ok && index.sqlIndex != nil {
+		if ok && index.SQLIndex != nil {
 			result.previous[address] = e.indexRoots[address]
 		}
 	}
@@ -361,7 +361,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !parents[index.sqlIndex.parent] || !index.sqlIndex.ready {
+		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.parent] || !index.SQLIndex.ready {
 			continue
 		}
 		result.previous[address] = e.indexRoots[address]
@@ -382,10 +382,10 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	for address := range result.previous {
 		if _, removed := stage.removals[address]; !removed {
 			index, ok := next.Relation(address)
-			if !ok || index.sqlIndex == nil {
+			if !ok || index.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			shape, ok := stage.rowShapes[index.sqlIndex.parent]
+			shape, ok := stage.rowShapes[index.SQLIndex.parent]
 			candidate, produced := changes.indexCandidates[address]
 			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
 				return nil, ids.ErrCatalogReplaced

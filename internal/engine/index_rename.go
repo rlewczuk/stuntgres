@@ -10,7 +10,7 @@ import (
 // Publish parent constraint and backing descriptor together, preserving all key
 // and constraint identities and sharing their immutable attribute vectors.
 func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) error {
-	parent, ok := stage.base.Relation(index.sqlIndex.parent)
+	parent, ok := stage.base.Relation(index.SQLIndex.parent)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
@@ -20,30 +20,30 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		}
 		return nil
 	}
-	for _, c := range parent.notNullConstraints {
+	for _, c := range parent.NotNullConstraints {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
 	}
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
 	}
 	slot := -1
-	for i, c := range parent.uniqueConstraints {
+	for i, c := range parent.UniqueConstraints {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.sqlIndex.constraint.OID && c.Index == index.address {
+		if c.OID == index.SQLIndex.constraint.OID && c.Index == index.address {
 			slot = i
 		}
 	}
-	for i, c := range parent.exclusionConstraints {
+	for i, c := range parent.ExclusionConstraints {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.sqlIndex.constraint.OID && c.Index == index.address {
+		if c.OID == index.SQLIndex.constraint.OID && c.Index == index.address {
 			slot = i
 		}
 	}
@@ -55,17 +55,17 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	}
 	next := *parent
 	next.revision++
-	if index.sqlIndex.isExclusion() {
-		next.exclusionConstraints = append([]exclusionConstraint(nil), parent.exclusionConstraints...)
-		next.exclusionConstraints[slot].Name = index.name
+	if index.SQLIndex.isExclusion() {
+		next.ExclusionConstraints = append([]exclusionConstraint(nil), parent.ExclusionConstraints...)
+		next.ExclusionConstraints[slot].Name = index.name
 	} else {
-		next.uniqueConstraints = append([]uniqueConstraint(nil), parent.uniqueConstraints...)
-		next.uniqueConstraints[slot].Name = index.name
+		next.UniqueConstraints = append([]uniqueConstraint(nil), parent.UniqueConstraints...)
+		next.UniqueConstraints[slot].Name = index.name
 	}
-	definition := *index.sqlIndex
+	definition := *index.SQLIndex
 	constraint := *definition.constraint
 	constraint.Name = index.name
 	definition.constraint = &constraint
-	index.sqlIndex = &definition
+	index.SQLIndex = &definition
 	return stage.Replace(&next)
 }

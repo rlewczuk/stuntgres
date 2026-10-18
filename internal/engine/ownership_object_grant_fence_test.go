@@ -42,7 +42,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				}
 				dbRole := auth.roles.LookupRef("pg_database_owner")
 				table := auth.catalog.MustRelation(root.Address)
-				if table.owner != dbRole || table.owner == actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
+				if table.Owner != dbRole || table.Owner == actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical inherited DB-owner authority")
 				}
 				if private && auth.catalog.Get(currentDatabaseAddress) == committed {
@@ -69,8 +69,8 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				checkReader(auth, false)
 				oldRoles, oldCatalog := e.roles, e.catalog.state
 				sessionRevision, epoch := session.authorization.revision, oldCatalog.epoch
-				oldACL := authorization.ACLValue{Explicit: table.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), table.acl.Entries...)}
-				oldKeys := append([]uniqueConstraint(nil), table.uniqueConstraints...)
+				oldACL := authorization.ACLValue{Explicit: table.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), table.ACL.Entries...)}
+				oldKeys := append([]uniqueConstraint(nil), table.UniqueConstraints...)
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
 				rows := append([]rowVersion(nil), e.storage[leaf].versions...)
@@ -94,7 +94,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal("utility did not stage real paired ACL/role/catalog roots")
 				}
 				found := false
-				for _, entry := range pending.acl.Entries {
+				for _, entry := range pending.ACL.Entries {
 					if !entry.Grantee.Public && entry.Grantee.Role == reader {
 						if entry.Grantor != dbRole || entry.Privileges != authorization.SelectPrivilege || entry.GrantOptions != authorization.SelectPrivilege {
 							t.Fatal("actual grant lacks canonical owner origin and option", entry)
@@ -102,7 +102,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 						found = true
 					}
 				}
-				if !found || e.catalog.state != oldCatalog || e.roles != oldRoles || !reflect.DeepEqual(table.acl, oldACL) {
+				if !found || e.catalog.state != oldCatalog || e.roles != oldRoles || !reflect.DeepEqual(table.ACL, oldACL) {
 					t.Fatal("staging lost the grant or published/mutated a prefix")
 				}
 				checkReader(retained, true)
@@ -140,7 +140,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 					current := catalogAuthorization(e, e.CatalogRead())
 					checkReader(current, true)
-					if e.catalog.state.Get(root.Address) != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(pending.uniqueConstraints, oldKeys) {
+					if e.catalog.state.Get(root.Address) != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(pending.UniqueConstraints, oldKeys) {
 						t.Fatal("healthy grant lost candidate or changed data/constraints")
 					}
 					for address, index := range before.roots {
@@ -163,7 +163,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				indexMaintenanceUnchanged(t, e, before)
 				checkReader(catalogAuthorization(e, e.CatalogRead()), false)
 				checkReader(retained, true)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.acl, oldACL) || !reflect.DeepEqual(table.uniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(currentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.ACL, oldACL) || !reflect.DeepEqual(table.UniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(currentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
 					t.Fatal("veto mutated old ACL/keys/storage or retained authority roots")
 				}
 			})

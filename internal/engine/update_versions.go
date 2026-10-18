@@ -178,7 +178,7 @@ retry:
 		return errors.New("stuntgres: invalid update stage")
 	}
 	for i, row := range rows {
-		if old[i].row == 0 || old[i].version == 0 || len(row) != len(relation.columns) {
+		if old[i].row == 0 || old[i].version == 0 || len(row) != len(relation.Columns) {
 			return errors.New("stuntgres: invalid staged row")
 		}
 	}

@@ -27,15 +27,15 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if err := validateIndexDefinition(catalog, index); err != nil {
 		return "", err
 	}
-	parent := catalog.MustRelation(index.sqlIndex.parent)
+	parent := catalog.MustRelation(index.SQLIndex.parent)
 	if presentation.column != 0 {
-		if presentation.column < 1 || presentation.column > int64(len(index.columns)) {
+		if presentation.column < 1 || presentation.column > int64(len(index.Columns)) {
 			return "", nil
 		}
-		if presentation.column > int64(len(index.sqlIndex.keys)) {
-			return (pgRenderer{output: presentation.output}).attribute(parent, index.sqlIndex.include[presentation.column-int64(len(index.sqlIndex.keys))-1])
+		if presentation.column > int64(len(index.SQLIndex.keys)) {
+			return (pgRenderer{output: presentation.output}).attribute(parent, index.SQLIndex.include[presentation.column-int64(len(index.SQLIndex.keys))-1])
 		}
-		key := index.sqlIndex.keys[presentation.column-1]
+		key := index.SQLIndex.keys[presentation.column-1]
 		if !presentation.dump {
 			text, wrapped, _, err := compactIndexKeySQL(ctx, catalog, parent, key, presentation)
 			if err != nil {
@@ -65,7 +65,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	}
 	// Canonical replay spells the supported access methods as SQL tokens.
 	// Session inquiry alone follows quote_all_identifiers.
-	method := index.sqlIndex.method.String()
+	method := index.SQLIndex.method.String()
 	if !presentation.dump {
 		method = identifier(method)
 	}
@@ -74,16 +74,16 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		sql.WriteString("EXCLUDE USING " + method + " (")
 	} else {
 		sql.WriteString("CREATE ")
-		if index.sqlIndex.unique {
+		if index.SQLIndex.unique {
 			sql.WriteString("UNIQUE ")
 		}
 		only := ""
-		if parent.partition != nil {
+		if parent.Partition != nil {
 			only = "ONLY "
 		}
 		sql.WriteString("INDEX " + identifier(index.name) + " ON " + only + parentName + " USING " + method + " (")
 	}
-	for i, key := range index.sqlIndex.keys {
+	for i, key := range index.SQLIndex.keys {
 		if i > 0 {
 			sql.WriteString(", ")
 		}
@@ -100,7 +100,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			if wrapped {
 				sql.WriteByte(')')
 			}
-			presented = reconstructIndexKey(key, usage, usage, index.sqlIndex.method)
+			presented = reconstructIndexKey(key, usage, usage, index.SQLIndex.method)
 			if !presentation.reconstruct {
 				actual, err := indexKeyUsage(parent, key)
 				if err != nil {
@@ -119,7 +119,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			sql.WriteString("(" + text + ")")
 		} else {
 			slot := -1
-			for j, attribute := range parent.attributes {
+			for j, attribute := range parent.Attributes {
 				if attribute == key.attribute {
 					slot = j
 					break
@@ -128,7 +128,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			if slot < 0 {
 				return "", fmt.Errorf("stuntgres: index attribute is missing")
 			}
-			sql.WriteString(identifier(parent.columns[slot].Name))
+			sql.WriteString(identifier(parent.Columns[slot].Name))
 		}
 		if presented.collation != 0 {
 			sql.WriteString(" COLLATE ")
@@ -145,7 +145,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 			sql.WriteString(identifier(presented.class.Name))
 		}
-		if index.sqlIndex.method == btreeMethod {
+		if index.SQLIndex.method == btreeMethod {
 			if key.desc {
 				sql.WriteString(" DESC")
 			} else if presentation.dump {
@@ -160,28 +160,28 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 		}
 		if presentation.exclusion {
-			sql.WriteString(" WITH " + index.sqlIndex.exclusion[i].Name)
+			sql.WriteString(" WITH " + index.SQLIndex.exclusion[i].Name)
 		}
 	}
 	sql.WriteByte(')')
-	if len(index.sqlIndex.include) != 0 {
+	if len(index.SQLIndex.include) != 0 {
 		sql.WriteString(" INCLUDE (")
-		for i, attribute := range index.sqlIndex.include {
+		for i, attribute := range index.SQLIndex.include {
 			if i > 0 {
 				sql.WriteString(", ")
 			}
-			slot := slices.Index(parent.attributes, attribute)
+			slot := slices.Index(parent.Attributes, attribute)
 			if slot < 0 {
 				return "", fmt.Errorf("stuntgres: index included attribute is missing")
 			}
-			sql.WriteString(identifier(parent.columns[slot].Name))
+			sql.WriteString(identifier(parent.Columns[slot].Name))
 		}
 		sql.WriteByte(')')
 	}
-	if index.sqlIndex.nullsNotDistinct {
+	if index.SQLIndex.nullsNotDistinct {
 		sql.WriteString(" NULLS NOT DISTINCT")
 	}
-	if predicate := index.sqlIndex.predicate; predicate != nil {
+	if predicate := index.SQLIndex.predicate; predicate != nil {
 		var text string
 		var err error
 		if presentation.dump {

@@ -14,14 +14,14 @@ const temporaryInheritanceReplacementError = "stuntgres: catalog replacement wit
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.inheritance == nil {
+		if !ok || table.Inheritance == nil {
 			continue
 		}
 		namespace := e.catalog.state.MustNamespace(table.namespace)
 		if namespace.temporary == (ids.SessionToken{}) {
 			continue
 		}
-		for _, parent := range table.inheritance.parents {
+		for _, parent := range table.Inheritance.parents {
 			source, ok := e.catalog.state.Relation(parent)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")
@@ -83,14 +83,14 @@ func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) i
 func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.inheritance == nil {
+		if !ok || table.Inheritance == nil {
 			continue
 		}
 		if namespace, ok := next.Namespace(table.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		var remapErr error
-		graph := remapInheritance(table.inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin inheritanceOrigin) ids.OID {
+		graph := remapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin inheritanceOrigin) ids.OID {
 			if origin.constraint == 0 {
 				return 0
 			}
@@ -100,18 +100,18 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 				remapErr = fmt.Errorf("stuntgres: missing inheritance constraint parent")
 				return origin.constraint
 			}
-			for _, check := range old.checkConstraints {
+			for _, check := range old.CheckConstraints {
 				if check.OID == origin.constraint {
-					for _, current := range parent.checkConstraints {
+					for _, current := range parent.CheckConstraints {
 						if current.Name == check.Name {
 							return current.OID
 						}
 					}
 				}
 			}
-			for _, notNull := range old.notNullConstraints {
+			for _, notNull := range old.NotNullConstraints {
 				if notNull.OID == origin.constraint {
-					for _, current := range parent.notNullConstraints {
+					for _, current := range parent.NotNullConstraints {
 						if current.Attribute == notNull.Attribute {
 							return current.OID
 						}
@@ -125,7 +125,7 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 			return remapErr
 		}
 		copy := *table
-		copy.inheritance = graph
+		copy.Inheritance = graph
 		next.setDescriptor(address, &copy)
 	}
 	return nil

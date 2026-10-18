@@ -544,7 +544,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		result = m.value
 	case "nextval":
 		if m.remaining == 0 {
-			first, count, err := reserveSequence(*d.sequence, g, d.name)
+			first, count, err := reserveSequence(*d.Sequence, g, d.name)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -553,7 +553,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		result = m.next
 		m.remaining--
 		if m.remaining != 0 {
-			m.next += d.sequence.increment
+			m.next += d.Sequence.increment
 		}
 		m.value, m.valid = result, true
 		session.lastSequence = d.address
@@ -562,8 +562,8 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if result < d.sequence.min || result > d.sequence.max {
-			return sqltype.Value{}, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.name, d.sequence.min, d.sequence.max))
+		if result < d.Sequence.min || result > d.Sequence.max {
+			return sqltype.Value{}, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.name, d.Sequence.min, d.Sequence.max))
 		}
 		called := true
 		if len(x.args) == 3 {

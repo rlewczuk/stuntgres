@@ -72,7 +72,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				old := e.storage[ref.Address].versions[0].values
 				e.mu.Unlock()
 				next := append([]sqltype.Value(nil), old...)
-				next[0], err = sqltype.Integer(parent.columns[0].Usage.Type, 2)
+				next[0], err = sqltype.Integer(parent.Columns[0].Usage.Type, 2)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -81,7 +81,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 					t.Fatal("computed dependencies leaked into UPDATE strength", changed, err)
 				}
 				next = append([]sqltype.Value(nil), old...)
-				next[1], err = sqltype.Integer(parent.columns[1].Usage.Type, 20)
+				next[1], err = sqltype.Integer(parent.Columns[1].Usage.Type, 20)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -91,7 +91,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				}
 				// Key extraction still sees all expression/simple components independently
 				// of the native row-key bitmap classification.
-				ordering, err := bindIndexOrdering(parent, index.sqlIndex)
+				ordering, err := bindIndexOrdering(parent, index.SQLIndex)
 				if err != nil {
 					t.Fatal(err)
 				}

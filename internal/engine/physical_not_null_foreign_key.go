@@ -7,11 +7,11 @@ import (
 )
 
 func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKeyConstraint) bool {
-	if len(table.physicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.address {
+	if len(table.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.address {
 		return false
 	}
-	for i := range table.uniqueConstraints {
-		primary := &table.uniqueConstraints[i]
+	for i := range table.UniqueConstraints {
+		primary := &table.UniqueConstraints[i]
 		if primary.Primary && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) {
 			return true
 		}
@@ -20,11 +20,11 @@ func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKe
 }
 
 func emitPhysicalSelfForeignKeys(view CatalogRead, table *relationDescriptor, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
-	if len(table.physicalNotNull) == 0 || len(table.foreignKeys) == 0 {
+	if len(table.PhysicalNotNull) == 0 || len(table.ForeignKeys) == 0 {
 		return nil
 	}
 	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
-	for _, foreign := range table.foreignKeys {
+	for _, foreign := range table.ForeignKeys {
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
 		}
@@ -74,16 +74,16 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 		return nil, err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || created[ref.Address] != ref || len(old.physicalNotNull) == 0 || old.partition != nil || old.membership != nil {
+	if !ok || created[ref.Address] != ref || len(old.PhysicalNotNull) == 0 || old.Partition != nil || old.Membership != nil {
 		return nil, nil
 	}
-	for attribute, proof := range old.physicalNotNull {
+	for attribute, proof := range old.PhysicalNotNull {
 		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.cause.origin != ref || proof.cause.kind != physicalNotNullImportCleanup && proof.cause.kind != physicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
-	for i := range old.uniqueConstraints {
-		primary := &old.uniqueConstraints[i]
+	for i := range old.UniqueConstraints {
+		primary := &old.UniqueConstraints[i]
 		if !primary.Primary {
 			continue
 		}
@@ -136,11 +136,11 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		}
 		permuted := false
 		for i, column := range foreign.Referenced {
-			slot, exists := old.index[column.Text]
+			slot, exists := old.Index[column.Text]
 			if !exists {
 				return reject()
 			}
-			attribute := old.attributes[slot]
+			attribute := old.Attributes[slot]
 			if !slices.ContainsFunc(provider.primary.keys, func(key physicalPrimaryKeyUsage) bool { return key.attribute == attribute }) {
 				return reject()
 			}

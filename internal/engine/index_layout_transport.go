@@ -22,10 +22,10 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 		return false
 	}
 	sameAttribute := func(attribute int32) bool {
-		oldSlot, newSlot := slices.Index(oldParent.attributes, attribute), slices.Index(parent.attributes, attribute)
-		return oldSlot >= 0 && newSlot >= 0 && oldParent.columns[oldSlot].Usage == parent.columns[newSlot].Usage
+		oldSlot, newSlot := slices.Index(oldParent.Attributes, attribute), slices.Index(parent.Attributes, attribute)
+		return oldSlot >= 0 && newSlot >= 0 && oldParent.Columns[oldSlot].Usage == parent.Columns[newSlot].Usage
 	}
-	for _, key := range index.sqlIndex.keys {
+	for _, key := range index.SQLIndex.keys {
 		if key.derived == nil {
 			if !sameAttribute(key.attribute) {
 				return false
@@ -39,12 +39,12 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 			}
 		}
 	}
-	for _, attribute := range index.sqlIndex.include {
+	for _, attribute := range index.SQLIndex.include {
 		if !sameAttribute(attribute) {
 			return false
 		}
 	}
-	if predicate := index.sqlIndex.predicate; predicate != nil {
+	if predicate := index.SQLIndex.predicate; predicate != nil {
 		for _, dependency := range predicate.dependencies {
 			a := dependency.Address
 			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
@@ -58,8 +58,8 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 // Only referenced dense slots affect index extraction authority. Dropping an
 // unrelated tail or attaching metadata does not replace an immutable root.
 func indexLayoutSlotsUnchanged(index, oldParent, parent *relationDescriptor) bool {
-	for oldSlot, attribute := range oldParent.attributes {
-		if indexAttributeAffected(index.sqlIndex, attribute) && slices.Index(parent.attributes, attribute) != oldSlot {
+	for oldSlot, attribute := range oldParent.Attributes {
+		if indexAttributeAffected(index.SQLIndex, attribute) && slices.Index(parent.Attributes, attribute) != oldSlot {
 			return false
 		}
 	}
@@ -91,7 +91,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		if lineage.targetParent.address != parent.address {
 			continue
 		}
-		if lineage.target.sqlIndex.parent != parent.address || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
+		if lineage.target.SQLIndex.parent != parent.address || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
@@ -176,14 +176,14 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 					}
 				}
 			}
-			binding, err := bindHashIndex(lineage.targetParent, lineage.target.sqlIndex)
+			binding, err := bindHashIndex(lineage.targetParent, lineage.target.SQLIndex)
 			if err != nil {
 				return nil, false, err
 			}
 			next := *root.hash
 			next.binding, next.storage, next.generation = binding, indexStorageIdentity(targetStore), targetStore.generation
 			next.prefix, next.ends = len(targetStore.versions), targetStore.ends
-			if err := next.captureRowEntries(evaluation.Context, lineage.target.sqlIndex); err != nil {
+			if err := next.captureRowEntries(evaluation.Context, lineage.target.SQLIndex); err != nil {
 				return nil, false, err
 			}
 			root = &logicalIndexRoot{hash: &next}
@@ -201,7 +201,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 				}
 			}
 			if !indexLayoutSlotsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) {
-				root = newLogicalIndexRoot(lineage.target.sqlIndex, root.entries)
+				root = newLogicalIndexRoot(lineage.target.SQLIndex, root.entries)
 			}
 		}
 		retainIndexBuild(changes, lineage.target, targetStore, root)
@@ -211,7 +211,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	}
 	pending := false
 	for _, captured := range captures {
-		pending = pending || captured.lineage.target.sqlIndex.hasRuntimeDomainConversion()
+		pending = pending || captured.lineage.target.SQLIndex.hasRuntimeDomainConversion()
 	}
 	for _, row := range sourceWrites {
 		pending = pending || len(row.indexOutputs) != 0
@@ -236,7 +236,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		for _, captured := range captures {
 			lineage := captured.lineage
 			output, ok := sourceWrites[position].indexOutputs[lineage.source.address]
-			if !ok && !lineage.target.sqlIndex.hasRuntimeDomainConversion() {
+			if !ok && !lineage.target.SQLIndex.hasRuntimeDomainConversion() {
 				continue
 			}
 			if !ok || (!output.matches(lineage.source) && !output.matches(lineage.target)) {
@@ -267,7 +267,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != address {
 			continue
 		}
 		if _, captured := changes.originals[index.address]; !captured {
@@ -286,29 +286,29 @@ func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, chan
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != address {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !index.sqlIndex.ready || !index.sqlIndex.live || parent.relationKind == partitionedRelation {
+		if !index.SQLIndex.ready || !index.SQLIndex.live || parent.RelationKind == partitionedRelation {
 			delete(changes.uniqueRoots, index.address)
 			delete(changes.indexCandidates, index.address)
 			continue
 		}
 		var root *logicalIndexRoot
-		if index.sqlIndex.method == hashMethod {
-			binding, err := bindHashIndex(parent, index.sqlIndex)
+		if index.SQLIndex.method == hashMethod {
+			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
 			root = &logicalIndexRoot{hash: &hashIndexRoot{buckets: make(map[uint64][]hashIndexEntry), binding: binding, storage: indexStorageIdentity(store), generation: store.generation, ends: store.ends}}
 		} else {
-			if err := bindIndexProvider(parent, index.sqlIndex); err != nil {
+			if err := bindIndexProvider(parent, index.SQLIndex); err != nil {
 				return err
 			}
-			root = newLogicalIndexRoot(index.sqlIndex, nil)
+			root = newLogicalIndexRoot(index.SQLIndex, nil)
 		}
 		retainIndexBuild(changes, index, store, root)
 		if stage != nil {

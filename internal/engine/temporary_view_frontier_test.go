@@ -57,7 +57,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 				if current.Get(address) != provider {
 					t.Fatal("replacement copied certified catalog provider", provider.name)
 				}
-				for _, column := range provider.columns {
+				for _, column := range provider.Columns {
 					if typ, ok := current.LookupType(column.Usage.Type.ID()); !ok || typ != column.Usage.Type {
 						t.Fatal("catalog provider lost unused column generation", provider.name, column.Name)
 					}

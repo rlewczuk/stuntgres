@@ -155,7 +155,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
 	replacement := stage.descriptors[survivor.address].(*relationDescriptor)
-	if len(replacement.defaults) != 0 || len(replacement.checkConstraints) != 0 || len(survivor.defaults) != 1 || len(survivor.checkConstraints) != 1 {
+	if len(replacement.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}
 	roleExecute(t, e, installer, "CREATE VIEW public.ext_late AS SELECT v FROM public.ext_chain")
@@ -173,7 +173,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.address)
-	if current == survivor || len(current.defaults) != 0 || len(current.checkConstraints) != 0 || e.storage[survivor.address] != store || e.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.epoch != base.epoch {
+	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.address] != store || e.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.epoch != base.epoch {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {
@@ -260,7 +260,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 			t.Fatal("physical retirement touched peer namespace or retained owner authority")
 		}
 		current := e.catalog.state.MustRelation(survivor.address)
-		if current.revision != maximum.revision || current == &maximum || len(current.defaults) != 0 || len(current.checkConstraints) != 0 {
+		if current.revision != maximum.revision || current == &maximum || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 {
 			t.Fatal("terminal revision exhaustion bypassed identity replacement")
 		}
 		values := make([]sqltype.Value, 1)

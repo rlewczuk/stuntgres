@@ -26,33 +26,33 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgCollationUnitSource(t, e, catalog)
 	owner := e.Roles().LookupRef("postgres")
-	if d.name != "pg_collation" || d.namespace.ObjectID != 11 || d.owner != owner || d.relationKind != catalogRelation || d.virtualView || d.attributeHighWater != 12 || len(d.columns) != 12 {
+	if d.name != "pg_collation" || d.namespace.ObjectID != 11 || d.Owner != owner || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 12 || len(d.Columns) != 12 {
 		t.Fatal("catalog identity", d)
 	}
 	names := [...]string{"oid", "collname", "collnamespace", "collowner", "collprovider", "collisdeterministic", "collencoding", "collcollate", "collctype", "colllocale", "collicurules", "collversion"}
 	typeIDs := [...]sqltype.ID{26, 19, 26, 26, 18, 16, 23, 25, 25, 25, 25, 25}
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950}
-	for i, column := range d.columns {
+	for i, column := range d.Columns {
 		typ, ok := catalog.LookupType(typeIDs[i])
-		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i >= 7) || !column.NullabilityKnown || column.OriginTable != 3456 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i >= 7) || !column.NullabilityKnown || column.OriginTable != 3456 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Error("release attribute", i+1, column)
 		}
 	}
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	row, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
+	row, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 	if !ok {
-		t.Fatal("owned row type", d.rowType)
+		t.Fatal("owned row type", d.RowType)
 	}
 	array, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
 	if !ok {
 		t.Fatal("owned row array", row.array)
 	}
-	ownedRow, rowOK := catalog.LookupType(d.rowType)
+	ownedRow, rowOK := catalog.LookupType(d.RowType)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 	if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 		t.Fatal("relational row/array ownership", row, array)
@@ -95,7 +95,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 			t.Fatal("invented row", id)
 		}
 		for i, value := range row {
-			if value.Type() != d.columns[i].Usage.Type {
+			if value.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("concrete carrier", i, value)
 			}
 		}

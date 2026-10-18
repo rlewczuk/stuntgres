@@ -101,7 +101,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	newRelation := target.catalog.state.MustRelation(newRef.Address)
 	for i, want := range []string{"q", "q", "(q)"} {
 		value := rows[0].values[i]
-		if value.Type() != newRelation.columns[i].Usage.Type {
+		if value.Type() != newRelation.Columns[i].Usage.Type {
 			t.Fatal("foreign imported codec", i, value)
 		}
 		if text, err := value.Type().Output(ctx, value); err != nil || text != want {
@@ -113,7 +113,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	if newID == oldID {
 		t.Fatal("datum identity not reminted", newID)
 	}
-	definition := newRelation.defaults[newRelation.attributes[0]]
+	definition := newRelation.Defaults[newRelation.Attributes[0]]
 	literal, err := definition.expression.Eval(&EvalContext{Context: ctx})
 	if err != nil {
 		t.Fatal(err)

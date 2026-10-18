@@ -16,7 +16,7 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 			if !ok || column.scope != rulePseudoScope || column.frame != 2 {
 				return
 			}
-			target := slices.Index(original.relation.attributes, column.origin.Address.SubID)
+			target := slices.Index(original.relation.Attributes, column.origin.Address.SubID)
 			for output, slot := range original.targets {
 				if slot == target && !slices.Contains(uses, output) {
 					uses = append(uses, output)
@@ -330,7 +330,7 @@ func ruleMutationProducerDemand(b binding) (binding, error) {
 				visit(expression)
 			}
 		}
-	}, len(b.relation.columns))
+	}, len(b.relation.Columns))
 	if err != nil {
 		return binding{}, err
 	}

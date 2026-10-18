@@ -201,7 +201,7 @@ func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
 func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *relationDescriptor) *relationDescriptor {
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
-	g.inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}, columns: map[int32]inheritedColumn{g.attributes[0]: {origins: []inheritanceOrigin{{parent: c.address, attribute: c.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	g.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}, columns: map[int32]inheritedColumn{g.Attributes[0]: {origins: []inheritanceOrigin{{parent: c.address, attribute: c.Attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *relationDescriptor) 
 
 func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
-	if c.hasSubclasses {
+	if c.HasSubclasses {
 		t.Fatal("fixture already has a grandchild")
 	}
 	holder := inheritanceAlterAXHolder(t, e, c)
@@ -225,7 +225,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
 	currentChild := grown.MustRelation(c.address)
-	if currentChild == c || !currentChild.hasSubclasses || currentChild.subclassPredecessor != c || currentChild.revision != currentChild.subclassPublication || !inheritanceMarkerPublication(c, currentChild) {
+	if currentChild == c || !currentChild.HasSubclasses || currentChild.SubclassPredecessor != c || currentChild.revision != currentChild.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
 	if grown.Epoch() != beforeGrowth.Epoch() {
@@ -247,7 +247,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 			t.Fatal("expanded graph lacks real AX admission", old.name)
 		}
 		replacement := command.scope.catalog.descriptors[old.address].(*relationDescriptor)
-		if len(replacement.columns) != 2 || replacement.columns[1].Name != "extra" {
+		if len(replacement.Columns) != 2 || replacement.Columns[1].Name != "extra" {
 			t.Fatal("new grandchild missed actual provider application", old.name)
 		}
 	}
@@ -285,7 +285,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	// not the exact sticky-marker publication. It must never inherit its waiver.
 	later := *marker
 	later.revision++
-	later.comment = "subsequent physical descriptor mutation"
+	later.Comment = "subsequent physical descriptor mutation"
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&later); err != nil {
 		t.Fatal(err)
@@ -302,7 +302,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)
-	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.address) != g || len(e.CatalogRead().MustRelation(p.address).columns) != 1 {
+	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.address) != g || len(e.CatalogRead().MustRelation(p.address).Columns) != 1 {
 		t.Fatal("replacement veto leaked earlier prepared root or retargeted the graph")
 	}
 	lockEmpty(t, e)
@@ -328,7 +328,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := command.scope.Finish(nil); err != nil {
 			t.Fatal(err)
 		}
-		if retiredUnitTable(t, e, "c") != c || retiredUnitTable(t, e, "p").notNullConstraints[0].OID != p.notNullConstraints[0].OID {
+		if retiredUnitTable(t, e, "c") != c || retiredUnitTable(t, e, "p").NotNullConstraints[0].OID != p.NotNullConstraints[0].OID {
 			t.Fatal("valid root NN changed physical identities")
 		}
 		holder.Finish(nil)
@@ -355,8 +355,8 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 			t.Fatal(err)
 		}
 		current := retiredUnitTable(t, e, "c")
-		attribute := current.attributes[current.index["extra"]]
-		if !current.inheritance.columns[attribute].local || len(current.inheritance.columns[attribute].origins) != 1 || !sameGroupExpression(current.defaults[attribute].expression, c.defaults[attribute].expression) || retiredUnitTable(t, e, "leaf") != leaf {
+		attribute := current.Attributes[current.Index["extra"]]
+		if !current.Inheritance.columns[attribute].local || len(current.Inheritance.columns[attribute].origins) != 1 || !sameGroupExpression(current.Defaults[attribute].expression, c.Defaults[attribute].expression) || retiredUnitTable(t, e, "leaf") != leaf {
 			t.Fatal("merge replaced local recipe or changed stopped leaf")
 		}
 		inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, 1), inheritanceQueryInt(e, 19)})
@@ -463,7 +463,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if prepared == nil || prepared.steps[0].drop == nil {
 				t.Fatal("rowtype witness did not use actual DROP preparation")
 			}
-			if prepared.checks.next == nil || len(prepared.checks.next.checkConstraints) != 1 {
+			if prepared.checks.next == nil || len(prepared.checks.next.CheckConstraints) != 1 {
 				t.Fatal("rowtype fixture did not produce its actual cooked CHECK")
 			}
 			assertShape := func(typ *sqltype.Descriptor, names []string) {
@@ -485,11 +485,11 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 					if !ok {
 						continue
 					}
-					if typ.typ.ID() == p.rowType {
+					if typ.typ.ID() == p.RowType {
 						assertShape(typ.typ, names)
 						row = true
 					}
-					if typ.typ.IsArray() && typ.typ.Element().ID() == p.rowType {
+					if typ.typ.IsArray() && typ.typ.Element().ID() == p.RowType {
 						assertShape(typ.typ.Element(), names)
 						array = true
 					}
@@ -509,7 +509,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			assertPhase(dropTypes, []string{"a"})
 			assertPhase(prepared.steps[1].types, []string{"a", "z"})
 			assertPhase(prepared.steps[2].types, []string{"a", "z", "u"})
-			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.rowType)}).typ, []string{"a", "b"})
+			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.RowType)}).typ, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression
@@ -519,11 +519,11 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 						if typ == nil {
 							return
 						}
-						if typ.ID() == p.rowType {
+						if typ.ID() == p.RowType {
 							assertShape(typ, names)
 							composite = true
 						}
-						if typ.IsArray() && typ.Element().ID() == p.rowType {
+						if typ.IsArray() && typ.Element().ID() == p.RowType {
 							assertShape(typ.Element(), names)
 							array = true
 						}
@@ -546,16 +546,16 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				return
 			}
 			finalComposite, finalArray := false, false
-			walkBoundExpression(prepared.checks.next.checkConstraints[0].expression, func(node expr.Expr) {
+			walkBoundExpression(prepared.checks.next.CheckConstraints[0].expression, func(node expr.Expr) {
 				typ := node.ResultUsage().Type
 				if typ == nil {
 					return
 				}
-				if typ.ID() == p.rowType {
+				if typ.ID() == p.RowType {
 					assertShape(typ, []string{"a", "z", "u"})
 					finalComposite = true
 				}
-				if typ.IsArray() && typ.Element().ID() == p.rowType {
+				if typ.IsArray() && typ.Element().ID() == p.RowType {
 					assertShape(typ.Element(), []string{"a", "z", "u"})
 					finalArray = true
 				}
@@ -602,15 +602,15 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			}
 			drop := prepared.steps[1].drop
 			add := prepared.steps[0]
-			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.hasAttribute(p.attributes[p.index["b"]]) || add.old != drop.next || add.added.attribute == p.attributes[p.index["b"]] {
+			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.hasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.attribute == p.Attributes[p.Index["b"]] {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
 			cooked := prepared.checks.next
-			if cooked == nil || len(cooked.checkConstraints) != 1 || len(cooked.notNullConstraints) != 1 {
+			if cooked == nil || len(cooked.CheckConstraints) != 1 || len(cooked.NotNullConstraints) != 1 {
 				t.Fatal("mixed fixture did not produce its actual cooked NN/CHECK")
 			}
-			newAttribute := cooked.attributes[cooked.index["b"]]
-			if !slices.Equal(constraintAttributeKeys(cooked, cooked.checkConstraints[0].expression), []int32{newAttribute}) || cooked.checkConstraints[0].Name != "ck" || cooked.notNullConstraints[0].Name != "nn" || cooked.checkConstraints[0].OID != 0 || cooked.notNullConstraints[0].OID != 0 {
+			newAttribute := cooked.Attributes[cooked.Index["b"]]
+			if !slices.Equal(constraintAttributeKeys(cooked, cooked.CheckConstraints[0].expression), []int32{newAttribute}) || cooked.CheckConstraints[0].Name != "ck" || cooked.NotNullConstraints[0].Name != "nn" || cooked.CheckConstraints[0].OID != 0 || cooked.NotNullConstraints[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.namespace, Name: "old_b"}
@@ -641,10 +641,10 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal(err)
 			}
 			candidate := command.scope.catalog.descriptors[p.address].(*relationDescriptor)
-			if candidate.notNullConstraints[0].OID == 0 || candidate.notNullConstraints[0].OID == p.notNullConstraints[0].OID || candidate.checkConstraints[0].OID == 0 || candidate.checkConstraints[0].OID == p.checkConstraints[0].OID || candidate.notNullConstraints[0].Name != cooked.notNullConstraints[0].Name || candidate.notNullConstraints[0].Attribute != cooked.notNullConstraints[0].Attribute || candidate.checkConstraints[0].Name != cooked.checkConstraints[0].Name || !sameGroupExpression(candidate.checkConstraints[0].expression, cooked.checkConstraints[0].expression) {
+			if candidate.NotNullConstraints[0].OID == 0 || candidate.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || candidate.CheckConstraints[0].OID == 0 || candidate.CheckConstraints[0].OID == p.CheckConstraints[0].OID || candidate.NotNullConstraints[0].Name != cooked.NotNullConstraints[0].Name || candidate.NotNullConstraints[0].Attribute != cooked.NotNullConstraints[0].Attribute || candidate.CheckConstraints[0].Name != cooked.CheckConstraints[0].Name || !sameGroupExpression(candidate.CheckConstraints[0].expression, cooked.CheckConstraints[0].expression) {
 				t.Fatal("sole pipeline lost exact cooked names/keys/recipe or reused removed fact OIDs")
 			}
-			if cooked.notNullConstraints[0].OID != 0 || cooked.checkConstraints[0].OID != 0 {
+			if cooked.NotNullConstraints[0].OID != 0 || cooked.CheckConstraints[0].OID != 0 {
 				t.Fatal("normal physical OID assignment mutated immutable preparation")
 			}
 			if _, consumed := command.scope.consumedColumnDrops[drop]; !consumed || state.stage == nil {
@@ -664,7 +664,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				value int64
 			}{{p, 1}, {c, 2}} {
 				current := e.CatalogRead().MustRelation(pair.old.address)
-				if current.attributes[current.index["b"]] == pair.old.attributes[pair.old.index["b"]] {
+				if current.Attributes[current.Index["b"]] == pair.old.Attributes[pair.old.Index["b"]] {
 					t.Fatal("mixed DROP/ADD reused old stable attribute")
 				}
 				inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, pair.value), inheritanceQueryInt(e, 7)})

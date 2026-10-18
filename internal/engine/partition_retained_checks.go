@@ -17,10 +17,10 @@ type partitionRowHistory struct {
 }
 
 func partitionNeedsRowHistory(catalog CatalogRead, d *relationDescriptor) bool {
-	if d.membership == nil || d.partition != nil {
+	if d.Membership == nil || d.Partition != nil {
 		return false
 	}
-	for _, check := range d.checkConstraints {
+	for _, check := range d.CheckConstraints {
 		if check.NotValid {
 			return partitionHashReplayTarget(catalog, d) != d
 		}
@@ -54,7 +54,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	if oldSlot < 0 || newSlot < 0 {
 		return false, ids.ErrCatalogReplaced
 	}
-	if generation, ok := h.relation.generations[attribute]; ok && generation.kind == generationVirtual {
+	if generation, ok := h.relation.Generations[attribute]; ok && generation.kind == generationVirtual {
 		// Virtual cells have no stored value. Follow the already-certified
 		// generation dependency graph to its actual stored input cells.
 		for _, dependency := range generation.dependencies {
@@ -65,7 +65,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 				continue
 			}
 			if address.SubID == 0 {
-				for _, input := range h.relation.attributes {
+				for _, input := range h.relation.Attributes {
 					if input == attribute {
 						continue
 					}
@@ -91,9 +91,9 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 // relevant. Descriptor ownership alone does not change its old-row authority.
 func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *relationDescriptor, check checkConstraint, before, after []sqltype.Value) (bool, error) {
 	var original *checkConstraint
-	for i := range h.relation.checkConstraints {
-		if h.relation.checkConstraints[i].Name == check.Name {
-			original = &h.relation.checkConstraints[i]
+	for i := range h.relation.CheckConstraints {
+		if h.relation.CheckConstraints[i].Name == check.Name {
+			original = &h.relation.CheckConstraints[i]
 			break
 		}
 	}
@@ -106,7 +106,7 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 		whole.SubID = 0
 		if whole == h.relation.address {
 			if address.SubID == 0 {
-				for _, attribute := range h.relation.attributes {
+				for _, attribute := range h.relation.Attributes {
 					changed, err := partitionRetainedAttributeChanged(ctx, h, d, attribute, before, after)
 					if err != nil || changed {
 						return changed, err
@@ -185,17 +185,17 @@ type partitionRetainedChecks struct {
 func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *relationDescriptor, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *EvalContext) (*relationDescriptor, error) {
 	if !p.initialized {
 		p.descriptor = *d
-		p.descriptor.checkConstraints = slices.Clone(d.checkConstraints)
+		p.descriptor.CheckConstraints = slices.Clone(d.CheckConstraints)
 		p.initialized = true
 		ownerChanged := snapshot.destination(h.relation.address) != h.relation.address
-		for i, check := range d.checkConstraints {
+		for i, check := range d.CheckConstraints {
 			if !check.NotValid {
 				continue
 			}
 			var original *checkConstraint
-			for j := range h.relation.checkConstraints {
-				if h.relation.checkConstraints[j].Name == check.Name {
-					original = &h.relation.checkConstraints[j]
+			for j := range h.relation.CheckConstraints {
+				if h.relation.CheckConstraints[j].Name == check.Name {
+					original = &h.relation.CheckConstraints[j]
 					break
 				}
 			}
@@ -215,11 +215,11 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 				if whole != h.relation.address {
 					continue
 				}
-				for attribute, generation := range h.relation.generations {
+				for attribute, generation := range h.relation.Generations {
 					if generation.kind != generationVirtual || address.SubID != 0 && address.SubID != attribute {
 						continue
 					}
-					current, exists := d.generations[attribute]
+					current, exists := d.Generations[attribute]
 					if !exists {
 						return nil, ids.ErrCatalogReplaced
 					}
@@ -232,16 +232,16 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 			}
 			if affected {
 				if p.recipeAffected == nil {
-					p.recipeAffected = make([]bool, len(d.checkConstraints))
+					p.recipeAffected = make([]bool, len(d.CheckConstraints))
 				}
 				p.recipeAffected[i] = true
 			}
 		}
 	}
-	oldCount := len(p.descriptor.checkConstraints)
-	checks := p.descriptor.checkConstraints[:cap(p.descriptor.checkConstraints)]
+	oldCount := len(p.descriptor.CheckConstraints)
+	checks := p.descriptor.CheckConstraints[:cap(p.descriptor.CheckConstraints)]
 	count, changed := 0, false
-	for i, check := range d.checkConstraints {
+	for i, check := range d.CheckConstraints {
 		if check.NotValid {
 			affected := p.recipeAffected != nil && p.recipeAffected[i]
 			if !affected {
@@ -261,7 +261,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 		checks[count] = check
 		count++
 	}
-	p.descriptor.checkConstraints = checks[:count]
+	p.descriptor.CheckConstraints = checks[:count]
 	if changed || count != oldCount {
 		delete(evaluation.preparedChecks, &p.descriptor)
 	}

@@ -25,10 +25,10 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 			return nil, err
 		}
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.sqlIndex.parent)
+		parent, ok := catalog.Relation(index.SQLIndex.parent)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index parent")
 		}
@@ -53,11 +53,11 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 			return nil, err
 		}
 		rows = append(rows, []sqltype.Value{
-			sqltype.String(source.columns[0].Usage.Type, schema.Name()),
-			sqltype.String(source.columns[1].Usage.Type, parent.name),
-			sqltype.String(source.columns[2].Usage.Type, index.name),
-			sqltype.Null(source.columns[3].Usage.Type),
-			sqltype.String(source.columns[4].Usage.Type, definition),
+			sqltype.String(source.Columns[0].Usage.Type, schema.Name()),
+			sqltype.String(source.Columns[1].Usage.Type, parent.name),
+			sqltype.String(source.Columns[2].Usage.Type, index.name),
+			sqltype.Null(source.Columns[3].Usage.Type),
+			sqltype.String(source.Columns[4].Usage.Type, definition),
 		})
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

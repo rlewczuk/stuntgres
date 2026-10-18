@@ -70,7 +70,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	}
 	parent := e.catalog.state.MustRelation(ref.Address)
 	index, root := btreeRoot(t, e, "public.ui_index")
-	if index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 || index.sqlIndex.predicate == nil {
+	if index.SQLIndex.constraint != nil || len(parent.UniqueConstraints) != 0 || index.SQLIndex.predicate == nil {
 		t.Fatal("not real standalone partial")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -96,7 +96,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 func partialUniqueRow(t *testing.T, f *uniquePublicationFixture, offset int, a, b, active string) rowVersion {
 	t.Helper()
 	r := f.row(t, offset, a, b)
-	typ := f.parent.columns[3].Usage.Type
+	typ := f.parent.Columns[3].Usage.Type
 	v := sqltype.Null(typ)
 	if active != "" {
 		var err error
@@ -295,15 +295,15 @@ func TestPartialIndexUniquePredicateIdentityFence(t *testing.T) {
 		t.Fatal("retained predicate rename lost reuse")
 	}
 	next := *f.index
-	definition := *f.index.sqlIndex
+	definition := *f.index.SQLIndex
 	predicate := *definition.predicate
 	definition.predicate = &predicate
-	next.sqlIndex = &definition
+	next.SQLIndex = &definition
 	if sameIndexKeySemantics(f.index, &next) {
 		t.Fatal("new predicate identity passed root/admission reuse fence")
 	}
 	// Independently verify that the retained expression and root were untouched.
-	if !reflect.DeepEqual(f.index.sqlIndex.predicate, &predicate) {
+	if !reflect.DeepEqual(f.index.SQLIndex.predicate, &predicate) {
 		t.Fatal("predicate mutated")
 	}
 	f.unchanged(t)
@@ -316,10 +316,10 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			next := *f.catalog
 			next.descriptors = maps.Clone(f.catalog.descriptors)
 			index := *f.index
-			definition := *index.sqlIndex
+			definition := *index.SQLIndex
 			predicate := *definition.predicate
 			definition.predicate = &predicate
-			index.sqlIndex = &definition
+			index.SQLIndex = &definition
 			next.setDescriptor(index.address, &index)
 			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {

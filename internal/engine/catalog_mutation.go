@@ -9,7 +9,7 @@ import (
 // These sources admit semantic planning before checking execution-time authority.
 // Other virtual catalogs retain their existing mutation boundaries.
 func guardedCatalogRelation(d *relationDescriptor) bool {
-	if d == nil || d.relationKind != catalogRelation || d.address.ClassID != ids.RelationClassID {
+	if d == nil || d.RelationKind != catalogRelation || d.address.ClassID != ids.RelationClassID {
 		return false
 	}
 	return d.address.ObjectID == pgAggregateOID || d.address.ObjectID == pgAMOID || d.address.ObjectID == pgTypeOID

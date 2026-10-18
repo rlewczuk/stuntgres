@@ -15,12 +15,12 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		t.Run(map[bool]string{false: "real_backing_after_detach", true: "childless_collision_reserved"}[empty], func(t *testing.T) {
 			f := partitionConstraintDescriptors(t)
-			f.child.sqlIndex.partitionParent = f.parent.address
+			f.child.SQLIndex.partitionParent = f.parent.address
 			if empty {
-				f.root.partition.children = nil
-				f.root.partition.defaultChild = ids.ObjectAddress{}
-				f.leaf.membership = nil
-				f.child.sqlIndex.partitionParent = ids.ObjectAddress{}
+				f.root.Partition.children = nil
+				f.root.Partition.defaultChild = ids.ObjectAddress{}
+				f.leaf.Membership = nil
+				f.child.SQLIndex.partitionParent = ids.ObjectAddress{}
 			}
 			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.namespace, Name: partitionReplayStem + "1"}
 			f.view.state.bindName(reserved, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700})
@@ -75,7 +75,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 					t.Fatal("lost captured bound", text, err)
 				}
 			}
-			if f.parent.sqlIndex.valid || f.child.sqlIndex.partitionParent != (map[bool]ids.ObjectAddress{false: f.parent.address, true: {}}[empty]) {
+			if f.parent.SQLIndex.valid || f.child.SQLIndex.partitionParent != (map[bool]ids.ObjectAddress{false: f.parent.address, true: {}}[empty]) {
 				t.Fatal("renderer mutated captured definitions")
 			}
 		})
@@ -84,25 +84,25 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 
 func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	f.child.sqlIndex.partitionParent = f.parent.address
-	f.parent.sqlIndex.include = nil
-	f.child.sqlIndex.include = nil
+	f.child.SQLIndex.partitionParent = f.parent.address
+	f.parent.SQLIndex.include = nil
+	f.child.SQLIndex.include = nil
 	for _, index := range [2]*relationDescriptor{f.parent, f.child} {
-		index.columns = index.columns[:2]
-		index.attributes = index.attributes[:2]
-		index.attributeHighWater = 2
-		index.index = map[string]int{"a": 0, "b": 1}
-		index.sqlIndex.keys[1].desc = false
-		index.sqlIndex.keys[1].nullsFirst = false
+		index.Columns = index.Columns[:2]
+		index.Attributes = index.Attributes[:2]
+		index.AttributeHighWater = 2
+		index.Index = map[string]int{"a": 0, "b": 1}
+		index.SQLIndex.keys[1].desc = false
+		index.SQLIndex.keys[1].nullsFirst = false
 	}
-	local, definition := *f.child, *f.child.sqlIndex
+	local, definition := *f.child, *f.child.SQLIndex
 	local.address.ObjectID = 19999
 	local.name = "unit_local_older"
 	definition.partitionParent = ids.ObjectAddress{}
 	constraint := uniqueConstraint{OID: 46900, Name: local.name, Index: local.address, Attributes: []int32{22, 11}, IsLocal: true}
 	definition.constraint = uniqueBacking(&constraint)
-	local.sqlIndex = &definition
-	f.leaf.uniqueConstraints = []uniqueConstraint{constraint}
+	local.SQLIndex = &definition
+	f.leaf.UniqueConstraints = []uniqueConstraint{constraint}
 	f.view.state.setDescriptor(local.address, &local)
 	f.view.state.bindName(descriptorNameKey(&local), local.address)
 	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
@@ -110,12 +110,12 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	r, c, pi, ci, li := f.root.address.ObjectID, f.leaf.address.ObjectID, f.parent.address.ObjectID, f.child.address.ObjectID, local.address.ObjectID
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
-	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, owner: f.leaf.owner, name: "unit_local_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"ref": 0}}
+	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, Owner: f.leaf.Owner, name: "unit_local_consumer", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
-	consumer.defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}
+	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}
 	f.view.state.setDescriptor(consumer.address, consumer)
 	f.view.state.bindName(descriptorNameKey(consumer), consumer.address)
-	provider, err := dumpPredecessor(f.view, consumer.defaults[1].dependencies[0].Address, consumer.address)
+	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].dependencies[0].Address, consumer.address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	// A real captured private-name projection exercises the local constraint's
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
-	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.columns, attributes: consumer.attributes, defaults: consumer.defaults, versions: []rowVersion{{row: 1, version: 1, values: []sqltype.Value{value}}}}}
+	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, defaults: consumer.Defaults, versions: []rowVersion{{row: 1, version: 1, values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
 	_, replay := partitionConstraintDumpCatalog(f.view)
 	if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
@@ -159,7 +159,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	if position(dumpEventKey{oid: li}) >= position(rename) || position(rename) >= position(rows) {
 		t.Fatal("consumer replay precedes its own local index identity", order)
 	}
-	if f.leaf.uniqueConstraints[0].OID != constraint.OID || local.sqlIndex.partitionParent != (ids.ObjectAddress{}) || f.child.sqlIndex.partitionParent != f.parent.address {
+	if f.leaf.UniqueConstraints[0].OID != constraint.OID || local.SQLIndex.partitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.partitionParent != f.parent.address {
 		t.Fatal("scheduler changed source ownership")
 	}
 }

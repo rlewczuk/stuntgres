@@ -159,12 +159,12 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 		t.Helper()
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_tablespace"})
 		source := catalog.MustRelation(address)
-		if len(source.columns) != 5 {
-			t.Fatal("wrong pg_tablespace column count", len(source.columns))
+		if len(source.Columns) != 5 {
+			t.Fatal("wrong pg_tablespace column count", len(source.Columns))
 		}
 		for i, name := range []string{"oid", "spcname", "spcowner", "spcacl", "spcoptions"} {
-			if source.columns[i].Name != name {
-				t.Fatal("noncanonical pg_tablespace column order", i, source.columns[i].Name)
+			if source.Columns[i].Name != name {
+				t.Fatal("noncanonical pg_tablespace column order", i, source.Columns[i].Name)
 			}
 		}
 		ref := e.catalog.domain.Ref(catalog.Epoch(), address)

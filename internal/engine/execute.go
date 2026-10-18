@@ -285,7 +285,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if b.viewWrite != nil {
 		e.mu.Unlock()
-		if b.viewWrite.base.relationKind != viewRelation {
+		if b.viewWrite.base.RelationKind != viewRelation {
 			if err := scope.acquireViewWriteTarget(b.viewWrite); err != nil {
 				return Result{}, err
 			}
@@ -575,7 +575,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 // Shared by ordinary insertion and isolated native replacement. Validation does
 // not mutate row values; each caller supplies its existing disclosure authority.
 func validatePhysicalRowConstraints(relation *relationDescriptor, schema string, row []sqltype.Value, evaluation *EvalContext, detail func() (string, error)) error {
-	for j, column := range relation.columns {
+	for j, column := range relation.Columns {
 		if column.Nullable {
 			continue
 		}
@@ -591,7 +591,7 @@ func validatePhysicalRowConstraints(relation *relationDescriptor, schema string,
 			return notNullDetailError(schema, relation.name, column.Name, detail)
 		}
 	}
-	if len(relation.checkConstraints) != 0 {
+	if len(relation.CheckConstraints) != 0 {
 		constraint, err := validateCheckRow(relation, row, evaluation)
 		if err != nil {
 			return err

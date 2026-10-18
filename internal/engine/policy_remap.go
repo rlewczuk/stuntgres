@@ -6,13 +6,13 @@ import (
 )
 
 func remapPolicies(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
-	if len(d.policies) == 0 {
+	if len(d.Policies) == 0 {
 		return d, nil
 	}
 	copy := *d
-	copy.policies = append([]policyDefinition(nil), d.policies...)
-	for i := range copy.policies {
-		p := &copy.policies[i]
+	copy.Policies = append([]policyDefinition(nil), d.Policies...)
+	for i := range copy.Policies {
+		p := &copy.Policies[i]
 		for _, slot := range []*policyPayload{&p.using, &p.check} {
 			if *slot == nil {
 				continue

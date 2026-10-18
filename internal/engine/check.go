@@ -52,16 +52,16 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		return nil
 	}
 	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
-	columns := make([]queryColumn, len(d.columns))
-	for i, c := range d.columns {
+	columns := make([]queryColumn, len(d.Columns))
+	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}
-	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}
+	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.Columns}
 	used := constraintNames(auth.catalog, d.namespace, d)
-	installed := make(map[string]bool, len(d.notNullConstraints)+len(d.checkConstraints))
+	installed := make(map[string]bool, len(d.NotNullConstraints)+len(d.CheckConstraints))
 	start := 0
-	for _, c := range d.checkConstraints {
+	for _, c := range d.CheckConstraints {
 		installed[c.Name] = true
 		if c.ordinal == int(^uint(0)>>1) {
 			return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
@@ -70,16 +70,16 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			start = c.ordinal + 1
 		}
 	}
-	for _, c := range d.notNullConstraints {
+	for _, c := range d.NotNullConstraints {
 		installed[c.Name] = true
 	}
-	for _, c := range d.uniqueConstraints {
+	for _, c := range d.UniqueConstraints {
 		installed[c.Name] = true
 	}
-	for _, c := range d.exclusionConstraints {
+	for _, c := range d.ExclusionConstraints {
 		installed[c.Name] = true
 	}
-	for _, c := range d.foreignKeys {
+	for _, c := range d.ForeignKeys {
 		installed[c.Name] = true
 	}
 	current := make(map[string]bool, len(raw))
@@ -115,7 +115,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			column := ""
 			uses := binder.querySources[0].uses
 			if len(uses) == 1 {
-				column = d.columns[uses[0]].Name
+				column = d.Columns[uses[0]].Name
 			}
 			name = generatedConstraintName(d.name, column, "check", used)
 		}
@@ -138,17 +138,17 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			continue
 		}
 		if installed[name] {
-			if !altering && d.inheritance != nil {
-				if provenance, inherited := d.inheritance.checks[name]; inherited {
-					old := slices.IndexFunc(d.checkConstraints, func(c checkConstraint) bool { return c.Name == name })
-					if old < 0 || !sameGroupExpression(d.checkConstraints[old].expression, node) {
+			if !altering && d.Inheritance != nil {
+				if provenance, inherited := d.Inheritance.checks[name]; inherited {
+					old := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
+					if old < 0 || !sameGroupExpression(d.CheckConstraints[old].expression, node) {
 						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
 					}
 					if c.NoInherit {
 						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
 					}
 					provenance.local = true
-					d.inheritance.checks[name] = provenance
+					d.Inheritance.checks[name] = provenance
 					current[name], used[name] = true, true
 					continue
 				}
@@ -177,23 +177,23 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			}
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
 		}
-		d.checkConstraints = append(d.checkConstraints, definition)
-		if d.inheritance != nil {
-			d.inheritance.checks[name] = inheritedConstraint{local: true}
+		d.CheckConstraints = append(d.CheckConstraints, definition)
+		if d.Inheritance != nil {
+			d.Inheritance.checks[name] = inheritedConstraint{local: true}
 		}
 	}
-	slices.SortFunc(d.checkConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(d.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }
 
 func orderedChecks(d *relationDescriptor) []checkConstraint {
-	checks := slices.Clone(d.checkConstraints)
+	checks := slices.Clone(d.CheckConstraints)
 	slices.SortFunc(checks, func(a, b checkConstraint) int { return cmp.Compare(a.ordinal, b.ordinal) })
 	return checks
 }
 
 func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	for _, c := range d.checkConstraints {
+	for _, c := range d.CheckConstraints {
 		for _, dep := range c.dependencies {
 			a := dep.ref.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
@@ -208,7 +208,7 @@ func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 // not the stage's older validation snapshot. The publisher retries if that root
 // changes before its single final install. No rendering or row evaluation here.
 func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
-	for _, c := range d.checkConstraints {
+	for _, c := range d.CheckConstraints {
 		for _, dep := range c.dependencies {
 			address := dep.ref.Address
 			address.SubID = 0
@@ -256,11 +256,11 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			return nil
 		}
 		valid := storedReferenceEpochValid(stage.base, d, ref)
-		if d != nil && d.view != nil {
+		if d != nil && d.View != nil {
 			// The stage's evolved consumer retains the incumbent definition's
 			// immutable provenance; old epochs never become generic stage refs.
 			incumbent, _ := stage.base.Relation(d.address)
-			valid = incumbent != nil && incumbent.view == d.view && storedViewReferenceValid(stage.base, incumbent, ref)
+			valid = incumbent != nil && incumbent.View == d.View && storedViewReferenceValid(stage.base, incumbent, ref)
 			if ref.Epoch == stage.base.Epoch() {
 				valid = storedViewReferenceValid(stage.base, d, ref)
 			}
@@ -293,7 +293,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if !ok {
 			continue
 		}
-		if d.view != nil {
+		if d.View != nil {
 			for _, leaf := range viewOf(d).sources {
 				if err := add(leaf.ref, d); err != nil {
 					return err
@@ -305,29 +305,29 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 				}
 			}
 		}
-		for _, c := range d.checkConstraints {
+		for _, c := range d.CheckConstraints {
 			for _, dep := range c.dependencies {
 				if err := add(dep.ref, d); err != nil {
 					return err
 				}
 			}
 		}
-		for _, definition := range d.defaults {
+		for _, definition := range d.Defaults {
 			for _, ref := range definition.dependencies {
 				if err := add(ref, d); err != nil {
 					return err
 				}
 			}
 		}
-		for _, definition := range d.generations {
+		for _, definition := range d.Generations {
 			for _, ref := range definition.dependencies {
 				if err := add(ref, d); err != nil {
 					return err
 				}
 			}
 		}
-		if d.sqlIndex != nil {
-			for _, key := range d.sqlIndex.keys {
+		if d.SQLIndex != nil {
+			for _, key := range d.SQLIndex.keys {
 				if key.derived == nil {
 					continue
 				}
@@ -337,7 +337,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 					}
 				}
 			}
-			if predicate := d.sqlIndex.predicate; predicate != nil {
+			if predicate := d.SQLIndex.predicate; predicate != nil {
 				for _, ref := range predicate.dependencies {
 					if err := add(ref, d); err != nil {
 						return err
@@ -359,7 +359,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	for _, ref := range refs {
 		mode := lock.AccessShare
 		for _, descriptor := range stage.descriptors {
-			if d, ok := descriptor.(*relationDescriptor); ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, ref.Address) {
+			if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.parents, ref.Address) {
 				mode = lock.ShareUpdateExclusive
 				break
 			}
@@ -376,7 +376,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 				// The provider existed when the definition was analyzed and was
 				// dropped while this statement waited for it (PostgreSQL 18.6).
 				err = sqlError("42704", "referenced relation was concurrently dropped")
-			} else if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
+			} else if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}
@@ -396,11 +396,11 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 
 func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {
 	previous := ""
-	for i, c := range d.checkConstraints {
+	for i, c := range d.CheckConstraints {
 		if c.ordinal < 0 {
 			return fmt.Errorf("stuntgres: invalid check declaration ordinal")
 		}
-		for _, previous := range d.checkConstraints[:i] {
+		for _, previous := range d.CheckConstraints[:i] {
 			if previous.ordinal == c.ordinal {
 				return fmt.Errorf("stuntgres: duplicate check declaration ordinal")
 			}
@@ -462,7 +462,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 // future ADD/VALIDATE consumer supplies its own traversal and publication stage.
 // UNKNOWN passes, unlike WHERE. The no-CHECK path does not allocate or bind.
 func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalContext) (*checkConstraint, error) {
-	if len(d.checkConstraints) == 0 {
+	if len(d.CheckConstraints) == 0 {
 		return nil, nil
 	}
 	oldRow, oldScope, oldFrame := eval.Row, eval.Scope, eval.Frame
@@ -473,13 +473,13 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 		// Prepare every CHECK before any volatile row evaluation, matching
 		// ExecRelCheck. Keep descriptors/dependencies untouched and copy the
 		// executable expression slice only when a branch actually changes.
-		for i := range d.checkConstraints {
+		for i := range d.CheckConstraints {
 			checkEvaluation := *eval
 			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
-			checkEvaluation.routineChecks = d.checkConstraints[i].dependencies
+			checkEvaluation.routineChecks = d.CheckConstraints[i].dependencies
 			checkEvaluation.routineReferences = nil
 			checkEvaluation.routineConsumer = d
-			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.checkConstraints[i].expression, true)
+			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.CheckConstraints[i].expression, true)
 			eval.preparedDomainChecks = checkEvaluation.preparedDomainChecks
 			if err != nil {
 				return nil, err
@@ -489,9 +489,9 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 			}
 			if changed {
 				if expressions == nil {
-					expressions = make([]expr.Expr, len(d.checkConstraints))
-					for j := range d.checkConstraints {
-						expressions[j] = d.checkConstraints[j].expression
+					expressions = make([]expr.Expr, len(d.CheckConstraints))
+					for j := range d.CheckConstraints {
+						expressions[j] = d.CheckConstraints[j].expression
 					}
 				}
 				expressions[i] = node
@@ -511,8 +511,8 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 		eval.routineRecipe, eval.routineGraft = oldRecipe, oldGraft
 		eval.routineChecks, eval.routineReferences, eval.routineConsumer = oldChecks, oldReferences, oldConsumer
 	}()
-	for i := range d.checkConstraints {
-		c := &d.checkConstraints[i]
+	for i := range d.CheckConstraints {
+		c := &d.CheckConstraints[i]
 		eval.routineRecipe, eval.routineGraft = true, false
 		eval.routineChecks, eval.routineReferences, eval.routineConsumer = c.dependencies, nil, d
 		expression := c.expression
@@ -556,7 +556,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 	var relations []*relationDescriptor
 	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.checkConstraints) == 0 {
+		if !ok || len(d.CheckConstraints) == 0 {
 			continue
 		}
 		if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
@@ -589,7 +589,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 	for _, d := range relations {
 		var kept []checkConstraint
 		changed := false
-		for _, c := range d.checkConstraints {
+		for _, c := range d.CheckConstraints {
 			var dependency ids.ObjectAddress
 			for _, dep := range c.dependencies {
 				a := dep.ref.Address
@@ -623,7 +623,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 				return nil, err
 			}
 			copy.revision = revision
-			copy.checkConstraints = kept
+			copy.CheckConstraints = kept
 			if err := provider.replace(&copy); err != nil {
 				return nil, err
 			}

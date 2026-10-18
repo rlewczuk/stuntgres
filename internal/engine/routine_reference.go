@@ -76,10 +76,10 @@ func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
 		return nil, nil
 	}
 	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
-	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 {
+	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
-	if consumer, temporary := recipe.view.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.address ||
+	if consumer, temporary := recipe.View.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.address ||
 		temporary != (ids.SessionToken{}) && consumer != recipe.address {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
@@ -103,7 +103,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
 	}
 	if auth.engine != nil {
 		current, ok := auth.catalog.Relation(recipe.address)
-		if !ok || current.view != recipe.view || recipe.owner.ID() == 0 || recipe.owner != auth.engine.authorizationDomain.Principal(recipe.owner.ID()) {
+		if !ok || current.View != recipe.View || recipe.Owner.ID() == 0 || recipe.Owner != auth.engine.authorizationDomain.Principal(recipe.Owner.ID()) {
 			return ids.ErrCatalogReplaced
 		}
 	}

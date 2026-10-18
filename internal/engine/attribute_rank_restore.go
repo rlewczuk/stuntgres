@@ -47,20 +47,20 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.relationKind != tableRelation {
+	if !ok || old.RelationKind != tableRelation {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)
 	}
-	slot, exists := old.index[column]
+	slot, exists := old.Index[column]
 	if !exists {
 		e.mu.Unlock()
 		return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, old.name))
 	}
-	if rank != 0 && !old.columns[slot].Usage.Type.IsArray() {
+	if rank != 0 && !old.Columns[slot].Usage.Type.IsArray() {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)
 	}
-	if old.columns[slot].DeclaredDimensions == rank {
+	if old.Columns[slot].DeclaredDimensions == rank {
 		e.mu.Unlock()
 		return nil
 	}
@@ -70,8 +70,8 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	}
 	next := *old
 	next.revision++
-	next.columns = slices.Clone(old.columns)
-	next.columns[slot].DeclaredDimensions = rank
+	next.Columns = slices.Clone(old.Columns)
+	next.Columns[slot].DeclaredDimensions = rank
 	staged := e.BeginCatalogStage(auth.catalog)
 	staged.authorizeLocked(auth, op.session)
 	e.mu.Unlock()

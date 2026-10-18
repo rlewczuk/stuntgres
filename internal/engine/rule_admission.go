@@ -53,7 +53,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	}
 	for _, command := range commands {
 		physical := command.binding.physicalBinding()
-		if physical.relation != nil && physical.relation.relationKind != viewRelation {
+		if physical.relation != nil && physical.relation.RelationKind != viewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
 				mode lock.Mode

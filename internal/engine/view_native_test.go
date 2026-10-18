@@ -42,8 +42,8 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 	for _, name := range []string{"s.v", "s.w"} {
 		ref := roleTableRef(t, e, name)
 		descriptor := e.CatalogRead().MustRelation(ref.Address)
-		if descriptor.owner != owner.Ref {
-			t.Fatal("view owner remap", name, descriptor.owner)
+		if descriptor.Owner != owner.Ref {
+			t.Fatal("view owner remap", name, descriptor.Owner)
 		}
 		for _, leaf := range viewOf(descriptor).sources {
 			if leaf.ref.Domain() != e.catalog.domain || leaf.ref.Epoch != e.catalog.state.epoch {
@@ -102,7 +102,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	old := base.MustRelation(vref.Address)
 	replacement := *old
 	definition := *viewOf(old)
-	replacement.view = &definition
+	replacement.View = &definition
 	replacement.revision++
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	previous := definition.sources[0].ref

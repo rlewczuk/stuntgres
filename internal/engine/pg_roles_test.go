@@ -63,24 +63,24 @@ func pgRolesUnitRole(e *Engine, state *roleCatalog, id uint64, name string) auth
 func TestPGRolesDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgRolesUnitSource(t, e)
-	if d.name != "pg_roles" || !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != 13 || len(d.attributes) != 13 || len(d.index) != 13 || d.attributeHighWater != 13 {
+	if d.name != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.AttributeHighWater != 13 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"rolname", "rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolconnlimit", "rolpassword", "rolvaliduntil", "rolbypassrls", "rolconfig", "oid"}
 	types := []sqltype.ID{sqltype.Name, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Int4, sqltype.Text, sqltype.Timestamptz, sqltype.Bool, 1009, sqltype.Oid}
 	collations := []uint32{950, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 950, 0}
-	for i, c := range d.columns {
-		if c.Name != names[i] || c.Usage.Type.ID() != types[i] || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12007 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[c.Name] != i {
+	for i, c := range d.Columns {
+		if c.Name != names[i] || c.Usage.Type.ID() != types[i] || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12007 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i {
 			t.Fatal("exact pg_roles metadata", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	if d.rowType != 12002 {
+	if d.RowType != 12002 {
 		t.Fatal("existing row identity not reused")
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002})
@@ -89,7 +89,7 @@ func TestPGRolesDescriptor(t *testing.T) {
 		t.Fatal("row/array ownership links")
 	}
 	views := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000})
-	if views.name != "pg_views" || views.rowType != 12030 || d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.owner != d.owner || array.owner != d.owner {
+	if views.name != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.owner != d.Owner || array.owner != d.Owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}
 	if representedSummaryTable(12007) || representedSummaryViewDefinition(12007) == "" {
@@ -139,11 +139,11 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.name = name
-		view.relationKind = viewRelation
-		view.virtualView = false
+		view.RelationKind = viewRelation
+		view.VirtualView = false
 		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
-		attrs := append([]int32(nil), d.attributes...)
-		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
+		attrs := append([]int32(nil), d.Attributes...)
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
 		e.catalog.state.setDescriptor(view.address, &view)
 		return viewRef
 	}
@@ -198,8 +198,8 @@ func TestPGRolesCancellation(t *testing.T) {
 		}
 	}
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
 	if source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
@@ -251,7 +251,7 @@ func TestPGRolesProjection(t *testing.T) {
 			}
 			for id, row := range bag {
 				for i, value := range row {
-					if value.Type() != d.columns[i].Usage.Type {
+					if value.Type() != d.Columns[i].Usage.Type {
 						t.Fatal("wrong typed column", i)
 					}
 				}

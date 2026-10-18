@@ -93,15 +93,15 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 // The executable projection shares one authority with named and supported user
 // rows; catalog/builtin row identities remain lookup-only.
 func compositeMembers(relation *relationDescriptor) []sqltype.CompositeMember {
-	members := make([]sqltype.CompositeMember, len(relation.columns))
-	for i, c := range relation.columns {
-		members[i] = sqltype.CompositeMember{Attribute: relation.attributes[i], Name: c.Name, Usage: c.Usage}
+	members := make([]sqltype.CompositeMember, len(relation.Columns))
+	for i, c := range relation.Columns {
+		members[i] = sqltype.CompositeMember{Attribute: relation.Attributes[i], Name: c.Name, Usage: c.Usage}
 	}
 	return members
 }
 
 func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescriptor) error {
-	if !relation.relationKind.stored() && relation.relationKind != partitionedRelation && relation.relationKind != viewRelation && relation.relationKind != compositeRelation && relation.relationKind != foreignRelation || relation.rowType != 0 {
+	if !relation.RelationKind.stored() && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != compositeRelation && relation.RelationKind != foreignRelation || relation.RowType != 0 {
 		return nil
 	}
 	arrayID, err := e.catalog.allocateOIDLocked()
@@ -125,17 +125,17 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	if err != nil {
 		return err
 	}
-	relation.rowType = typ.ID()
-	baseline := authorization.DefaultBaseline(relation.owner, authorization.DefaultTypes, false)
+	relation.RowType = typ.ID()
+	baseline := authorization.DefaultBaseline(relation.Owner, authorization.DefaultTypes, false)
 	acl := baseline
 	synthetic := true
-	if relation.relationKind == compositeRelation {
-		acl, synthetic = stage.creationTypeACL(relation.owner, relation.namespace)
+	if relation.RelationKind == compositeRelation {
+		acl, synthetic = stage.creationTypeACL(relation.Owner, relation.namespace)
 	}
-	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, aclSyntheticDefault: synthetic, array: array.ID(), owningRelation: relation.address}); err != nil {
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.Owner, acl: acl, aclSyntheticDefault: synthetic, array: array.ID(), owningRelation: relation.address}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: baseline, aclSyntheticDefault: true, owningRelation: relation.address})
+	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.Owner, acl: baseline, aclSyntheticDefault: true, owningRelation: relation.address})
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {
@@ -143,10 +143,10 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 }
 
 func (provider *dropProvider) synchronizeRowType(relation *relationDescriptor) error {
-	if relation.rowType == 0 {
+	if relation.RowType == 0 {
 		return nil
 	}
-	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}
+	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}
 	row, ok := provider.inputDescriptor(address).(*typeDescriptor)
 	if !ok {
 		return nil
@@ -163,25 +163,25 @@ func (provider *dropProvider) synchronizeRowType(relation *relationDescriptor) e
 func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescriptor, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
 	same := row.Namespace() == relation.namespace && row.Name() == relation.name
 	if row.typ.IsComposite() {
-		same = same && row.typ.CompositeLen() == len(relation.columns)
+		same = same && row.typ.CompositeLen() == len(relation.Columns)
 		if same {
-			for i, column := range relation.columns {
+			for i, column := range relation.Columns {
 				member := row.typ.CompositeMember(i)
-				if member.Attribute != relation.attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
+				if member.Attribute != relation.Attributes[i] || member.Name != column.Name || member.Usage != column.Usage {
 					same = false
 					break
 				}
 			}
 		}
 	}
-	if same && row.owner == relation.owner {
+	if same && row.owner == relation.Owner {
 		return nil
 	}
 	next := *row
-	if row.owner != relation.owner {
-		next.acl = authorization.SchemaACLOwner(row.acl, row.owner, relation.owner)
+	if row.owner != relation.Owner {
+		next.acl = authorization.SchemaACLOwner(row.acl, row.owner, relation.Owner)
 	}
-	next.namespace, next.owner, next.revision = relation.namespace, relation.owner, relation.revision
+	next.namespace, next.owner, next.revision = relation.namespace, relation.Owner, relation.revision
 	if same {
 		// Ownership is metadata, not a new codec or composite signature.
 		next.typ = row.typ
@@ -201,10 +201,10 @@ func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescripto
 	if row.array != 0 {
 		array := descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}).(*typeDescriptor)
 		copy := *array
-		if array.owner != relation.owner {
-			copy.acl = authorization.SchemaACLOwner(array.acl, array.owner, relation.owner)
+		if array.owner != relation.Owner {
+			copy.acl = authorization.SchemaACLOwner(array.acl, array.owner, relation.Owner)
 		}
-		copy.namespace, copy.owner, copy.revision = relation.namespace, relation.owner, relation.revision
+		copy.namespace, copy.owner, copy.revision = relation.namespace, relation.Owner, relation.revision
 		arrayName := array.Name()
 		if row.Name() != relation.name {
 			arrayName = associatedName(relation.namespace, relation.name)

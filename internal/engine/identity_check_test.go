@@ -30,10 +30,10 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	}
 	sessionSQL(t, s, `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(pg_catalog.nextval('i_id_seq')>0)) CREATE TABLE c(p INT CHECK(nextval('portable.i_id_seq')>0))`)
 	table := e.catalog.state.MustRelation(roleTableRef(t, e, "portable.i").Address)
-	identity := table.identities[table.attributes[0]]
+	identity := table.Identities[table.Attributes[0]]
 	provider := e.catalog.state.MustRelation(identity.sequence)
 	found := false
-	for _, dependency := range table.checkConstraints[0].dependencies {
+	for _, dependency := range table.CheckConstraints[0].dependencies {
 		if dependency.ref.Address == identity.sequence {
 			found = true
 			if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != e.catalog.state.epoch || dependency.revision != provider.revision {
@@ -121,11 +121,11 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				t.Fatal("fixture lacks predecessor inversion", owner, view, check)
 			}
 			table := dest.catalog.state.MustRelation(owner)
-			identity := table.identities[table.attributes[0]]
+			identity := table.Identities[table.Attributes[0]]
 			sequence := dest.catalog.state.MustRelation(identity.sequence)
 			owned := owner
-			owned.SubID = table.attributes[0]
-			if !sequence.sequence.identity || sequence.sequence.owned != owned {
+			owned.SubID = table.Attributes[0]
+			if !sequence.Sequence.identity || sequence.Sequence.owned != owned {
 				t.Fatal("reciprocal owner remapping failed")
 			}
 			var dump bytes.Buffer
@@ -211,7 +211,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	consumer := roleTableRef(t, e, "c").Address
 	view := roleTableRef(t, e, "v").Address
 	table := read.MustRelation(owner)
-	sequence := table.identities[table.attributes[0]].sequence
+	sequence := table.Identities[table.Attributes[0]].sequence
 	ordinary := catalogRef(t, e, read, "ordinary").Address
 	for _, tc := range []struct {
 		provider, consumer ids.ObjectAddress
@@ -227,9 +227,9 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	}
 	descriptor := read.MustRelation(sequence)
 	bad := *descriptor
-	options := *descriptor.sequence
+	options := *descriptor.Sequence
 	options.owned.SubID = 99
-	bad.sequence = &options
+	bad.Sequence = &options
 	stage := e.BeginCatalogStage(read)
 	stage.descriptors[sequence] = &bad
 	if _, err := dumpPredecessor(e.stageRead(stage), sequence, consumer); err == nil {
@@ -255,12 +255,12 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	sessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 	read := e.CatalogRead()
 	table := read.MustRelation(roleTableRef(t, e, "i").Address)
-	address := table.identities[table.attributes[0]].sequence
+	address := table.Identities[table.Attributes[0]].sequence
 	original := read.MustRelation(address)
 	stage := e.BeginCatalogStage(read)
 	candidate := *original
 	candidate.name = "candidate_only"
-	candidate.sequencePlanStamp++
+	candidate.SequencePlanStamp++
 	stage.descriptors[address] = &candidate
 	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
 	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
@@ -284,7 +284,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal(binder.sequenceConstants)
 	}
 	constant := binder.sequenceConstants[0]
-	if constant.ref.Address != address || constant.ref.Domain() != e.catalog.domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.sequencePlanStamp {
+	if constant.ref.Address != address || constant.ref.Domain() != e.catalog.domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.SequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)

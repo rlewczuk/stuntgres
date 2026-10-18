@@ -57,24 +57,24 @@ func TestPGNamespaceShape(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, _ := namespaceUnitSource(t, e, c)
-	if d.name != "pg_namespace" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.virtualView || !d.hasIndexes || d.rowType != 10047 || len(d.columns) != 4 || d.attributeHighWater != 4 {
+	if d.name != "pg_namespace" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
 		t.Fatal("namespace relation shape", d)
 	}
 	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}
 	typeIDs := [...]sqltype.ID{26, 19, 26, 1034}
-	for i, column := range d.columns {
+	for i, column := range d.Columns {
 		typ, ok := c.LookupType(typeIDs[i])
 		collation := uint32(0)
 		if i == 1 {
 			collation = 950
 		}
-		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collation || column.Nullable != (i == 3) || !column.NullabilityKnown || column.OriginTable != 2615 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collation || column.Nullable != (i == 3) || !column.NullabilityKnown || column.OriginTable != 2615 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal(i, column)
 		}
 	}
 	for _, id := range []ids.OID{10047, 10046} {
 		typ := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.owningRelation != d.address || typ.owner != d.owner {
+		if typ.owningRelation != d.address || typ.owner != d.Owner {
 			t.Fatal("row/array reciprocal owner", id, typ)
 		}
 	}
@@ -253,15 +253,15 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	for _, width := range []int{0, 3, 5} {
 		next := cloneCatalog(c.state)
 		invalid := *d
-		invalid.columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]ColumnDescriptor, width)
 		next.setDescriptor(d.address, &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
-	for i := range d.columns {
+	for i := range d.Columns {
 		next := cloneCatalog(c.state)
 		invalid := *d
-		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-		invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.columns[i].Usage.Type.ID())
+		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
 		next.setDescriptor(d.address, &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
@@ -362,7 +362,7 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 	}
 	check()
 	table := e.CatalogRead().MustRelation(roleTableRef(t, e, "namespace_fixture_table").Address)
-	if table.owner != actor || table.namespace != address {
+	if table.Owner != actor || table.namespace != address {
 		t.Fatal("fixture changed real object creator", table)
 	}
 	roleErrorPosition(t, e, op, "CREATE TABLE namespace_fixture_denied(i INT)", "42501", "permission denied for schema public", "", "14")

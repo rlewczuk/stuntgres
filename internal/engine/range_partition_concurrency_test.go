@@ -58,7 +58,7 @@ func TestRangePartitionConcurrencyDefaultWriterPublication(t *testing.T) {
 			finished, cancel := rangePartitionQueuedSQL(t, e, creator, query)
 			defer cancel()
 			lockPending(t, e, 1)
-			if len(rangePartitionRelation(t, e, "root").partition.children) != 1 {
+			if len(rangePartitionRelation(t, e, "root").Partition.children) != 1 {
 				t.Fatal("queued child published before writer release")
 			}
 			transactionEnd(t, writer, transaction, commit)
@@ -69,7 +69,7 @@ func TestRangePartitionConcurrencyDefaultWriterPublication(t *testing.T) {
 				if !errors.As(err, &diagnostic) || *diagnostic != expected {
 					t.Fatalf("committed default frontier: %#v / %v", diagnostic, err)
 				}
-				if len(rangePartitionRelation(t, e, "root").partition.children) != 1 {
+				if len(rangePartitionRelation(t, e, "root").Partition.children) != 1 {
 					t.Fatal("failed DEFAULT validation published child")
 				}
 				if !reflect.DeepEqual(tuples(sessionSQL(t, creator, "SELECT k FROM root")), [][]driver.Value{{int64(2)}}) {
@@ -79,7 +79,7 @@ func TestRangePartitionConcurrencyDefaultWriterPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(rangePartitionRelation(t, e, "root").partition.children) != 2 {
+				if len(rangePartitionRelation(t, e, "root").Partition.children) != 2 {
 					t.Fatal("rollback frontier did not permit child publication")
 				}
 				sessionSQL(t, creator, "INSERT INTO root VALUES(2)")
@@ -107,7 +107,7 @@ func TestRangePartitionConcurrencyCanceledDDLReleasesHierarchyLocks(t *testing.T
 	if err := finished(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if len(rangePartitionRelation(t, e, "root").partition.children) != 1 {
+	if len(rangePartitionRelation(t, e, "root").Partition.children) != 1 {
 		t.Fatal("canceled queued DDL published metadata")
 	}
 	transactionEnd(t, holder, transaction, false)
@@ -147,7 +147,7 @@ func TestRangePartitionConcurrencyOverlappingDefinitionsSerialize(t *testing.T) 
 		t.Fatalf("overlap after queued admission: %#v / %v", diagnostic, err)
 	}
 	root := rangePartitionRelation(t, e, "root")
-	if len(root.partition.children) != 2 {
+	if len(root.Partition.children) != 2 {
 		t.Fatal("overlap race published both children")
 	}
 	sessionSQL(t, first, "INSERT INTO root VALUES(5),(15)")

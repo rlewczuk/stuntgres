@@ -36,7 +36,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	table, ok := auth.catalog.Relation(created.Address)
-	if !ok || table.inheritance == nil || table.relationKind != tableRelation {
+	if !ok || table.Inheritance == nil || table.RelationKind != tableRelation {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	namespace, ok := auth.catalog.Namespace(table.namespace)
@@ -47,7 +47,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 	if err != nil {
 		return restoredInheritedOwner{}, err
 	}
-	if !actor.Superuser || table.owner != actor.Ref {
+	if !actor.Superuser || table.Owner != actor.Ref {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	if _, err := auth.roles.Descriptor(owner); err != nil {
@@ -95,7 +95,7 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 		return reject()
 	}
 	table, ok := auth.catalog.Relation(ref.Address)
-	if !ok || table.inheritance == nil || table.owner != pair.creator {
+	if !ok || table.Inheritance == nil || table.Owner != pair.creator {
 		return reject()
 	}
 	namespace, ok := auth.catalog.Namespace(table.namespace)

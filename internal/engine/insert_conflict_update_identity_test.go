@@ -20,7 +20,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		scope.owner.isolation = isolation
 		scope.owner.frontier = e.commitSeq
 		integer := func(n int64) sqltype.Value {
-			v, err := sqltype.Integer(b.relation.columns[0].Usage.Type, n)
+			v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -136,8 +136,8 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				catalog := cloneCatalog(e.catalog.state)
 				relation := *catalog.MustRelation(ref.Address)
 				if shapeChange {
-					relation.columns = relation.columns[:1]
-					relation.attributes = relation.attributes[:1]
+					relation.Columns = relation.Columns[:1]
+					relation.Attributes = relation.Attributes[:1]
 				}
 				catalog.setDescriptor(ref.Address, &relation)
 				e.catalog.state = catalog

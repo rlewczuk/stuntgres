@@ -23,8 +23,8 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old
 	next.revision++
-	next.comment = "eligible default descriptor"
-	next.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
+	next.Comment = "eligible default descriptor"
+	next.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +57,8 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	}
 	run(t, e, `ALTER TABLE sentinel DROP a`)
 	live := e.catalog.state.MustRelation(ref.Address)
-	if len(live.defaults) != 1 || live.defaults[3].expression == nil || old.defaults[2].expression == nil {
-		t.Fatal("attribute-key ownership changed", live.defaults, old.defaults)
+	if len(live.Defaults) != 1 || live.Defaults[3].expression == nil || old.Defaults[2].expression == nil {
+		t.Fatal("attribute-key ownership changed", live.Defaults, old.Defaults)
 	}
 	run(t, e, `INSERT INTO sentinel(id) VALUES(2)`)
 	if got := tuples(run(t, e, `SELECT * FROM sentinel ORDER BY id`)); !reflect.DeepEqual(got, [][]driver.Value{{int64(1), int64(9)}, {int64(2), int64(9)}}) {

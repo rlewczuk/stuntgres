@@ -11,8 +11,8 @@ import (
 func TestAlterAddColumnProjection(t *testing.T) {
 	e := New()
 	u := testUsage(e, sqltype.Int4)
-	old := &relationDescriptor{columns: []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, attributes: []int32{1, 2}, attributeHighWater: 2}
-	next := &relationDescriptor{columns: []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "c", Usage: u}}, attributes: []int32{1, 3}, attributeHighWater: 3}
+	old := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, AttributeHighWater: 2}
+	next := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "c", Usage: u}}, Attributes: []int32{1, 3}, AttributeHighWater: 3}
 	one, err := sqltype.Integer(u.Type, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -54,8 +54,8 @@ func TestAlterAddColumnProjection(t *testing.T) {
 func TestAlterAddColumnZeroWidthProjection(t *testing.T) {
 	e := New()
 	u := testUsage(e, sqltype.Text)
-	old := &relationDescriptor{attributeHighWater: 3}
-	next := &relationDescriptor{columns: []ColumnDescriptor{{Name: "new", Usage: u}}, attributes: []int32{4}, attributeHighWater: 4}
+	old := &relationDescriptor{AttributeHighWater: 3}
+	next := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "new", Usage: u}}, Attributes: []int32{4}, AttributeHighWater: 4}
 	rows := []rowVersion{{}, {}}
 	projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{4: sqltype.Null(u.Type)})
 	if err != nil || len(projected) != 2 {
@@ -80,8 +80,8 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := &relationDescriptor{columns: []ColumnDescriptor{{Name: "a", Usage: u}}, attributes: []int32{1}, attributeHighWater: 1}
-	next := &relationDescriptor{columns: []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, attributes: []int32{1, 2}, attributeHighWater: 2}
+	old := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1}
+	next := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, AttributeHighWater: 2}
 	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{one}}, {row: 2, version: 2, values: []sqltype.Value{one}}, {row: 3, version: 3, values: []sqltype.Value{one}}}
 	projection, err := newColumnProjection(old, next, map[int32]sqltype.Value{2: sqltype.Null(u.Type)})
 	if err != nil {

@@ -15,10 +15,10 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 	}
 	if source.address.ObjectID == ids.ExtensionClassID {
 		ids := [8]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Bool, sqltype.Text, 1028, 1009}
-		if len(source.columns) != len(ids) {
+		if len(source.Columns) != len(ids) {
 			return nil, fmt.Errorf("stuntgres: invalid extension source shape")
 		}
-		for i, column := range source.columns {
+		for i, column := range source.Columns {
 			owned, ok := catalog.LookupType(ids[i])
 			if !ok || owned != column.Usage.Type {
 				return nil, fmt.Errorf("stuntgres: foreign extension source type")
@@ -37,23 +37,23 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		row := make([]sqltype.Value, len(source.columns))
+		row := make([]sqltype.Value, len(source.Columns))
 		var valueErr error
 		integer := func(i int, n int64) {
 			var v sqltype.Value
 			var err error
-			if source.columns[i].Usage.Type.ID() == sqltype.Oid {
-				v, err = sqltype.OIDValue(source.columns[i].Usage.Type, uint32(n))
+			if source.Columns[i].Usage.Type.ID() == sqltype.Oid {
+				v, err = sqltype.OIDValue(source.Columns[i].Usage.Type, uint32(n))
 			} else {
-				v, err = sqltype.Integer(source.columns[i].Usage.Type, n)
+				v, err = sqltype.Integer(source.Columns[i].Usage.Type, n)
 			}
 			if err != nil {
 				valueErr = err
 			}
 			row[i] = v
 		}
-		text := func(i int, s string) { row[i] = sqltype.String(source.columns[i].Usage.Type, s) }
-		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.columns[i].Usage.Type, b) }
+		text := func(i int, s string) { row[i] = sqltype.String(source.Columns[i].Usage.Type, s) }
+		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 		switch d := descriptor.(type) {
 		case *extensionDescriptor:
 			integer(0, int64(d.address.ObjectID))
@@ -62,8 +62,8 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			integer(3, int64(d.targetNamespace.ObjectID))
 			boolean(4, true)
 			text(5, d.version)
-			row[6] = sqltype.Null(source.columns[6].Usage.Type)
-			row[7] = sqltype.Null(source.columns[7].Usage.Type)
+			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
+			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
 		case *procedureDescriptor:
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)

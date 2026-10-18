@@ -169,7 +169,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	}
 	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
 	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
-	if !found || !ok || len(original.values) != len(relation.columns) {
+	if !found || !ok || len(original.values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
 	if !liveVersion(original, e.commitSeq, storage.ends, s.ownDeletes[candidate.ref.Address]) {

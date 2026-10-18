@@ -53,7 +53,7 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 			}
 			continue
 		}
-		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 		if row.owningRelation != address || row.Name() != relation.Name() || row.typ.Concrete() {
 			t.Fatal("projection row authority", name)
 		}

@@ -56,7 +56,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 	if retainedDescriptor.owner != former.Ref || !reflect.DeepEqual(retainedDescriptor.acl, acl) {
 		t.Fatal("owner transfer mutated retained descriptor")
 	}
-	if got := e.CatalogRead().MustRelation(table.Address).owner; got != tableOwner.Ref {
+	if got := e.CatalogRead().MustRelation(table.Address).Owner; got != tableOwner.Ref {
 		t.Fatalf("contained table owner=%v want %v", got, tableOwner.Ref)
 	}
 	for _, tc := range []struct {

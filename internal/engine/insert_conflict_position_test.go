@@ -39,17 +39,17 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		t.Run(map[bool]string{false: "nonpartial", true: "partial"}[partial], func(t *testing.T) {
 			f := insertConflictUniqueFixture(t)
-			definition := *f.index.sqlIndex
+			definition := *f.index.SQLIndex
 			if !partial {
 				definition.predicate = nil
 			}
-			f.index.sqlIndex = &definition
+			f.index.SQLIndex = &definition
 			for i, k := range []int64{20, 30} {
 				values := insertConflictUnitRow(t, f, k)
 				if i == 0 {
-					values[1] = sqltype.Boolean(f.parent.columns[1].Usage.Type, false)
+					values[1] = sqltype.Boolean(f.parent.Columns[1].Usage.Type, false)
 				} else {
-					values[1] = sqltype.Null(f.parent.columns[1].Usage.Type)
+					values[1] = sqltype.Null(f.parent.Columns[1].Usage.Type)
 				}
 				f.store.versions = append(f.store.versions, rowVersion{row: ids.RowID(i + 2), version: ids.VersionID(i + 2), born: 1, values: values})
 			}
@@ -111,7 +111,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			want[3] = 2
 			publish([]rowVersion{{row: 3, version: 6, base: 3, values: insertConflictUnitRow(t, f, 7)}}, 0)
 			values := insertConflictUnitRow(t, f, 10)
-			values[1] = sqltype.Boolean(f.parent.columns[1].Usage.Type, false)
+			values[1] = sqltype.Boolean(f.parent.Columns[1].Usage.Type, false)
 			if partial {
 				delete(want, 1)
 			}
@@ -126,25 +126,25 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			// Parent shape replacement preserves slots, including the dead row2 hole.
 			parent := *f.parent
 			parent.revision++
-			parent.attributes = append(slices.Clone(parent.attributes), 30)
-			parent.attributeHighWater = 30
-			parent.columns = append(slices.Clone(parent.columns), ColumnDescriptor{Name: "payload", Usage: parent.columns[0].Usage})
-			parent.index = maps.Clone(parent.index)
-			parent.index["payload"] = 2
+			parent.Attributes = append(slices.Clone(parent.Attributes), 30)
+			parent.AttributeHighWater = 30
+			parent.Columns = append(slices.Clone(parent.Columns), ColumnDescriptor{Name: "payload", Usage: parent.Columns[0].Usage})
+			parent.Index = maps.Clone(parent.Index)
+			parent.Index["payload"] = 2
 			shaped := *f.store
 			shaped.versions = slices.Clone(f.store.versions)
 			for i := range shaped.versions {
-				shaped.versions[i].values = append(slices.Clone(shaped.versions[i].values), sqltype.Null(parent.columns[2].Usage.Type))
+				shaped.versions[i].values = append(slices.Clone(shaped.versions[i].values), sqltype.Null(parent.Columns[2].Usage.Type))
 			}
 			index := *f.index
 			index.revision++
 			shapedDefinition := definition
 			if definition.predicate != nil {
 				predicate := *definition.predicate
-				predicate.attributes = parent.attributes
+				predicate.attributes = parent.Attributes
 				shapedDefinition.predicate = &predicate
 			}
-			index.sqlIndex = &shapedDefinition
+			index.SQLIndex = &shapedDefinition
 			nextCatalog := *f.e.catalog.state
 			nextCatalog.descriptors = maps.Clone(nextCatalog.descriptors)
 			nextCatalog.setDescriptor(parent.address, &parent)

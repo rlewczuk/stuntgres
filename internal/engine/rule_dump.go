@@ -33,7 +33,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, a
 			})
 		}
 		if column.scope != rulePseudoScope && column.scope == 1 && column.frame == 1 && action.binding.relation != nil {
-			offset := len(action.binding.relation.columns)
+			offset := len(action.binding.relation.Columns)
 			var from LogicalNode
 			if action.binding.update != nil {
 				from = action.binding.update.from
@@ -269,7 +269,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 		if len(b.targets) != 0 {
 			names := make([]string, len(b.targets))
 			for i, slot := range b.targets {
-				attribute := b.relation.attributes[slot]
+				attribute := b.relation.Attributes[slot]
 				names[i], err = deparseAttribute(d, attribute)
 				if err != nil {
 					return "", err
@@ -361,7 +361,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := deparseAttribute(d, b.relation.attributes[b.conflict.updateTargets[i]])
+					column, err := deparseAttribute(d, b.relation.Attributes[b.conflict.updateTargets[i]])
 					if err != nil {
 						return "", err
 					}
@@ -392,7 +392,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 			if i != 0 {
 				sql.WriteString(", ")
 			}
-			column, err := deparseAttribute(d, b.relation.attributes[b.targets[i]])
+			column, err := deparseAttribute(d, b.relation.Attributes[b.targets[i]])
 			if err != nil {
 				return "", err
 			}
@@ -463,7 +463,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
-		owner, err := roles.Descriptor(d.owner)
+		owner, err := roles.Descriptor(d.Owner)
 		if err != nil {
 			return nil, err
 		}

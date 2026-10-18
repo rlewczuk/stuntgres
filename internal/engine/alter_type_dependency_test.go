@@ -69,13 +69,13 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 				next := *originalView
 				next.address.ObjectID, next.name, next.revision = oid, "late_view", revision
-				next.rowType = 0
+				next.RowType = 0
 				definition := *viewOf(originalView)
 				definition.rule = rule
-				next.view = &definition
-				next.columns = append([]ColumnDescriptor(nil), originalView.columns...)
-				for i := range next.columns {
-					next.columns[i].OriginTable = uint32(oid)
+				next.View = &definition
+				next.Columns = append([]ColumnDescriptor(nil), originalView.Columns...)
+				for i := range next.Columns {
+					next.Columns[i].OriginTable = uint32(oid)
 				}
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(stage)

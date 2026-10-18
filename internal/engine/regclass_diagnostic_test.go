@@ -71,7 +71,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				inputs := []string{"2", "0", strconv.FormatUint(uint64(oid), 10), strconv.FormatUint(uint64(oid), 10), fmt.Sprintf("{%d,NULL}", oid), fmt.Sprintf("{%d,NULL}", oid)}
 				row := make([]sqltype.Value, len(inputs))
 				for i, input := range inputs {
-					row[i], err = relation.columns[i].Usage.Type.Input(context.Background(), input, -1)
+					row[i], err = relation.Columns[i].Usage.Type.Input(context.Background(), input, -1)
 					if err != nil {
 						t.Fatal(i, err)
 					}

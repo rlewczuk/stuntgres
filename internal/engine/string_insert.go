@@ -25,7 +25,7 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 		}
 		projection = append(projection, expr)
 		targets = append(targets, out.targets[i])
-		schema = append(schema, out.relation.columns[out.targets[i]])
+		schema = append(schema, out.relation.Columns[out.targets[i]])
 		if partials != nil {
 			partials = append(partials, out.arrayTargets[i])
 		}

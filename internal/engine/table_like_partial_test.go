@@ -25,7 +25,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	externalType := e.catalog.domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
 	ordinary := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_partial").Address)
 	expression := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_expression").Address)
-	sourcePredicate := ordinary.sqlIndex.predicate
+	sourcePredicate := ordinary.SQLIndex.predicate
 	sourceAttributes := slices.Clone(sourcePredicate.attributes)
 	sourceDependencies := slices.Clone(sourcePredicate.dependencies)
 	sourceRoots := e.indexRoots
@@ -41,7 +41,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	var copied []*relationDescriptor
 	for _, descriptor := range stage.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
 		copied = append(copied, index)
@@ -49,14 +49,14 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		if index.name == "clone_expr_idx" {
 			old = expression
 		}
-		predicate := index.sqlIndex.predicate
-		if predicate == nil || predicate == old.sqlIndex.predicate || !reflect.DeepEqual(predicate.attributes, []int32{1, 2, 3, 4, 5}) {
+		predicate := index.SQLIndex.predicate
+		if predicate == nil || predicate == old.SQLIndex.predicate || !reflect.DeepEqual(predicate.attributes, []int32{1, 2, 3, 4, 5}) {
 			t.Fatal("source predicate/container/layout retained", index.name, predicate)
 		}
-		if index.address == old.address || index.Revision() == old.Revision() || index.sqlIndex.parent != destination.address || !index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live {
+		if index.address == old.address || index.Revision() == old.Revision() || index.SQLIndex.parent != destination.address || !index.SQLIndex.ready || !index.SQLIndex.valid || !index.SQLIndex.live {
 			t.Fatal("index identity/parent/state copied", index)
 		}
-		if predicate.definition.ResultUsage() != old.sqlIndex.predicate.definition.ResultUsage() || predicate.execution.ResultUsage() != old.sqlIndex.predicate.execution.ResultUsage() || predicate.definition.Properties() != old.sqlIndex.predicate.definition.Properties() || predicate.execution.Properties() != old.sqlIndex.predicate.execution.Properties() || plannedVolatility(predicate.execution) != expr.Immutable {
+		if predicate.definition.ResultUsage() != old.SQLIndex.predicate.definition.ResultUsage() || predicate.execution.ResultUsage() != old.SQLIndex.predicate.execution.ResultUsage() || predicate.definition.Properties() != old.SQLIndex.predicate.definition.Properties() || predicate.execution.Properties() != old.SQLIndex.predicate.execution.Properties() || plannedVolatility(predicate.execution) != expr.Immutable {
 			t.Fatal("typed predicate properties changed", predicate)
 		}
 		if !slices.Contains(predicate.dependencies, local) {
@@ -96,8 +96,8 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			t.Fatal("fixture lacks analyzed-only dependency", executionDependencies)
 		}
 		if index.name == "clone_k_id_idx" {
-			if index.sqlIndex.keys[0].attribute != 3 || !reflect.DeepEqual(index.sqlIndex.include, []int32{2}) || !slices.Contains(predicate.dependencies, external) {
-				t.Fatal("key/include/external identity lost", index.sqlIndex)
+			if index.SQLIndex.keys[0].attribute != 3 || !reflect.DeepEqual(index.SQLIndex.include, []int32{2}) || !slices.Contains(predicate.dependencies, external) {
+				t.Fatal("key/include/external identity lost", index.SQLIndex)
 			}
 			booleanType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
 			regclassType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
@@ -106,8 +106,8 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.dependencies)
 			}
 		} else if index.name == "clone_expr_idx" {
-			key := index.sqlIndex.keys[0].derived
-			if key == nil || !reflect.DeepEqual(key.attributes, destination.attributes) {
+			key := index.SQLIndex.keys[0].derived
+			if key == nil || !reflect.DeepEqual(key.attributes, destination.Attributes) {
 				t.Fatal("derived key layout lost", key)
 			}
 			target := local
@@ -169,7 +169,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "UPDATE clone SET active=NULL WHERE id=4")
 	run(t, e, "UPDATE clone SET active=TRUE,n=2 WHERE id=2 OR id=3")
 	assertMembership(3)
-	if ordinary.sqlIndex.predicate != sourcePredicate || !reflect.DeepEqual(sourcePredicate.attributes, sourceAttributes) || !reflect.DeepEqual(sourcePredicate.dependencies, sourceDependencies) {
+	if ordinary.SQLIndex.predicate != sourcePredicate || !reflect.DeepEqual(sourcePredicate.attributes, sourceAttributes) || !reflect.DeepEqual(sourcePredicate.dependencies, sourceDependencies) {
 		t.Fatal("source definition mutated")
 	}
 }
@@ -189,14 +189,14 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	var copied *relationDescriptor
 	for _, descriptor := range stage.descriptors {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 			copied = index
 		}
 	}
-	if copied == nil || copied.address == source.address || !copied.sqlIndex.unique || !copied.sqlIndex.nullsNotDistinct || copied.sqlIndex.constraint != nil || len(destination.uniqueConstraints) != 0 || copied.sqlIndex.keys[0].attribute != 3 || copied.sqlIndex.predicate == nil || copied.sqlIndex.predicate == source.sqlIndex.predicate {
+	if copied == nil || copied.address == source.address || !copied.SQLIndex.unique || !copied.SQLIndex.nullsNotDistinct || copied.SQLIndex.constraint != nil || len(destination.UniqueConstraints) != 0 || copied.SQLIndex.keys[0].attribute != 3 || copied.SQLIndex.predicate == nil || copied.SQLIndex.predicate == source.SQLIndex.predicate {
 		t.Fatal("standalone partial unique/backing authority lost", copied)
 	}
-	predicate := copied.sqlIndex.predicate
+	predicate := copied.SQLIndex.predicate
 	for _, node := range []expr.Expr{predicate.definition, predicate.execution} {
 		column, ok := node.(columnExpression)
 		if !ok || column.origin.Address.ObjectID != destination.address.ObjectID || column.origin.Address.SubID != 4 || column.slot != 3 {
@@ -229,7 +229,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			var copied *relationDescriptor
 			for _, descriptor := range stage.descriptors {
-				if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil {
+				if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 					copied = index
 				}
 			}
@@ -237,12 +237,12 @@ func TestTableLikePartialConstants(t *testing.T) {
 				t.Fatal("constant predicate index omitted")
 			}
 			if truth == "TRUE" {
-				if copied.sqlIndex.predicate != nil {
+				if copied.SQLIndex.predicate != nil {
 					t.Fatal("TRUE canonicalization changed")
 				}
 			} else {
-				p := copied.sqlIndex.predicate
-				if p == nil || p == source.sqlIndex.predicate || !reflect.DeepEqual(p.attributes, destination.attributes) {
+				p := copied.SQLIndex.predicate
+				if p == nil || p == source.SQLIndex.predicate || !reflect.DeepEqual(p.attributes, destination.Attributes) {
 					t.Fatal("constant predicate container/layout shared")
 				}
 			}
@@ -280,7 +280,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.namespace, source.owner, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.namespace, source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
 		auth.catalog = e.stageRead(stage)
@@ -306,7 +306,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: source.namespace, name: "private_partial", revision: revision, owner: source.owner, columns: columns, attributes: attributes, attributeHighWater: int32(len(attributes)), index: lookup, relationKind: indexRelation, sqlIndex: definition}
+						index = &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: source.namespace, name: "private_partial", revision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, AttributeHighWater: int32(len(attributes)), Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
 						err = stage.Create(index)
 					}
 				}
@@ -316,7 +316,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if err == nil {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.namespace, source.owner, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.namespace, source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -335,7 +335,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	}
 	queryCreatePublish(t, e, stage)
 	current := e.CatalogRead().MustRelation(source.address)
-	if !current.hasIndexes || current.Revision() != source.Revision() || current == source {
+	if !current.HasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}
 	if e.indexRoots[index.address] == nil {

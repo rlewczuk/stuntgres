@@ -20,15 +20,15 @@ func physicalSameAttributes(a, b []int32) bool {
 }
 
 func physicalPermutedPrimary(table *relationDescriptor) *uniqueConstraint {
-	if len(table.physicalNotNull) == 0 {
+	if len(table.PhysicalNotNull) == 0 {
 		return nil
 	}
-	for i := range table.uniqueConstraints {
-		primary := &table.uniqueConstraints[i]
+	for i := range table.UniqueConstraints {
+		primary := &table.UniqueConstraints[i]
 		if !primary.Primary {
 			continue
 		}
-		for _, foreign := range table.foreignKeys {
+		for _, foreign := range table.ForeignKeys {
 			if !foreign.NotValid && foreign.Target == table.address && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) && !slices.Equal(foreign.Referenced, primary.Attributes) {
 				return primary
 			}
@@ -40,10 +40,10 @@ func physicalPermutedPrimary(table *relationDescriptor) *uniqueConstraint {
 // Reuse the existing eligible-index predicate. Only real providers competing
 // with a captured permuted self-FK's primary are ordered after that FK.
 func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (*relationDescriptor, bool, error) {
-	if index == nil || index.sqlIndex == nil {
+	if index == nil || index.SQLIndex == nil {
 		return nil, false, nil
 	}
-	parent, ok := view.Relation(index.sqlIndex.parent)
+	parent, ok := view.Relation(index.SQLIndex.parent)
 	if !ok {
 		return nil, false, nil
 	}
@@ -72,8 +72,8 @@ func emitPhysicalCompetingUniques(view CatalogRead, table *relationDescriptor, o
 		return nil
 	}
 	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
-	for i := range table.uniqueConstraints {
-		constraint := &table.uniqueConstraints[i]
+	for i := range table.UniqueConstraints {
+		constraint := &table.UniqueConstraints[i]
 		index := view.MustRelation(constraint.Index)
 		if partitionReplaySeparateConstraint(view, index) {
 			continue
@@ -125,11 +125,11 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 		return reject()
 	}
 	for i, column := range definition.Columns {
-		slot, exists := old.index[column.Text]
+		slot, exists := old.Index[column.Text]
 		if !exists {
 			return reject()
 		}
-		attribute := old.attributes[slot]
+		attribute := old.Attributes[slot]
 		if !slices.ContainsFunc(provider.primary.keys, func(key physicalPrimaryKeyUsage) bool { return key.attribute == attribute }) {
 			return reject()
 		}

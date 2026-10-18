@@ -233,7 +233,7 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
 	recipe := e.virtual
 	if e.virtualOwner != nil {
-		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.generations[e.virtualAttribute])
+		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.Generations[e.virtualAttribute])
 	} else if e.origin != (ids.ObjectRef{}) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -2265,7 +2265,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, diagnostic
 		}
 		if column, ok := node.(columnExpression); ok {
-			if _, generated := owner.generations[column.origin.Address.SubID]; generated {
+			if _, generated := owner.Generations[column.origin.Address.SubID]; generated {
 				diagnostic := expr.ErrorAt("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "A generated column cannot reference another generated column."
 				return nil, diagnostic
@@ -2311,7 +2311,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, qualifier), raw.Pos)
 		}
 	}
-	i, ok := b.relation.index[name]
+	i, ok := b.relation.Index[name]
 	if !ok {
 		if len(raw.Name.Parts) == 2 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", raw.Name.Parts[0].Text, name), raw.Pos)
@@ -2326,7 +2326,7 @@ func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
 
 func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.ObjectRef {
 	ref := b.ref
-	ref.Address.SubID = relation.attributes[i]
+	ref.Address.SubID = relation.Attributes[i]
 	b.dependency(ref, relation.revision)
 	used := false
 	for _, slot := range b.uses {
@@ -2338,7 +2338,7 @@ func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.
 	if !used {
 		b.uses = append(b.uses, i)
 	}
-	b.info(relation.columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
+	b.info(relation.Columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
 	return ref
 }
 func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
@@ -2347,7 +2347,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
 
 func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
-	column := columnExpression{Info: expr.Info{Usage: relation.columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, i, 0)
 	}

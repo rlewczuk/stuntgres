@@ -35,7 +35,7 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *relationDescriptor {
 	if err != nil || skipped {
 		t.Fatal("source outer stage", skipped, err)
 	}
-	d.populated = true
+	d.Populated = true
 	if err := e.stageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	stage.querySources = scope.materializedSources
 	stage.materializedSourceView = snapshot
-	provider := stage.base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.rowType)})
+	provider := stage.base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}

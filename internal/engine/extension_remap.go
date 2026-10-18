@@ -26,10 +26,10 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		return &n
 	case *relationDescriptor:
 		var addresses []ids.ObjectAddress
-		for i, a := range d.autoExtensions {
+		for i, a := range d.AutoExtensions {
 			next := address(a)
 			if next != a && addresses == nil {
-				addresses = append([]ids.ObjectAddress(nil), d.autoExtensions...)
+				addresses = append([]ids.ObjectAddress(nil), d.AutoExtensions...)
 			}
 			if addresses != nil {
 				addresses[i] = next
@@ -40,7 +40,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		}
 		sort.Slice(addresses, func(i, j int) bool { return addresses[i].ObjectID < addresses[j].ObjectID })
 		n := *d
-		n.autoExtensions = addresses
+		n.AutoExtensions = addresses
 		return &n
 	case *extensionDescriptor:
 		n := *d

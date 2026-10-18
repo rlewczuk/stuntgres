@@ -31,12 +31,12 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	}
 	base := *d
 	base.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: baseOID}
-	base.name, base.relationKind, base.view = "unit_base", tableRelation, nil
-	base.acl = authorization.ACLValue{Explicit: true}
+	base.name, base.RelationKind, base.View = "unit_base", tableRelation, nil
+	base.ACL = authorization.ACLValue{Explicit: true}
 	if err := stage.Create(&base); err != nil {
 		t.Fatal(err)
 	}
-	d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}
+	d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}
 	auth.catalog, auth.state.CurrentUser = e.stageRead(stage), reader
 	auth.recaptureCatalog(auth.catalog)
 	baseRef := e.catalog.domain.Ref(auth.catalog.Epoch(), base.address)

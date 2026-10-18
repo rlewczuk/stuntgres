@@ -34,13 +34,13 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*relationD
 func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *relationDescriptor {
 	t.Helper()
 	d := inheritanceUnitRelation(e, name, id, "k")
-	d.relationKind = partitionedRelation
-	class, _ := sqltype.DefaultIndexClass(d.columns[0].Usage.Type)
-	comparison, err := sqltype.BindIndexOrdering(d.columns[0].Usage, class)
+	d.RelationKind = partitionedRelation
+	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
+	comparison, err := sqltype.BindIndexOrdering(d.Columns[0].Usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: d.columns[0].Usage, class: class, comparison: comparison, label: "k"}}}
+	d.Partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: d.Columns[0].Usage, class: class, comparison: comparison, label: "k"}}}
 	return d
 }
 
@@ -49,12 +49,12 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, catalog CatalogRead, pare
 	stage := e.BeginCatalogStage(catalog)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	p, c := *parent, *child
-	definition := *p.partition
+	definition := *p.Partition
 	definition.children = append(append([]ids.ObjectAddress(nil), definition.children...), child.address)
 	definition.defaultChild = child.address
-	p.partition = &definition
+	p.Partition = &definition
 	p.revision++
-	c.membership = &partitionMembership{parent: p.address, defaultBound: true}
+	c.Membership = &partitionMembership{parent: p.address, defaultBound: true}
 	c.revision++
 	if err := stage.Replace(&p); err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_fence_parent", 46000)
 			child := inheritanceUnitRelation(e, "attach_fence_child", 46001, "k")
-			child.relationKind = tableRelation
+			child.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
 			parent = e.catalog.state.MustRelation(parent.address)
 			child = e.catalog.state.MustRelation(child.address)
@@ -148,7 +148,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			if e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || len(changes.Definitions) != 0 {
 				t.Fatal("failed final veto installed partial catalog/storage/index roots")
 			}
-			if e.catalog.state.Get(parent.address) != parent || e.catalog.state.Get(child.address) != child || child.membership != nil || len(parent.partition.children) != 0 {
+			if e.catalog.state.Get(parent.address) != parent || e.catalog.state.Get(child.address) != child || child.Membership != nil || len(parent.Partition.children) != 0 {
 				t.Fatal("failed attachment changed original edges")
 			}
 		})

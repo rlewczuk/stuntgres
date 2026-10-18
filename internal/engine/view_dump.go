@@ -69,15 +69,15 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		}
 	}
 	source, relation := object.(*relationDescriptor)
-	if !relation || source.relationKind == catalogRelation {
+	if !relation || source.RelationKind == catalogRelation {
 		return 0, nil
 	}
 	// Inline attachments collapse to their parent. INCLUDE UNIQUE/PK indexes
 	// instead have a real CREATE + attachment graph node of their own.
-	if source.relationKind == indexRelation && source.sqlIndex != nil && source.sqlIndex.constraint != nil {
-		unique := source.sqlIndex.constraint
-		parent, ok := view.Relation(source.sqlIndex.parent)
-		if !ok || (parent.relationKind != tableRelation && parent.relationKind != partitionedRelation) || parent.namespace != source.namespace || parent.owner != source.owner || unique.Index != source.address {
+	if source.RelationKind == indexRelation && source.SQLIndex != nil && source.SQLIndex.constraint != nil {
+		unique := source.SQLIndex.constraint
+		parent, ok := view.Relation(source.SQLIndex.parent)
+		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || parent.namespace != source.namespace || parent.Owner != source.Owner || unique.Index != source.address {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
 		if !backingConstraintPresent(parent, source) {
@@ -94,15 +94,15 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 			source = parent
 		}
 	}
-	if source.relationKind == sequenceRelation {
-		if !source.sequence.identity {
+	if source.RelationKind == sequenceRelation {
+		if !source.Sequence.identity {
 			return 0, nil
 		}
-		owned := source.sequence.owned
+		owned := source.Sequence.owned
 		ownerAddress := owned
 		ownerAddress.SubID = 0
 		table, ok := view.Relation(ownerAddress)
-		if !ok || table.relationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.identities[owned.SubID].sequence != address || table.namespace != source.namespace {
+		if !ok || table.RelationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.Identities[owned.SubID].sequence != address || table.namespace != source.namespace {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table
@@ -111,7 +111,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	if !exists || namespace.temporary != (ids.SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}
-	if source.address == consumer && source.relationKind != viewRelation {
+	if source.address == consumer && source.RelationKind != viewRelation {
 		return 0, nil
 	}
 	return source.address.ObjectID, nil
