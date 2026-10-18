@@ -207,7 +207,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if candidate == nil {
 					t.Fatal("actual OWNER handler did not stage catalog changes")
 				}
-				staged, ok := candidate.descriptors[ref.Address].(*relationDescriptor)
+				staged, ok := candidate.descriptors[ref.Address].(*catalog.Relation)
 				reader, bootstrap := oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_reader"), oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 					objectACLUnitEntry(target, target, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -13,10 +14,10 @@ import (
 // Keep admission and execution on the same action-specific authority contract.
 func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.AlterView) error {
 	d := auth.catalog.MustRelation(ref.Address)
-	kind, label := viewRelation, "view"
+	kind, label := catalog.ViewRelation, "view"
 	ownerChecked := false
 	if s.Materialized {
-		kind, label = materializedViewRelation, "materialized view"
+		kind, label = catalog.MaterializedViewRelation, "materialized view"
 		if s.Action == "column" {
 			return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		}
@@ -190,7 +191,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	return Result{}, err
 }
 
-func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor) error {
+func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
 	ownerErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	if ownerErr == nil {
 		return nil
@@ -218,9 +219,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	kind, label := viewRelation, "view"
+	kind, label := catalog.ViewRelation, "view"
 	if s.Materialized {
-		kind, label = materializedViewRelation, "materialized view"
+		kind, label = catalog.MaterializedViewRelation, "materialized view"
 	}
 	refs := make([]ids.ObjectRef, 0, len(s.Names))
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
@@ -240,13 +241,13 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		if d.RelationKind != kind {
 			hint := "Use DROP TABLE to remove a table."
 			switch d.RelationKind {
-			case sequenceRelation:
+			case catalog.SequenceRelation:
 				hint = "Use DROP SEQUENCE to remove a sequence."
-			case indexRelation:
+			case catalog.IndexRelation:
 				hint = "Use DROP INDEX to remove an index."
-			case viewRelation:
+			case catalog.ViewRelation:
 				hint = "Use DROP VIEW to remove a view."
-			case materializedViewRelation:
+			case catalog.MaterializedViewRelation:
 				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
 			e.mu.Unlock()

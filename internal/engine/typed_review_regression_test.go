@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -185,7 +186,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			if root.OfType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}) {
 				t.Fatal("attachment changed")
 			}
-			for _, relation := range []*relationDescriptor{source, root, child} {
+			for _, relation := range []*catalog.Relation{source, root, child} {
 				if relation.Columns[0].Usage.Type.ID() != sqltype.Int4 || relation.Columns[0].Name != "id" {
 					t.Fatal("semantic conflict changed shape", relation)
 				}

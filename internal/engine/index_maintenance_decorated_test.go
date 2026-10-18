@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -87,7 +88,7 @@ func TestIndexMaintenanceKeyEquivalenceDecorations(t *testing.T) {
 			next := *index
 			definition := *index.SQLIndex
 			next.SQLIndex = &definition
-			definition.Keys = append([]indexKey(nil), definition.Keys...)
+			definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
 			definition.Include = append([]int32(nil), definition.Include...)
 			switch change {
 			case "include_order":

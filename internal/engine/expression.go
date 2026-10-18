@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -41,9 +42,9 @@ type EvalContext struct {
 	presence         []bool
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
-	preparedChecks       map[*relationDescriptor][]expr.Expr
+	preparedChecks       map[*catalog.Relation][]expr.Expr
 	preparedDomainChecks map[*typeDescriptor]domainCheckProgram
-	preparedGenerations  map[*relationDescriptor][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
+	preparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
 	domainValue          sqltype.Value
 	domainFrameUsage     sqltype.Usage
 	domainValueActive    bool
@@ -61,9 +62,9 @@ type EvalContext struct {
 	routineAuthority   *AuthorizationView // Borrowed local serial DDL admission only; never retained.
 	routineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
 	routineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
-	routineChecks      []expressionDependency
+	routineChecks      []catalog.ExpressionDependency
 	routineReferences  []ids.ObjectRef
-	routineConsumer    *relationDescriptor
+	routineConsumer    *catalog.Relation
 	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
 	domainPhase        domainCheckIdentity // Existing transaction/command identity, not a permission result.
@@ -178,7 +179,7 @@ type columnExpression struct {
 	scope, frame       uint32
 	slot               int
 	virtual            expr.Expr
-	virtualOwner       *relationDescriptor
+	virtualOwner       *catalog.Relation
 	virtualAttribute   int32
 	rowStart, rowWidth int
 	// Zero denotes an owner-row read; SQL occurrence IDs are encoded plus one.
@@ -1993,8 +1994,8 @@ type expressionPolicy struct {
 type expressionBinder struct {
 	engine                *Engine
 	ctx                   context.Context
-	relation              *relationDescriptor
-	insertTarget          *relationDescriptor // Diagnostic candidate only, never a source.
+	relation              *catalog.Relation
+	insertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
 	ref                   ids.ObjectRef
 	ruleNamespace         *ruleNamespace
 	parameters            map[int]sqltype.Usage
@@ -2004,7 +2005,7 @@ type expressionBinder struct {
 	updateInputParameters map[int]sqltype.Usage
 	uses                  []int
 	returningReadRequired bool
-	dependencies          []expressionDependency
+	dependencies          []catalog.ExpressionDependency
 	input                 sqltype.InputEnvironment
 	op                    *Operation
 	expected              *StatementDescription
@@ -2033,7 +2034,7 @@ type expressionBinder struct {
 	indexPredicateConsumer     bool
 	partitionConsumer          string
 	checkDefinitionEquality    bool
-	generatedOwner             *relationDescriptor
+	generatedOwner             *catalog.Relation
 	visibilitySnapshot         bool
 	catalogSnapshot            bool // Demanded inquiry nodes after STRICT folding.
 	sequenceConstants          []sequenceConstant
@@ -2150,7 +2151,7 @@ func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.Definition
 			return
 		}
 	}
-	b.dependencies = append(b.dependencies, expressionDependency{ref, revision})
+	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{ref, revision})
 }
 func (b *expressionBinder) bindingCatalog() CatalogRead {
 	if b.queryAuth != nil {
@@ -2321,7 +2322,7 @@ func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
 	return b.useColumnOf(b.relation, i)
 }
 
-func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.ObjectRef {
+func (b *expressionBinder) useColumnOf(relation *catalog.Relation, i int) ids.ObjectRef {
 	ref := b.ref
 	ref.Address.SubID = relation.Attributes[i]
 	b.dependency(ref, relation.Revision())
@@ -2342,7 +2343,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
 	return b.columnAtOf(b.relation, i, pos)
 }
 
-func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) expr.Expr {
+func (b *expressionBinder) columnAtOf(relation *catalog.Relation, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
 	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 	if b.generatedOwner == nil {

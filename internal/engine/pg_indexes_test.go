@@ -5,12 +5,13 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12002}
 	d, ok := c.Relation(a)
@@ -55,7 +56,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := pgIndexesUnitSource(t, c)
 	names := []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}
-	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
+	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
 		t.Fatal(d)
 	}
 	for i, col := range d.Columns {

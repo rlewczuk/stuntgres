@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
 type capturedHashIndex struct {
-	definition *indexDefinition
+	definition *catalog.IndexDefinition
 	root       *hashIndexRoot
 	usage      sqltype.Usage
 }
@@ -30,7 +31,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	for address, carrier := range e.indexRoots {
 		index, ok := data.catalog.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != hashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.hash == nil {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.hash == nil {
 			continue
 		}
 		// Readiness permits maintenance, not complete query coverage. A

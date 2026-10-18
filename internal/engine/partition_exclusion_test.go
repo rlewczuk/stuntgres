@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,7 +16,7 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	d := *f.parent.SQLIndex
 	d.Unique = false
-	c := exclusionConstraint{OID: 30000, Name: f.parent.Name(), Index: f.parent.Address(), IsLocal: true}
+	c := catalog.ExclusionConstraint{OID: 30000, Name: f.parent.Name(), Index: f.parent.Address(), IsLocal: true}
 	d.Constraint = exclusionBacking(&c)
 	d.Keys = slices.Clone(d.Keys)
 	d.Exclusion = make([]sqltype.ExclusionOperator, len(d.Keys))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 
@@ -512,7 +513,7 @@ type querySource struct {
 	// Borrowed only by an opaque stored-source execution root after original
 	// view lifetime/provider validation. This immutable definition supplies its
 	// original manifest, never current rights or relation-owner substitution.
-	routineRecipe *relationDescriptor
+	routineRecipe *catalog.Relation
 	sources       []*querySource
 	// Both inheritance and partition trees use named-layout physical prefixes.
 	inheritance          []inheritanceQuerySegment
@@ -550,7 +551,7 @@ type querySource struct {
 	presenceConstant, presenceFlat []bool
 }
 
-func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation) (*querySource, error) {
 	g := e.sequenceGeneratorLocked(scope, ref.Address)
 	if g == nil {
 		return nil, fmt.Errorf("stuntgres: sequence state missing")

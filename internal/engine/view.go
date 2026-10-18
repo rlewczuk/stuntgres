@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,7 +18,7 @@ type viewDefinition struct {
 	syntax            *parser.Select
 	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
 	sources           []viewLeaf
-	dependencies      []expressionDependency
+	dependencies      []catalog.ExpressionDependency
 	sequenceRefs      map[int]ids.ObjectRef
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
@@ -121,7 +122,7 @@ func checkViewOutputTypes(columns []ColumnDescriptor) error {
 // Output names are downstream definition checks, not SELECT/alias analysis.
 // Existing replacements check their descriptor before options; fresh CREATE
 // checks options first. The caller has already resolved the real destination.
-func checkViewOutputNames(columns []ColumnDescriptor, old *relationDescriptor) error {
+func checkViewOutputNames(columns []ColumnDescriptor, old *catalog.Relation) error {
 	if len(columns) < 2 {
 		return nil
 	}
@@ -306,7 +307,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
-	var old *relationDescriptor
+	var old *catalog.Relation
 	if address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
 		if !view.Replace {
 			e.mu.Unlock()
@@ -322,7 +323,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.RelationKind != viewRelation {
+		if old.RelationKind != catalog.ViewRelation {
 			e.mu.Unlock()
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a view`, name))
 		}
@@ -422,7 +423,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, viewRelation, scope.viewPersistence == "temporary")
+	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewPersistence == "temporary")
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -430,7 +431,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.ObjectRevision, d.View = revision, viewPayloadOf(definition)

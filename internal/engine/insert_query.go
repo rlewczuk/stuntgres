@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ import (
 
 // slots may be nil for the target-first lock-analysis checkpoint. Repeated
 // partial targets compose; any repeated whole-column target remains an error.
-func bindInsertTargets(relation *relationDescriptor, targets []parser.InsertTarget, slots []int) error {
+func bindInsertTargets(relation *catalog.Relation, targets []parser.InsertTarget, slots []int) error {
 	for i, target := range targets {
 		slot, ok := relation.Index[target.Name]
 		if !ok {

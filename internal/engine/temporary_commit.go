@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -21,8 +22,8 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 	}
 	var cleared, dropped []ids.ObjectAddress
 	for a, descriptor := range base.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.RelationKind != tableRelation || table.OnCommit != parser.OnCommitDelete && table.OnCommit != parser.OnCommitDrop {
+		table, ok := descriptor.(*catalog.Relation)
+		if !ok || table.RelationKind != catalog.TableRelation || table.OnCommit != parser.OnCommitDelete && table.OnCommit != parser.OnCommitDrop {
 			continue
 		}
 		ns := base.MustNamespace(table.Namespace())
@@ -69,7 +70,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		defer e.DiscardCatalogStage(stage)
 		input, output := sessionPresentation(op.session)
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input, Output: output, catalog: base}
-		project := func(old, replacement *relationDescriptor) error {
+		project := func(old, replacement *catalog.Relation) error {
 			owner := op.session.transactions
 			snapshot, exists := owner.roots[old.Address()]
 			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, stableIsolation(owner.isolation))

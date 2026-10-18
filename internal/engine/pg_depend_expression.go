@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -35,7 +36,7 @@ func (r *pgDependRefs) add(address ids.ObjectAddress) {
 		return
 	}
 	if address.SubID != 0 {
-		relation, ok := d.(*relationDescriptor)
+		relation, ok := d.(*catalog.Relation)
 		if !ok || address.SubID != -6 && !relation.HasAttribute(address.SubID) {
 			r.err = fmt.Errorf("stuntgres: missing dependency attribute")
 			return

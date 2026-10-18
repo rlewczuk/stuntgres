@@ -141,16 +141,16 @@ func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
 	}
 	return nil
 }
-func (state *inheritanceAlterState) definitionRelation(view CatalogRead, address ids.ObjectAddress) *relationDescriptor {
+func (state *inheritanceAlterState) definitionRelation(view CatalogRead, address ids.ObjectAddress) *catalog.Relation {
 	if state.preparing {
 		descriptor, _ := state.definition.descriptor(address)
-		relation, _ := descriptor.(*relationDescriptor)
+		relation, _ := descriptor.(*catalog.Relation)
 		return relation
 	}
 	relation, _ := view.Relation(address)
 	return relation
 }
-func inheritanceMarkerPublication(old, current *relationDescriptor) bool {
+func inheritanceMarkerPublication(old, current *catalog.Relation) bool {
 	return old == current || current != nil && old != nil && !old.HasSubclasses && current.HasSubclasses && current.SubclassPredecessor == old && current.Revision() == current.SubclassPublication
 }
 

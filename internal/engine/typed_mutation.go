@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -16,13 +17,13 @@ type typedColumnAction struct {
 }
 
 type typedRelationMutation struct {
-	old, next  *relationDescriptor
+	old, next  *catalog.Relation
 	transforms []columnTransformation
 	additions  []addedColumn
-	checks     []checkConstraint
+	checks     []catalog.CheckConstraint
 }
 
-func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, actions []typedColumnAction) (typedRelationMutation, error) {
+func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
@@ -82,7 +83,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				if err != nil {
 					return mutation, err
 				}
-				if old.RelationKind != compositeRelation {
+				if old.RelationKind != catalog.CompositeRelation {
 					mutation.transforms = append(mutation.transforms, transform)
 				}
 			}
@@ -115,7 +116,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 
 func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, mutation typedRelationMutation) error {
 	old, next := mutation.old, mutation.next
-	if old.RelationKind != tableRelation {
+	if old.RelationKind != catalog.TableRelation {
 		return nil
 	}
 	// An explicit TYPE action protects stored own-row consumers even when the

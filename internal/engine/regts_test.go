@@ -339,15 +339,15 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 		t.Fatal("real dictionary provider missing")
 	}
 	ref := e.catalog.Domain.Ref(view.Epoch(), dictionary.Address())
-	consumer := func(ref ids.ObjectRef) *relationDescriptor {
-		return &relationDescriptor{
+	consumer := func(ref ids.ObjectRef) *catalog.Relation {
+		return &catalog.Relation{
 			ObjectAddress:    ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
-			CheckConstraints: []checkConstraint{{Dependencies: []expressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
-			Defaults:         map[int32]columnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
-			Generations:      map[int32]columnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
+			CheckConstraints: []catalog.CheckConstraint{{Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
+			Defaults:         map[int32]catalog.ColumnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
+			Generations:      map[int32]catalog.ColumnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
 		}
 	}
-	for name, validate := range map[string]func(CatalogRead, *relationDescriptor) error{
+	for name, validate := range map[string]func(CatalogRead, *catalog.Relation) error{
 		"check":      validateCheckProviders,
 		"default":    validateDefaultProviders,
 		"generation": validateGenerationProviders,

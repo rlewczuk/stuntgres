@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -114,7 +115,7 @@ func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, can
 	}
 	return
 }
-func objectRelationKind(view CatalogRead, d *relationDescriptor) string {
+func objectRelationKind(view CatalogRead, d *catalog.Relation) string {
 	switch pgClassKind(view, d) {
 	case "S":
 		return "sequence"
@@ -129,7 +130,7 @@ func objectRelationKind(view CatalogRead, d *relationDescriptor) string {
 	}
 	return "table"
 }
-func objectAttributeName(view CatalogRead, d *relationDescriptor, sub int32) string {
+func objectAttributeName(view CatalogRead, d *catalog.Relation, sub int32) string {
 	sub = int32(int16(sub))
 	for i, attr := range d.Attributes {
 		if attr == sub {
@@ -280,7 +281,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 		r.identity = pgIdentifier(canonical)
 		r.names = []string{canonical}
 		display = r.name
-	case *relationDescriptor:
+	case *catalog.Relation:
 		r.kind = objectRelationKind(view, d)
 		display = regclassSpelling(view, path, d.Address().ObjectID)
 		if a.SubID != 0 {
@@ -348,7 +349,7 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 				return r
 			}
 		}
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -383,7 +384,7 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 	}
 	return r
 }
-func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32) {
+func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) {
 	switch a.ClassID {
 	case 2606:
 		for _, x := range d.NotNullConstraints {

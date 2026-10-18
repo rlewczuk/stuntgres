@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgRolesUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgRolesUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12007}
 	d, ok := e.catalog.state.Relation(address)
@@ -63,7 +64,7 @@ func pgRolesUnitRole(e *Engine, state *roleCatalog, id uint64, name string) auth
 func TestPGRolesDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgRolesUnitSource(t, e)
-	if d.Name() != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.AttributeHighWater != 13 {
+	if d.Name() != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.AttributeHighWater != 13 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"rolname", "rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolconnlimit", "rolpassword", "rolvaliduntil", "rolbypassrls", "rolconfig", "oid"}
@@ -139,7 +140,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName = name
-		view.RelationKind = viewRelation
+		view.RelationKind = catalog.ViewRelation
 		view.VirtualView = false
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)

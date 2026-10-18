@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -125,7 +126,7 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 		{q: "SELECT $1 IS DISTINCT FROM v,$1 IS TRUE FROM t", code: "42804", message: "argument of IS TRUE must be type boolean, not type integer", position: "30"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "v", Usage: b.typ(sqltype.Int4).Usage()}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}}
+		b.relation = &catalog.Relation{Columns: []ColumnDescriptor{{Name: "v", Usage: b.typ(sqltype.Int4).Usage()}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}}
 		s := statement(t, tc.q).(*parser.Select)
 		targets := []expr.Expr{}
 		var err error

@@ -6,13 +6,14 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgUserUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgUserUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12014}
 	d, ok := e.catalog.state.Relation(address)
@@ -66,7 +67,7 @@ func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) autho
 func TestPGUserDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgUserUnitSource(t, e)
-	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
+	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}
@@ -213,7 +214,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName = name
-		view.RelationKind = viewRelation
+		view.RelationKind = catalog.ViewRelation
 		view.VirtualView = false
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)

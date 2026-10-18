@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -946,7 +947,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 
 // Ordinary descriptor renaming reowns only consumers of changed type
 // generations; replacement additionally remaps every imported object reference.
-func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	typ = recordTypeMapper(typ)
 	changed := false
 	expression := func(node expr.Expr) {
@@ -1001,7 +1002,7 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		}
 	}
 	if d.Membership != nil {
-		for _, tuple := range [][]partitionDatum{d.Membership.Lower, d.Membership.Upper} {
+		for _, tuple := range [][]catalog.PartitionDatum{d.Membership.Lower, d.Membership.Upper} {
 			for _, datum := range tuple {
 				if datum.Kind == 0 {
 					changed = changed || datum.Value.Type() != typ(datum.Value.Type())
@@ -1034,10 +1035,10 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ids.Obj
 func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 	const descriptorOID, ruleOID, claimedOID = uint8(1), uint8(2), uint8(4)
 	reserved := make(map[ids.OID]uint8, next.DescriptorCount())
-	var views []*relationDescriptor
+	var views []*catalog.Relation
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
-		if view, ok := descriptor.(*relationDescriptor); ok && view.View != nil {
+		if view, ok := descriptor.(*catalog.Relation); ok && view.View != nil {
 			if viewOf(view).rule == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}

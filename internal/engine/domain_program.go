@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -48,7 +49,7 @@ func (s *StatementScope) readmitPreparedPrograms(auth AuthorizationView) error {
 // after admitting the exact original consumed graph under its own actual actor.
 func (p *routineAdmissionProgram) initializePhase(original *routineAdmissionProgram, auth AuthorizationView) error {
 	for _, call := range original.calls {
-		dependency := [1]expressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
+		dependency := [1]catalog.ExpressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
 		if err := admitRoutineDescriptor(auth, dependency[:], call.routine, call.consumer); err != nil {
 			return call.body.annotate(err)
 		}

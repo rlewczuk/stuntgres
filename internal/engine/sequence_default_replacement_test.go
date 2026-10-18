@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			temp := e.catalog.state.Get(tempRef.Address)
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(7 AS BIGINT),b BOOL DEFAULT (CAST(1 AS BIGINT)=CAST(1 AS BIGINT)))"
 			var source *Engine
-			var sourceDefinition *relationDescriptor
+			var sourceDefinition *catalog.Relation
 			if mode == "Restore" {
 				if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 					t.Fatal(err)

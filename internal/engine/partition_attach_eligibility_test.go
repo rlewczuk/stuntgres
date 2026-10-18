@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -35,7 +36,7 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "parent", 32210, "k")
 	child := inheritanceUnitRelation(e, "child", 32211, "k")
-	parent.RelationKind = partitionedRelation
+	parent.RelationKind = catalog.PartitionedRelation
 	usage := parent.Columns[0].Usage
 	class, supported := sqltype.DefaultIndexClass(usage.Type)
 	if !supported {
@@ -45,8 +46,8 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}, Children: []ids.ObjectAddress{child.Address()}, DefaultChild: child.Address()}
-	child.Membership = &partitionMembership{Parent: parent.Address(), DefaultBound: true}
+	parent.Partition = &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}, Children: []ids.ObjectAddress{child.Address()}, DefaultChild: child.Address()}
+	child.Membership = &catalog.PartitionMembership{Parent: parent.Address(), DefaultBound: true}
 	view := inheritanceUnitView(e, parent, child)
 	check := func(wantValid bool) {
 		t.Helper()
@@ -89,7 +90,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			parent.Attributes = []int32{3, 8}
 			parent.AttributeHighWater = 8
 			parent.Columns[1].Nullable = false
-			parent.NotNullConstraints = []notNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
+			parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
 			child := inheritanceUnitRelation(e, "child", 32222, "payload", "k")
 			child.Attributes = []int32{2, 9}
 			child.AttributeHighWater = 9
@@ -98,8 +99,8 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			if c.sameName {
 				name = "parent_nn"
 			}
-			child.NotNullConstraints = []notNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
-			original := append([]notNullConstraint(nil), child.NotNullConstraints...)
+			child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
+			original := append([]catalog.NotNullConstraint(nil), child.NotNullConstraints...)
 			view := inheritanceUnitView(e, parent, child)
 			next, err := partitionAttachSchema(&StatementScope{op: op}, view, parent, child)
 			if !c.parentInvalid && c.childInvalid {
@@ -114,7 +115,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 				}
 				matched := original[0]
 				matched.PartitionLocal = false
-				if !reflect.DeepEqual(next.NotNullConstraints, []notNullConstraint{matched, original[1]}) {
+				if !reflect.DeepEqual(next.NotNullConstraints, []catalog.NotNullConstraint{matched, original[1]}) {
 					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.NotNullConstraints)
 				}
 			}

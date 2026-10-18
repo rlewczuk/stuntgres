@@ -5,13 +5,14 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type domainValidationUse struct {
-	relation   *relationDescriptor
+	relation   *catalog.Relation
 	columns    []int
 	storage    *relationStorage
 	versions   []rowVersion
@@ -26,7 +27,7 @@ type domainValidationFence struct {
 	objects         map[ids.ObjectAddress]Descriptor
 	uses            []domainValidationUse
 	path            []ids.ObjectAddress
-	reads           []*relationDescriptor
+	reads           []*catalog.Relation
 	allowContainers bool // Committed predecessors may be hidden by prior own DDL.
 }
 
@@ -90,13 +91,13 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 			}
 		}
 	}
-	var relations []*relationDescriptor
+	var relations []*catalog.Relation
 	for _, d := range view.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok {
+		if relation, ok := d.(*catalog.Relation); ok {
 			relations = append(relations, relation)
 		}
 	}
-	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
+	slices.SortFunc(relations, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -107,8 +108,8 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 	})
 	var blocker error
 	for _, relation := range relations {
-		physical := relation.RelationKind == tableRelation || relation.RelationKind == materializedViewRelation
-		stored := physical || relation.RelationKind == partitionedRelation
+		physical := relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.MaterializedViewRelation
+		stored := physical || relation.RelationKind == catalog.PartitionedRelation
 		var columns []int
 		recorded := false
 		for i, column := range relation.Columns {
@@ -167,7 +168,7 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 	return true
 }
 
-func domainHistoricalViolation(view CatalogRead, relation *relationDescriptor, column int) error {
+func domainHistoricalViolation(view CatalogRead, relation *catalog.Relation, column int) error {
 	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.Name())).(*sqlstate.Error)
 	diagnostic.Schema = view.Get(relation.Namespace()).Name()
 	diagnostic.Table, diagnostic.Column = relation.Name(), relation.Columns[column].Name

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -190,7 +191,7 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 				return CatalogConflict{}
 			}
 		}
-	case *relationDescriptor:
+	case *catalog.Relation:
 		for _, c := range d.Columns {
 			if err := validateUsageCollation(view, c.Usage); err != nil {
 				return err

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -206,7 +207,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := validateGenerationPlan(e.CatalogRead(), nil, selected); err != nil {
 		t.Fatal("owned anonymous tree", err)
 	}
-	if defaultReplayDeferrable(columnDefault{Expression: selected}) {
+	if defaultReplayDeferrable(catalog.ColumnDefault{Expression: selected}) {
 		t.Fatal("immutable constructor acquired deferred sequence replay")
 	}
 	other := New()

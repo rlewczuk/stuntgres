@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -180,7 +181,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
-					replacement := *scope.lockedDescriptor.(*relationDescriptor)
+					replacement := *scope.lockedDescriptor.(*catalog.Relation)
 					replacement.ObjectRevision++
 					switch mode {
 					case "attribute":

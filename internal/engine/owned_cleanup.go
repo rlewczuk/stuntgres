@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -20,7 +21,7 @@ func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, rev
 	}
 	return &roleCatalog{root: root, revision: revision + 1}, nil
 }
-func ownedPolicies(policies []policyDefinition, sources map[authorization.PrincipalRef]bool) ([]policyDefinition, bool) {
+func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorization.PrincipalRef]bool) ([]catalog.PolicyDefinition, bool) {
 	needed := false
 	for _, policy := range policies {
 		for _, role := range policy.Roles {
@@ -30,7 +31,7 @@ func ownedPolicies(policies []policyDefinition, sources map[authorization.Princi
 	if !needed {
 		return policies, false
 	}
-	out := make([]policyDefinition, 0, len(policies))
+	out := make([]catalog.PolicyDefinition, 0, len(policies))
 	for _, policy := range policies {
 		removed := 0
 		for _, role := range policy.Roles {
@@ -46,7 +47,7 @@ func ownedPolicies(policies []policyDefinition, sources map[authorization.Princi
 			continue
 		}
 		copy := policy
-		copy.Roles = make([]policyRole, 0, len(policy.Roles)-removed)
+		copy.Roles = make([]catalog.PolicyRole, 0, len(policy.Roles)-removed)
 		for _, role := range policy.Roles {
 			if role.Public || !sources[role.Ref] {
 				copy.Roles = append(copy.Roles, role)
@@ -95,8 +96,8 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 				changed = true
 			}
 		}
-		var policies []policyDefinition
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		var policies []catalog.PolicyDefinition
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			var different bool
 			policies, different = ownedPolicies(relation.Policies, sources)
 			changed = changed || different
@@ -144,7 +145,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *relationDescriptor:
+		case *catalog.Relation:
 			next := *old
 			next.ACL = nextACL
 			next.ObjectRevision = revision
@@ -216,7 +217,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 		}
 	}
 	for address, descriptor := range stage.Descriptors {
-		next, ok := descriptor.(*relationDescriptor)
+		next, ok := descriptor.(*catalog.Relation)
 		original, existed := stage.Base.Relation(address)
 		if ok && existed && len(next.Policies) < len(original.Policies) {
 			return true
@@ -225,8 +226,8 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// Column-owned sequences have their own real shared owner dependency.
 	// They are excluded from independent mutation roots, not from collection.
 	for _, descriptor := range stage.Base.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
-		if ok && relation.RelationKind == sequenceRelation && relation.Sequence != nil &&
+		relation, ok := descriptor.(*catalog.Relation)
+		if ok && relation.RelationKind == catalog.SequenceRelation && relation.Sequence != nil &&
 			relation.Sequence.Owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
 			return true
 		}

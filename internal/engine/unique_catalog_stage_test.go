@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -21,7 +22,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			oldRef := roleTableRef(t, e, "idx")
 			old := base.MustRelation(oldRef.Address)
 			next := *old
-			mint := func(d *relationDescriptor) {
+			mint := func(d *catalog.Relation) {
 				e.mu.Lock()
 				id, err := e.catalog.allocateOIDLocked()
 				revision, revisionErr := e.catalog.revisionLocked()

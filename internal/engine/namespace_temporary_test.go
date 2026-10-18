@@ -226,7 +226,7 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"})
 	view, ok := e.catalog.state.Relation(address)
-	if !ok || view.Owner != e.Roles().LookupRef("namespace_view_creator") || view.Namespace() != namespace || view.RelationKind != viewRelation || view.View == nil {
+	if !ok || view.Owner != e.Roles().LookupRef("namespace_view_creator") || view.Namespace() != namespace || view.RelationKind != catalog.ViewRelation || view.View == nil {
 		t.Fatal("physical creator did not own staged TEMP view", view)
 	}
 	roleExecute(t, e, op, "SELECT v FROM owned_temp")

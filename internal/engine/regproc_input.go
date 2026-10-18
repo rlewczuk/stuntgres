@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 type capturedRoutineInput struct {
 	types    capturedRegtypeInput
 	path     []ids.ObjectAddress
-	operands *[]expressionDependency
+	operands *[]catalog.ExpressionDependency
 }
 
 func (e *Engine) captureRoutineInput(auth AuthorizationView, types capturedRegtypeInput) (capturedRoutineInput, error) {
@@ -127,7 +128,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 					return uint32(selected.ID), nil
 				}
 			}
-			*r.operands = append(*r.operands, expressionDependency{Ref: ref, Revision: owner.Revision()})
+			*r.operands = append(*r.operands, catalog.ExpressionDependency{Ref: ref, Revision: owner.Revision()})
 		}
 	}
 	return uint32(selected.ID), nil

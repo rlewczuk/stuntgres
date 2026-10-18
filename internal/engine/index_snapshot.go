@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -18,7 +19,7 @@ type indexSnapshot struct {
 }
 
 type indexSnapshotSource struct {
-	index, parent *relationDescriptor
+	index, parent *catalog.Relation
 	store         relationStorage
 	root          *logicalIndexRoot
 	frontier      ids.CommitSeq
@@ -51,7 +52,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view CatalogRe
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
 	for address, descriptor := range view.Descriptors() {
 		if parents != nil {
-			index, ok := descriptor.(*relationDescriptor)
+			index, ok := descriptor.(*catalog.Relation)
 			if !ok || index.SQLIndex == nil || parents[index.SQLIndex.Parent] == nil {
 				continue
 			}
@@ -59,7 +60,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view CatalogRe
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(view, relation) {
+		if relation, ok := descriptor.(*catalog.Relation); ok && partitionNeedsRowHistory(view, relation) {
 			store := storage[address]
 			if store == nil || store != e.privateStorageLocked(private, address) {
 				return nil, ids.ErrCatalogReplaced
@@ -69,7 +70,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view CatalogRe
 			}
 			snapshot.partitionRows[address] = partitionRowHistory{relation: relation, store: *store, frontier: frontier}
 		}
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}
@@ -89,7 +90,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view CatalogRe
 		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.Address()) || root != actualRoot(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.hash != nil) != (index.SQLIndex.Method == hashMethod) {
+		if (root.hash != nil) != (index.SQLIndex.Method == catalog.HashMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if root.hash != nil && (root.hash.storage != indexStorageIdentity(store) || root.hash.generation != store.generation || root.hash.ends != store.ends || root.hash.prefix != len(store.versions)) {
@@ -317,7 +318,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 				row := store.versions[position]
 				entries = append(entries, logicalIndexEntry{keys: keys, row: row.row, version: row.version, position: position})
 			}
-			if index.SQLIndex.Method == btreeMethod {
+			if index.SQLIndex.Method == catalog.BtreeMethod {
 				if err := ordering.sort(ctx, entries); err != nil {
 					return nil, err
 				}

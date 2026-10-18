@@ -14,7 +14,7 @@ import (
 
 type partitionDetachUnit struct {
 	e                        *Engine
-	parent, child, def, leaf *relationDescriptor
+	parent, child, def, leaf *catalog.Relation
 }
 
 func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
@@ -22,28 +22,28 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	e := New()
 	parent := partitionAttachUnitRoot(t, e, "detach_unit_parent", 46500)
 	child := inheritanceUnitRelation(e, "detach_unit_child", 46501, "k")
-	child.RelationKind = tableRelation
+	child.RelationKind = catalog.TableRelation
 	if nested {
 		child = partitionAttachUnitRoot(t, e, child.Name(), child.Address().ObjectID)
 	}
 	child.Membership = partitionAttachUnitRange(t, parent, 1, 3)
 	def := inheritanceUnitRelation(e, "detach_unit_default", 46502, "k")
-	def.RelationKind = tableRelation
-	def.Membership = &partitionMembership{Parent: parent.Address(), DefaultBound: true}
+	def.RelationKind = catalog.TableRelation
+	def.Membership = &catalog.PartitionMembership{Parent: parent.Address(), DefaultBound: true}
 	parent.Partition.Children = []ids.ObjectAddress{child.Address(), def.Address()}
 	parent.Partition.DefaultChild = def.Address()
-	relations := []*relationDescriptor{parent, child, def}
+	relations := []*catalog.Relation{parent, child, def}
 	leaf := child
 	if nested {
 		leaf = inheritanceUnitRelation(e, "detach_unit_leaf", 46503, "k")
-		leaf.RelationKind = tableRelation
-		leaf.Membership = &partitionMembership{Parent: child.Address(), DefaultBound: true}
+		leaf.RelationKind = catalog.TableRelation
+		leaf.Membership = &catalog.PartitionMembership{Parent: child.Address(), DefaultBound: true}
 		child.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 		child.Partition.DefaultChild = leaf.Address()
 		relations = append(relations, leaf)
 	}
 	partitionAttachUnitInstall(t, e, relations...)
-	get := func(d *relationDescriptor) *relationDescriptor {
+	get := func(d *catalog.Relation) *catalog.Relation {
 		return e.catalog.state.MustRelation(d.Address())
 	}
 	return partitionDetachUnit{e, get(parent), get(child), get(def), get(leaf)}
@@ -102,7 +102,7 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			f.child.SQLIndex.Include = nil
 			// Build genuine inline-UNIQUE tuple descriptors, not the covering
 			// index fixture's extra payload or nondefault key ordering.
-			for _, index := range [2]*relationDescriptor{f.parent, f.child} {
+			for _, index := range [2]*catalog.Relation{f.parent, f.child} {
 				index.Columns = index.Columns[:2]
 				index.Attributes = index.Attributes[:2]
 				index.AttributeHighWater = 2
@@ -110,13 +110,13 @@ func TestPartitionDetachDependencies(t *testing.T) {
 				index.SQLIndex.Keys[1].Desc = false
 				index.SQLIndex.Keys[1].NullsFirst = false
 			}
-			rootKey := uniqueConstraint{OID: 46600, Name: f.parent.Name(), Index: f.parent.Address(), Attributes: []int32{10, 20}, IsLocal: true}
-			childKey := uniqueConstraint{OID: 46601, Name: f.child.Name(), Index: f.child.Address(), Attributes: []int32{22, 11}, Parent: rootKey.OID}
-			f.root.UniqueConstraints = []uniqueConstraint{rootKey}
-			f.leaf.UniqueConstraints = []uniqueConstraint{childKey}
+			rootKey := catalog.UniqueConstraint{OID: 46600, Name: f.parent.Name(), Index: f.parent.Address(), Attributes: []int32{10, 20}, IsLocal: true}
+			childKey := catalog.UniqueConstraint{OID: 46601, Name: f.child.Name(), Index: f.child.Address(), Attributes: []int32{22, 11}, Parent: rootKey.OID}
+			f.root.UniqueConstraints = []catalog.UniqueConstraint{rootKey}
+			f.leaf.UniqueConstraints = []catalog.UniqueConstraint{childKey}
 			f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
 			f.child.SQLIndex.Constraint = uniqueBacking(&childKey)
-			f.leaf.NotNullConstraints = []notNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
+			f.leaf.NotNullConstraints = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
 			stage := f.e.BeginCatalogStage(f.view)
 			defer f.e.DiscardCatalogStage(stage)
 			if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err != nil {

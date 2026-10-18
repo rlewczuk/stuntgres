@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		{12004, []string{"abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Interval, sqltype.Bool}},
 	} {
 		d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
-		if !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != len(tc.names) {
+		if !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != len(tc.names) {
 			t.Fatal(d)
 		}
 		for i, c := range d.Columns {
@@ -38,7 +39,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 			t.Fatal(d.ACL)
 		}
 		invalid := *d
-		invalid.RelationKind = tableRelation
+		invalid.RelationKind = catalog.TableRelation
 		if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("virtual table accepted")
 		}

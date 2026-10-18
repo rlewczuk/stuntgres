@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -15,12 +16,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func viewDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
+func viewDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	return d.View != nil && d.View.DependsOn(target)
 }
 
 type viewDependencyEdge struct {
-	view   *relationDescriptor
+	view   *catalog.Relation
 	target ids.ObjectAddress
 }
 
@@ -30,7 +31,7 @@ func viewDependencyClosure(catalog CatalogRead, targets []ids.ObjectAddress, sta
 }
 
 func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDependencyEdge {
-	var views []*relationDescriptor
+	var views []*catalog.Relation
 	for address, descriptor := range provider.descriptors() {
 		if provider.removed(address) {
 			continue
@@ -38,7 +39,7 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		if d, ok := descriptor.(*relationDescriptor); ok && d.View != nil {
+		if d, ok := descriptor.(*catalog.Relation); ok && d.View != nil {
 			views = append(views, d)
 		}
 	}
@@ -68,7 +69,7 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 
 // Attached constraints have catalog identities but no standalone descriptors.
 // Resolve them from their canonical parent metadata, never a spelling registry.
-func constraintName(parent *relationDescriptor, address ids.ObjectAddress) string {
+func constraintName(parent *catalog.Relation, address ids.ObjectAddress) string {
 	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return ""
 	}
@@ -100,12 +101,12 @@ func constraintName(parent *relationDescriptor, address ids.ObjectAddress) strin
 	return ""
 }
 
-func constraintParent(view CatalogRead, address ids.ObjectAddress) *relationDescriptor {
+func constraintParent(view CatalogRead, address ids.ObjectAddress) *catalog.Relation {
 	if address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		if parent, ok := descriptor.(*relationDescriptor); ok && constraintName(parent, address) != "" {
+		if parent, ok := descriptor.(*catalog.Relation); ok && constraintName(parent, address) != "" {
 			return parent
 		}
 	}
@@ -255,7 +256,7 @@ func dependencyObject(view CatalogRead, target ids.ObjectAddress, path []ids.Obj
 	return object
 }
 
-func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []ids.ObjectAddress) string {
+func dependencyRelationName(catalog CatalogRead, d *catalog.Relation, path []ids.ObjectAddress) string {
 	// Internal provider stages have no SQL visibility context. SQL utilities
 	// supply their actual lookup path, including an empty effective path.
 	if path == nil {
@@ -459,7 +460,7 @@ func emitViewCascade(op *Operation, details []string) {
 	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 }
 
-func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
+func validateViewDefinition(v CatalogRead, d *catalog.Relation) error {
 	if d.View == nil {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
@@ -468,7 +469,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 
 // Validate implements viewPayload: it checks the frozen definition against
 // its owning relation d in catalog v.
-func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor) error {
+func (definition *viewDefinition) Validate(v CatalogRead, d *catalog.Relation) error {
 	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.Columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
@@ -527,7 +528,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 			return fmt.Errorf("stuntgres: missing view dependency")
 		}
 		if ref.Address.SubID != 0 {
-			relation, ok := object.(*relationDescriptor)
+			relation, ok := object.(*catalog.Relation)
 			if !ok || !relation.HasAttribute(ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}

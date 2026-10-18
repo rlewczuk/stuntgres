@@ -132,7 +132,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 		return fmt.Errorf("stuntgres: invalid catalog subobject")
 	}
 	if ref.Address.SubID > 0 {
-		r, ok := d.(*relationDescriptor)
+		r, ok := d.(*catalog.Relation)
 		if !ok || !r.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid catalog subobject")
 		}

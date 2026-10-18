@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -66,7 +67,7 @@ func ownershipRelationLocks(view CatalogRead, roots []ids.ObjectAddress) []ids.O
 	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
 		switch d := view.Get(a).(type) {
-		case *relationDescriptor:
+		case *catalog.Relation:
 			group[a] = true
 		case *typeDescriptor:
 			if d.OwningRelation != (ids.ObjectAddress{}) {
@@ -75,7 +76,7 @@ func ownershipRelationLocks(view CatalogRead, roots []ids.ObjectAddress) []ids.O
 		}
 	}
 	for a, d := range view.Descriptors() {
-		r, ok := d.(*relationDescriptor)
+		r, ok := d.(*catalog.Relation)
 		if !ok {
 			continue
 		}

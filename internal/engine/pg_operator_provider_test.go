@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -131,7 +132,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				var err error
 				if executable {
 					b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-					b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
+					b.relation = &catalog.Relation{Columns: []ColumnDescriptor{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 					if left != nil {
 						b.relation.Columns[0].Usage = left.Usage()
 					}

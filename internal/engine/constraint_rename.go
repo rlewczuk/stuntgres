@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -30,8 +31,8 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	parent := scope.lockedDescriptor.(*relationDescriptor)
-	if parent.RelationKind == sequenceRelation {
+	parent := scope.lockedDescriptor.(*catalog.Relation)
+	if parent.RelationKind == catalog.SequenceRelation {
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."})
 	}
 	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
@@ -99,7 +100,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 			err = stage.Replace(&next)
 		}
 	} else {
-		var next *relationDescriptor
+		var next *catalog.Relation
 		next, err = renameLocalConstraint(parent, raw.Constraint.Text, raw.NewName.Text, kind)
 		if err == nil {
 			err = stage.Replace(next)
@@ -141,7 +142,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	return Result{}, nil
 }
 
-func renameLocalConstraint(parent *relationDescriptor, old, destination string, kind byte) (*relationDescriptor, error) {
+func renameLocalConstraint(parent *catalog.Relation, old, destination string, kind byte) (*catalog.Relation, error) {
 	collision := func(name string) error {
 		if name == destination {
 			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, destination, parent.Name()))
@@ -199,7 +200,7 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 		for i := range next.CheckConstraints {
 			if next.CheckConstraints[i].Name == old {
 				next.CheckConstraints[i].Name = destination
-				slices.SortFunc(next.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+				slices.SortFunc(next.CheckConstraints, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 				return &next, nil
 			}
 		}

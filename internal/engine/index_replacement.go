@@ -40,7 +40,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			retained.SetDescriptor(address, descriptor)
 			continue
 		}
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
 			parent, exists := next.Relation(index.SQLIndex.Parent)
 			if exists && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 				continue
@@ -85,7 +85,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		return nil, 0, 0, err
 	}
 	for address, descriptor := range next.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}

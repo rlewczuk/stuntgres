@@ -119,7 +119,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: parent.Namespace(), ObjectName: "summary_pending", ObjectRevision: 1, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: address, Live: true}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: parent.Namespace(), ObjectName: "summary_pending", ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: address, Live: true}}
 	if err := stage.Create(index); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	staged := stage.Descriptors[address].(*relationDescriptor)
+	staged := stage.Descriptors[address].(*catalog.Relation)
 	if staged.Name() != "summary_renamed" || !staged.HasIndexes || staged == &next || next.HasIndexes || parent.HasIndexes {
 		t.Fatal("staged parent changes lost or mutated")
 	}
@@ -187,7 +187,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12008, "pg_group", false},
 	} {
 		relation, ok := catalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
-		if !ok || relation.Name() != expected.name || relation.RelationKind != catalogRelation {
+		if !ok || relation.Name() != expected.name || relation.RelationKind != catalog.CatalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
 		if representedSummaryTable(expected.oid) != expected.table || (representedSummaryViewDefinition(expected.oid) != "") == expected.table {
@@ -195,7 +195,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	for _, d := range catalogView.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
+		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
 			table := representedSummaryTable(relation.Address().ObjectID)
 			view := representedSummaryViewDefinition(relation.Address().ObjectID) != ""
 			if table && view {

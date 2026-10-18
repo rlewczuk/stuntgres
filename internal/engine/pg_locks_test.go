@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -49,7 +50,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID})
-	if !d.VirtualView || d.RelationKind != catalogRelation || d.RowType != 12075 {
+	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
 	if err := (relationProvider{}).Validate(view, d); err != nil {

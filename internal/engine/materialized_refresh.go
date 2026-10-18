@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -15,13 +16,13 @@ func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error 
 	if !ok || ref.Domain() != auth.engine.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation && d.RelationKind != materializedViewRelation {
+	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.MaterializedViewRelation {
 		return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.Name()))
 	}
 	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.MaintainPrivilege}); err != nil {
 		return err
 	}
-	if d.RelationKind != materializedViewRelation {
+	if d.RelationKind != catalog.MaterializedViewRelation {
 		return sqlError("0A000", fmt.Sprintf(`"%s" is not a materialized view`, d.Name()))
 	}
 	return nil
@@ -32,7 +33,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	var ref ids.ObjectRef
-	var observed *relationDescriptor
+	var observed *catalog.Relation
 	if err == nil {
 		ref, err = e.resolveRelationReference(auth, stmt.Name, true)
 	}
@@ -68,7 +69,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	}
 	e.mu.Lock()
 	auth, err = e.authorizationLocked(s.op)
-	var current *relationDescriptor
+	var current *catalog.Relation
 	if err == nil {
 		current, _ = auth.catalog.Relation(ref.Address)
 	}
@@ -97,15 +98,15 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 
 // A preceding refresh changes rows/population/revision, not defining authority.
 // Capture its new store only at target grant; never retry name resolution.
-func materializedRefreshCompatible(old, current *relationDescriptor) bool {
-	return current != nil && current.RelationKind == materializedViewRelation &&
+func materializedRefreshCompatible(old, current *catalog.Relation) bool {
+	return current != nil && current.RelationKind == catalog.MaterializedViewRelation &&
 		relationDefiningAuthorityCompatible(old, current)
 }
 
 // Immutable defining authority excludes compatible row/population publications.
 // Shared by refresh and selected materialized ALTER admission; other statement
 // admission does not acquire this compatibility fence.
-func relationDefiningAuthorityCompatible(old, current *relationDescriptor) bool {
+func relationDefiningAuthorityCompatible(old, current *catalog.Relation) bool {
 	return current != nil && current.Address() == old.Address() && current.Namespace() == old.Namespace() &&
 		current.Name() == old.Name() && current.Owner == old.Owner &&
 		current.View == old.View && current.RowType == old.RowType &&
@@ -131,7 +132,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	concurrent := stmt.Concurrent.Character != 0
-	var indices []*relationDescriptor
+	var indices []*catalog.Relation
 	var previous relationStorage
 	var oldEntries []logicalIndexEntry
 	var ownRows []rowVersion
@@ -218,7 +219,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 
 // Population's effective principal and expression identity are restored before
 // any stage validation/publication. No session settings or session_user change.
-func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.ObjectRef, d *relationDescriptor) ([][]sqltype.Value, error) {
+func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.ObjectRef, d *catalog.Relation) ([][]sqltype.Value, error) {
 	op := scope.op
 	population, owner := op.materializedPopulation, op.materializedOwner
 	identity, schema := scope.identity, scope.currentSchemaResult
@@ -265,24 +266,24 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 }
 
 type materializedReplacement struct {
-	original    *relationDescriptor
+	original    *catalog.Relation
 	predecessor *relationStorage
 	storage     *relationStorage
 	generation  uint64
 	length      int
-	descriptor  *relationDescriptor
+	descriptor  *catalog.Relation
 	ends        *deletionRoot
 	concurrent  bool
 	indexCount  int
 }
 
-func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *relationDescriptor, previous *relationStorage, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
+func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *catalog.Relation, previous *relationStorage, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.RelationKind != materializedViewRelation || d.View == nil || s.Base.Get(d.Address()) != d || e.stageCatalogBaseLocked(s).Get(d.Address()) != d || previous == nil || e.stageStorageLocked(s, d.Address()) != previous || !populated && len(rows) != 0 {
+	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.RelationKind != catalog.MaterializedViewRelation || d.View == nil || s.Base.Get(d.Address()) != d || e.stageCatalogBaseLocked(s).Get(d.Address()) != d || previous == nil || e.stageStorageLocked(s, d.Address()) != previous || !populated && len(rows) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
 	if s.Base.Epoch() != e.catalog.state.Epoch() {
@@ -313,7 +314,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	}
 	s.materializedReplacement = &materializedReplacement{original: d, descriptor: &next, predecessor: previous, storage: &relationStorage{versions: versions, generation: previous.generation + 1}, generation: previous.generation, length: len(previous.versions), ends: previous.ends}
 	for _, descriptor := range s.Base.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.Address() {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.Address() {
 			s.materializedReplacement.indexCount++
 		}
 	}
@@ -333,14 +334,14 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	if r.original == nil || r.descriptor == nil {
 		return fmt.Errorf("stuntgres: invalid materialized replacement")
 	}
-	d, ok := s.Descriptors[r.original.Address()].(*relationDescriptor)
-	if !ok || r.original.RelationKind != materializedViewRelation || s.Base.Get(r.original.Address()) != r.original || r.storage == nil || r.predecessor == nil || r.storage == r.predecessor || r.storage.ends != nil || r.storage.generation != r.generation+1 || r.generation == ^uint64(0) {
+	d, ok := s.Descriptors[r.original.Address()].(*catalog.Relation)
+	if !ok || r.original.RelationKind != catalog.MaterializedViewRelation || s.Base.Get(r.original.Address()) != r.original || r.storage == nil || r.predecessor == nil || r.storage == r.predecessor || r.storage.ends != nil || r.storage.generation != r.generation+1 || r.generation == ^uint64(0) {
 		return fmt.Errorf("stuntgres: invalid materialized replacement")
 	}
 	// This private constructor owns the shallow descriptor copy. No general
 	// Replace/ALTER caller may attach arbitrary metadata to its storage authority.
 	old := r.original
-	if d != r.descriptor || d.Address() != old.Address() || d.Namespace() != old.Namespace() || d.Name() != old.Name() || d.Owner != old.Owner || d.RowType != old.RowType || d.View != old.View || d.RelationKind != materializedViewRelation || d.Revision() != old.Revision()+1 || len(d.Columns) != len(old.Columns) || len(d.Attributes) != len(old.Attributes) || len(d.Columns) != 0 && &d.Columns[0] != &old.Columns[0] || len(d.Attributes) != 0 && &d.Attributes[0] != &old.Attributes[0] || !d.Populated && len(r.storage.versions) != 0 {
+	if d != r.descriptor || d.Address() != old.Address() || d.Namespace() != old.Namespace() || d.Name() != old.Name() || d.Owner != old.Owner || d.RowType != old.RowType || d.View != old.View || d.RelationKind != catalog.MaterializedViewRelation || d.Revision() != old.Revision()+1 || len(d.Columns) != len(old.Columns) || len(d.Attributes) != len(old.Attributes) || len(d.Columns) != 0 && &d.Columns[0] != &old.Columns[0] || len(d.Attributes) != 0 && &d.Attributes[0] != &old.Attributes[0] || !d.Populated && len(r.storage.versions) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement definition")
 	}
 	if r.concurrent && !d.Populated {
@@ -375,7 +376,7 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalogState, st
 	// without turning a replacement into a REINDEX maintenance intent.
 	count := 0
 	for address, descriptor := range snapshot.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != r.original.Address() {
 			continue
 		}

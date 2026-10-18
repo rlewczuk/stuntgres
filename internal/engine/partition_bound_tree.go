@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
 
@@ -12,8 +13,8 @@ import (
 // these roots, not a live parent lookup, so eager output survives drop/replay.
 // This native structural convention is intentionally not nodeToString or SQL.
 type partitionBoundTree struct {
-	membership *partitionMembership
-	keys       []partitionKeyEntry
+	membership *catalog.PartitionMembership
+	keys       []catalog.PartitionKeyEntry
 }
 
 func (t partitionBoundTree) StructuralOutput(ctx context.Context) (string, error) {
@@ -45,7 +46,7 @@ func (t partitionBoundTree) StructuralOutput(ctx context.Context) (string, error
 	return out.String(), nil
 }
 
-func (t partitionBoundTree) appendDatums(ctx context.Context, out *strings.Builder, datums []partitionDatum) error {
+func (t partitionBoundTree) appendDatums(ctx context.Context, out *strings.Builder, datums []catalog.PartitionDatum) error {
 	for i, datum := range datums {
 		if err := ctx.Err(); err != nil {
 			return err

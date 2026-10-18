@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -51,7 +52,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next := *old
-			next.Defaults = make(map[int32]columnDefault, len(old.Defaults))
+			next.Defaults = make(map[int32]catalog.ColumnDefault, len(old.Defaults))
 			for attribute, definition := range old.Defaults {
 				next.Defaults[attribute] = definition
 			}

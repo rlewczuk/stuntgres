@@ -4,6 +4,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -48,7 +49,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 					t.Fatal(err)
 				}
 				identity := next.Identities[1]
-				sequence := stage.Descriptors[identity.Sequence].(*relationDescriptor)
+				sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
 				want := ref.Address
 				want.SubID = 1
 				if sequence.Sequence.Owned != want || !sequence.Sequence.Identity || stage.generators[identity.Sequence] == nil {

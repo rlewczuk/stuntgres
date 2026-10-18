@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 	"time"
 )
 
-func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *relationDescriptor) {
+func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	ps, p := queryCreateStage(t, e, "p", 1)
@@ -20,7 +21,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
-	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{c.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
+	c.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{c.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}

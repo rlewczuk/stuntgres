@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -9,7 +10,7 @@ import (
 // Column locality describes declaration provenance, not ownership of a default
 // or generation recipe. ONLY changes to a provider can leave a valid descendant
 // recipe that must be replayed without making its attribute local.
-func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribute int32, provenance inheritedColumn) (inheritedColumn, error) {
+func retainInheritedRecipes(view CatalogRead, child *catalog.Relation, attribute int32, provenance catalog.InheritedColumn) (catalog.InheritedColumn, error) {
 	childDefault, hasDefault := child.Defaults[attribute]
 	childGeneration, generated := child.Generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
@@ -83,7 +84,7 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog Catalo
 	return nil
 }
 
-func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *relationDescriptor) bool {
+func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *catalog.Relation) bool {
 	if !raw.Only || len(raw.Name.Parts) != 2 || relation.Inheritance == nil {
 		return false
 	}
@@ -112,7 +113,7 @@ func (t *dumpRelation) prepareInheritedRecipes(view CatalogRead) error {
 		needed := !provenance.Local && (effective.ExplicitDefault || effective.ExplicitGeneration) || provenance.Local && (!provenance.ExplicitDefault && effective.ExplicitDefault || !provenance.ExplicitGeneration && effective.ExplicitGeneration)
 		if needed {
 			if t.recipes == nil {
-				t.recipes = make(map[int32]inheritedColumn)
+				t.recipes = make(map[int32]catalog.InheritedColumn)
 			}
 			t.recipes[attribute] = effective
 		}

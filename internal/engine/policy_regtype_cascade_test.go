@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -41,7 +42,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
-					next, ok := stage.Descriptors[old.Address()].(*relationDescriptor)
+					next, ok := stage.Descriptors[old.Address()].(*catalog.Relation)
 					if !ok || len(next.Policies) != 1 || !reflect.DeepEqual(next.Policies[0], retained) || next.Revision() <= old.Revision() {
 						t.Fatal("wrong surviving policy collection", next)
 					}

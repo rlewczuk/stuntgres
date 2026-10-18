@@ -62,7 +62,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	return e, owner, installer, ext, closeOwner
 }
-func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *extensionDescriptor) *relationDescriptor {
+func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *extensionDescriptor) *catalog.Relation {
 	t.Helper()
 	name := e.catalog.state.Get(ext.TargetNamespace).Name()
 	for _, q := range []string{
@@ -155,7 +155,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	oldIndex := e.indexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
-	replacement := stage.Descriptors[survivor.Address()].(*relationDescriptor)
+	replacement := stage.Descriptors[survivor.Address()].(*catalog.Relation)
 	if len(replacement.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}

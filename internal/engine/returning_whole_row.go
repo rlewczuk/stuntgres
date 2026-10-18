@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -37,7 +38,7 @@ func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 	}
 	return sqltype.OwnedCompositeValue(e.Usage.Type, fields)
 }
-func (b *expressionBinder) returningWholeRow(name string, relation *relationDescriptor, frame uint32, aliases *returningAliases, pos parser.Position) (expr.Expr, bool, error) {
+func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Relation, frame uint32, aliases *returningAliases, pos parser.Position) (expr.Expr, bool, error) {
 	if aliases == nil || aliases.mode != returningInsert && aliases.mode != returningMerge {
 		return nil, false, nil
 	}

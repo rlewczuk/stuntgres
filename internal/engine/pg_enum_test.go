@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -97,7 +98,7 @@ func TestPGEnumSortInsertion(t *testing.T) {
 	}
 }
 
-func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgEnumUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3501}
 	d, ok := e.catalog.state.Relation(a)
@@ -110,7 +111,7 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 func TestPGEnumShapeAndCapture(t *testing.T) {
 	e := New()
 	d, ref := pgEnumUnitSource(t, e)
-	if d.Name() != "pg_enum" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.RowType != 10045 || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
+	if d.Name() != "pg_enum" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.RowType != 10045 || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal("source descriptor", d)
 	}
 	for i, id := range [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Float4, sqltype.Name} {

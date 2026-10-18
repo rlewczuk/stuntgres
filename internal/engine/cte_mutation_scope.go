@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -21,7 +22,7 @@ type statementMutation struct {
 	lockedIdentityOnly    bool
 	inheritedTargets      []queryLeaf
 	viewWrite             *viewWrite
-	routineDependencies   []expressionDependency // Borrowed immutable manifest follows command activation.
+	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
 	uniqueBinding         *uniqueWriteBinding
 	indexBindings         map[ids.ObjectAddress]*uniqueWriteBinding
 	insertConflict        *boundInsertConflict
@@ -32,7 +33,7 @@ type statementMutation struct {
 	rlsMergeUpdate        rlsDisposition
 	rlsMergeInsert        rlsDisposition
 	rlsProposalTable      string
-	partitionRelations    map[ids.ObjectAddress]*relationDescriptor
+	partitionRelations    map[ids.ObjectAddress]*catalog.Relation
 	admittedTargetName    parser.ObjectName
 	admittedTargetLexical ids.ObjectRef
 }
@@ -107,7 +108,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 			return err
 		}
 		if insert, ok := command.(*parser.Insert); ok {
-			if err := bindInsertTargets(s.lockedDescriptor.(*relationDescriptor), insert.Targets, nil); err != nil {
+			if err := bindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
 				return err
 			}
 		}

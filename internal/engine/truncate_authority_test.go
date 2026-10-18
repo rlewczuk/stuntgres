@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -25,7 +26,7 @@ func truncateUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 		t.Fatal(err)
 	}
 }
-func truncateUnitReplace(t *testing.T, e *Engine, ref ids.ObjectRef, change func(*relationDescriptor)) {
+func truncateUnitReplace(t *testing.T, e *Engine, ref ids.ObjectRef, change func(*catalog.Relation)) {
 	t.Helper()
 	base := e.CatalogRead()
 	original := base.MustRelation(ref.Address)
@@ -125,12 +126,12 @@ func TestTruncateGraph(t *testing.T) {
 	for _, kind := range []string{"foreign-key", "inheritance"} {
 		t.Run(kind, func(t *testing.T) {
 			e, s, p, _ := truncateUnitFixture(t)
-			var inheritance *tableInheritance
+			var inheritance *catalog.TableInheritance
 			if kind == "inheritance" {
 				sessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
 				c := roleTableRef(t, e, "c")
 				inheritance = e.catalog.state.MustRelation(c.Address).Inheritance
-				truncateUnitReplace(t, e, c, func(d *relationDescriptor) { d.Inheritance = nil })
+				truncateUnitReplace(t, e, c, func(d *catalog.Relation) { d.Inheritance = nil })
 			} else {
 				sessionSQL(t, s, "CREATE TABLE c(id INT)")
 			}
@@ -140,7 +141,7 @@ func TestTruncateGraph(t *testing.T) {
 			if kind == "foreign-key" {
 				truncateUnitFK(t, e, p, child)
 			} else {
-				truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.Inheritance = inheritance })
+				truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = inheritance })
 			}
 			if err := scope.Finish(nil); err != (CatalogConflict{}) {
 				t.Fatalf("late host graph: %v", err)
@@ -193,7 +194,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	}
 	// A real host rename changes the excluded descriptor after acquisition.
 	// Final hierarchy reconciliation must apply the same TEMP-token exclusion.
-	truncateUnitReplace(t, e, peerRef, func(d *relationDescriptor) { d.ObjectName = "renamed_peer_child" })
+	truncateUnitReplace(t, e, peerRef, func(d *catalog.Relation) { d.ObjectName = "renamed_peer_child" })
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +254,7 @@ func TestTruncateAdmission(t *testing.T) {
 			lockPending(t, e, 1)
 			switch kind {
 			case "name":
-				truncateUnitReplace(t, e, p, func(d *relationDescriptor) { d.ObjectName = "renamed" })
+				truncateUnitReplace(t, e, p, func(d *catalog.Relation) { d.ObjectName = "renamed" })
 			case "nontruncate-storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
@@ -290,7 +291,7 @@ func TestTruncateAdmission(t *testing.T) {
 			sessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
 			child := roleTableRef(t, e, "c")
 			inheritance := e.catalog.state.MustRelation(child.Address).Inheritance
-			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.Inheritance = nil })
+			truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = nil })
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
@@ -298,7 +299,7 @@ func TestTruncateAdmission(t *testing.T) {
 			stmt.Targets[0].Only = only
 			done, _ := truncateUnitAsync(t, e, waiter, stmt)
 			lockPending(t, e, 1)
-			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.Inheritance = inheritance })
+			truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = inheritance })
 			transactionEnd(t, holder, tx, false)
 			truncateUnitJoin(t, done, "")
 			want := 0

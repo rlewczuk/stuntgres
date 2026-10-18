@@ -3,14 +3,15 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func physicalPrimaryDeferred(table *relationDescriptor, primary *uniqueConstraint) bool {
+func physicalPrimaryDeferred(table *catalog.Relation, primary *catalog.UniqueConstraint) bool {
 	return primary.Primary && len(table.PhysicalNotNull) != 0
 }
 
-func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, primary *uniqueConstraint, emit func(string) error, setOwner func(string) error) error {
+func emitPhysicalPrimaryCleanup(view CatalogRead, table *catalog.Relation, primary *catalog.UniqueConstraint, emit func(string) error, setOwner func(string) error) error {
 	hasPhysicalKey := false
 	for _, attribute := range primary.Attributes {
 		if _, present := table.PhysicalNotNull[attribute]; present {
@@ -98,9 +99,9 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 // Track only actual moved providers in the existing event graph. Consumers do
 // not wait for unrelated keys, omitted TEMP objects, or synthetic catalog nodes.
 func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) error {
-	var deferred map[ids.ObjectAddress]*relationDescriptor
+	var deferred map[ids.ObjectAddress]*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || len(table.PhysicalNotNull) == 0 {
 			continue
 		}
@@ -117,7 +118,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				return fmt.Errorf("stuntgres: missing physical primary event")
 			}
 			if deferred == nil {
-				deferred = make(map[ids.ObjectAddress]*relationDescriptor)
+				deferred = make(map[ids.ObjectAddress]*catalog.Relation)
 			}
 			deferred[table.Address()] = index
 		}
@@ -126,7 +127,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -155,7 +156,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 					continue
 				}
 				table := view.MustRelation(parent)
-				var primary *uniqueConstraint
+				var primary *catalog.UniqueConstraint
 				for i := range table.UniqueConstraints {
 					if table.UniqueConstraints[i].Primary && table.UniqueConstraints[i].Index == index.Address() {
 						primary = &table.UniqueConstraints[i]

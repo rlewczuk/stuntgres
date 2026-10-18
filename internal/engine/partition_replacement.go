@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 
 func hasHashPartition(snapshot *catalogState) bool {
 	for _, d := range snapshot.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
+		if relation, ok := d.(*catalog.Relation); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
 			return true
 		}
 	}
@@ -19,7 +20,7 @@ func hasHashPartition(snapshot *catalogState) bool {
 
 // Partition rows have equal named columns, but private replay may preserve a
 // different physical order. Borrow values unless a real layout change is needed.
-func partitionReplacementRow(from, to *relationDescriptor, row []sqltype.Value) []sqltype.Value {
+func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
 	same := true
 	for i, c := range to.Columns {
 		if from.Columns[i].Name != c.Name {
@@ -79,12 +80,12 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			}
 			destination := root
 			for destination.Partition != nil {
-				var buffer [32]partitionDatum
+				var buffer [32]catalog.PartitionDatum
 				key, err := partitionRowKey(destination, partitionReplacementRow(source, destination, version.values), evaluation, buffer[:])
 				if err != nil {
 					return nil, err
 				}
-				var selected *relationDescriptor
+				var selected *catalog.Relation
 				for _, childAddress := range destination.Partition.Children {
 					child := view.MustRelation(childAddress)
 					if child.Membership.DefaultBound {

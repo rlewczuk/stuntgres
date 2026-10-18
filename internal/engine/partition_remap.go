@@ -2,12 +2,13 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation collationRemapper) (*relationDescriptor, error) {
+func remapPartitionDescriptor(view CatalogRead, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation collationRemapper) (*catalog.Relation, error) {
 	next := *d
 	if d.Partition != nil {
 		definition := *d.Partition
@@ -75,7 +76,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 		membership := *d.Membership
 		membership.Parent = ref(ids.ObjectRef{Address: membership.Parent}).Address
 		membership.Lower, membership.Upper = slices.Clone(membership.Lower), slices.Clone(membership.Upper)
-		for _, tuple := range [][]partitionDatum{membership.Lower, membership.Upper} {
+		for _, tuple := range [][]catalog.PartitionDatum{membership.Lower, membership.Upper} {
 			for i, datum := range tuple {
 				if datum.Kind != 0 {
 					continue

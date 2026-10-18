@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -239,7 +240,7 @@ func cteStoredViewVolatile(view CatalogRead, root LogicalNode) (bool, error) {
 			relation, _ := view.Relation(source.ref.Address)
 			if relation == nil {
 				sourceErr = ids.ErrCatalogReplaced
-			} else if relation.RelationKind == viewRelation {
+			} else if relation.RelationKind == catalog.ViewRelation {
 				leaves = append(leaves, queryLeaf{relation: relation})
 			}
 		}
@@ -256,10 +257,10 @@ func cteStoredViewVolatile(view CatalogRead, root LogicalNode) (bool, error) {
 	// Validation above owns cycle and stored-reference errors. Memoization here
 	// only avoids re-inspecting a shared acyclic definition in this analysis.
 	memo := make(map[ids.ObjectAddress]bool)
-	var visit func(*relationDescriptor) bool
-	visit = func(relation *relationDescriptor) bool {
-		if relation.RelationKind != viewRelation {
-			return relation.RelationKind == catalogRelation && relation.Address().ClassID == ids.RelationClassID && relation.Address().ObjectID == 12048
+	var visit func(*catalog.Relation) bool
+	visit = func(relation *catalog.Relation) bool {
+		if relation.RelationKind != catalog.ViewRelation {
+			return relation.RelationKind == catalog.CatalogRelation && relation.Address().ClassID == ids.RelationClassID && relation.Address().ObjectID == 12048
 		}
 		if volatile, ok := memo[relation.Address()]; ok {
 			return volatile

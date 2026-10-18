@@ -231,7 +231,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.Descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
+		if index, ok := stage.Descriptors[address].(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -361,7 +361,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		parents[address] = true
 	}
 	for address, descriptor := range next.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.Parent] || !index.SQLIndex.Ready {
 			continue
 		}

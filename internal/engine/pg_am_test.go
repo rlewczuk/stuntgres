@@ -6,12 +6,13 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgAMUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2601}
 	d, ok := e.catalog.state.Relation(a)
@@ -21,7 +22,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][]any {
+func pgAMUnitFacts(t *testing.T, source *querySource, d *catalog.Relation) [][]any {
 	t.Helper()
 	if len(source.anonymous) != 4 {
 		t.Fatal("access-method count", len(source.anonymous))
@@ -61,9 +62,9 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgAMUnitSource(t, e)
-	checkDescriptor := func(view CatalogRead, d *relationDescriptor) {
+	checkDescriptor := func(view CatalogRead, d *catalog.Relation) {
 		t.Helper()
-		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
+		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"oid", "amname", "amhandler", "amtype"} {
@@ -120,7 +121,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	}
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*relationDescriptor{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
+	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
 	for slot := range d.Columns {
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)

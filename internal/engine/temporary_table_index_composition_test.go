@@ -25,9 +25,9 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			} {
 				sessionSQL(t, owner, q)
 			}
-			var provider, survivor, index *relationDescriptor
+			var provider, survivor, index *catalog.Relation
 			for _, descriptor := range e.catalog.state.Descriptors() {
-				if d, ok := descriptor.(*relationDescriptor); ok {
+				if d, ok := descriptor.(*catalog.Relation); ok {
 					switch d.Name() {
 					case "composition_owner":
 						provider = d
@@ -61,7 +61,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			stage.terminalCleanup = mode == "TerminalMaximum"
 			changes := cloneCatalogChanges(nil)
-			project := func(old, next *relationDescriptor) error {
+			project := func(old, next *catalog.Relation) error {
 				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.Base}, stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
 				return err
 			}
@@ -72,9 +72,9 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, changes, project, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			intermediate := stage.Descriptors[index.Address()].(*relationDescriptor)
-			intermediateParent := stage.Descriptors[survivor.Address()].(*relationDescriptor)
-			check := func(candidate, parent *relationDescriptor, wantSlot int, wantLayout []int32) {
+			intermediate := stage.Descriptors[index.Address()].(*catalog.Relation)
+			intermediateParent := stage.Descriptors[survivor.Address()].(*catalog.Relation)
+			check := func(candidate, parent *catalog.Relation, wantSlot int, wantLayout []int32) {
 				t.Helper()
 				derived := candidate.SQLIndex.Keys[0].Derived
 				if !slices.Equal(derived.Attributes, wantLayout) {
@@ -121,8 +121,8 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			final := stage.Descriptors[index.Address()].(*relationDescriptor)
-			finalParent := stage.Descriptors[survivor.Address()].(*relationDescriptor)
+			final := stage.Descriptors[index.Address()].(*catalog.Relation)
+			finalParent := stage.Descriptors[survivor.Address()].(*catalog.Relation)
 			check(final, finalParent, 1, []int32{1, 4})
 			if final == intermediate || final.SQLIndex.Keys[0].Derived == intermediate.SQLIndex.Keys[0].Derived {
 				t.Fatal("second candidate mutated first")
@@ -131,7 +131,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				t.Fatal("retained candidate/vector/root mutated")
 			}
 			for _, retained := range []struct {
-				candidate *relationDescriptor
+				candidate *catalog.Relation
 				slot      int
 			}{{index, 3}, {intermediate, 2}} {
 				derived := retained.candidate.SQLIndex.Keys[0].Derived
@@ -207,9 +207,9 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 		sessionSQL(t, session, "CREATE INDEX deparse_owner_index ON deparse_owner_table(v)")
 	}
 	view := e.CatalogRead()
-	var own, foreign *relationDescriptor
+	var own, foreign *catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.Name() != "deparse_owner_index" || index.SQLIndex == nil {
 			continue
 		}
@@ -250,9 +250,9 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	sessionSQL(t, owner, "CREATE INDEX retained_partial_index ON retained_partial(v) WHERE v>0")
 	sessionSQL(t, owner, "INSERT INTO retained_partial VALUES(7),(-3)")
 	before := e.CatalogRead()
-	var parent, index *relationDescriptor
+	var parent, index *catalog.Relation
 	for _, descriptor := range before.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}

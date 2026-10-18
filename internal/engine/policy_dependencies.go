@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func policyDepends(p policyDefinition, target ids.ObjectAddress) bool {
-	for _, condition := range []policyPayload{p.Using, p.Check} {
+func policyDepends(p catalog.PolicyDefinition, target ids.ObjectAddress) bool {
+	for _, condition := range []catalog.PolicyPayload{p.Using, p.Check} {
 		if condition != nil && condition.DependsOn(target) {
 			return true
 		}
@@ -25,7 +26,7 @@ func policyDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, pat
 func policyDependentLabelsFrom(view CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -58,11 +59,11 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(d.Policies) == 0 {
 			continue
 		}
-		var kept []policyDefinition
+		var kept []catalog.PolicyDefinition
 		for _, p := range d.Policies {
 			drop := false
 			for _, target := range targets {
@@ -92,13 +93,13 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 	return nil
 }
 func policyTypeChangeError(view CatalogRead, target ids.ObjectAddress) error {
-	var owners []*relationDescriptor
+	var owners []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok {
+		if d, ok := descriptor.(*catalog.Relation); ok {
 			owners = append(owners, d)
 		}
 	}
-	slices.SortFunc(owners, func(a, b *relationDescriptor) int {
+	slices.SortFunc(owners, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}

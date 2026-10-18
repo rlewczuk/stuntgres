@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -30,7 +31,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
-	parent := scope.lockedDescriptor.(*relationDescriptor)
+	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {
 		return fail(partitionAttachKindError(parent))
 	}
@@ -231,7 +232,7 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 	return nil
 }
 
-func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (CatalogRead, *relationDescriptor, error) {
+func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (CatalogRead, *catalog.Relation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(scope.owner.catalog)

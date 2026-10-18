@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -8,12 +9,12 @@ import (
 // Engine.mu is held. Both ordinary and materialized views freeze the same bound
 // identities and renderer metadata; only ordinary views execute this definition
 // when read. A zero rule requests a new identity for a newly created relation.
-func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule ids.OID, kind relationKind, temporary bool) (*viewDefinition, error) {
+func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule ids.OID, kind catalog.RelationKind, temporary bool) (*viewDefinition, error) {
 	temporaryMessage := "temporary views are unsupported"
-	if kind == materializedViewRelation {
+	if kind == catalog.MaterializedViewRelation {
 		temporaryMessage = "materialized views must not use temporary tables or views"
 	}
-	temporaryConsumer := kind == viewRelation && temporary
+	temporaryConsumer := kind == catalog.ViewRelation && temporary
 	if rule == 0 {
 		var err error
 		rule, err = e.catalog.allocateOIDLocked()
@@ -49,7 +50,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		}
 		definition.sequenceRefs[constant.offset] = constant.ref
 		if _, exists := auth.catalog.Find(constant.ref.Address); exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{Ref: constant.ref, Revision: constant.stamp})
+			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.ref, Revision: constant.stamp})
 		}
 	}
 	for _, constant := range b.regtypeConstants {
@@ -62,7 +63,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 				return nil, err
 			}
 			for _, ref := range references {
-				definition.dependencies = append(definition.dependencies, expressionDependency{Ref: ref, Revision: auth.catalog.Get(ref.Address).Revision()})
+				definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: auth.catalog.Get(ref.Address).Revision()})
 			}
 		}
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.id)}
@@ -70,7 +71,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			address.ClassID = ids.OperatorClassID
 		}
 		if d, exists := auth.catalog.Find(address); exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{Ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), Revision: d.Revision()})
+			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), Revision: d.Revision()})
 		}
 	}
 	definition.sources = make([]viewLeaf, len(b.querySources))

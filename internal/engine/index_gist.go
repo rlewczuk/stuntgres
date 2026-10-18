@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 )
 
 // The shared extraction program owns keys, not an ordering. No comparator is
 // bound for logical GiST membership and callers must never sort these entries.
-func bindLogicalExclusionKeys(parent *relationDescriptor, d *indexDefinition) (indexOrdering, error) {
-	if d.Method != gistMethod || d.Unique {
+func bindLogicalExclusionKeys(parent *catalog.Relation, d *catalog.IndexDefinition) (indexOrdering, error) {
+	if d.Method != catalog.GistMethod || d.Unique {
 		return indexOrdering{}, fmt.Errorf("stuntgres: invalid logical GiST definition")
 	}
 	o := indexOrdering{slots: make([]int, len(d.Keys)), keys: d.Keys}
@@ -40,8 +41,8 @@ func bindLogicalExclusionKeys(parent *relationDescriptor, d *indexDefinition) (i
 	return o, nil
 }
 
-func bindIndexKeys(parent *relationDescriptor, d *indexDefinition) (indexOrdering, error) {
-	if d.Method == gistMethod {
+func bindIndexKeys(parent *catalog.Relation, d *catalog.IndexDefinition) (indexOrdering, error) {
+	if d.Method == catalog.GistMethod {
 		return bindLogicalExclusionKeys(parent, d)
 	}
 	return bindIndexOrdering(parent, d)

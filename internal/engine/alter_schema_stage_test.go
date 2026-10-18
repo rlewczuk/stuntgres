@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -18,7 +19,7 @@ func (p alterSchemaCandidateProvider) Validate(v CatalogRead, d Descriptor) erro
 	return p.CatalogProvider.Validate(v, d)
 }
 
-func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *relationDescriptor) {
+func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *catalog.Relation) {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)

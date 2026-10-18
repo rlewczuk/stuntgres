@@ -71,7 +71,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				oldRoles, oldCatalog := e.roles, e.catalog.state
 				sessionRevision, epoch := session.authorization.revision, oldCatalog.Epoch()
 				oldACL := authorization.ACLValue{Explicit: table.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), table.ACL.Entries...)}
-				oldKeys := append([]uniqueConstraint(nil), table.UniqueConstraints...)
+				oldKeys := append([]catalog.UniqueConstraint(nil), table.UniqueConstraints...)
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
 				rows := append([]rowVersion(nil), e.storage[leaf].versions...)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -128,7 +129,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.VirtualView || d.RelationKind != catalogRelation || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("invalid view identity", d)
 	}
 	wantNames := []string{"name", "statement", "is_holdable", "is_binary", "is_scrollable", "creation_time"}
@@ -184,7 +185,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	// Validator must reject a virtual table or a type descriptor from another
 	// engine, not just accept a superficially matching OID/schema.
 	invalid := *d
-	invalid.RelationKind = tableRelation
+	invalid.RelationKind = catalog.TableRelation
 	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
 		t.Fatal("virtual table accepted")
 	}

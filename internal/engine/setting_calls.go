@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -23,7 +24,7 @@ type settingCallBinding struct {
 	parameters   ParameterInfo
 	arguments    []expr.Expr
 	routine      ids.ObjectRef
-	dependencies []expressionDependency
+	dependencies []catalog.ExpressionDependency
 }
 
 // The caller holds e.mu over descriptor lookup and binding.

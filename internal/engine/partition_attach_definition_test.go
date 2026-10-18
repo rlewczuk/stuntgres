@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -66,9 +67,9 @@ func TestPartitionAttachSchema(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "parent", 32010, "k", "payload")
 	child := inheritanceUnitRelation(e, "child", 32011, "payload", "k")
 	parent.Columns[0].Nullable = false
-	parent.NotNullConstraints = []notNullConstraint{{OID: 32100, Name: "parent_nn", Attribute: 1}}
+	parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32100, Name: "parent_nn", Attribute: 1}}
 	child.Columns[1].Nullable = false
-	child.NotNullConstraints = []notNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
+	child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
 	view := inheritanceUnitView(e, parent, child)
 	scope := &StatementScope{op: op}
 	next, err := partitionAttachSchema(scope, view, parent, child)
@@ -78,7 +79,7 @@ func TestPartitionAttachSchema(t *testing.T) {
 	if next == child || next.NotNullConstraints[0].Name != "child_nn" || next.NotNullConstraints[0].OID != 32101 || next.NotNullConstraints[0].PartitionLocal || !child.NotNullConstraints[0].PartitionLocal {
 		t.Fatal("NN identity or source changed")
 	}
-	next.Membership = &partitionMembership{Parent: parent.Address()}
+	next.Membership = &catalog.PartitionMembership{Parent: parent.Address()}
 	view = inheritanceUnitView(e, parent, next)
 	local, count := nonuniqueConstraintProvenance(view, next, "child_nn", 2, false)
 	if local || count != 1 {
@@ -110,7 +111,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}}
+	parent.Partition = &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}}
 	view := inheritanceUnitView(e, parent, child)
 	ref := e.catalog.Domain.Ref(view.Epoch(), child.Address())
 	ref.Address.SubID = 1
@@ -138,7 +139,7 @@ func TestPartitionAttachProof(t *testing.T) {
 		return logicalExpression{Info: expr.Info{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
-	bound := &partitionMembership{Parent: parent.Address(), Lower: []partitionDatum{{Value: value(1)}}, Upper: []partitionDatum{{Value: value(3)}}}
+	bound := &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: value(1)}}, Upper: []catalog.PartitionDatum{{Value: value(3)}}}
 	scope := &StatementScope{op: op}
 	check := func(exclude, want bool) {
 		t.Helper()
@@ -147,9 +148,9 @@ func TestPartitionAttachProof(t *testing.T) {
 			t.Fatal(got, want, err)
 		}
 	}
-	child.CheckConstraints = []checkConstraint{{Name: "bounds", Expression: bounds}}
+	child.CheckConstraints = []catalog.CheckConstraint{{Name: "bounds", Expression: bounds}}
 	check(false, false) // nullable CHECK permits UNKNOWN
-	child.NotNullConstraints = []notNullConstraint{{Attribute: 1}}
+	child.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}}
 	check(false, true)
 	child.NotNullConstraints[0].NotValid = true
 	check(false, false)
@@ -165,7 +166,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	check(true, true) // NULL belongs to the range complement
 	child.CheckConstraints[0].NotValid = true
 	check(true, false)
-	goal := partitionProofTuple([]partitionDatum{{Value: value(1)}, {Kind: -1}}, 0, true)
+	goal := partitionProofTuple([]catalog.PartitionDatum{{Value: value(1)}, {Kind: -1}}, 0, true)
 	if goal.op != "or" || goal.right.op != "=" {
 		t.Fatal("MINVALUE suffix did not simplify lexicographic goal", goal)
 	}

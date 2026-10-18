@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Only actual consumed calls need migration. An untouched structural binding
 // must retain the established non-call rebind behavior.
@@ -51,7 +54,7 @@ func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) er
 	return nil
 }
 
-func (b *uniqueWriteBinding) inheritIndexProgram(original *catalogState, index *relationDescriptor, programme *routineAdmissionProgram) error {
+func (b *uniqueWriteBinding) inheritIndexProgram(original *catalogState, index *catalog.Relation, programme *routineAdmissionProgram) error {
 	if len(programme.calls) == 0 {
 		return nil
 	}

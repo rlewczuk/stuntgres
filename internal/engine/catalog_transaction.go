@@ -31,7 +31,7 @@ type catalogChanges struct {
 	rolesBase           *roleCatalog
 	roles               *roleCatalog
 	retiredRoles        map[authorization.PrincipalRef]struct{}
-	indexRebuilds       map[ids.ObjectAddress]*relationDescriptor
+	indexRebuilds       map[ids.ObjectAddress]*catalog.Relation
 	indexFences         []catalogIndexFence
 	namespaceFences     []catalogNamespaceFence
 	readFences          []partitionReadFence
@@ -101,7 +101,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	}
 	n.domainChanged = c.domainChanged
 	if c.indexRebuilds != nil {
-		n.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(c.indexRebuilds))
+		n.indexRebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(c.indexRebuilds))
 		for a, d := range c.indexRebuilds {
 			n.indexRebuilds[a] = d
 		}
@@ -319,7 +319,7 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 			if descriptor == observation.base.Get(address) {
 				continue
 			}
-			relation, _ := descriptor.(*relationDescriptor)
+			relation, _ := descriptor.(*catalog.Relation)
 			owner := candidate.Get(address)
 			for _, target := range observation.targets {
 				if relation != nil {
@@ -344,7 +344,7 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 							return CatalogConflict{}
 						}
 					}
-				case *relationDescriptor:
+				case *catalog.Relation:
 					if owner.Foreign != nil && owner.Foreign.Server == target {
 						return CatalogConflict{}
 					}

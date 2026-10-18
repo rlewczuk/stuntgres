@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -62,14 +63,14 @@ func foreignOptionsValue(typ *sqltype.Descriptor, options []ForeignOption) (sqlt
 	return sqltype.OwnedArrayValue(typ, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 }
 
-func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	var descriptors []Descriptor
 	for _, d := range auth.catalog.Descriptors() {
 		if foreign, ok := d.(*foreignDescriptor); ok {
 			if foreign.Address().ClassID == source.Address().ObjectID || source.Address().ObjectID == pgUserMappingsOID && foreign.Address().ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
 			}
-		} else if r, ok := d.(*relationDescriptor); ok && source.Address().ObjectID == ids.ForeignTableClassID && r.Foreign != nil {
+		} else if r, ok := d.(*catalog.Relation); ok && source.Address().ObjectID == ids.ForeignTableClassID && r.Foreign != nil {
 			descriptors = append(descriptors, d)
 		}
 	}
@@ -90,7 +91,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 		}
 		putString := func(index int, value string) { row[index] = sqltype.String(source.Columns[index].Usage.Type, value) }
 		var err error
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			if err = putOID(0, uint32(relation.Address().ObjectID)); err != nil {
 				return nil, err
 			}

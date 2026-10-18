@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -24,26 +25,26 @@ func representedCatalogHasIndexes(oid ids.OID) bool {
 
 // catalogRelation describes execution, not PostgreSQL relation kind. Keep this
 // classification separate from virtualView, which controls source dispatch.
-func pgClassKind(view CatalogRead, relation *relationDescriptor) string {
+func pgClassKind(view CatalogRead, relation *catalog.Relation) string {
 	switch relation.RelationKind {
-	case foreignRelation:
+	case catalog.ForeignRelation:
 		return "f"
-	case sequenceRelation:
+	case catalog.SequenceRelation:
 		return "S"
-	case viewRelation:
+	case catalog.ViewRelation:
 		return "v"
-	case materializedViewRelation:
+	case catalog.MaterializedViewRelation:
 		return "m"
-	case compositeRelation:
+	case catalog.CompositeRelation:
 		return "c"
-	case partitionedRelation:
+	case catalog.PartitionedRelation:
 		return "p"
-	case indexRelation:
+	case catalog.IndexRelation:
 		if parent, ok := view.Relation(relation.SQLIndex.Parent); ok && parent.Partition != nil {
 			return "I"
 		}
 		return "i"
-	case catalogRelation:
+	case catalog.CatalogRelation:
 		if relation.VirtualView || representedSummaryViewDefinition(relation.Address().ObjectID) != "" {
 			return "v"
 		}
@@ -51,7 +52,7 @@ func pgClassKind(view CatalogRead, relation *relationDescriptor) string {
 	return "r"
 }
 
-func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) string {
+func pgClassPersistence(catalog CatalogRead, relation *catalog.Relation) string {
 	if relation.SQLIndex != nil {
 		if parent, ok := catalog.Relation(relation.SQLIndex.Parent); ok {
 			relation = parent
@@ -71,7 +72,7 @@ func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) strin
 	return "p"
 }
 
-func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authorization.Read, source, relation *relationDescriptor) ([]sqltype.Value, error) {
+func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authorization.Read, source, relation *catalog.Relation) ([]sqltype.Value, error) {
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
 		if failure == nil {
@@ -90,14 +91,14 @@ func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authori
 	}
 	if relation.SQLIndex != nil {
 		method = 403
-		if relation.SQLIndex.Method == hashMethod {
+		if relation.SQLIndex.Method == catalog.HashMethod {
 			method = 405
 		}
-		if relation.SQLIndex.Method == gistMethod {
+		if relation.SQLIndex.Method == catalog.GistMethod {
 			method = 783
 		}
 	}
-	shared := relation.RelationKind == catalogRelation && (relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID)
+	shared := relation.RelationKind == catalog.CatalogRelation && (relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID)
 	tablespace := uint32(0)
 	if shared {
 		tablespace = 1664
@@ -107,7 +108,7 @@ func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authori
 		tuples = 1
 	}
 	replica := "n"
-	if relation.RelationKind != catalogRelation && (kind == "r" || kind == "m" || kind == "p") {
+	if relation.RelationKind != catalog.CatalogRelation && (kind == "r" || kind == "m" || kind == "p") {
 		replica = "d"
 	}
 	acl, err := e.pgClassACL(roles, source.Columns[31].Usage.Type, relation.ACL)
@@ -136,8 +137,8 @@ func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authori
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.HasIndexes), boolean(15, shared),
 		text(16, pgClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.AttributeHighWater)), integer(19, int64(len(relation.CheckConstraints))),
-		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.HasSubclasses),
-		boolean(23, relation.RLSEnabled), boolean(24, relation.RLSForced), boolean(25, relation.RelationKind != materializedViewRelation || relation.Populated),
+		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.HasSubclasses),
+		boolean(23, relation.RLSEnabled), boolean(24, relation.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -35,7 +36,7 @@ type ruleCommand struct {
 
 type ruleProgram struct {
 	commands  []ruleCommand
-	events    []expressionDependency
+	events    []catalog.ExpressionDependency
 	count     int
 	returning int
 }
@@ -189,7 +190,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 // A NEW substitution may move a stored DEFAULT into the action's query tree.
 // Loan only original callable dependencies, after its actual containing recipe
 // certifies lifetime (including the existing retained-TEMP epoch bridge).
-func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, slot int, dependencies *[]expressionDependency, private *bool) error {
+func loanRuleDefaultDependencies(view CatalogRead, parent *catalog.Relation, slot int, dependencies *[]catalog.ExpressionDependency, private *bool) error {
 	definition, ok := parent.Defaults[parent.Attributes[slot]]
 	if !ok || definition.OID == 0 || definition.Expression == nil || definition.Expression.ResultUsage() != parent.Columns[slot].Usage {
 		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
@@ -230,7 +231,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 				*dependencies = slices.Clone(*dependencies)
 				*private = true
 			}
-			*dependencies = append(*dependencies, expressionDependency{Ref: ref, Revision: captured.Revision()})
+			*dependencies = append(*dependencies, catalog.ExpressionDependency{Ref: ref, Revision: captured.Revision()})
 			return
 		}
 		failure = fmt.Errorf("stuntgres: missing rule DEFAULT routine manifest")
@@ -743,18 +744,18 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		b.defaults = nil
 		e.bindInsertDefaults(&b, auth, insert.Override)
 	}
-	if current.RelationKind != viewRelation {
+	if current.RelationKind != catalog.ViewRelation {
 		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 	}
 	rules := rulesOf(b.relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.event == event })
 	if matched {
-		dependency := expressionDependency{Ref: b.ref, Revision: current.Revision()}
+		dependency := catalog.ExpressionDependency{Ref: b.ref, Revision: current.Revision()}
 		if !slices.Contains(program.events, dependency) {
 			program.events = append(program.events, dependency)
 		}
 	}
-	if current.RelationKind == viewRelation && !matched {
+	if current.RelationKind == catalog.ViewRelation && !matched {
 		b.viewWrite = nil
 		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 			return -1, err
@@ -815,7 +816,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 			whole := address
 			whole.SubID = 0
 			if descriptor, ok := auth.catalog.Find(whole); ok {
-				b.dependencies = append(b.dependencies, expressionDependency{Ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), Revision: descriptor.Revision()})
+				b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), Revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.actions {
@@ -1005,7 +1006,7 @@ func ruleReturningProjection(catalog CatalogRead, original, provider *boundRetur
 }
 
 func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
-	if b.relation.RelationKind != viewRelation {
+	if b.relation.RelationKind != catalog.ViewRelation {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
 	prior := b.viewWrite
@@ -1020,7 +1021,7 @@ func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth Authorizat
 	return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
 }
 
-func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescriptor) (binding, error) {
+func refreshRuleBinding(catalog CatalogRead, b binding, current *catalog.Relation) (binding, error) {
 	old := b.relation
 	if slices.Equal(old.Attributes, current.Attributes) {
 		b.relation = current
@@ -1170,7 +1171,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	return b, nil
 }
 
-func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescriptor, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
+func refreshRuleConflict(catalog CatalogRead, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
 	c := *b.conflict
 	var err error
 	c.targets, err = slots(c.targets)

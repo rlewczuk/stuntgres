@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -39,7 +40,7 @@ func (e *Engine) initializeDataTypePrivileges() error {
 
 // Capture uses only the statement's coherent catalog, role and physical-session
 // authority. The caller holds Engine.mu; no live authority is resampled here.
-func captureDataTypePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureDataTypePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func captureDataTypePrivileges(ctx context.Context, view CatalogRead, auth Autho
 			return nil, err
 		}
 		switch d := descriptor.(type) {
-		case *relationDescriptor:
+		case *catalog.Relation:
 			kind := pgClassKind(view, d)
 			if kind != "r" && kind != "v" && kind != "f" && kind != "p" && kind != "c" {
 				continue

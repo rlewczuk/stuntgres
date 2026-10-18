@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -58,7 +59,7 @@ func projectIndexMetadata(ctx context.Context, view CatalogRead, ref ids.ObjectR
 	m = indexMetadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.Unique
 	m.IndNullsNotDistinct = definition.NullsNotDistinct
-	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind && definition.Constraint.Primary
+	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == catalog.UniqueBackingKind && definition.Constraint.Primary
 	if definition.IsExclusion() {
 		m.IndIsExclusion = true
 		if c := exclusionDefinition(parent, index); c != nil {
@@ -96,7 +97,7 @@ func projectIndexMetadata(ctx context.Context, view CatalogRead, ref ids.ObjectR
 			return indexMetadata{}, indexesMetadata{}, fmt.Errorf("stuntgres: index class has no released identity")
 		}
 		m.IndCollation[i] = ids.OID(usage.Collation.ID)
-		if definition.Method != btreeMethod {
+		if definition.Method != catalog.BtreeMethod {
 			continue
 		}
 		if key.Desc {
@@ -128,16 +129,16 @@ func indexCatalogMetadata(ctx context.Context, view CatalogRead) ([]indexMetadat
 	if view.Owner() == nil || view.State() == nil {
 		return nil, nil, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
-	var indexes []*relationDescriptor
+	var indexes []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
 	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
+	slices.SortFunc(indexes, func(a, b *catalog.Relation) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
 	records := make([]indexMetadata, len(indexes))
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {

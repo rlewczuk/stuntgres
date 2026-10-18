@@ -1,8 +1,11 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
-func bindingForConflict(ref ids.ObjectRef, parent *relationDescriptor, action *boundInsertConflict) binding {
+func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *boundInsertConflict) binding {
 	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action, querySources: action.sources, returning: action.returning}
 }
 func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *EvalContext) (bool, error) {

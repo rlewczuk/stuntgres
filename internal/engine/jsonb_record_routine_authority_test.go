@@ -104,7 +104,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if evaluation.catalog.Get(address) != captured {
 				t.Fatal("not the borrowed owned descriptor")
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			selected := 0
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -169,13 +169,13 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original admission", err)
 			}
-			missing := make([]expressionDependency, 0, len(original))
+			missing := make([]catalog.ExpressionDependency, 0, len(original))
 			for _, dep := range original {
 				if dep.Ref.Address != address {
 					missing = append(missing, dep)
 				}
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
@@ -183,7 +183,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, mutation := range []string{"epoch", "revision", "foreign_ref"} {
-				copied := append([]expressionDependency(nil), original...)
+				copied := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range copied {
 					if copied[i].Ref.Address == address {
 						switch mutation {
@@ -203,7 +203,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			probe.routineChecks = append([]expressionDependency(nil), original...)
+			probe.routineChecks = append([]catalog.ExpressionDependency(nil), original...)
 			if err := admitRoutineCall(&probe, call, false, false); err != nil {
 				t.Fatal("full original ref copy lost authority", err)
 			}
@@ -225,7 +225,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if retagged.Name != call.Name || len(retagged.Args) != len(call.Args) || retagged.Definitions != call.Definitions || retagged.Unresolved != call.Unresolved || retagged.SourcePosition() != call.SourcePosition() || retagged.Properties() != call.Properties() {
 				t.Fatal("retag changed physical carrier contract", retagged)
 			}
-			for _, manifest := range [][]expressionDependency{original, nil, {}} {
+			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("retag manufactured destination manifest")
@@ -262,7 +262,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	ref := roleTableRef(t, e, "jsonb_authority_recipe")
 	recipe := view.MustRelation(ref.Address)
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "jsonb_to_record('{}'::jsonb)")
-	original := append([]expressionDependency(nil), binder.dependencies...)
+	original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 	call := node.(functions.JSONBRecord)
 	captured, err := expressionRoutineDescriptor(call)
 	if err != nil || captured == nil {
@@ -307,13 +307,13 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		if err := admitRoutineCall(&evaluation, retained, false, false); err != nil {
 			t.Fatal("stored original manifest admission", err)
 		}
-		missing := make([]expressionDependency, 0, len(viewOf(recipe).dependencies))
+		missing := make([]catalog.ExpressionDependency, 0, len(viewOf(recipe).dependencies))
 		for _, dependency := range viewOf(recipe).dependencies {
 			if dependency.Ref.Address != captured.Address() {
 				missing = append(missing, dependency)
 			}
 		}
-		for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+		for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 			probe := evaluation
 			// Select the genuine owning recipe just as normal admission does,
 			// then remove its own selected-call authority. Do not allow a
@@ -415,7 +415,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := append([]expressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 		base := e.CatalogRead()
 		// Reusing a live, same-domain principal is a genuine owner-COW, even
 		// though the SQL surface does not offer ALTER FUNCTION OWNER here.
@@ -513,7 +513,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := append([]expressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 		var ref ids.ObjectRef
 		for _, dependency := range original {
 			if dependency.Ref.Address == captured.Address() {

@@ -16,7 +16,7 @@ import (
 )
 
 // Fixtures call the real private binder/stager/root builders, not SQL execution.
-func concurrentUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
+func concurrentUnitRelation(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -50,7 +50,7 @@ func concurrentUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
 	return d
 }
 
-func concurrentUnitRows(t *testing.T, d *relationDescriptor, payloads ...any) [][]sqltype.Value {
+func concurrentUnitRows(t *testing.T, d *catalog.Relation, payloads ...any) [][]sqltype.Value {
 	t.Helper()
 	rows := make([][]sqltype.Value, len(payloads))
 	for i, p := range payloads {
@@ -70,7 +70,7 @@ func concurrentUnitRows(t *testing.T, d *relationDescriptor, payloads ...any) []
 	return rows
 }
 
-func concurrentUnitReplace(t *testing.T, e *Engine, d *relationDescriptor, rows [][]sqltype.Value, concurrent, populated bool) *relationDescriptor {
+func concurrentUnitReplace(t *testing.T, e *Engine, d *catalog.Relation, rows [][]sqltype.Value, concurrent, populated bool) *catalog.Relation {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -82,7 +82,7 @@ func concurrentUnitReplace(t *testing.T, e *Engine, d *relationDescriptor, rows 
 	return e.catalog.state.MustRelation(d.Address())
 }
 
-func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDescriptor, name, keys, suffix string) *relationDescriptor {
+func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *catalog.Relation, name, keys, suffix string) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -123,7 +123,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDe
 		columns[i].OriginTable = uint32(oid)
 		columns[i].OriginAttribute = int16(i + 1)
 	}
-	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition, AttributeHighWater: int32(len(attributes))}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition, AttributeHighWater: int32(len(attributes))}
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = stage.Create(index)
 	e.mu.Unlock()
@@ -158,7 +158,7 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			copy := *index
 			definition := *index.SQLIndex
-			definition.Keys = append([]indexKey(nil), definition.Keys...)
+			definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
 			copy.SQLIndex = &definition
 			eligible := false
 			switch phase {
@@ -173,9 +173,9 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 			case "not_live":
 				definition.Live = false
 			case "partial":
-				definition.Predicate = &indexPredicate{}
+				definition.Predicate = &catalog.IndexPredicate{}
 			case "expression":
-				definition.Keys[0].Derived = &derivedIndexKey{}
+				definition.Keys[0].Derived = &catalog.DerivedIndexKey{}
 			case "system_key":
 				definition.Keys[0].Attribute = -1
 			case "system_include":
@@ -295,7 +295,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			}
 			first := materializedConcurrentUnitIndex(t, e, d, "unit_u", keys, suffix)
 			d = e.catalog.state.MustRelation(d.Address())
-			indices := []*relationDescriptor{first}
+			indices := []*catalog.Relation{first}
 			if phase == "all_keys" {
 				indices = append(indices, materializedConcurrentUnitIndex(t, e, d, "unit_second", "i,p", ""))
 			}

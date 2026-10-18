@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // These sources admit semantic planning before checking execution-time authority.
 // Other virtual catalogs retain their existing mutation boundaries.
-func guardedCatalogRelation(d *relationDescriptor) bool {
-	if d == nil || d.RelationKind != catalogRelation || d.Address().ClassID != ids.RelationClassID {
+func guardedCatalogRelation(d *catalog.Relation) bool {
+	if d == nil || d.RelationKind != catalog.CatalogRelation || d.Address().ClassID != ids.RelationClassID {
 		return false
 	}
 	return d.Address().ObjectID == pgAggregateOID || d.Address().ObjectID == pgAMOID || d.Address().ObjectID == pgTypeOID
@@ -18,7 +19,7 @@ func guardedCatalogRelation(d *relationDescriptor) bool {
 // Binding and frame import have completed before mutation admission. Recheck
 // the coherent effective actor at execution, including held SET ROLE commands.
 // System-catalog TRUNCATE has its own released English diagnostic.
-func guardedCatalogMutationError(auth AuthorizationView, d *relationDescriptor, truncate bool) error {
+func guardedCatalogMutationError(auth AuthorizationView, d *catalog.Relation, truncate bool) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 	if err != nil {
 		return err

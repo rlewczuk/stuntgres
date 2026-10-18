@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -51,7 +52,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 	for _, typ := range []*sqltype.Descriptor{row, array, domain} {
 		consumer := *table
 		consumer.OfType = ids.ObjectAddress{}
-		consumer.RelationKind = materializedViewRelation
+		consumer.RelationKind = catalog.MaterializedViewRelation
 		consumer.Columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
 		state := *before.State()
 		state.CloneDescriptors()
@@ -65,7 +66,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
 		e.DiscardCatalogStage(stage)
-		consumer.RelationKind = viewRelation
+		consumer.RelationKind = catalog.ViewRelation
 		if err := rowRewriteError(view, source); err != nil {
 			t.Fatal("nonstored view blocked", err)
 		}
@@ -136,8 +137,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if err := stageCompositeFieldChecks(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, original := range []*relationDescriptor{left, right, child} {
-		pruned := stage.Descriptors[original.Address()].(*relationDescriptor)
+	for _, original := range []*catalog.Relation{left, right, child} {
+		pruned := stage.Descriptors[original.Address()].(*catalog.Relation)
 		if len(pruned.CheckConstraints) != 1 || pruned.CheckConstraints[0].Name != "keep_check" || len(original.CheckConstraints) != 2 {
 			t.Fatal("diamond owner pruning lost", original.Name())
 		}

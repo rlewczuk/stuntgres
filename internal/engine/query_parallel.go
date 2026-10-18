@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -37,8 +38,8 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 	}
 	view := source.view.Catalog()
 	d, ok := view.Descriptor(source.ref.Address)
-	relation, table := d.(*relationDescriptor)
-	if !ok || !table || relation.RelationKind != tableRelation {
+	relation, table := d.(*catalog.Relation)
+	if !ok || !table || relation.RelationKind != catalog.TableRelation {
 		return nil, nil, false
 	}
 	ns, ok := view.Descriptor(relation.Namespace())

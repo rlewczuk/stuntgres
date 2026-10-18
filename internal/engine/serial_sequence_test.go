@@ -18,8 +18,8 @@ type serialSequenceUnit struct {
 	engine   *Engine
 	view     CatalogRead
 	context  *EvalContext
-	table    *relationDescriptor
-	sequence *relationDescriptor
+	table    *catalog.Relation
+	sequence *catalog.Relation
 	node     deparseExpression
 }
 
@@ -32,16 +32,16 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
 	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
-	table := &relationDescriptor{
+	table := &catalog.Relation{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		Columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, AttributeHighWater: 9,
 	}
 	owner := table.Address()
 	owner.SubID = 7
-	sequence := &relationDescriptor{
+	sequence := &catalog.Relation{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
-		RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: owner},
+		RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
 		view.State().SetDescriptor(descriptor.Address(), descriptor)
@@ -72,8 +72,8 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		{"different-table", func(f serialSequenceUnit) { f.sequence.Sequence.Owned.ObjectID++ }, nil},
 		{"different-class", func(f serialSequenceUnit) { f.sequence.Sequence.Owned.ClassID = ids.TypeClassID }, nil},
 		{"whole-table-is-not-column", func(f serialSequenceUnit) { f.sequence.Sequence.Owned.SubID = 0 }, nil},
-		{"index-is-not-sequence", func(f serialSequenceUnit) { f.sequence.RelationKind = indexRelation }, nil},
-		{"table-is-not-sequence", func(f serialSequenceUnit) { f.sequence.RelationKind = tableRelation }, nil},
+		{"index-is-not-sequence", func(f serialSequenceUnit) { f.sequence.RelationKind = catalog.IndexRelation }, nil},
+		{"table-is-not-sequence", func(f serialSequenceUnit) { f.sequence.RelationKind = catalog.TableRelation }, nil},
 		{"no-sequence-options", func(f serialSequenceUnit) { f.sequence.Sequence = nil }, nil},
 		{"name-is-not-ownership", func(f serialSequenceUnit) {
 			f.sequence.ObjectName = "Owned_ID_seq"

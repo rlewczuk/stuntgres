@@ -24,7 +24,7 @@ func pgParameterACLUnitFixture(t *testing.T) (*Engine, *Operation, authorization
 	return e, op, reader
 }
 
-func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ParameterClassID}
 	d, ok := catalog.Relation(address)
@@ -73,7 +73,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgParameterACLUnitSource(t, e, view)
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
+	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	for i, name := range []string{"oid", "parname", "paracl"} {

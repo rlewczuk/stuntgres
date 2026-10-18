@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ import (
 type foreignActionAdmission struct {
 	ref               ids.ObjectRef
 	storage           *relationStorage
-	relation          *relationDescriptor
+	relation          *catalog.Relation
 	tx                ids.TxRef
 	jobs              []foreignKeyJob
 	writable, mutated bool

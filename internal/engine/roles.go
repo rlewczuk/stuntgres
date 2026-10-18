@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -165,7 +166,7 @@ type roleDependency struct {
 // A nil collector stops at the first dependency without building diagnostics.
 // Admission and final publication share the exact same descriptor classification.
 func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
-	if relation, ok := d.(*relationDescriptor); ok {
+	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Policies {
 			for _, role := range policy.Roles {
 				if !role.Public && role.Ref == ref {
@@ -186,7 +187,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 			return false
 		}
 	}
-	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == indexRelation {
+	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.IndexRelation {
 		// Index ownership belongs to its validated parent relation.
 		return false
 	}
@@ -273,12 +274,12 @@ func dependencyIdentifier(name string) string {
 	}
 }
 
-func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor) string {
+func relationDiagnosticName(auth AuthorizationView, relation *catalog.Relation) string {
 	path, _ := auth.engine.referencePath(auth)
 	return relationDiagnosticNameAt(auth.catalog, relation, path)
 }
 
-func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) bool {
+func relationVisibleAt(catalog CatalogRead, relation *catalog.Relation, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
 		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.Name()}); ok {
 			return a == relation.Address()
@@ -287,7 +288,7 @@ func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path [
 	return false
 }
 
-func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) string {
+func relationDiagnosticNameAt(catalog CatalogRead, relation *catalog.Relation, path []ids.ObjectAddress) string {
 	name := dependencyIdentifier(relation.Name())
 	if relationVisibleAt(catalog, relation, path) {
 		return name
@@ -339,7 +340,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		path, _ := auth.engine.referencePath(auth)
 		name = strings.TrimPrefix(dependencyObject(view, d.Address(), path), kind)
 	}
-	if relation, ok := d.(*relationDescriptor); ok {
+	if relation, ok := d.(*catalog.Relation); ok {
 		kind = relationDiagnosticKind(relation) + " "
 		name = relationDiagnosticName(auth, relation)
 		if dep.address.SubID != 0 {
@@ -352,7 +353,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 				}
 			}
 		}
-		if relation.RelationKind == compositeRelation {
+		if relation.RelationKind == catalog.CompositeRelation {
 			path, _ := auth.engine.referencePath(auth)
 			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)

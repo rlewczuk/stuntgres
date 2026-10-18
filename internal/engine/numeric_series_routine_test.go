@@ -52,7 +52,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if !ok || owned != captured {
 				t.Fatal("call did not capture original owned descriptor")
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -74,13 +74,13 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
 				t.Fatal("original source/project admission", err)
 			}
-			missing := make([]expressionDependency, 0, len(original))
+			missing := make([]catalog.ExpressionDependency, 0, len(original))
 			for _, dependency := range original {
 				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, node, false, false); err == nil {
@@ -88,7 +88,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, epoch := range []bool{false, true} {
-				stale := append([]expressionDependency(nil), original...)
+				stale := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range stale {
 					if stale[i].Ref.Address == address {
 						if epoch {

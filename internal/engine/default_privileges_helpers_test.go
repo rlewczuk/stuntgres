@@ -103,7 +103,7 @@ func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorizat
 
 // defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
-func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *relationDescriptor {
+func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
 	t.Helper()
 	typ, ok := stage.Base.LookupType(sqltype.Int4)
 	if !ok {

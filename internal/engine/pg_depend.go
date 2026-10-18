@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -28,7 +29,7 @@ func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
 	case *typeDescriptor:
 		if d.OwningRelation != (ids.ObjectAddress{}) {
 			relation, ok := view.Relation(d.OwningRelation)
-			return !ok || relation.RelationKind == catalogRelation
+			return !ok || relation.RelationKind == catalog.CatalogRelation
 		}
 		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
 		// arrays retain their owned element's dependency even without storage.
@@ -41,8 +42,8 @@ func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
 		return d.Seeded()
 	case *operatorDescriptor:
 		return operatorSeeded(d)
-	case *relationDescriptor:
-		return d.RelationKind == catalogRelation
+	case *catalog.Relation:
+		return d.RelationKind == catalog.CatalogRelation
 	}
 	return false
 }
@@ -132,7 +133,7 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}, 'i')
 			} else if d.OwningRelation != (ids.ObjectAddress{}) && !d.SQLType.IsComposite() {
 				add(d.Address(), d.OwningRelation, 'i')
-			} else if d.SQLType.IsComposite() && view.MustRelation(d.OwningRelation).RelationKind != compositeRelation {
+			} else if d.SQLType.IsComposite() && view.MustRelation(d.OwningRelation).RelationKind != catalog.CompositeRelation {
 				add(d.Address(), d.OwningRelation, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
@@ -141,11 +142,11 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Collation.ID)}, 'n')
 				}
 			}
-		case *relationDescriptor:
+		case *catalog.Relation:
 			if d.Foreign != nil {
 				add(d.Address(), d.Foreign.Server, 'n')
 			}
-			if d.RelationKind == catalogRelation {
+			if d.RelationKind == catalog.CatalogRelation {
 				continue
 			}
 			for _, extension := range d.AutoExtensions {
@@ -233,7 +234,7 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 				}
 				continue
 			}
-			if d.RelationKind == compositeRelation {
+			if d.RelationKind == catalog.CompositeRelation {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
@@ -428,7 +429,7 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 	return edges, nil
 }
 
-func capturePGDepend(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGDepend(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	edges, err := collectPGDepend(ctx, catalog)
 	if err != nil {
 		return nil, err

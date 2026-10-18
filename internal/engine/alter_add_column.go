@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -20,7 +21,7 @@ type addedColumn struct {
 	declaration  createColumnDeclaration
 	expression   expr.Expr
 	dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
-	consumer     *relationDescriptor
+	consumer     *catalog.Relation
 	value        sqltype.Value
 }
 
@@ -34,9 +35,9 @@ func alterCookingError(err error) error {
 	return err
 }
 
-func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, action parser.AlterTableAction, captured *sqltype.Usage) (*relationDescriptor, addedColumn, error) {
+func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, addedColumn, error) {
 	scope.routineAuth = auth
-	fail := func(err error) (*relationDescriptor, addedColumn, error) { return nil, addedColumn{}, err }
+	fail := func(err error) (*catalog.Relation, addedColumn, error) { return nil, addedColumn{}, err }
 	column := action.Definition
 	if column == nil {
 		return fail(fmt.Errorf("stuntgres: missing ADD column declaration"))
@@ -46,7 +47,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(insertError("0A000", "ALTER TABLE action is unsupported", action.Pos))
 		}
 	}
-	if old.RelationKind != compositeRelation && isSystemColumn(column.Name) {
+	if old.RelationKind != catalog.CompositeRelation && isSystemColumn(column.Name) {
 		return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name)))
 	}
 	if _, exists := old.Index[column.Name]; exists {
@@ -126,12 +127,12 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(alterCookingError(err))
 		}
 		if !structuralNull(node) {
-			persisted := columnDefault{Expression: node}
+			persisted := catalog.ColumnDefault{Expression: node}
 			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
 			if next.Defaults == nil {
-				next.Defaults = make(map[int32]columnDefault)
+				next.Defaults = make(map[int32]catalog.ColumnDefault)
 			}
 			next.Defaults[attribute] = persisted
 			added.expression = node

@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 // Direct descriptor/stage fixtures deliberately do not construct the condition
 // through SQL. They independently exercise the historical issuer and exact
 // current composite-key/Usage validation, without a second physical provider.
-func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDescriptor, *relationDescriptor) {
+func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	base := e.CatalogRead()
@@ -29,15 +30,15 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 		}
 		return oid
 	}
-	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}, ObjectNamespace: namespace, ObjectName: "p", Owner: owner, ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{2}, Index: map[string]int{"b": 0}, AttributeHighWater: 2, DroppedAttributes: map[int32]attributeMetadata{1: {Number: 1, Dropped: true}}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}, ObjectNamespace: namespace, ObjectName: "p", Owner: owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{2}, Index: map[string]int{"b": 0}, AttributeHighWater: 2, DroppedAttributes: map[int32]catalog.AttributeMetadata{1: {Number: 1, Dropped: true}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
-	primary := uniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
-	history := retiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.Address()), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
-	old := &relationDescriptor{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "c", Owner: owner, ObjectRevision: 1, RelationKind: tableRelation, HasIndexes: true, Columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, NotNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, UniqueConstraints: []uniqueConstraint{primary}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]inheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]inheritedConstraint{1: {Retired: []retiredInheritanceOrigin{history}}, 2: {Local: true}}}}
-	index := &relationDescriptor{ObjectAddress: indexAddress, ObjectNamespace: namespace, ObjectName: "c_key", Owner: owner, ObjectRevision: 1, RelationKind: indexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, SQLIndex: &indexDefinition{Parent: address, Keys: []indexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: uniqueBacking(&primary)}}
+	primary := catalog.UniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
+	history := catalog.RetiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.Address()), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
+	old := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "c", Owner: owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, HasIndexes: true, Columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, NotNullConstraints: []catalog.NotNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, UniqueConstraints: []catalog.UniqueConstraint{primary}, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]catalog.InheritedConstraint{1: {Retired: []catalog.RetiredInheritanceOrigin{history}}, 2: {Local: true}}}}
+	index := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, ObjectName: "c_key", Owner: owner, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, SQLIndex: &catalog.IndexDefinition{Parent: address, Keys: []catalog.IndexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: uniqueBacking(&primary)}}
 	parent.HasSubclasses = true
-	old.Inheritance.Columns[2] = inheritedColumn{Local: true, Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 2}}}
+	old.Inheritance.Columns[2] = catalog.InheritedColumn{Local: true, Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 2}}}
 	created := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(created) })
 	for _, descriptor := range []Descriptor{parent, old, index} {
@@ -79,19 +80,19 @@ func TestPhysicalNotNullCauseAndCurrentSupport(t *testing.T) {
 	if len(old.PhysicalNotNull) != 0 || len(old.NotNullConstraints) != 2 || len(old.Inheritance.NotNull[1].Retired) != 1 {
 		t.Fatal("issuer mutated the retained source capture")
 	}
-	for name, mutate := range map[string]func(*physicalNotNullProof){
-		"caller flag":     func(p *physicalNotNullProof) { p.Cause = nil },
-		"copied receipt":  func(p *physicalNotNullProof) { copy := *p.Cause; p.Cause = &copy },
-		"current Usage":   func(p *physicalNotNullProof) { p.Usage = testUsage(e, sqltype.Int8) },
-		"current primary": func(p *physicalNotNullProof) { copy := *p.Support; copy.Constraint++; p.Support = &copy },
-		"current index":   func(p *physicalNotNullProof) { copy := *p.Support; copy.Index.ObjectID++; p.Support = &copy },
-		"nonfirst key Usage": func(p *physicalNotNullProof) {
+	for name, mutate := range map[string]func(*catalog.PhysicalNotNullProof){
+		"caller flag":     func(p *catalog.PhysicalNotNullProof) { p.Cause = nil },
+		"copied receipt":  func(p *catalog.PhysicalNotNullProof) { copy := *p.Cause; p.Cause = &copy },
+		"current Usage":   func(p *catalog.PhysicalNotNullProof) { p.Usage = testUsage(e, sqltype.Int8) },
+		"current primary": func(p *catalog.PhysicalNotNullProof) { copy := *p.Support; copy.Constraint++; p.Support = &copy },
+		"current index":   func(p *catalog.PhysicalNotNullProof) { copy := *p.Support; copy.Index.ObjectID++; p.Support = &copy },
+		"nonfirst key Usage": func(p *catalog.PhysicalNotNullProof) {
 			copy := *p.Support
 			copy.Keys = slices.Clone(copy.Keys)
 			copy.Keys[1].Usage = testUsage(e, sqltype.Int8)
 			p.Support = &copy
 		},
-		"nonfirst key rank": func(p *physicalNotNullProof) {
+		"nonfirst key rank": func(p *catalog.PhysicalNotNullProof) {
 			copy := *p.Support
 			copy.Keys = slices.Clone(copy.Keys)
 			copy.Keys[1].Attribute = 1
@@ -148,7 +149,7 @@ func TestPhysicalNotNullRetirementAndSupersession(t *testing.T) {
 		t.Fatal("archived key rebound as a live provider")
 	}
 	ordinary := *clean
-	ordinary.NotNullConstraints = append(slices.Clone(clean.NotNullConstraints), notNullConstraint{OID: 20004, Name: "new_nn", Attribute: 1})
+	ordinary.NotNullConstraints = append(slices.Clone(clean.NotNullConstraints), catalog.NotNullConstraint{OID: 20004, Name: "new_nn", Attribute: 1})
 	prunePhysicalNotNull(&ordinary)
 	if len(ordinary.PhysicalNotNull) != 0 || len(clean.PhysicalNotNull) != 1 {
 		t.Fatal("genuine new NN failed to supersede only its certificate immutably")

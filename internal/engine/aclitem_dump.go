@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -65,14 +66,14 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view CatalogRead, out
 		})
 	}
 	for _, descriptor := range view.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
 		if ns, ok := view.Namespace(relation.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if relation.RelationKind == catalogRelation {
+		if relation.RelationKind == catalog.CatalogRelation {
 			continue
 		}
 		if storage := e.storage[relation.Address()]; storage != nil {

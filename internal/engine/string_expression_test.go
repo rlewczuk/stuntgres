@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -143,7 +144,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 		t.Fatal("stored CHECK lost REGCLASS snapshot demand or ordinary default gained it")
 	}
 	broken := *relation
-	broken.CheckConstraints = append([]checkConstraint(nil), relation.CheckConstraints...)
+	broken.CheckConstraints = append([]catalog.CheckConstraint(nil), relation.CheckConstraints...)
 	broken.CheckConstraints[0].CommentSnapshot = false
 	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid stored snapshot manifest accepted")

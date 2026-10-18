@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -117,7 +118,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 		// PostgreSQL validates explicit target identifiers before opening the
 		// source, so a blocked/missing source cannot mask a bad target list.
-		if err := bindInsertTargets(s.lockedDescriptor.(*relationDescriptor), insert.Targets, nil); err != nil {
+		if err := bindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
 			return err
 		}
 		return s.acquireQueryRelations(stmt, stmt, execute)
@@ -387,7 +388,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 				if err == nil {
 					d := auth.catalog.MustRelation(ref.Address)
-					if d.RelationKind != viewRelation {
+					if d.RelationKind != catalog.ViewRelation {
 						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.Name()))
 					}
 				}
@@ -413,7 +414,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 	}
 	var definitionStamp ids.DefinitionRevision
-	var materializedAlterAuthority *relationDescriptor
+	var materializedAlterAuthority *catalog.Relation
 	if err == nil && ref.Domain() != nil {
 		definitionStamp = preparedDefinitionStamp(auth.catalog.Get(ref.Address), s.op.session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
@@ -441,7 +442,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		var typ *typeDescriptor
 		typ, err = e.namedType(auth, *attachment.Type)
 		if err == nil {
-			var source *relationDescriptor
+			var source *catalog.Relation
 			var path []ids.ObjectAddress
 			path, err = e.referencePath(auth)
 			if err == nil {
@@ -587,11 +588,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		storageTarget := false
 		switch statement := stmt.(type) {
 		case *parser.Copy:
-			storageTarget = descriptor.RelationKind == tableRelation || descriptor.RelationKind == materializedViewRelation
+			storageTarget = descriptor.RelationKind == catalog.TableRelation || descriptor.RelationKind == catalog.MaterializedViewRelation
 		case *parser.Delete, *parser.Update, *parser.Merge:
-			storageTarget = descriptor.RelationKind == tableRelation
+			storageTarget = descriptor.RelationKind == catalog.TableRelation
 		case *parser.Insert:
-			storageTarget = descriptor.RelationKind == tableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
+			storageTarget = descriptor.RelationKind == catalog.TableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
 		}
 		if storageTarget {
 			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -622,7 +623,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
-		if descriptor.RelationKind != viewRelation {
+		if descriptor.RelationKind != catalog.ViewRelation {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.Name()))
 		}
 		return nil
@@ -696,9 +697,9 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		if err != nil {
 			return err
 		}
-		if refreshSources && (current.RelationKind != materializedViewRelation || s.view == nil) {
+		if refreshSources && (current.RelationKind != catalog.MaterializedViewRelation || s.view == nil) {
 			s.querySources[i].relation = current
-			if current.RelationKind == materializedViewRelation {
+			if current.RelationKind == catalog.MaterializedViewRelation {
 				s.querySources[i].storage = e.privateStorageLocked(s.owner.catalog, source.ref.Address)
 			}
 		}
@@ -719,12 +720,12 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	}
 	current := view.Get(s.lockedRef.Address)
 	if s.lockedIdentityOnly {
-		if _, ok := current.(*relationDescriptor); !ok {
+		if _, ok := current.(*catalog.Relation); !ok {
 			return ids.ErrCatalogReplaced
 		}
 	} else if s.lockedStorage != nil {
-		relation, ok := current.(*relationDescriptor)
-		captured, capturedOK := s.lockedDescriptor.(*relationDescriptor)
+		relation, ok := current.(*catalog.Relation)
+		captured, capturedOK := s.lockedDescriptor.(*catalog.Relation)
 		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
 			return ids.ErrCatalogReplaced
 		}
@@ -753,7 +754,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	return nil
 }
 
-func sameRelationRowShape(a, b *relationDescriptor) bool {
+func sameRelationRowShape(a, b *catalog.Relation) bool {
 	if a == b {
 		return true
 	}

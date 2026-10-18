@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2615}
 	d, ok := c.Relation(a)
@@ -58,7 +58,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, _ := namespaceUnitSource(t, e, c)
-	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
+	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
 		t.Fatal("namespace relation shape", d)
 	}
 	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}
@@ -226,7 +226,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := namespaceUnitSource(t, e, c)
 	foreign := New()
-	reject := func(catalog CatalogRead, roles authorization.Read, r ids.ObjectRef, source *relationDescriptor) {
+	reject := func(catalog CatalogRead, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		e.mu.Lock()
 		rows, err := e.capturePGNamespace(context.Background(), catalog, roles, r, source)

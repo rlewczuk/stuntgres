@@ -6,12 +6,13 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgRangeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgRangeUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3541}
 	d, ok := e.catalog.state.Relation(a)
@@ -27,7 +28,7 @@ func pgRangeUnitFacts() [][7]uint32 {
 		{3912, 1082, 4535, 0, 3122, 3915, 3925}, {3926, 20, 4536, 0, 3124, 3928, 3923},
 	}
 }
-func pgRangeUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][7]uint32 {
+func pgRangeUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][7]uint32 {
 	t.Helper()
 	if len(rows.anonymous) != 6 {
 		t.Fatal("range count", len(rows.anonymous))
@@ -68,9 +69,9 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgRangeUnitSource(t, e)
-	checkDescriptor := func(view CatalogRead, d *relationDescriptor) {
+	checkDescriptor := func(view CatalogRead, d *catalog.Relation) {
 		t.Helper()
-		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
+		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"rngtypid", "rngsubtype", "rngmultitypid", "rngcollation", "rngsubopc", "rngcanonical", "rngsubdiff"} {
@@ -123,7 +124,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	// Keep the unmodified capture for the retained-generation proof.
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*relationDescriptor{nil, {Columns: d.Columns[:6]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
+	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:6]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
 	for _, slot := range []int{0, 5} {
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -292,7 +293,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 	t.Helper()
 	arrived, release := make(chan struct{}), make(chan struct{})
 	for _, descriptor := range entry.catalog.cached.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.Name() != "prepared_boundary_index" {
 			continue
 		}
@@ -433,7 +434,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	}
 	found := false
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
 			root := e.indexRoots[address]
 			if root == nil || len(root.entries) != 2 {
@@ -594,7 +595,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	}
 	losingName := []string{"gid_first", "gid_second"}[loser.owner]
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == losingName {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Name() == losingName {
 			t.Fatal("losing GID catalogue/generator survived")
 		}
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -25,7 +26,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func standaloneComposite(view CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
+func standaloneComposite(view CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
 		name = typeDiagnosticNameAt(view, typ, path)
@@ -37,7 +38,7 @@ func standaloneComposite(view CatalogRead, typ *typeDescriptor, path []ids.Objec
 	if !ok || source.RowType != typ.SQLType.ID() {
 		return nil, fmt.Errorf("stuntgres: missing composite type authority")
 	}
-	if source.RelationKind != compositeRelation {
+	if source.RelationKind != catalog.CompositeRelation {
 		d := sqlError("42809", "type "+name+" is the row type of another table").(*sqlstate.Error)
 		d.Detail = "A typed table must use a stand-alone composite type created with CREATE TYPE."
 		return nil, d
@@ -98,7 +99,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	return columns, declarations, typ, nil
 }
 
-func typedShape(table, source *relationDescriptor) error {
+func typedShape(table, source *catalog.Relation) error {
 	for i, member := range source.Columns {
 		if i >= len(table.Columns) {
 			return sqlError("42804", fmt.Sprintf(`table is missing column "%s"`, member.Name))
@@ -117,11 +118,11 @@ func typedShape(table, source *relationDescriptor) error {
 	return nil
 }
 
-func validateTypedAttachment(view CatalogRead, table *relationDescriptor) error {
+func validateTypedAttachment(view CatalogRead, table *catalog.Relation) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
-	if table.OfType.ClassID != ids.TypeClassID || table.OfType.SubID != 0 || table.RelationKind != tableRelation {
+	if table.OfType.ClassID != ids.TypeClassID || table.OfType.SubID != 0 || table.RelationKind != catalog.TableRelation {
 		return fmt.Errorf("stuntgres: invalid typed attachment")
 	}
 	typ, ok := view.Type(table.OfType)
@@ -143,7 +144,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	old, ok := scope.lockedDescriptor.(*relationDescriptor)
+	old, ok := scope.lockedDescriptor.(*catalog.Relation)
 	if !ok {
 		return fail(ids.ErrCatalogReplaced)
 	}
@@ -217,7 +218,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	return Result{}, err
 }
 
-func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTableAction) error {
+func typedDirectActionsGuard(table *catalog.Relation, actions []parser.AlterTableAction) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -248,7 +249,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		}
 	} else {
 		for _, descriptor := range stage.Descriptors {
-			if table, ok := descriptor.(*relationDescriptor); ok && table.OfType != (ids.ObjectAddress{}) {
+			if table, ok := descriptor.(*catalog.Relation); ok && table.OfType != (ids.ObjectAddress{}) {
 				if sources == nil {
 					sources = make(map[ids.ObjectAddress]bool)
 				}

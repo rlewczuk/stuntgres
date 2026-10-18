@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -14,11 +15,11 @@ type inheritanceAlterEvent struct {
 	attribute      int32
 	constraint     ids.OID
 	validation     bool
-	retiredNotNull []notNullConstraint
-	retiredChecks  []checkConstraint
+	retiredNotNull []catalog.NotNullConstraint
+	retiredChecks  []catalog.CheckConstraint
 }
 
-func (scope *StatementScope) recordInheritanceAlterAction(before, after *relationDescriptor, a parser.AlterTableAction) {
+func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog.Relation, a parser.AlterTableAction) {
 	state := scope.inheritanceAlter
 	if state == nil {
 		return
@@ -40,12 +41,12 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			action.Column = parser.Identifier{Text: before.Columns[slot].Name}
 			event := inheritanceAlterEvent{action: action, attribute: attribute}
 			for _, c := range before.NotNullConstraints {
-				if c.Attribute == attribute && !slices.ContainsFunc(after.NotNullConstraints, func(next notNullConstraint) bool { return next.OID == c.OID }) {
+				if c.Attribute == attribute && !slices.ContainsFunc(after.NotNullConstraints, func(next catalog.NotNullConstraint) bool { return next.OID == c.OID }) {
 					event.retiredNotNull = append(event.retiredNotNull, c)
 				}
 			}
 			for _, c := range before.CheckConstraints {
-				if !slices.ContainsFunc(after.CheckConstraints, func(next checkConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.Dependencies, func(dependency expressionDependency) bool {
+				if !slices.ContainsFunc(after.CheckConstraints, func(next catalog.CheckConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.Dependencies, func(dependency catalog.ExpressionDependency) bool {
 					return dependency.Ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.Address().ObjectID, SubID: attribute}
 				}) {
 					event.retiredChecks = append(event.retiredChecks, c)
@@ -55,7 +56,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 		}
 	case parser.DropConstraint, parser.DropNotNull:
 		for _, old := range before.NotNullConstraints {
-			if !old.NoInherit && !slices.ContainsFunc(after.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == old.Attribute }) {
+			if !old.NoInherit && !slices.ContainsFunc(after.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Attribute == old.Attribute }) {
 				action := a
 				action.Action = parser.DropNotNull
 				action.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(old.Attribute)].Name}
@@ -63,7 +64,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			}
 		}
 		for _, old := range before.CheckConstraints {
-			if !old.NoInherit && !slices.ContainsFunc(after.CheckConstraints, func(c checkConstraint) bool { return c.OID == old.OID }) {
+			if !old.NoInherit && !slices.ContainsFunc(after.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.OID == old.OID }) {
 				action := a
 				action.Action = parser.DropConstraint
 				action.Constraint = parser.Identifier{Text: old.Name}
@@ -80,7 +81,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			if next.NoInherit {
 				continue
 			}
-			index := slices.IndexFunc(before.NotNullConstraints, func(old notNullConstraint) bool { return old.Attribute == next.Attribute })
+			index := slices.IndexFunc(before.NotNullConstraints, func(old catalog.NotNullConstraint) bool { return old.Attribute == next.Attribute })
 			validation := index >= 0 && before.NotNullConstraints[index].NotValid && !next.NotValid
 			if index >= 0 && !validation {
 				continue
@@ -95,13 +96,13 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 	state.events[before.Address()] = events
 }
 
-func (scope *StatementScope) recordInheritanceChecks(before, after *relationDescriptor, raw []*parser.CheckConstraint, start int) {
+func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Relation, raw []*parser.CheckConstraint, start int) {
 	state := scope.inheritanceAlter
 	if state == nil || state.only {
 		return
 	}
 	for _, c := range after.CheckConstraints {
-		if c.NoInherit || c.Ordinal < start || slices.ContainsFunc(before.CheckConstraints, func(old checkConstraint) bool { return old.OID == c.OID }) {
+		if c.NoInherit || c.Ordinal < start || slices.ContainsFunc(before.CheckConstraints, func(old catalog.CheckConstraint) bool { return old.OID == c.OID }) {
 			continue
 		}
 		index := c.Ordinal - start
@@ -126,7 +127,7 @@ func inheritanceEventName(a parser.AlterTableAction) string {
 	return a.Column.Text
 }
 
-func inheritanceParentActions(state *inheritanceAlterState, old *relationDescriptor) []parser.AlterTableAction {
+func inheritanceParentActions(state *inheritanceAlterState, old *catalog.Relation) []parser.AlterTableAction {
 	var actions []parser.AlterTableAction
 	state.validating = nil
 	if old.Inheritance == nil {
@@ -136,7 +137,7 @@ func inheritanceParentActions(state *inheritanceAlterState, old *relationDescrip
 		for _, event := range state.events[parent] {
 			a := event.action
 			if a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint {
-				var origins []inheritanceOrigin
+				var origins []catalog.InheritanceOrigin
 				if a.Action == parser.DropConstraint {
 					origins = old.Inheritance.Checks[a.Constraint.Text].Origins
 				} else if slot, ok := old.Index[a.Column.Text]; ok {
@@ -146,7 +147,7 @@ func inheritanceParentActions(state *inheritanceAlterState, old *relationDescrip
 						origins = old.Inheritance.NotNull[old.Attributes[slot]].Origins
 					}
 				}
-				reached := slices.ContainsFunc(origins, func(origin inheritanceOrigin) bool {
+				reached := slices.ContainsFunc(origins, func(origin catalog.InheritanceOrigin) bool {
 					return origin.Parent == parent && ((a.Action == parser.DropColumn && origin.Attribute == event.attribute) || (a.Action != parser.DropColumn && origin.Constraint == event.constraint))
 				})
 				if !reached {
@@ -200,7 +201,7 @@ func inheritanceActionPass(action parser.AlterTableActionKind) int {
 	}
 }
 
-func inheritanceRemovedOrigin(state *inheritanceAlterState, origin inheritanceOrigin, kind parser.AlterTableActionKind) bool {
+func inheritanceRemovedOrigin(state *inheritanceAlterState, origin catalog.InheritanceOrigin, kind parser.AlterTableActionKind) bool {
 	for _, event := range state.events[origin.Parent] {
 		if event.action.Action != kind {
 			continue
@@ -244,18 +245,18 @@ func (scope *StatementScope) inheritanceNotNullMode(column string) notNullRecurs
 
 // ONLY's fresh-fact prohibition uses the actual phase input, including earlier
 // DROP effects. Existing compatible facts can still merge/localize genuinely.
-func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *relationDescriptor) error {
+func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *catalog.Relation) error {
 	state := scope.inheritanceAlter
 	if state == nil || !state.only || state.descendant || len(state.targets) < 2 {
 		return nil
 	}
 	for _, fact := range after.NotNullConstraints {
-		if !fact.NoInherit && !slices.ContainsFunc(before.NotNullConstraints, func(old notNullConstraint) bool { return old.Attribute == fact.Attribute }) {
+		if !fact.NoInherit && !slices.ContainsFunc(before.NotNullConstraints, func(old catalog.NotNullConstraint) bool { return old.Attribute == fact.Attribute }) {
 			return sqlError("42P16", "constraint must be added to child tables too")
 		}
 	}
 	for _, fact := range after.CheckConstraints {
-		if !fact.NoInherit && !slices.ContainsFunc(before.CheckConstraints, func(old checkConstraint) bool { return old.Name == fact.Name }) {
+		if !fact.NoInherit && !slices.ContainsFunc(before.CheckConstraints, func(old catalog.CheckConstraint) bool { return old.Name == fact.Name }) {
 			return sqlError("42P16", "constraint must be added to child tables too")
 		}
 	}

@@ -55,24 +55,24 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	memberUpdate := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.member}, Privileges: authorization.UpdatePrivilege}
 	specs := []struct {
 		name string
-		kind relationKind
+		kind catalog.RelationKind
 		acl  authorization.ACLValue
 	}{
-		{"proof_absent", tableRelation, authorization.ACLValue{}},
-		{"proof_named", viewRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{ownerSelect, defaultUnitReaderEntry(f, authorization.SelectPrivilege, authorization.SelectPrivilege), publicInsert}}},
-		{"proof_empty", tableRelation, authorization.ACLValue{Explicit: true}},
-		{"proof_partition", partitionedRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
-		{"proof_member", tableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{memberUpdate}}},
-		{"proof_update_only", tableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UpdatePrivilege, 0)}}},
-		{"proof_maintain", tableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.MaintainPrivilege, authorization.MaintainPrivilege)}}},
-		{"proof_column_only", tableRelation, authorization.ACLValue{Explicit: true}},
-		{"proof_mv", materializedViewRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
-		{"proof_sequence", sequenceRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
-		{"proof_index", indexRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
-		{"proof_composite", compositeRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_absent", catalog.TableRelation, authorization.ACLValue{}},
+		{"proof_named", catalog.ViewRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{ownerSelect, defaultUnitReaderEntry(f, authorization.SelectPrivilege, authorization.SelectPrivilege), publicInsert}}},
+		{"proof_empty", catalog.TableRelation, authorization.ACLValue{Explicit: true}},
+		{"proof_partition", catalog.PartitionedRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_member", catalog.TableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{memberUpdate}}},
+		{"proof_update_only", catalog.TableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UpdatePrivilege, 0)}}},
+		{"proof_maintain", catalog.TableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.MaintainPrivilege, authorization.MaintainPrivilege)}}},
+		{"proof_column_only", catalog.TableRelation, authorization.ACLValue{Explicit: true}},
+		{"proof_mv", catalog.MaterializedViewRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_sequence", catalog.SequenceRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_index", catalog.IndexRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_composite", catalog.CompositeRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
 	}
 	for i, spec := range specs {
-		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, ObjectNamespace: f.schema, ObjectName: spec.name, Owner: f.owner, ObjectRevision: 2, RelationKind: spec.kind, ACL: spec.acl}
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, ObjectNamespace: f.schema, ObjectName: spec.name, Owner: f.owner, ObjectRevision: 2, RelationKind: spec.kind, ACL: spec.acl}
 		if spec.name == "proof_column_only" {
 			d.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}

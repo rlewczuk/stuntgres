@@ -26,7 +26,7 @@ type materializedSnapshot struct {
 	Rows      string `json:"rows"`
 }
 
-func materializedViewReadError(d *relationDescriptor) error {
+func materializedViewReadError(d *catalog.Relation) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.Name()), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
 }
 
@@ -189,7 +189,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		return err
 	}
 	type imported struct {
-		descriptor *relationDescriptor
+		descriptor *catalog.Relation
 		rows       [][]sqltype.Value
 		populated  bool
 	}
@@ -206,7 +206,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
 		address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name})
 		d, ok := e.catalog.state.Relation(address)
-		valid := ok && d.RelationKind == materializedViewRelation && !d.Populated && !seen[address]
+		valid := ok && d.RelationKind == catalog.MaterializedViewRelation && !d.Populated && !seen[address]
 		e.mu.Unlock()
 		if !valid {
 			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)

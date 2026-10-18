@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -34,7 +35,7 @@ type exclusionModes struct {
 	events              []exclusionEvent
 }
 
-func (m exclusionModes) deferred(c *exclusionConstraint) bool {
+func (m exclusionModes) deferred(c *catalog.ExclusionConstraint) bool {
 	if !c.Deferrable {
 		return false
 	}
@@ -46,7 +47,7 @@ func (m exclusionModes) deferred(c *exclusionConstraint) bool {
 	}
 	return c.InitiallyDeferred
 }
-func exclusionDefinition(parent *relationDescriptor, index *relationDescriptor) *exclusionConstraint {
+func exclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *catalog.ExclusionConstraint {
 	for i := range parent.ExclusionConstraints {
 		c := &parent.ExclusionConstraints[i]
 		if c.Index == index.Address() && c.OID == index.SQLIndex.Constraint.OID {
@@ -55,18 +56,18 @@ func exclusionDefinition(parent *relationDescriptor, index *relationDescriptor) 
 	}
 	return nil
 }
-func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (indexOrdering, error) {
-	if d.Method == gistMethod {
+func bindExclusionOrdering(parent *catalog.Relation, d *catalog.IndexDefinition) (indexOrdering, error) {
+	if d.Method == catalog.GistMethod {
 		return bindLogicalExclusionKeys(parent, d)
 	}
-	if d.Method == btreeMethod {
+	if d.Method == catalog.BtreeMethod {
 		return bindIndexOrdering(parent, d)
 	}
 	// The supported HASH equality has the same concrete scalar comparison as
 	// its default Btree class. This is a comparator binding, not an index or a
 	// UNIQUE owner, and HASH storage continues to use its actual provider.
 	copy := *d
-	copy.Method = btreeMethod
+	copy.Method = catalog.BtreeMethod
 	copy.Keys = slices.Clone(d.Keys)
 	for i, key := range copy.Keys {
 		u, err := indexKeyUsage(parent, key)
@@ -81,7 +82,7 @@ func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (inde
 	}
 	return bindIndexOrdering(parent, &copy)
 }
-func exclusionKeysMatch(ctx context.Context, d *indexDefinition, left, right []sqltype.Value) (bool, error) {
+func exclusionKeysMatch(ctx context.Context, d *catalog.IndexDefinition, left, right []sqltype.Value) (bool, error) {
 	for i, operator := range d.Exclusion {
 		match, err := operator.Matches(ctx, left[i], right[i])
 		if err != nil || !match {
@@ -151,7 +152,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		return rowVersion{}, err
 	}
 	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
+	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() || bound.index.SQLIndex.Method == catalog.HashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
@@ -271,7 +272,7 @@ type exclusionScan struct {
 	ends            *deletionRoot
 }
 
-func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *uniqueWriteBinding, index *relationDescriptor) (exclusionScan, error) {
+func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *uniqueWriteBinding, index *catalog.Relation) (exclusionScan, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()

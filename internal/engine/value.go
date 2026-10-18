@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ func literalTypeName(raw parser.Value) string {
 	return "unknown"
 }
 
-func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []ColumnDescriptor, visible []int, relation *relationDescriptor) (string, error) {
+func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []ColumnDescriptor, visible []int, relation *catalog.Relation) (string, error) {
 	var b strings.Builder
 	b.WriteString("Failing row contains (")
 	if columns != nil {
@@ -52,7 +53,7 @@ func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, col
 			b.WriteString(", ")
 		}
 		if relation != nil {
-			if definition, ok := relation.Generations[relation.Attributes[index]]; ok && definition.Kind == generationVirtual {
+			if definition, ok := relation.Generations[relation.Attributes[index]]; ok && definition.Kind == catalog.GenerationVirtual {
 				b.WriteString("virtual")
 				continue
 			}

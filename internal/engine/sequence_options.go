@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -44,8 +45,8 @@ func sequenceDefaults(id sqltype.ID, inc int64) (int64, int64) {
 func sequenceOptionError(format string, args ...any) error {
 	return sqlError("22023", fmt.Sprintf(format, args...))
 }
-func bindSequenceOptions(old *sequenceOptions, state sequenceGenerator, raw []parser.SequenceOption) (sequenceOptions, *int64, error) {
-	o := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Cache: 1, Persistence: "logged"}
+func bindSequenceOptions(old *catalog.SequenceOptions, state sequenceGenerator, raw []parser.SequenceOption) (catalog.SequenceOptions, *int64, error) {
+	o := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Cache: 1, Persistence: "logged"}
 	if old != nil {
 		o = *old
 	}
@@ -154,7 +155,7 @@ func bindSequenceOptions(old *sequenceOptions, state sequenceGenerator, raw []pa
 	}
 	return o, restart, nil
 }
-func sequenceBoundOption(name string, v int64, o sequenceOptions) error {
+func sequenceBoundOption(name string, v int64, o catalog.SequenceOptions) error {
 	if v < o.Min {
 		return sequenceOptionError("%s value (%d) cannot be less than MINVALUE (%d)", name, v, o.Min)
 	}
@@ -169,7 +170,7 @@ func sequenceBoundOption(name string, v int64, o sequenceOptions) error {
 func sequenceDistance(a, b int64) uint64 {
 	return (uint64(b) ^ uint64(1<<63)) - (uint64(a) ^ uint64(1<<63))
 }
-func sequenceStep(o sequenceOptions, v int64) (int64, bool) {
+func sequenceStep(o catalog.SequenceOptions, v int64) (int64, bool) {
 	if o.Increment > 0 {
 		if sequenceDistance(v, o.Max) < uint64(o.Increment) {
 			return o.Min, false
@@ -182,7 +183,7 @@ func sequenceStep(o sequenceOptions, v int64) (int64, bool) {
 	}
 	return v + o.Increment, true
 }
-func reserveSequence(o sequenceOptions, g *sequenceGenerator, name string) (int64, uint64, error) {
+func reserveSequence(o catalog.SequenceOptions, g *sequenceGenerator, name string) (int64, uint64, error) {
 	first := g.last
 	if g.called {
 		v, ok := sequenceStep(o, first)

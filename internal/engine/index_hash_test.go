@@ -5,16 +5,17 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func hashRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *hashIndexRoot) {
+func hashRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *hashIndexRoot) {
 	t.Helper()
 	index, carrier := btreeRoot(t, e, name)
-	if index.SQLIndex.Method != hashMethod || carrier.hash == nil || len(carrier.entries) != 0 {
+	if index.SQLIndex.Method != catalog.HashMethod || carrier.hash == nil || len(carrier.entries) != 0 {
 		t.Fatal("not a hash root", index, carrier)
 	}
 	return index, carrier.hash
@@ -108,7 +109,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	}
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
 	bad := *index.SQLIndex
-	bad.Keys = append([]indexKey(nil), bad.Keys...)
+	bad.Keys = append([]catalog.IndexKey(nil), bad.Keys...)
 	bad.Keys[0].Class, _ = sqltype.LookupHashIndexClass("int8_ops")
 	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage[parent.Address()], true, nil); err == nil {
 		t.Fatal("empty build did not eagerly reject provider")
@@ -192,7 +193,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 		}
 	}
 	backing, _ := btreeRoot(t, source, "u_n_key")
-	if backing.SQLIndex.Method != btreeMethod {
+	if backing.SQLIndex.Method != catalog.BtreeMethod {
 		t.Fatal("UNIQUE changed method")
 	}
 	_, old := hashRoot(t, source, "hn")
@@ -260,9 +261,9 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if err := e.prepareRowPublication(&p, ids.TxRef{}, materialize); err != nil {
 				t.Fatal(err)
 			}
-			var intents map[ids.ObjectAddress]*relationDescriptor
+			var intents map[ids.ObjectAddress]*catalog.Relation
 			if rebuild {
-				intents = map[ids.ObjectAddress]*relationDescriptor{index.Address(): index}
+				intents = map[ids.ObjectAddress]*catalog.Relation{index.Address(): index}
 			}
 			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage, e.catalog.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {

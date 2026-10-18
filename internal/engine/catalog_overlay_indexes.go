@@ -3,11 +3,12 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 type catalogOverlayIndex struct {
-	index, parent *relationDescriptor
+	index, parent *catalog.Relation
 	store         relationStorage
 }
 
@@ -31,7 +32,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	auth.recaptureCatalog(auth.catalog)
 	var captures []catalogOverlayIndex
 	for a, d := range view.Descriptors() {
-		index, ok := d.(*relationDescriptor)
+		index, ok := d.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}

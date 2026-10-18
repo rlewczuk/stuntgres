@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,8 +55,8 @@ type sqlCursor struct {
 	locks                                       *queryLockContext
 	catalog                                     CatalogRead
 	roles                                       authorization.Read
-	routineDependencies                         []expressionDependency // Original immutable binding lifetimes, not permissions.
-	routineAuth                                 AuthorizationView      // DECLARE's initialized executor, not cached permission results.
+	routineDependencies                         []catalog.ExpressionDependency // Original immutable binding lifetimes, not permissions.
+	routineAuth                                 AuthorizationView              // DECLARE's initialized executor, not cached permission results.
 	deparseAuth                                 AuthorizationView
 	deparsePath                                 []ids.ObjectAddress
 	collationPath                               []ids.ObjectAddress

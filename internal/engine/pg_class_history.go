@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // Visit only owned graph edges. An ordinary index's table is not its subclass
 // parent; attached indexes use the separate partitionParent identity.
-func visitSubclassParents(child *relationDescriptor, visit func(ids.ObjectAddress) error) error {
+func visitSubclassParents(child *catalog.Relation, visit func(ids.ObjectAddress) error) error {
 	if child.Inheritance != nil {
 		for _, parent := range child.Inheritance.Parents {
 			if err := visit(parent); err != nil {
@@ -32,7 +33,7 @@ func visitSubclassParents(child *relationDescriptor, visit func(ids.ObjectAddres
 
 func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 	for _, descriptor := range stage.Descriptors {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -41,7 +42,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 			if !staged {
 				descriptor = stage.Base.Get(address)
 			}
-			parent, ok := descriptor.(*relationDescriptor)
+			parent, ok := descriptor.(*catalog.Relation)
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}
@@ -75,7 +76,7 @@ func normalizeReplacementSubclassHistory(ctx context.Context, view CatalogRead) 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}

@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func droppedConstraint(parent *relationDescriptor, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
+func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
 	if action.Action == parser.DropConstraint {
 		for _, c := range parent.UniqueConstraints {
 			if c.Name == action.Constraint.Text {
@@ -36,7 +37,7 @@ func droppedConstraint(parent *relationDescriptor, action parser.AlterTableActio
 // Remove retains the original reference/name observations and locks the engine;
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
-func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *relationDescriptor, actions []parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, *CatalogStage, error) {
+func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *catalogChanges) (*catalog.Relation, *CatalogStage, error) {
 	if !hasDroppedConstraintIndexes(old, actions) {
 		return next, stage, nil
 	}
@@ -48,7 +49,7 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 	return next, stage, err
 }
 
-func hasDroppedConstraintIndexes(old *relationDescriptor, actions []parser.AlterTableAction) bool {
+func hasDroppedConstraintIndexes(old *catalog.Relation, actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
 		if constraint, _ := droppedConstraint(old, action); constraint != (ids.ObjectAddress{}) {
 			return true
@@ -59,7 +60,7 @@ func hasDroppedConstraintIndexes(old *relationDescriptor, actions []parser.Alter
 
 // The same ordered provider retires named constraint identities, including
 // constraints without backing indexes, during staging and pure preparation.
-func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor, actions []parser.AlterTableAction) (*relationDescriptor, error) {
+func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, actions []parser.AlterTableAction) (*catalog.Relation, error) {
 	for _, action := range actions {
 		constraint, address := droppedConstraint(old, action)
 		if constraint == (ids.ObjectAddress{}) {
@@ -83,12 +84,12 @@ func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor
 			return next, err
 		}
 		// CASCADE can remove a self-reference from this same parent.
-		next = provider.descriptor(old.Address()).(*relationDescriptor)
+		next = provider.descriptor(old.Address()).(*catalog.Relation)
 	}
 	return next, nil
 }
 
-func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *relationDescriptor, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
+func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
 	if !hasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}

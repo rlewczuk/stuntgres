@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -84,7 +85,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		captures[i].storage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if ref != childRef {
 			parent, ok := auth.catalog.Relation(ref.Address)
-			if ok && parent.RelationKind == tableRelation {
+			if ok && parent.RelationKind == catalog.TableRelation {
 				var attributes []int32
 				if len(action.ForeignKey.Referenced) == 0 {
 					for _, key := range parent.UniqueConstraints {
@@ -166,7 +167,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 
 // Only definitions introduced by this ALTER get an initial historical scan.
 // The ordinary Finish checker remains responsible for genuine later writes.
-func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relationDescriptor, added []ids.OID) error {
+func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *catalog.Relation, added []ids.OID) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -208,7 +209,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 	return nil
 }
 
-func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f foreignKeyConstraint) bool {
+func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f catalog.ForeignKeyConstraint) bool {
 	parent, ok := stage.Base.Relation(address)
 	if !ok {
 		return false

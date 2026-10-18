@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -328,7 +329,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if err := appendBoundTree(ctx, &before, stored); err != nil {
 		t.Fatal(err)
 	}
-	d := &relationDescriptor{CheckConstraints: []checkConstraint{{Name: "a_row", Expression: column}, {Name: "b_null", Expression: stored}}}
+	d := &catalog.Relation{CheckConstraints: []catalog.CheckConstraint{{Name: "a_row", Expression: column}, {Name: "b_null", Expression: stored}}}
 	oldRow := []sqltype.Value{falseValue}
 	eval := &EvalContext{Context: ctx, Scope: 9, Frame: 7, Row: oldRow}
 	for i := 0; i < 2; i++ {
@@ -366,7 +367,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.preparedChecks[d][0] == first {
 		t.Fatal("new command inherited executable CHECK cache", failed, err)
 	}
-	plain := &relationDescriptor{CheckConstraints: []checkConstraint{{Name: "plain", Expression: trueNode}}}
+	plain := &catalog.Relation{CheckConstraints: []catalog.CheckConstraint{{Name: "plain", Expression: trueNode}}}
 	if failed, err := validateCheckRow(plain, nil, eval); err != nil || failed != nil {
 		t.Fatal(failed, err)
 	}
@@ -374,7 +375,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 		t.Fatal("unchanged CHECK preparation allocated an expression slice", nodes, ok)
 	}
 	emptyEval := &EvalContext{}
-	if failed, err := validateCheckRow(&relationDescriptor{}, nil, emptyEval); err != nil || failed != nil || emptyEval.preparedChecks != nil {
+	if failed, err := validateCheckRow(&catalog.Relation{}, nil, emptyEval); err != nil || failed != nil || emptyEval.preparedChecks != nil {
 		t.Fatal("no-CHECK path initialized preparation state", failed, err)
 	}
 }
@@ -391,7 +392,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 			t.Fatal("immutable CHECK child must remain analyzed until execution preparation", err)
 		}
 	}
-	d := &relationDescriptor{CheckConstraints: []checkConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}
+	d := &catalog.Relation{CheckConstraints: []catalog.CheckConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}
 	eval := &EvalContext{Context: ctx, Scope: 9, Frame: 7}
 	failed, err := validateCheckRow(d, nil, eval)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})

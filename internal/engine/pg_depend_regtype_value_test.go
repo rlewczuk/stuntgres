@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.ID())}
 	relationAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(row.ID())}
 	view.State().SetDescriptor(rowAddress, &typeDescriptor{SQLType: row, OwningRelation: relationAddress})
-	view.State().SetDescriptor(relationAddress, &relationDescriptor{ObjectAddress: relationAddress, RowType: row.ID()})
+	view.State().SetDescriptor(relationAddress, &catalog.Relation{ObjectAddress: relationAddress, RowType: row.ID()})
 	value := func(id ids.OID) sqltype.Value {
 		t.Helper()
 		v, err := sqltype.RegtypeValue(regtype, uint32(id))

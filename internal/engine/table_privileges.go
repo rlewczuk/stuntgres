@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,7 @@ func (e *Engine) initializeTablePrivileges() error {
 // This is an ACL-origin projection, not an effective-rights summary: owner
 // authority supplies grantability, never an invented origin on an explicit ACL.
 // All catalog, roles and actor inputs belong to the same immutable statement.
-func captureTablePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureTablePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -67,8 +68,8 @@ func captureTablePrivileges(ctx context.Context, view CatalogRead, auth Authoriz
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != catalogRelation && relation.RelationKind != foreignRelation {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation && relation.RelationKind != catalog.ViewRelation && relation.RelationKind != catalog.CatalogRelation && relation.RelationKind != catalog.ForeignRelation {
 			continue
 		}
 		namespace := view.Get(relation.Namespace())

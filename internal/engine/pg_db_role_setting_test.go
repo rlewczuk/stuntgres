@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2964}
 	d, ok := catalog.Relation(address)
@@ -40,7 +41,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgDBRoleSettingUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
+	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}

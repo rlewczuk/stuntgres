@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -144,9 +145,9 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	defer roleExecute(t, e, reader, "ROLLBACK")
 	roleExecute(t, e, reader, "CREATE TEMP TABLE late OF pair")
 	private := reader.session.transactions.catalog
-	var relation *relationDescriptor
+	var relation *catalog.Relation
 	for _, d := range private.descriptors {
-		if table, ok := d.(*relationDescriptor); ok && table.Name() == "late" {
+		if table, ok := d.(*catalog.Relation); ok && table.Name() == "late" {
 			relation = table
 		}
 	}

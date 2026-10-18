@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -224,8 +225,8 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 }
 
 type foreignKeyJob struct {
-	child, parent, index   *relationDescriptor
-	definition             foreignKeyConstraint
+	child, parent, index   *catalog.Relation
+	definition             catalog.ForeignKeyConstraint
 	comparisons            []foreignKeyComparison
 	childKey               []sqltype.Value // Reused across final rows and waited probes.
 	deletePlan, updatePlan *foreignActionPlan

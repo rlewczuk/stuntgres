@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -191,7 +192,7 @@ func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) [
 func ruleDependentLabelsFrom(view CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || slices.Contains(targets, d.Address()) {
 			continue
 		}
@@ -225,7 +226,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}

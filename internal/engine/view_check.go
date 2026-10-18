@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/sqlstate"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/sqlstate"
+)
 
 type viewCheckMode uint8
 
@@ -11,7 +14,7 @@ const (
 )
 
 func validateViewCheckDeclaration(definition *viewDefinition) error {
-	project, source, _, reason := viewWriteShape(&relationDescriptor{View: viewPayloadOf(definition)})
+	project, source, _, reason := viewWriteShape(&catalog.Relation{View: viewPayloadOf(definition)})
 	if reason == "" {
 		reason = "Views that have no updatable columns are not automatically updatable."
 		for _, expr := range project.expressions {

@@ -5,17 +5,18 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
 type partitionUniqueReplay struct {
-	target      *relationDescriptor
+	target      *catalog.Relation
 	syntax      *parser.AlterTable
 	definition  *parser.UniqueConstraint
 	snapshot    parser.UniqueConstraint
-	descriptors []*relationDescriptor
+	descriptors []*catalog.Relation
 }
 
 // This origin belongs to one private-import operation and one captured definition,
@@ -61,9 +62,9 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if chosen == nil || chosen.Address() != table.Address() {
 		return nil
 	}
-	var selected *relationDescriptor
+	var selected *catalog.Relation
 	for _, descriptor := range auth.catalog.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !partitionIndexPreservedInvalid(auth.catalog, index) {
 			continue
 		}
@@ -83,11 +84,11 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if selected == nil {
 		return nil
 	}
-	captured := &partitionUniqueReplay{target: table, syntax: raw, definition: definition, snapshot: *definition, descriptors: []*relationDescriptor{parent, selected}}
+	captured := &partitionUniqueReplay{target: table, syntax: raw, definition: definition, snapshot: *definition, descriptors: []*catalog.Relation{parent, selected}}
 	captured.snapshot.Columns = slices.Clone(definition.Columns)
 	tables := make(map[ids.ObjectAddress]bool)
-	var capture func(*relationDescriptor) bool
-	capture = func(node *relationDescriptor) bool {
+	var capture func(*catalog.Relation) bool
+	capture = func(node *catalog.Relation) bool {
 		if node.Inheritance != nil {
 			return false
 		}
@@ -114,7 +115,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 		return nil
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && tables[index.SQLIndex.Parent] {
 			captured.descriptors = append(captured.descriptors, index)
 		}
@@ -123,7 +124,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	return nil
 }
 
-func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *relationDescriptor) bool {
+func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
 	if op == nil || raw == nil || op.restorePartitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
 		return false
 	}
@@ -146,7 +147,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
 // recursive virtual-index producer, validator and Finish overlay own all effects.
-func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *relationDescriptor) (Result, error) {
+func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
 	origin := op.restorePartitionUnique
 	e.mu.Unlock()

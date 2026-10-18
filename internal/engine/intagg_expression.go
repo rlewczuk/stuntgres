@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -84,7 +85,7 @@ func (r installedExtensionRoutine) intaggIdentity() (*procedureDescriptor, ids.O
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
 	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
-	r.binder.dependencies = append(r.binder.dependencies, expressionDependency{Ref: ref, Revision: p.Revision()})
+	r.binder.dependencies = append(r.binder.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()})
 	return p, ref, nil
 }
 

@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, upper int64) *partitionMembership {
+func partitionAttachUnitRange(t *testing.T, parent *catalog.Relation, lower, upper int64) *catalog.PartitionMembership {
 	t.Helper()
 	lo, err := sqltype.Integer(parent.Columns[0].Usage.Type, lower)
 	if err != nil {
@@ -26,7 +26,7 @@ func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, u
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &partitionMembership{Parent: parent.Address(), Lower: []partitionDatum{{Value: lo}}, Upper: []partitionDatum{{Value: hi}}}
+	return &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: lo}}, Upper: []catalog.PartitionDatum{{Value: hi}}}
 }
 
 func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode lock.Mode) {
@@ -96,11 +96,11 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_growth_parent", 46100)
 			old := inheritanceUnitRelation(e, "attach_growth_old", 46101, "k")
-			old.RelationKind = tableRelation
+			old.RelationKind = catalog.TableRelation
 			old.Membership = partitionAttachUnitRange(t, parent, 20, 30)
 			parent.Partition.Children = []ids.ObjectAddress{old.Address()}
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
-			candidate.RelationKind = tableRelation
+			candidate.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
 			parent = e.catalog.state.MustRelation(parent.Address())
 			old = e.catalog.state.MustRelation(old.Address())
@@ -169,10 +169,10 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			captured := reader.partitionCaptureCatalog(e.CatalogRead())
 			var admitted, fresh []ids.ObjectAddress
-			if err := partitionPhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *relationDescriptor) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
+			if err := partitionPhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *catalog.Relation) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *relationDescriptor) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
+			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *catalog.Relation) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Equal(admitted, []ids.ObjectAddress{old.Address()}) || !slices.Equal(fresh, []ids.ObjectAddress{old.Address(), candidate.Address()}) {
@@ -195,8 +195,8 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			parent := partitionAttachUnitRoot(t, e, "attach_frontier_parent", 46110)
 			target := partitionAttachUnitRoot(t, e, "attach_frontier_target", 46111)
 			leaf := inheritanceUnitRelation(e, "attach_frontier_leaf", 46112, "k")
-			leaf.RelationKind = tableRelation
-			leaf.Membership = &partitionMembership{Parent: target.Address(), DefaultBound: true}
+			leaf.RelationKind = catalog.TableRelation
+			leaf.Membership = &catalog.PartitionMembership{Parent: target.Address(), DefaultBound: true}
 			target.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 			target.Partition.DefaultChild = leaf.Address()
 			view := inheritanceUnitView(e, parent, target, leaf)
@@ -225,7 +225,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				proof = logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalAnd, left: nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, right: bounds}
 			}
 			if mode != "default_unproven" {
-				check := checkConstraint{OID: 46113, Name: "frontier_proof", Expression: proof}
+				check := catalog.CheckConstraint{OID: 46113, Name: "frontier_proof", Expression: proof}
 				var dependencies []ids.ObjectRef
 				if _, err := (scalarRenderer{owner: target, dependencies: &dependencies}).sql(context.Background(), view, proof); err != nil {
 					t.Fatal(err)
@@ -237,9 +237,9 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 					if !ok {
 						t.Fatal("missing real cooked dependency", address)
 					}
-					check.Dependencies = append(check.Dependencies, expressionDependency{Ref: dependency, Revision: d.Revision()})
+					check.Dependencies = append(check.Dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: d.Revision()})
 				}
-				target.CheckConstraints = []checkConstraint{check}
+				target.CheckConstraints = []catalog.CheckConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
 			parent = e.catalog.state.MustRelation(parent.Address())

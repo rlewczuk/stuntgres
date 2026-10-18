@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -11,8 +12,8 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	e := source.restoreStage()
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
-	child.RelationKind = tableRelation
-	child.Membership = &partitionMembership{Parent: parent.Address(), DefaultBound: true}
+	child.RelationKind = catalog.TableRelation
+	child.Membership = &catalog.PartitionMembership{Parent: parent.Address(), DefaultBound: true}
 	parent.Partition.Children = []ids.ObjectAddress{child.Address()}
 	parent.Partition.DefaultChild = child.Address()
 	partitionAttachUnitInstall(t, e, parent, child)

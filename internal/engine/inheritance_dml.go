@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -31,7 +32,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		if root.RelationKind != tableRelation {
+		if root.RelationKind != catalog.TableRelation {
 			e.mu.Unlock()
 			return nil
 		}
@@ -42,7 +43,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 		var pending []queryLeaf
-		err := inheritanceQueryClosure(view, root, s.op.session.token, func(child *relationDescriptor) error {
+		err := inheritanceQueryClosure(view, root, s.op.session.token, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}

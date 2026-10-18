@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -371,12 +372,12 @@ func (e *Engine) initializeCatalogSources() error {
 	return e.initializeDataTypePrivileges()
 }
 
-func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *relationDescriptor {
+func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]ColumnDescriptor, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]ColumnDescriptor, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
-func (e *Engine) registerCatalogSource(d *relationDescriptor) {
+func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 	initializeCatalogAttributes(d)
 	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
 		row := e.catalog.state.MustType(address)
@@ -391,7 +392,7 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if source.Address().ObjectID == pgTypeOID {
 		return e.capturePGType(ctx, view, roles, ref, source)
 	}
@@ -469,9 +470,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRea
 	if source.Address().ObjectID == 12000 || source.Address().ObjectID == 12003 {
 		return e.captureTableViewSummary(ctx, view, roles, ref, source, viewPresentation{})
 	}
-	var relations []*relationDescriptor
+	var relations []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			relations = append(relations, relation)
 		}
 	}
@@ -541,7 +542,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRea
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
 
-func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescriptor, name string, attribute int32, check bool) (bool, int64) {
+func nonuniqueConstraintProvenance(catalog CatalogRead, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
 	if graph := table.Inheritance; graph != nil {
 		provenance, exists := graph.NotNull[attribute]
 		if check {

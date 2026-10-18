@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -17,7 +18,7 @@ type pgSequencesSource struct {
 	predicates []expr.Expr
 }
 
-func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	base := e.catalog.state
 	if scope.owner.sequenceCatalog != nil {
 		base = scope.owner.sequenceCatalog
@@ -29,8 +30,8 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		if err := scope.op.Context().Err(); err != nil {
 			return err
 		}
-		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.RelationKind != sequenceRelation {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RelationKind != catalog.SequenceRelation {
 			return nil
 		}
 		namespace := base.Get(relation.Namespace())
@@ -117,7 +118,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	auth.catalog = e.privateCatalogLocked(p.scope.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
 	relation, ok := auth.catalog.Relation(ref.Address)
-	if !ok || relation.RelationKind != sequenceRelation {
+	if !ok || relation.RelationKind != catalog.SequenceRelation {
 		return sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 	}
 	rights, err := auth.Effective(ref, false)

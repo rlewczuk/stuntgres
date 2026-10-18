@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -8,7 +9,7 @@ import (
 
 // Closure is physical-identity deduplication within one SQL occurrence. A foreign
 // session's temporary branch is not admitted, even through a persistent ancestor.
-func inheritanceQueryClosure(view CatalogRead, root *relationDescriptor, token ids.SessionToken, visit func(*relationDescriptor) error) error {
+func inheritanceQueryClosure(view CatalogRead, root *catalog.Relation, token ids.SessionToken, visit func(*catalog.Relation) error) error {
 	if err := visit(root); err != nil {
 		return err
 	}
@@ -17,8 +18,8 @@ func inheritanceQueryClosure(view CatalogRead, root *relationDescriptor, token i
 		return nil
 	}
 	seen := map[ids.ObjectAddress]bool{root.Address(): true}
-	var walk func([]*relationDescriptor) error
-	walk = func(children []*relationDescriptor) error {
+	var walk func([]*catalog.Relation) error
+	walk = func(children []*catalog.Relation) error {
 		for _, child := range children {
 			if seen[child.Address()] {
 				continue
@@ -54,7 +55,7 @@ func inheritanceQueryLeaves(view CatalogRead, roots []queryLeaf, token ids.Sessi
 			return ids.ErrCatalogReplaced
 		}
 		leaf.relation = d
-		if d.RelationKind == viewRelation {
+		if d.RelationKind == catalog.ViewRelation {
 			for _, address := range active {
 				if address == d.Address() {
 					return nil
@@ -76,10 +77,10 @@ func inheritanceQueryLeaves(view CatalogRead, roots []queryLeaf, token ids.Sessi
 			}
 			return nil
 		}
-		if d.RelationKind != tableRelation || leaf.only {
+		if d.RelationKind != catalog.TableRelation || leaf.only {
 			return visit(leaf)
 		}
-		return inheritanceQueryClosure(view, d, token, func(physical *relationDescriptor) error {
+		return inheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
 			child := leaf
 			child.ref.Address, child.relation = physical.Address(), physical
 			return visit(child)
@@ -135,7 +136,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		}
 		var pending []queryLeaf
 		err := inheritanceQueryLeaves(view, roots, s.op.session.token, func(leaf queryLeaf) error {
-			if leaf.relation.RelationKind != tableRelation {
+			if leaf.relation.RelationKind != catalog.TableRelation {
 				return nil
 			}
 			mode := lock.AccessShare
@@ -145,7 +146,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == catalog.TableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}

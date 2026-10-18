@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -39,11 +40,11 @@ func rangePartitionRetirementFixture(t *testing.T, s *Session, commitFixture boo
 	}
 }
 
-func rangePartitionRetirementDescriptors(t *testing.T, view CatalogRead) (*relationDescriptor, *relationDescriptor) {
+func rangePartitionRetirementDescriptors(t *testing.T, view CatalogRead) (*catalog.Relation, *catalog.Relation) {
 	t.Helper()
-	var provider, root *relationDescriptor
+	var provider, root *catalog.Relation
 	for _, d := range view.Descriptors() {
-		if r, ok := d.(*relationDescriptor); ok {
+		if r, ok := d.(*catalog.Relation); ok {
 			switch r.Name() {
 			case "rp_retire_provider":
 				provider = r

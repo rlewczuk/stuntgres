@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -358,7 +359,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				var indexAddress ids.ObjectAddress
 				for address, descriptor := range e.catalog.state.Descriptors() {
-					if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.Parent == ref.Address && index.SQLIndex.Unique {
+					if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == ref.Address && index.SQLIndex.Unique {
 						indexAddress = address
 					}
 				}

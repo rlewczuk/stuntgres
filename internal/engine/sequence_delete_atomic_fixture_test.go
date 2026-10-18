@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -132,7 +133,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}
-			if r, ok := d.(*relationDescriptor); ok && r.Name() == "first_temp" {
+			if r, ok := d.(*catalog.Relation); ok && r.Name() == "first_temp" {
 				temps++
 				if tx.catalog.generators[a] == nil || s.Engine().sequences[a] != nil {
 					t.Fatal("TEMP generator is not private")

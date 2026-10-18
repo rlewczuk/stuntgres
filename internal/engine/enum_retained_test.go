@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -65,15 +66,15 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
 			b.queryAuth = &auth
 			var defaults []expr.Expr
-			var generations map[int32]columnGeneration
-			var checks []checkConstraint
+			var generations map[int32]catalog.ColumnGeneration
+			var checks []catalog.CheckConstraint
 			switch route {
 			case "default":
 				defaults = []expr.Expr{nested}
 			case "generation":
-				generations = map[int32]columnGeneration{1: {Planned: nested}}
+				generations = map[int32]catalog.ColumnGeneration{1: {Planned: nested}}
 			case "check":
-				checks = []checkConstraint{{Expression: nested}}
+				checks = []catalog.CheckConstraint{{Expression: nested}}
 			}
 			err := b.captureRetainedWriteInput(defaults, generations, checks)
 			lazyNamingOnly := b.input.TypeDiagnosticName != nil && b.input.EnumMemberSafe == nil

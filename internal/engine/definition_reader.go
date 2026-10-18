@@ -2,6 +2,7 @@ package engine
 
 import (
 	"iter"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -103,9 +104,9 @@ func (b *expressionBinder) definitionArray(element *sqltype.Descriptor) (*sqltyp
 	return definitionArrayAt(b.bindingCatalog(), b.definitionReader(), element)
 }
 
-func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*relationDescriptor, bool) {
+func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catalog.Relation, bool) {
 	descriptor, exists := a.definitionDescriptor(address)
-	relation, ok := descriptor.(*relationDescriptor)
+	relation, ok := descriptor.(*catalog.Relation)
 	return relation, exists && ok
 }
 

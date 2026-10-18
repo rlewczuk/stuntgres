@@ -6,12 +6,13 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgOpclassUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
 	d, ok := e.catalog.state.Relation(a)
@@ -21,7 +22,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obje
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
+func pgOpclassUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
 	if len(rows.anonymous) != 62 {
 		t.Fatal("class count", len(rows.anonymous))
@@ -62,7 +63,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgOpclassUnitSource(t, e)
-	if d.Name() != "pg_opclass" || d.Namespace().ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
+	if d.Name() != "pg_opclass" || d.Namespace().ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
 		t.Fatal("descriptor", d)
 	}
 	for i, name := range []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"} {
@@ -107,7 +108,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	for _, source := range []*relationDescriptor{&invalid, {Columns: d.Columns[:8]}} {
+	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:8]}} {
 		if rows, err := capturePGOpclass(context.Background(), view, ref, source); rows != nil || err == nil {
 			t.Fatal("invalid source accepted", rows, err)
 		}
@@ -154,17 +155,17 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 	for i, tc := range []struct {
 		id           sqltype.ID
 		class, input string
-		method       indexMethod
+		method       catalog.IndexMethod
 		oid          ids.OID
 	}{
-		{sqltype.Int4, "int4_ops", "1", btreeMethod, 1978},
-		{sqltype.Int4, "int4_ops", "1", hashMethod, 10020},
-		{sqltype.VarChar, "varchar_ops", "one", btreeMethod, 10044},
-		{sqltype.VarChar, "varchar_pattern_ops", "one", hashMethod, 10057},
-		{sqltype.Name, "name_ops", "one", btreeMethod, 10028},
-		{sqltype.Name, "name_ops", "one", hashMethod, 10029},
-		{48000, "int4_ops", "1", btreeMethod, 1978},
-		{48001, "enum_ops", "a", hashMethod, 10070},
+		{sqltype.Int4, "int4_ops", "1", catalog.BtreeMethod, 1978},
+		{sqltype.Int4, "int4_ops", "1", catalog.HashMethod, 10020},
+		{sqltype.VarChar, "varchar_ops", "one", catalog.BtreeMethod, 10044},
+		{sqltype.VarChar, "varchar_pattern_ops", "one", catalog.HashMethod, 10057},
+		{sqltype.Name, "name_ops", "one", catalog.BtreeMethod, 10028},
+		{sqltype.Name, "name_ops", "one", catalog.HashMethod, 10029},
+		{48000, "int4_ops", "1", catalog.BtreeMethod, 1978},
+		{48001, "enum_ops", "a", catalog.HashMethod, 10070},
 	} {
 		typ, _ := e.CatalogRead().LookupType(tc.id)
 		if tc.id == 48000 {
@@ -177,8 +178,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
-		parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: tableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
-		index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{Parent: parent.Address(), Method: tc.method, Keys: []indexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
+		parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
+		index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: catalog.IndexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: tc.method, Keys: []catalog.IndexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
 		e.catalog.state.SetDescriptor(parent.Address(), parent)
 		e.catalog.state.SetDescriptor(index.Address(), index)
 		value, err := typ.Input(context.Background(), tc.input, -1)
@@ -186,7 +187,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}, nil)
-		if err != nil || root == nil || (root.hash != nil) != (tc.method == hashMethod) {
+		if err != nil || root == nil || (root.hash != nil) != (tc.method == catalog.HashMethod) {
 			t.Fatal("real root", tc, root, err)
 		}
 		view := e.CatalogRead()
@@ -200,7 +201,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		method := uint32(403)
-		if tc.method == hashMethod {
+		if tc.method == catalog.HashMethod {
 			method = 405
 		}
 		if fact := pgOpclassUnitBag(t, rows, d)[uint32(tc.oid)]; fact == nil || fact[1] != method {

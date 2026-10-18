@@ -6,17 +6,18 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
 )
 
-func materializedAlterUnit(t *testing.T, e *Engine, op *Operation, d *relationDescriptor, action, target string) error {
+func materializedAlterUnit(t *testing.T, e *Engine, op *Operation, d *catalog.Relation, action, target string) error {
 	t.Helper()
 	return extensionUnitExecute(t, e, op, &parser.AlterView{Materialized: true, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Action: action, Target: parser.Identifier{Text: target}})
 }
-func materializedAlterIndex(t *testing.T, e *Engine, op *Operation, d *relationDescriptor) *relationDescriptor {
+func materializedAlterIndex(t *testing.T, e *Engine, op *Operation, d *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")
@@ -417,7 +418,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if target.catalog.state.Get(temporary.Address()) != temporary || target.storage[retained] != retainedStore || e.catalog.state.Get(d.Address()) != d || e.storage[d.Address()] != sourceStore || d.AutoExtensions[0] != ext.Address() {
 		t.Fatal("import mutated retained TEMP or source authority")
 	}
-	remapped := remapExtensionDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*relationDescriptor)
+	remapped := remapExtensionDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
 	if remapped == d || remapped.AutoExtensions[0] != importedExt.Address() || d.AutoExtensions[0] != ext.Address() || remapped.View != d.View {
 		t.Fatal("remap lost immutable genuine x authority")
 	}

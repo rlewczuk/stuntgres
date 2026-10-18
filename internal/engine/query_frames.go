@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -10,7 +11,7 @@ import (
 // Lexical scopes share statement authority and parameter/dependency ownership.
 // Only query-local namespace and aggregate state is saved at a query boundary.
 type queryBindingScope struct {
-	relation            *relationDescriptor
+	relation            *catalog.Relation
 	namespace           *queryNamespace
 	hidden              []queryQualifier
 	frame               uint32
@@ -137,7 +138,7 @@ func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position
 	return expr
 }
 
-func (b *expressionBinder) queryTargetRelation() *relationDescriptor {
+func (b *expressionBinder) queryTargetRelation() *catalog.Relation {
 	if b.relation != nil {
 		return b.relation
 	}

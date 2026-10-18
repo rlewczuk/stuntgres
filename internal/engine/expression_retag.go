@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -27,10 +28,10 @@ func retagBoundTypesWithQuery(view CatalogRead, node expr.Expr, retainedType fun
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpression(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
 }
-func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}

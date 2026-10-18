@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -37,7 +38,7 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(d.Policies) == 0 {
 			continue
 		}

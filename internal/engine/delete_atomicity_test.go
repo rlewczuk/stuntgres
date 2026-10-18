@@ -39,7 +39,7 @@ func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, binding, *quer
 		t.Fatal(err)
 	}
 	t.Cleanup(source.close)
-	relation := scope.lockedDescriptor.(*relationDescriptor)
+	relation := scope.lockedDescriptor.(*catalog.Relation)
 	return scope, binding{ref: ref, relation: relation, storage: scope.lockedStorage}, source
 }
 

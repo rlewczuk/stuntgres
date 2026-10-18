@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -12,7 +13,7 @@ import (
 // Only an original binding lifetime can authorize a selected call. The opaque
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
-func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDependency, captured *procedureDescriptor, consumer *relationDescriptor) error {
+func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *procedureDescriptor, consumer *catalog.Relation) error {
 	current, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured)
 	if err != nil {
 		return err
@@ -127,7 +128,7 @@ func admitCaseEquality(c *EvalContext, arm caseBranch) error {
 	return admitRecipeRoutineDescriptor(c, auth, dependencies, arm.routine)
 }
 
-func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []expressionDependency, captured *procedureDescriptor) error {
+func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *procedureDescriptor) error {
 	if err := checkRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
 	}
@@ -137,7 +138,7 @@ func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	return nil
 }
 
-func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []expressionDependency, captured *procedureDescriptor) error {
+func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *procedureDescriptor) error {
 	if c.routineChecks != nil {
 		return admitRoutineDescriptor(auth, c.routineChecks, captured, c.routineConsumer)
 	}
@@ -165,9 +166,9 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	return admitRoutineDescriptor(auth, dependencies, captured, nil)
 }
 
-func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []expressionDependency, error) {
+func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []catalog.ExpressionDependency, error) {
 	var auth AuthorizationView
-	var dependencies []expressionDependency
+	var dependencies []catalog.ExpressionDependency
 	if c.routineAuthority != nil {
 		auth = *c.routineAuthority
 	} else if scope := c.liveScope(); scope != nil {

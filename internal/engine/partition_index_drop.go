@@ -4,13 +4,14 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, stmt parser.Statement) error {
-	add := func(index *relationDescriptor) {
+	add := func(index *catalog.Relation) {
 		ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), index.Address())
 		if !slices.Contains(g.indexes, ref) {
 			g.indexes = append(g.indexes, ref)
@@ -42,13 +43,13 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 	} else if alter, ok := stmt.(*parser.AlterIndex); !ok || alter.Action != "attach" {
 		return nil
 	}
-	indexes := make([]*relationDescriptor, 0, len(g.indexes))
+	indexes := make([]*catalog.Relation, 0, len(g.indexes))
 	for _, descriptor := range auth.catalog.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
 	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
+	slices.SortFunc(indexes, func(a, b *catalog.Relation) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
 	roots := make(map[ids.ObjectAddress]bool)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, target := range g.targets {
@@ -107,15 +108,15 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 	return nil
 }
 
-func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDescriptor) error {
+func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *catalog.Relation) error {
 	if index.SQLIndex.Constraint != nil {
 		view := e.stageRead(stage)
 		table := view.MustRelation(index.SQLIndex.Parent)
 		next := *table
 		next.UniqueConstraints = slices.Clone(table.UniqueConstraints)
 		next.ObjectRevision++
-		next.UniqueConstraints = slices.DeleteFunc(next.UniqueConstraints, func(c uniqueConstraint) bool { return c.Index == index.Address() })
-		next.ExclusionConstraints = slices.DeleteFunc(slices.Clone(table.ExclusionConstraints), func(c exclusionConstraint) bool { return c.Index == index.Address() })
+		next.UniqueConstraints = slices.DeleteFunc(next.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Index == index.Address() })
+		next.ExclusionConstraints = slices.DeleteFunc(slices.Clone(table.ExclusionConstraints), func(c catalog.ExclusionConstraint) bool { return c.Index == index.Address() })
 		if err := stagePartitionDescriptor(stage, &next); err != nil {
 			return err
 		}
@@ -126,7 +127,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
 	view := e.stageRead(stage)
 	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -157,7 +158,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 	return nil
 }
 
-func partitionIndexDropDependency(view CatalogRead, index *relationDescriptor) error {
+func partitionIndexDropDependency(view CatalogRead, index *catalog.Relation) error {
 	if index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -168,7 +169,7 @@ func partitionIndexDropDependency(view CatalogRead, index *relationDescriptor) e
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because index %s requires it", index.Name(), parent.Name()), Hint: "You can drop index " + parent.Name() + " instead."}
 }
 
-func partitionConstraintDropActions(table *relationDescriptor, actions []parser.AlterTableAction) bool {
+func partitionConstraintDropActions(table *catalog.Relation, actions []parser.AlterTableAction) bool {
 	if len(actions) == 0 {
 		return false
 	}
@@ -184,14 +185,14 @@ func partitionConstraintDropActions(table *relationDescriptor, actions []parser.
 				break
 			}
 		}
-		found = found || slices.ContainsFunc(table.ExclusionConstraints, func(c exclusionConstraint) bool { return c.Name == action.Constraint.Text })
+		found = found || slices.ContainsFunc(table.ExclusionConstraints, func(c catalog.ExclusionConstraint) bool { return c.Name == action.Constraint.Text })
 		if found {
 			selected = true
 			continue
 		}
-		if slices.ContainsFunc(table.NotNullConstraints, func(c notNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.CheckConstraints, func(c checkConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.ForeignKeys, func(c foreignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
+		if slices.ContainsFunc(table.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
+			slices.ContainsFunc(table.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == action.Constraint.Text }) ||
+			slices.ContainsFunc(table.ForeignKeys, func(c catalog.ForeignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
 			return false
 		}
 	}
@@ -199,7 +200,7 @@ func partitionConstraintDropActions(table *relationDescriptor, actions []parser.
 }
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
-func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *relationDescriptor, syntax *parser.AlterTable) (Result, error) {
+func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output

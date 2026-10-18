@@ -22,7 +22,7 @@ func TestTableCoreLikeColumnOrigins(t *testing.T) {
 	if !ok {
 		t.Fatal("missing clone descriptor")
 	}
-	for i, c := range d.(*relationDescriptor).Columns {
+	for i, c := range d.(*catalog.Relation).Columns {
 		if c.OriginTable != uint32(ref.Address.ObjectID) || c.OriginAttribute != int16(i+1) {
 			t.Fatal("incorrect clone column origin", c)
 		}

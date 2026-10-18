@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -152,7 +153,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		return err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != tableRelation || origin.ref != ref {
+	if !ok || old.RelationKind != catalog.TableRelation || origin.ref != ref {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
@@ -161,7 +162,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
-	index := slices.IndexFunc(old.NotNullConstraints, func(c notNullConstraint) bool {
+	index := slices.IndexFunc(old.NotNullConstraints, func(c catalog.NotNullConstraint) bool {
 		return c.OID == origin.constraint && c.Name == label && c.Attribute == origin.attribute && !c.NotValid
 	})
 	if index < 0 {

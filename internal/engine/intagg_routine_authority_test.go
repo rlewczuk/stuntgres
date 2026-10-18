@@ -110,7 +110,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || intaggProviderOf(captured) != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dep := range original {
 				if dep.Ref.Address == ref.Address {
@@ -146,12 +146,12 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, mode := range []string{"nil", "empty", "missing", "epoch", "revision", "foreign_ref"} {
 				probe := evaluation
-				deps := append([]expressionDependency(nil), original...)
+				deps := append([]catalog.ExpressionDependency(nil), original...)
 				switch mode {
 				case "nil":
 					deps = nil
 				case "empty":
-					deps = []expressionDependency{}
+					deps = []catalog.ExpressionDependency{}
 				case "missing":
 					deps = deps[:0]
 					for _, dep := range original {
@@ -307,7 +307,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := admitRoutineCall(&probe, relocated, false, false); err == nil {
 						t.Fatal("retag manufactured original manifest")
 					}
-					deps := append([]expressionDependency(nil), original...)
+					deps := append([]catalog.ExpressionDependency(nil), original...)
 					for i := range deps {
 						deps[i].Ref = remap(deps[i].Ref)
 					}

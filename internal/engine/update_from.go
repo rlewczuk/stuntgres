@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -22,7 +23,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 
 // Namespace lookup and role privileges precede physical storage admission.
 // Identity/metadata providers do not acquire another session's stored TEMP data.
-func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) error {
+func checkTemporaryStorageAccess(catalog CatalogRead, relation *catalog.Relation, token ids.SessionToken) error {
 	if relation == nil {
 		return ids.ErrCatalogReplaced
 	}
@@ -56,7 +57,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if relation.RelationKind != viewRelation {
+		if relation.RelationKind != catalog.ViewRelation {
 			return nil
 		}
 		for _, prior := range active {
@@ -113,7 +114,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if relation.RelationKind == viewRelation {
+		if relation.RelationKind == catalog.ViewRelation {
 			if visited[ref] {
 				return nil
 			}
@@ -145,8 +146,8 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				}
 			}
 		}
-		if relation.RelationKind == tableRelation && !only {
-			return inheritanceQueryClosure(view, relation, token, func(physical *relationDescriptor) error {
+		if relation.RelationKind == catalog.TableRelation && !only {
+			return inheritanceQueryClosure(view, relation, token, func(physical *catalog.Relation) error {
 				child := ref
 				child.Address = physical.Address()
 				return collect(child, true)

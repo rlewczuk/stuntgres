@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -75,8 +76,8 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	return storageDestination(node, column.Usage, parser.Position{})
 }
 
-func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]columnDefault, error) {
-	var defaults map[int32]columnDefault
+func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
+	var defaults map[int32]catalog.ColumnDefault
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return nil, err
@@ -94,13 +95,13 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 		if structuralNull(node) {
 			continue
 		}
-		definition := columnDefault{Expression: node}
+		definition := catalog.ColumnDefault{Expression: node}
 		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
 		if defaults == nil {
-			defaults = make(map[int32]columnDefault)
+			defaults = make(map[int32]catalog.ColumnDefault)
 		}
 		defaults[int32(slot+1)] = definition
 	}
@@ -119,15 +120,15 @@ type scalarRenderer struct {
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
 	validation             bool
-	owner                  *relationDescriptor
+	owner                  *catalog.Relation
 	domainValue            *sqltype.Usage
 	dependencies           *[]ids.ObjectRef
 	commentSnapshot        *bool
 	visibilitySnapshot     *bool
 	catalogAliasReferences *bool
-	provenance             *relationDescriptor
+	provenance             *catalog.Relation
 	capturedManifest       []ids.ObjectRef
-	capturedChecks         []expressionDependency
+	capturedChecks         []catalog.ExpressionDependency
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
 	checkLiterals *[]literalExpression
@@ -393,8 +394,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			if !ok || !storedSequenceEpochValid(view, r.retainedConsumer(), n.ref, n.temporary) {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
-			sequence, ok := target.(*relationDescriptor)
-			if !ok || sequence.RelationKind != sequenceRelation {
+			sequence, ok := target.(*catalog.Relation)
+			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
 			}
 			r.record(n.ref)
@@ -428,7 +429,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		if n.RegclassRef != (ids.ObjectRef{}) {
 			ref := n.RegclassRef
 			target, ok := definitionDescriptorAt(view, r.definition, ref.Address)
-			_, relationOK := target.(*relationDescriptor)
+			_, relationOK := target.(*catalog.Relation)
 			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
 			}

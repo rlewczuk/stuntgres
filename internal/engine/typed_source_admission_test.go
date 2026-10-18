@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -64,7 +65,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 				t.Fatal("stale CREATE published over winning source generation")
 			}
 			for _, descriptor := range winning.Descriptors() {
-				if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == "late" {
+				if relation, ok := descriptor.(*catalog.Relation); ok && relation.Name() == "late" {
 					t.Fatal("stale attachment published")
 				}
 			}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -35,7 +36,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			}
 		}
 		if _, requested := a.Value.(parser.DefaultExpr); requested {
-			if b.relation.RelationKind == viewRelation {
+			if b.relation.RelationKind == catalog.ViewRelation {
 				continue // Rewrite diagnoses computed/generated destinations.
 			}
 			return expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
@@ -88,7 +89,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		b.targets = append(b.targets, slot)
 		source := u.assignments[i]
 		dest := b.relation.Columns[slot]
-		if source == nil && b.relation.RelationKind == viewRelation {
+		if source == nil && b.relation.RelationKind == catalog.ViewRelation {
 			continue
 		}
 		var target *arrayAssignmentTarget

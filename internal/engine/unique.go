@@ -6,17 +6,18 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
 )
 
-func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
+func validateUniques(view CatalogRead, parent *catalog.Relation, names map[string]bool) error {
 	primary := false
-	var physicalSupport *physicalPrimarySupport
+	var physicalSupport *catalog.PhysicalPrimarySupport
 	for _, c := range parent.UniqueConstraints {
-		if (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
+		if (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
 		}
 		names[c.Name] = true
@@ -27,7 +28,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 			primary = true
 		}
 		index, ok := view.Relation(c.Index)
-		if !ok || index.SQLIndex == nil || index.Name() != c.Name || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.Kind != uniqueBackingKind || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Constraint.Index != c.Index || index.SQLIndex.Constraint.Name != c.Name || index.SQLIndex.NullsNotDistinct != c.NullsNotDistinct || len(index.SQLIndex.Keys) != len(c.Attributes) {
+		if !ok || index.SQLIndex == nil || index.Name() != c.Name || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Constraint.Index != c.Index || index.SQLIndex.Constraint.Name != c.Name || index.SQLIndex.NullsNotDistinct != c.NullsNotDistinct || len(index.SQLIndex.Keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
 		}
 		if index.SQLIndex.Constraint.Primary != c.Primary {
@@ -70,16 +71,16 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 	return nil
 }
 
-func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint) error {
+func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *catalog.Relation, declarations []createUniqueConstraint) error {
 	return e.stageUniqueDefinitions(op, stage, d, declarations, false)
 }
 
 // CREATE and ALTER share index/provider/ownership construction. ALTER appends
 // only new groups and replaces the existing parent instead of creating it.
-func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *relationDescriptor, declarations []createUniqueConstraint, altering bool) error {
+func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *catalog.Relation, declarations []createUniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
-			if definition, ok := d.Generations[attribute]; ok && definition.Kind == generationVirtual {
+			if definition, ok := d.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
 				message := "unique constraints on virtual generated columns are not supported"
 				if declaration.Primary {
 					message = "primary keys on virtual generated columns are not supported"
@@ -89,11 +90,11 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		}
 	}
 	start := len(d.UniqueConstraints)
-	constraints := make([]uniqueConstraint, start+len(declarations))
+	constraints := make([]catalog.UniqueConstraint, start+len(declarations))
 	copy(constraints, d.UniqueConstraints)
 	d.UniqueConstraints = constraints
 	for i := range declarations {
-		d.UniqueConstraints[start+i] = declarations[i].uniqueConstraint
+		d.UniqueConstraints[start+i] = declarations[i].UniqueConstraint
 		d.UniqueConstraints[start+i].IsLocal = true
 		if source := declarations[i].source; source != nil {
 			stage.captureLikeSource(source)
@@ -126,7 +127,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		}
 	}
 	used[d.Name()] = true
-	indices := make([]*relationDescriptor, 0, len(declarations))
+	indices := make([]*catalog.Relation, 0, len(declarations))
 	for i := start; i < len(d.UniqueConstraints); i++ {
 		c := &d.UniqueConstraints[i]
 		if c.Name == d.Name() {
@@ -179,8 +180,8 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{Method: btreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(c), Ready: true, Valid: true, Live: true}
-		index := &relationDescriptor{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: indexRelation, SQLIndex: definition}
+		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(c), Ready: true, Valid: true, Live: true}
+		index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		if source := declarations[i-start].source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
@@ -202,7 +203,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 					if err != nil {
 						return err
 					}
-					derived := &derivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
+					derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
 					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.Base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.Base, node); err != nil {
 						return err
 					}
@@ -223,7 +224,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 				index.Comment = source.Comment
 			}
 		} else {
-			definition.Keys = make([]indexKey, len(c.Attributes))
+			definition.Keys = make([]catalog.IndexKey, len(c.Attributes))
 			index.Columns = make([]ColumnDescriptor, len(c.Attributes))
 			index.Attributes = make([]int32, len(c.Attributes))
 			index.AttributeHighWater = int32(len(c.Attributes))
@@ -231,9 +232,9 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 				if !ok {
-					return indexDefaultClassError(column.Usage.Type.DiagnosticName(), btreeMethod)
+					return indexDefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
-				definition.Keys[j] = indexKey{Attribute: a, Class: class}
+				definition.Keys[j] = catalog.IndexKey{Attribute: a, Class: class}
 				column.Nullable, column.NullabilityKnown = true, true
 				index.Columns[j] = column
 				index.Attributes[j] = int32(j + 1)
@@ -275,15 +276,15 @@ func uniqueHasNull(key []sqltype.Value) bool {
 }
 
 // DDL ownership is independent of ordinary key SELECT disclosure rights.
-func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []indexKey) (bool, error) {
+func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []catalog.IndexKey) (bool, error) {
 	// RLS applicability is captured metadata/role authority, not a policy-row
 	// evaluation. Table SELECT alone cannot reveal a hidden physical key.
 	descriptor, ok := auth.catalog.Descriptor(ref.Address)
-	parent, relation := descriptor.(*relationDescriptor)
+	parent, relation := descriptor.(*catalog.Relation)
 	if !ok || !relation {
 		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
-	decision, err := rowSecurityDecision(auth, parent, auth.state.CurrentUser, policySelect, false)
+	decision, err := rowSecurityDecision(auth, parent, auth.state.CurrentUser, catalog.PolicySelect, false)
 	if err != nil || decision != rlsUnrestricted {
 		return false, err
 	}
@@ -336,7 +337,7 @@ func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.Ind
 }
 
 // Formatting uses typed provider output, never SQL literals or Go formatting.
-func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog CatalogRead) error {
+func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog CatalogRead) error {
 	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.Name())
 	if building {
 		message = fmt.Sprintf(`could not create unique index "%s"`, index.Name())
@@ -379,7 +380,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 	return d
 }
 
-func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
 		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
@@ -394,7 +395,7 @@ func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, 
 	return validateUniqueEntries(ctx, parent, index, root.entries, schema, output, auth, building, ordering)
 }
 
-func validateUniqueEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	if index.SQLIndex.IsExclusion() {
 		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
 	}
@@ -406,7 +407,7 @@ func validateUniqueEntries(ctx context.Context, parent, index *relationDescripto
 	return nil
 }
 
-func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
 		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
@@ -442,7 +443,7 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 	return nil
 }
 
-func (r pgRenderer) uniqueConstraintSQL(parent *relationDescriptor, c *uniqueConstraint) (string, error) {
+func (r pgRenderer) uniqueConstraintSQL(parent *catalog.Relation, c *catalog.UniqueConstraint) (string, error) {
 	index, ok := r.view.Relation(c.Index)
 	if !ok || index.SQLIndex == nil {
 		return "", fmt.Errorf("stuntgres: missing unique deparse index")

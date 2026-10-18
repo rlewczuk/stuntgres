@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	ref := roleTableRef(t, e, "rr_stage_owner")
 	catalogView := e.CatalogRead()
 	descriptor, _ := catalogView.Descriptor(ref.Address)
-	old := descriptor.(*relationDescriptor)
+	old := descriptor.(*catalog.Relation)
 	kept := old.Attributes[old.Index["kept"]]
 	remaining := old.Defaults[kept]
 	stage := e.BeginCatalogStage(catalogView)
@@ -83,7 +84,7 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	ref := roleTableRef(t, e, "rr_order_owner")
 	view := e.CatalogRead()
 	descriptor, _ := view.Descriptor(ref.Address)
-	owner := descriptor.(*relationDescriptor)
+	owner := descriptor.(*catalog.Relation)
 	target := ref.Address
 	target.SubID = owner.Attributes[owner.Index["v"]]
 	stage := e.BeginCatalogStage(view)

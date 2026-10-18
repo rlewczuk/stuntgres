@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -37,20 +38,20 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
-	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45000}, Attributes: []int32{1}}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45000}, Attributes: []int32{1}}
 	var refs []ids.ObjectRef
 	if _, err := (scalarRenderer{aclOutput: captured, owner: relation, dependencies: &refs}).sql(context.Background(), view, comparison); err != nil {
 		t.Fatal(err)
 	}
-	check := checkConstraint{OID: 45001, Name: "acl_render_check", Expression: comparison}
+	check := catalog.CheckConstraint{OID: 45001, Name: "acl_render_check", Expression: comparison}
 	for _, ref := range refs {
 		descriptor, ok := view.Descriptor(ref.Address)
 		if !ok {
 			t.Fatal("missing real provider dependency", ref.Address.ObjectID)
 		}
-		check.Dependencies = append(check.Dependencies, expressionDependency{Ref: ref, Revision: descriptor.Revision()})
+		check.Dependencies = append(check.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: descriptor.Revision()})
 	}
-	relation.CheckConstraints = []checkConstraint{check}
+	relation.CheckConstraints = []catalog.CheckConstraint{check}
 	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("live CHECK provider validation", err)
 	}

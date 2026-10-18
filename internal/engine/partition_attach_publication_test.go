@@ -14,7 +14,7 @@ import (
 )
 
 // All setup uses catalog/transaction functions, not a public SQL executor.
-func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*relationDescriptor) {
+func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*catalog.Relation) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -32,20 +32,20 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*relationD
 	}
 }
 
-func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *relationDescriptor {
+func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *catalog.Relation {
 	t.Helper()
 	d := inheritanceUnitRelation(e, name, id, "k")
-	d.RelationKind = partitionedRelation
+	d.RelationKind = catalog.PartitionedRelation
 	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
 	comparison, err := sqltype.BindIndexOrdering(d.Columns[0].Usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: d.Columns[0].Usage, Class: class, Comparison: comparison, Label: "k"}}}
+	d.Partition = &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: d.Columns[0].Usage, Class: class, Comparison: comparison, Label: "k"}}}
 	return d
 }
 
-func partitionAttachUnitStage(t *testing.T, e *Engine, view CatalogRead, parent, child *relationDescriptor) *CatalogStage {
+func partitionAttachUnitStage(t *testing.T, e *Engine, view CatalogRead, parent, child *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(view)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
@@ -55,7 +55,7 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, view CatalogRead, parent,
 	definition.DefaultChild = child.Address()
 	p.Partition = &definition
 	p.ObjectRevision++
-	c.Membership = &partitionMembership{Parent: p.Address(), DefaultBound: true}
+	c.Membership = &catalog.PartitionMembership{Parent: p.Address(), DefaultBound: true}
 	c.ObjectRevision++
 	if err := stage.Replace(&p); err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_fence_parent", 46000)
 			child := inheritanceUnitRelation(e, "attach_fence_child", 46001, "k")
-			child.RelationKind = tableRelation
+			child.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
 			parent = e.catalog.state.MustRelation(parent.Address())
 			child = e.catalog.state.MustRelation(child.Address())

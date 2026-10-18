@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -264,7 +265,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			shape.materializedConcurrent, shape.materializedContinuous = false, false
 		}
 		shape.replacement = rowShape.replacement
-		shape.relation, _ = stage.Descriptors[a].(*relationDescriptor)
+		shape.relation, _ = stage.Descriptors[a].(*catalog.Relation)
 		if shape.relation == nil {
 			// An index-expression-only domain generation changes executable
 			// index authority without changing its parent's column descriptor.
@@ -294,7 +295,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 	for a, d := range stage.Descriptors {
 		e.catalogChangeLocked(changes, a, d)
-		if table, ok := d.(*relationDescriptor); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
+		if table, ok := d.(*catalog.Relation); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
 			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
 		}
 	}

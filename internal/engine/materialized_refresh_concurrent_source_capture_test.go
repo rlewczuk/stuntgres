@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-func concurrentSourceOuter(t *testing.T, e *Engine) *relationDescriptor {
+func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

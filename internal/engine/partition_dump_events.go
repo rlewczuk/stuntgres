@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -13,9 +14,9 @@ func addDumpDependency(graph map[dumpEventKey][]dumpEventKey, event, predecessor
 	}
 }
 
-func partitionDumpIndexBacking(view CatalogRead, index, table ids.ObjectAddress) *relationDescriptor {
+func partitionDumpIndexBacking(view CatalogRead, index, table ids.ObjectAddress) *catalog.Relation {
 	for _, descriptor := range view.Descriptors() {
-		candidate, ok := descriptor.(*relationDescriptor)
+		candidate, ok := descriptor.(*catalog.Relation)
 		if ok && candidate.SQLIndex != nil && candidate.SQLIndex.Parent == table && candidate.SQLIndex.PartitionParent == index {
 			return candidate
 		}
@@ -46,7 +47,7 @@ func dumpEventDependsOn(graph map[dumpEventKey][]dumpEventKey, event, target dum
 func partitionDumpLateIndexTables(view CatalogRead) map[ids.ObjectAddress]bool {
 	late := make(map[ids.ObjectAddress]bool)
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Valid || index.SQLIndex.Constraint != nil {
 			continue
 		}
@@ -86,7 +87,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 			partitionVirtualUniqueMembershipReady(view, graph, dumpEventKey{oid: oid}, view.MustRelation(index.SQLIndex.Parent))
 		}
 	}
-	membership := func(table *relationDescriptor) dumpEventKey {
+	membership := func(table *catalog.Relation) dumpEventKey {
 		if partitionDumpNeedsAttach(view, table) {
 			return dumpEventKey{oid: table.Address().ObjectID, phase: dumpTableAttachment}
 		}
@@ -265,8 +266,8 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		// Rerouted hash rows can land in any descendant, not just their captured
 		// physical leaf. All relevant memberships must precede this row event.
 		if target := partitionHashReplayTarget(view, t.descriptor); target != t.descriptor {
-			var requireTree func(*relationDescriptor)
-			requireTree = func(d *relationDescriptor) {
+			var requireTree func(*catalog.Relation)
+			requireTree = func(d *catalog.Relation) {
 				event := membership(d)
 				late = late || event.phase == dumpTableAttachment
 				if !slices.Contains(sources, event) {
@@ -460,7 +461,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		addDumpDependency(graph, dumpEventKey{oid: table.Address().ObjectID, phase: dumpTableCompletion}, dumpEventKey{oid: indexOID})
 	}
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			continue
 		}

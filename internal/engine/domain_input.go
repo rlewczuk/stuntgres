@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -101,7 +102,7 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 	return providers
 }
 
-func validateCapturedInputBinding(captured, current CatalogRead, dependencies []expressionDependency) error {
+func validateCapturedInputBinding(captured, current CatalogRead, dependencies []catalog.ExpressionDependency) error {
 	if captured.Owner() != current.Owner() || captured.Epoch() != current.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

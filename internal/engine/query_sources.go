@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -11,7 +12,7 @@ import (
 // Each manifest entry is an SQL occurrence, even when physical identity repeats.
 type queryLeaf struct {
 	ref              ids.ObjectRef
-	relation         *relationDescriptor
+	relation         *catalog.Relation
 	storage          *relationStorage
 	only             bool
 	principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
@@ -23,7 +24,7 @@ type queryLeaf struct {
 	// DELETE's immediate USING occurrences require reference-kind validation,
 	// not SELECT FOR UPDATE authority or source tuple locks.
 	deleteReference  bool
-	partialCandidate *relationDescriptor
+	partialCandidate *catalog.Relation
 	analysisOnly     bool // Unreferenced CTE body: analyzed dependency, no executable ACL.
 }
 
@@ -127,14 +128,14 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
-func currentQuerySourceLocked(e *Engine, view CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
+func currentQuerySourceLocked(e *Engine, view CatalogRead, changes *catalogChanges, source queryLeaf) (*catalog.Relation, error) {
 	current, ok := view.Relation(source.ref.Address)
 	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.Epoch() || source.ref.Address.SubID != 0 ||
 		current.Address() != source.relation.Address() || current.Namespace() != source.relation.Namespace() || current.Name() != source.relation.Name() || current.RelationKind != source.relation.RelationKind ||
 		!sameRelationRowShape(current, source.relation) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if current.RelationKind == sequenceRelation {
+	if current.RelationKind == catalog.SequenceRelation {
 		if current.Sequence == nil || source.storage != nil || current.SequencePlanStamp != source.relation.SequencePlanStamp {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -195,7 +196,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	}
 	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind == viewRelation {
+		if leaf.relation.RelationKind == catalog.ViewRelation {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
 				return nil, err
@@ -251,7 +252,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	return nil
 }
 
-func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
+func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
 	for _, column := range relation.Columns {
 		if column.Usage.Type.ContainsRegclass() || column.Usage.Type.ContainsOperatorAlias() || column.Usage.Type.ContainsACLItem() || column.Usage.Type.ContainsRegObject() || column.Usage.Type.ContainsRegTS() {
 			if err := e.captureCommentSnapshotLocked(scope); err != nil {
@@ -279,7 +280,7 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 	return nil
 }
 
-func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
+func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
 	for _, check := range relation.CheckConstraints {
 		if check.VisibilitySnapshot {
 			return e.captureVisibilitySnapshotLocked(scope)
@@ -326,7 +327,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	needsView := len(refs) != 0
 	if !needsView {
 		for _, leaf := range leaves {
-			if leaf.relation.RelationKind == partitionedRelation {
+			if leaf.relation.RelationKind == catalog.PartitionedRelation {
 				needsView = true
 				break
 			}
@@ -357,9 +358,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 		mark := effectiveQueryRowMark(leaf.relation, mergeQueryRowMark(inherited, leaf.mark))
 		var source *querySource
-		command := policySelect
+		command := catalog.PolicySelect
 		if mark.mode != 0 {
-			command = policyUpdate
+			command = catalog.PolicyUpdate
 		}
 		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.relation, leaf.principal, command, mark.mode != 0)
 		if securityErr != nil {
@@ -373,16 +374,16 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			source, err = captureDeniedQuerySource(view, leaf.ref)
 		} else {
 			switch leaf.relation.RelationKind {
-			case sequenceRelation:
+			case catalog.SequenceRelation:
 				e.markTemporaryAccessLocked(scope, leaf.ref)
 				source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
-			case materializedViewRelation:
+			case catalog.MaterializedViewRelation:
 				if !leaf.relation.Populated {
 					err = materializedViewReadError(leaf.relation)
 				} else {
 					source, err = captureQueryPrefix(view, leaf.ref)
 				}
-			case partitionedRelation:
+			case catalog.PartitionedRelation:
 				if mark.mode != 0 {
 					source = nil
 					err = sqlError("0A000", "row locking partition hierarchies is unsupported")
@@ -398,7 +399,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				} else {
 					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.commentCatalog), view, leaf.ref, leaf.relation)
 				}
-			case tableRelation:
+			case catalog.TableRelation:
 				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.commentCatalog), view, leaf, scope.op.session.token)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)

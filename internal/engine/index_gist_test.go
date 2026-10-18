@@ -11,14 +11,14 @@ import (
 	"testing"
 )
 
-func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor, func(ids.RowID, string, string) rowVersion) {
+func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, func(ids.RowID, string, string) rowVersion) {
 	t.Helper()
 	types := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
 	inet, r := types[sqltype.Inet], types[sqltype.Int4Range]
-	parent := &relationDescriptor{ObjectName: "bookings", Attributes: []int32{1, 2}, Columns: []ColumnDescriptor{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
+	parent := &catalog.Relation{ObjectName: "bookings", Attributes: []int32{1, 2}, Columns: []ColumnDescriptor{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
 	ic, _ := sqltype.LookupGiSTIndexClass("inet_ops")
 	rc, _ := sqltype.LookupGiSTIndexClass("range_ops")
 	eq, err := sqltype.BindExclusionOperator(inet.Usage(), ic, "=")
@@ -29,8 +29,8 @@ func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor,
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{ObjectName: "booking_ex", SQLIndex: &indexDefinition{Method: gistMethod, Keys: []indexKey{{Attribute: 1, Class: ic}, {Attribute: 2, Class: rc}}, Exclusion: []sqltype.ExclusionOperator{eq, overlap}, Ready: true, Live: true, Valid: true}}
-	index.SQLIndex.Constraint = &backingConstraint{Kind: exclusionBackingKind, OID: 1, Name: index.Name()}
+	index := &catalog.Relation{ObjectName: "booking_ex", SQLIndex: &catalog.IndexDefinition{Method: catalog.GistMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: ic}, {Attribute: 2, Class: rc}}, Exclusion: []sqltype.ExclusionOperator{eq, overlap}, Ready: true, Live: true, Valid: true}}
+	index.SQLIndex.Constraint = &catalog.BackingConstraint{Kind: catalog.ExclusionBackingKind, OID: 1, Name: index.Name()}
 	row := func(id ids.RowID, tenant, during string) rowVersion {
 		a, err := inet.Input(context.Background(), tenant, -1)
 		if err != nil {
@@ -109,13 +109,13 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			parent, index, row := logicalGiSTFixture(t)
 			parent.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 			parent.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-			parent.RelationKind = tableRelation
+			parent.RelationKind = catalog.TableRelation
 			index.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 			index.ObjectNamespace = parent.Namespace()
-			index.RelationKind = indexRelation
+			index.RelationKind = catalog.IndexRelation
 			index.Columns = append([]ColumnDescriptor(nil), parent.Columns...)
 			index.SQLIndex.Parent = parent.Address()
-			parent.ExclusionConstraints = []exclusionConstraint{{
+			parent.ExclusionConstraints = []catalog.ExclusionConstraint{{
 				OID: index.SQLIndex.Constraint.OID, Name: index.Name(), Index: index.Address(),
 				IsLocal: true, Operators: index.SQLIndex.Exclusion,
 			}}

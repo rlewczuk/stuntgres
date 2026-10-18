@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -19,15 +20,15 @@ type dumpRelation struct {
 	frontier            ids.CommitSeq
 	comment             string
 	columnComments      map[int32]string
-	notNullConstraints  []notNullConstraint
-	defaults            map[int32]columnDefault
+	notNullConstraints  []catalog.NotNullConstraint
+	defaults            map[int32]catalog.ColumnDefault
 	deferredDefinitions map[int32]bool
-	descriptor          *relationDescriptor
-	recipes             map[int32]inheritedColumn
+	descriptor          *catalog.Relation
+	recipes             map[int32]catalog.InheritedColumn
 	deferredChecks      map[string]bool
 	recipePlaceholders  bool
 	recipeComponent     ids.ObjectAddress
-	identities          map[int32]columnIdentity
+	identities          map[int32]catalog.ColumnIdentity
 	identitySequences   map[ids.ObjectAddress]dumpSequence
 }
 

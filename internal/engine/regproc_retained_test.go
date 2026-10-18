@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -48,15 +49,15 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, input, nil)
 				var defaults []expr.Expr
-				var generations map[int32]columnGeneration
-				var checks []checkConstraint
+				var generations map[int32]catalog.ColumnGeneration
+				var checks []catalog.CheckConstraint
 				switch route {
 				case "default":
 					defaults = []expr.Expr{node}
 				case "generation":
-					generations = map[int32]columnGeneration{1: {Planned: node}}
+					generations = map[int32]catalog.ColumnGeneration{1: {Planned: node}}
 				case "check":
-					checks = []checkConstraint{{Expression: node}}
+					checks = []catalog.CheckConstraint{{Expression: node}}
 				}
 				if err := b.captureRetainedWriteInput(defaults, generations, checks); err != nil {
 					t.Fatal(err)
@@ -124,14 +125,14 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal("fresh mixed members lost actual identities", procedure, operatorID, typeID, procedureErr, operatorErr, typeErr)
 	}
 	int4 := e.CatalogRead().Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
-	want := []expressionDependency{
+	want := []catalog.ExpressionDependency{
 		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
 		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
 	}
 	if !reflect.DeepEqual(c.operands, want) || !slices.Contains(c.qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)
 	}
-	assertDependencies := func(deps []expressionDependency) {
+	assertDependencies := func(deps []catalog.ExpressionDependency) {
 		t.Helper()
 		for _, operand := range want {
 			if !slices.Contains(deps, operand) {

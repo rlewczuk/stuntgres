@@ -2,11 +2,12 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func sequenceNumericSQL(options sequenceOptions) string {
+func sequenceNumericSQL(options catalog.SequenceOptions) string {
 	cycle := "NO CYCLE"
 	if options.Cycle {
 		cycle = "CYCLE"
@@ -14,7 +15,7 @@ func sequenceNumericSQL(options sequenceOptions) string {
 	return fmt.Sprintf("INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s", options.Increment, options.Min, options.Max, options.Start, options.Cache, cycle)
 }
 
-func identityDumpDivergent(options sequenceOptions, column sqltype.ID) bool {
+func identityDumpDivergent(options catalog.SequenceOptions, column sqltype.ID) bool {
 	lo, hi, _ := sequenceTypeLimits(column)
 	return options.Persistence != "logged" || options.SQLType != column || options.Min < lo || options.Max > hi || options.Start < lo || options.Start > hi
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -15,7 +16,7 @@ import (
 	"unicode/utf8"
 )
 
-func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment, inherited map[string]checkConstraint) error {
+func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *catalog.Relation, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
 	var raw []*parser.CheckConstraint
 	for _, element := range syntax.Elements {
 		if element.Check != nil {
@@ -32,7 +33,7 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 	return e.bindColumnChecks(op, auth, raw, d, input, false, inherited)
 }
 
-func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *relationDescriptor, input sqltype.InputEnvironment, altering bool, inherited map[string]checkConstraint) error {
+func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -125,7 +126,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		if installed[name] {
 			if !altering && d.Inheritance != nil {
 				if provenance, inherited := d.Inheritance.Checks[name]; inherited {
-					old := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
+					old := slices.IndexFunc(d.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == name })
 					if old < 0 || !sameGroupExpression(d.CheckConstraints[old].Expression, node) {
 						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 					}
@@ -148,7 +149,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return diagnostic
 		}
 		current[name], used[name] = true, true
-		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
+		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
 		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
@@ -160,24 +161,24 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			if descriptor, ok := auth.catalog.Descriptor(address); ok {
 				revision = descriptor.Revision()
 			}
-			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
+			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 		}
 		d.CheckConstraints = append(d.CheckConstraints, definition)
 		if d.Inheritance != nil {
-			d.Inheritance.Checks[name] = inheritedConstraint{Local: true}
+			d.Inheritance.Checks[name] = catalog.InheritedConstraint{Local: true}
 		}
 	}
-	slices.SortFunc(d.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(d.CheckConstraints, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }
 
-func orderedChecks(d *relationDescriptor) []checkConstraint {
+func orderedChecks(d *catalog.Relation) []catalog.CheckConstraint {
 	checks := slices.Clone(d.CheckConstraints)
-	slices.SortFunc(checks, func(a, b checkConstraint) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
+	slices.SortFunc(checks, func(a, b catalog.CheckConstraint) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
 	return checks
 }
 
-func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
+func checkDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	for _, c := range d.CheckConstraints {
 		for _, dep := range c.Dependencies {
 			a := dep.Ref.Address
@@ -192,7 +193,7 @@ func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 // The merge fence checks external identities against the candidate current root,
 // not the stage's older validation snapshot. The publisher retries if that root
 // changes before its single final install. No rendering or row evaluation here.
-func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
+func validateCheckProviders(view CatalogRead, d *catalog.Relation) error {
 	for _, c := range d.CheckConstraints {
 		for _, dep := range c.Dependencies {
 			address := dep.Ref.Address
@@ -209,7 +210,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 					return err
 				}
 			}
-			if relation, ok := provider.(*relationDescriptor); ok && dep.Ref.Address.SubID != 0 && !relation.HasAttribute(dep.Ref.Address.SubID) {
+			if relation, ok := provider.(*catalog.Relation); ok && dep.Ref.Address.SubID != 0 && !relation.HasAttribute(dep.Ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing check provider attribute")
 			}
 		}
@@ -226,7 +227,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	}
 	var refs []ids.ObjectRef
 	var retained map[ids.ObjectAddress]Descriptor
-	add := func(ref ids.ObjectRef, d *relationDescriptor) error {
+	add := func(ref ids.ObjectRef, d *catalog.Relation) error {
 		address := ref.Address
 		address.SubID = 0
 		if address.ClassID != ids.RelationClassID || d != nil && address == d.Address() {
@@ -234,7 +235,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		}
 		if _, incumbent := stage.Base.Find(address); !incumbent {
 			// Newly created providers belong to the private atomic candidate.
-			provider, staged := stage.Descriptors[address].(*relationDescriptor)
+			provider, staged := stage.Descriptors[address].(*catalog.Relation)
 			if !staged || provider.Address() != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.Base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
@@ -274,7 +275,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		}
 	}
 	for _, descriptor := range stage.Descriptors {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -344,7 +345,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	for _, ref := range refs {
 		mode := lock.AccessShare
 		for _, descriptor := range stage.Descriptors {
-			if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, ref.Address) {
+			if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, ref.Address) {
 				mode = lock.ShareUpdateExclusive
 				break
 			}
@@ -379,7 +380,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	return stage.validateLikeSources(auth.catalog)
 }
 
-func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {
+func validateChecks(view CatalogRead, d *catalog.Relation, names map[string]bool) error {
 	previous := ""
 	for i, c := range d.CheckConstraints {
 		if c.Ordinal < 0 {
@@ -446,7 +447,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 // validateCheckRow is the shared DML-independent completed-row validator. A
 // future ADD/VALIDATE consumer supplies its own traversal and publication stage.
 // UNKNOWN passes, unlike WHERE. The no-CHECK path does not allocate or bind.
-func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalContext) (*checkConstraint, error) {
+func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *EvalContext) (*catalog.CheckConstraint, error) {
 	if len(d.CheckConstraints) == 0 {
 		return nil, nil
 	}
@@ -483,7 +484,7 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 			}
 		}
 		if eval.preparedChecks == nil {
-			eval.preparedChecks = make(map[*relationDescriptor][]expr.Expr)
+			eval.preparedChecks = make(map[*catalog.Relation][]expr.Expr)
 		}
 		eval.preparedChecks[d] = expressions
 	}
@@ -526,8 +527,8 @@ func checkDetailError(schema, table, name, detail string) error {
 }
 
 type checkDependencyEdge struct {
-	relation *relationDescriptor
-	check    checkConstraint
+	relation *catalog.Relation
+	check    catalog.CheckConstraint
 	target   ids.ObjectAddress
 }
 
@@ -538,13 +539,13 @@ func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode
 }
 
 func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
-	var relations []*relationDescriptor
+	var relations []*catalog.Relation
 	for address, descriptor := range provider.inputDescriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(d.CheckConstraints) == 0 {
 			continue
 		}
-		if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
+		if staged, ok := provider.replacement(address).(*catalog.Relation); ok {
 			d = staged
 		}
 		if provider.removed(address) {
@@ -561,7 +562,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 			relations = append(relations, d)
 		}
 	}
-	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
+	slices.SortFunc(relations, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -572,7 +573,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 	})
 	var edges []checkDependencyEdge
 	for _, d := range relations {
-		var kept []checkConstraint
+		var kept []catalog.CheckConstraint
 		changed := false
 		for _, c := range d.CheckConstraints {
 			var dependency ids.ObjectAddress

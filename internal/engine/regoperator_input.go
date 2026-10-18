@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -48,7 +49,7 @@ type capturedOperatorInput struct {
 	path      []ids.ObjectAddress
 	groups    operatorGroups
 	qualified *[]ids.ObjectAddress
-	operands  *[]expressionDependency
+	operands  *[]catalog.ExpressionDependency
 }
 
 func (e *Engine) captureOperatorInput(auth AuthorizationView, op *Operation) (capturedOperatorInput, error) {

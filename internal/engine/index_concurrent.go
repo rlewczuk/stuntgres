@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -10,7 +11,7 @@ import (
 // Catalog publication alone owns installation, revision and root-map authority.
 type indexRootCandidate struct {
 	root       *logicalIndexRoot
-	index      *relationDescriptor
+	index      *catalog.Relation
 	storage    *relationStorage
 	generation uint64
 	ends       *deletionRoot
@@ -21,11 +22,11 @@ func (c indexRootCandidate) matches(store *relationStorage) bool {
 	return store == c.storage && store != nil && store.generation == c.generation && store.ends == c.ends && len(store.versions) == c.length
 }
 
-func (c indexRootCandidate) matchesIndex(index *relationDescriptor, store *relationStorage) bool {
+func (c indexRootCandidate) matchesIndex(index *catalog.Relation, store *relationStorage) bool {
 	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(indexStorageIdentity(store))
 }
 
-func simpleConcurrentIndex(parent *relationDescriptor, definition *indexDefinition) (bool, error) {
+func simpleConcurrentIndex(parent *catalog.Relation, definition *catalog.IndexDefinition) (bool, error) {
 	for _, key := range definition.Keys {
 		_, node, err := indexCatalogKey(parent, key)
 		if err != nil {
@@ -38,7 +39,7 @@ func simpleConcurrentIndex(parent *relationDescriptor, definition *indexDefiniti
 	return true, nil
 }
 
-func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.CreateIndex, initial *relationDescriptor) (Result, error) {
+func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (Result, error) {
 	if err := scope.waitIndexWriters(initial.Address()); err != nil {
 		return Result{}, err
 	}
@@ -62,7 +63,7 @@ func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.Cr
 	return Result{}, nil
 }
 
-func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*relationDescriptor, *relationDescriptor, AuthorizationView, error) {
+func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*catalog.Relation, *catalog.Relation, AuthorizationView, error) {
 	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		return nil, nil, AuthorizationView{}, err
 	}
@@ -133,7 +134,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
+		stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		namespace := auth.catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.catalog}
@@ -200,7 +201,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
+		stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {

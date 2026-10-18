@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,7 +55,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
-	stage.indexParents = make(map[ids.ObjectAddress]*relationDescriptor, len(g.parents))
+	stage.indexParents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.parents))
 	for _, ref := range g.parents {
 		stage.indexParents[ref.Address] = g.descriptors[ref.Address]
 		stage.domainBases = append(stage.domainBases, g.descriptors[ref.Address])
@@ -66,7 +67,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if _, reindex := stmt.(*parser.Reindex); reindex {
-		stage.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(g.indexes))
+		stage.indexRebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(g.indexes))
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
 			original := g.descriptors[ref.Address]
@@ -155,7 +156,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 	for parent, count := range s.indexSets {
 		actual := 0
 		for address, descriptor := range current.Descriptors() {
-			d, ok := descriptor.(*relationDescriptor)
+			d, ok := descriptor.(*catalog.Relation)
 			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
 				continue
 			}

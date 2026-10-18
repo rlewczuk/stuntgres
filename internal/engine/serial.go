@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -25,7 +26,7 @@ func serialTypeName(name parser.TypeName) string {
 	return ""
 }
 
-func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescriptor, declarations []createColumnDeclaration) error {
+func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []createColumnDeclaration) error {
 	for slot, declaration := range declarations {
 		if !declaration.serial {
 			continue
@@ -53,7 +54,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 		options.Owned = table.Address()
 		options.Owned.SubID = table.Attributes[slot]
-		sequence := &relationDescriptor{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: sequenceRelation, Sequence: &options}
+		sequence := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 		sequence.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 		sequence.AttributeHighWater = 3
 		if err := stage.Create(sequence); err != nil {

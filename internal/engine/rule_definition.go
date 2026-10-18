@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 const rulePseudoScope = ^uint32(0)
 
 type ruleNamespace struct {
-	relation *relationDescriptor
+	relation *catalog.Relation
 	ref      ids.ObjectRef
 	event    string
 }
@@ -39,13 +40,13 @@ type ruleDefinition struct {
 	references            []ids.ObjectAddress
 }
 
-func ruleIndex(d *relationDescriptor, name string) int {
+func ruleIndex(d *catalog.Relation, name string) int {
 	return slices.IndexFunc(rulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
 }
-func ruleMissing(name string, d *relationDescriptor) error {
+func ruleMissing(name string, d *catalog.Relation) error {
 	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
 }
-func ruleDuplicate(name string, d *relationDescriptor) error {
+func ruleDuplicate(name string, d *catalog.Relation) error {
 	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.Name()))
 }
 func ruleEvent(stmt parser.Statement) string {
@@ -117,11 +118,11 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 	if side == "new" {
 		frame = 2
 	}
-	b.dependencies = append(b.dependencies, expressionDependency{Ref: ref, Revision: ns.relation.Revision()})
+	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: ns.relation.Revision()})
 	return columnExpression{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 
-func ruleResultCheck(d *relationDescriptor, schema []ColumnDescriptor, selectRule bool) error {
+func ruleResultCheck(d *catalog.Relation, schema []ColumnDescriptor, selectRule bool) error {
 	prefix := "RETURNING list"
 	if selectRule {
 		prefix = "SELECT rule's target list"
@@ -188,7 +189,7 @@ func ruleReturning(s parser.Statement) *parser.Returning {
 	return nil
 }
 
-func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *relationDescriptor, ref ids.ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
+func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
 	r := ruleDefinition{Name: s.Name.Text, event: strings.ToUpper(s.Event), instead: s.Instead}
 	ns := &ruleNamespace{relation: d, ref: ref, event: r.event}
 	if s.Condition != nil {

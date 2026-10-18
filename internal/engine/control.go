@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -77,7 +78,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		_, foreign := descriptor.(*foreignDescriptor)
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Foreign != nil {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Foreign != nil {
 			foreign = true
 		}
 		if foreign {
@@ -89,10 +90,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
 	}
-	var invalid *relationDescriptor
+	var invalid *catalog.Relation
 	var invalidSchema string
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
@@ -155,7 +156,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	viewIndices := make(map[ids.OID]int)
 	tableIndices := make(map[ids.OID]int)
 	indexIndices := make(map[ids.OID]int)
-	composites := make(map[ids.OID]*relationDescriptor)
+	composites := make(map[ids.OID]*catalog.Relation)
 	// Deferral removes only eligible definitions' edges. Inline consumers keep
 	// their prerequisites, including providers shared with deferred defaults.
 	var inlinePredecessors map[ids.OID][]ids.OID
@@ -258,7 +259,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if ns, ok := e.catalog.state.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		r, ok := d.(*relationDescriptor)
+		r, ok := d.(*catalog.Relation)
 		if !ok {
 			switch t := d.(type) {
 			case *databaseDescriptor:
@@ -441,7 +442,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: unsupported catalog descriptor kind")
 		}
-		if r.RelationKind == catalogRelation {
+		if r.RelationKind == catalog.CatalogRelation {
 			continue
 		}
 		ns, ok := e.catalog.state.Namespace(r.Namespace())
@@ -461,7 +462,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return err
 		}
-		if r.RelationKind == compositeRelation {
+		if r.RelationKind == catalog.CompositeRelation {
 			composites[r.Address().ObjectID] = r
 			viewDependencies[dumpEventKey{oid: r.Address().ObjectID}] = nil
 			continue
@@ -523,7 +524,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			// Materialized definitions preserve their analyzed presentation
 			// without synthetic source aliases. Their explicit empty visibility
 			// path below qualifies user types for portable, executable dump SQL.
-			presentation := viewPresentation{columns: r.Columns, deparse: r.RelationKind == materializedViewRelation}
+			presentation := viewPresentation{columns: r.Columns, deparse: r.RelationKind == catalog.MaterializedViewRelation}
 			if presentation.deparse {
 				// A nil path is diagnostic naming's unqualified mode. Dump's
 				// canonical materialized renderer must qualify user types too.
@@ -553,7 +554,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			sql := "CREATE VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns +
 				options + " AS " + body + ";\n"
-			if r.RelationKind == materializedViewRelation {
+			if r.RelationKind == catalog.MaterializedViewRelation {
 				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
 				storage := e.storage[a]
 				if storage == nil {
@@ -616,7 +617,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			views = append(views, dumpView{principal.Name, sql})
 			continue
 		}
-		if r.RelationKind == sequenceRelation {
+		if r.RelationKind == catalog.SequenceRelation {
 			g := e.sequences[a]
 			if g == nil {
 				e.mu.Unlock()
@@ -1272,7 +1273,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			localElements := 0
 			for i, c := range t.columns {
-				provenance := inheritedColumn{Local: true, ExplicitDefault: true, ExplicitGeneration: true}
+				provenance := catalog.InheritedColumn{Local: true, ExplicitDefault: true, ExplicitGeneration: true}
 				if t.descriptor.Inheritance != nil {
 					provenance = t.descriptor.Inheritance.Columns[t.attributes[i]]
 				}
@@ -1695,7 +1696,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	var pairedNotNull restoredNotNull
 	var pairedPhysical *restoredPhysicalNotNull
 	var deferredPhysical *restoredPhysicalNotNull
-	physicalIndexes := make(map[ids.ObjectAddress]*relationDescriptor)
+	physicalIndexes := make(map[ids.ObjectAddress]*catalog.Relation)
 	var physicalForeignProvider *restoredPhysicalForeignKeyProvider
 	placeholderOrigins := make(map[restoredGenerationKey]restoredGenerationRecipe)
 	var generationRepairs []restoredGenerationRecipe

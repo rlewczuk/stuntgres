@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,7 +18,7 @@ type alterTypeCheck struct {
 	literals []literalExpression
 }
 
-func captureAlterTypeChecks(op *Operation, view CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
+func captureAlterTypeChecks(op *Operation, view CatalogRead, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
 	if len(survivor.CheckConstraints) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
 		return nil, nil
 	}
@@ -43,7 +44,7 @@ func captureAlterTypeChecks(op *Operation, view CatalogRead, original, survivor 
 			if !affected {
 				continue
 			}
-			index := slices.IndexFunc(survivor.CheckConstraints, func(c checkConstraint) bool { return c.Ordinal == check.Ordinal })
+			index := slices.IndexFunc(survivor.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Ordinal == check.Ordinal })
 			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.index == index }) {
 				continue
 			}
@@ -60,7 +61,7 @@ func captureAlterTypeChecks(op *Operation, view CatalogRead, original, survivor 
 
 // Reparse original syntax against the completed TYPE descriptor, rather than
 // retagging old operators or retaining inferred coercions from the old usage.
-func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, auth AuthorizationView, ref ids.ObjectRef, next *relationDescriptor, queue []alterTypeCheck) (*relationDescriptor, []checkConstraint, error) {
+func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []alterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
 	if len(queue) == 0 {
 		return next, nil, nil
 	}
@@ -72,7 +73,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	}
 	qualifier := queryQualifier{name: next.Name(), original: next.Name(), schema: auth.catalog.Get(next.Namespace()).Name(), ref: ref, columns: columns}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.Columns}
-	var ordered []checkConstraint
+	var ordered []catalog.CheckConstraint
 	for _, pending := range queue {
 		// Parse in CHECK context so selected calls remain functions, rather than
 		// the general scalar grammar's function-style casts. Only the extracted
@@ -110,7 +111,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			if descriptor, exists := auth.catalog.Descriptor(address); exists {
 				revision = descriptor.Revision()
 			}
-			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: dependency, Revision: revision})
+			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: revision})
 		}
 		replacement.CheckConstraints[pending.index] = definition
 	}
@@ -138,8 +139,8 @@ func alterTypeCheckReparseError(err error) error {
 // One completed-row validator is shared by TYPE rewriting and metadata-only NN
 // scans. The CHECK traversal descriptor is ephemeral; storage stays alphabetic.
 type alterRowValidator struct {
-	relation *relationDescriptor
-	checks   *relationDescriptor
+	relation *catalog.Relation
+	checks   *catalog.Relation
 	schema   string
 	notNull  []int
 }
@@ -169,7 +170,7 @@ func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext
 	return diagnostic
 }
 
-func newAlterRowValidator(relation *relationDescriptor, schema string) alterRowValidator {
+func newAlterRowValidator(relation *catalog.Relation, schema string) alterRowValidator {
 	v := alterRowValidator{relation: relation, schema: schema}
 	for slot, column := range relation.Columns {
 		if column.Nullable {
@@ -189,7 +190,7 @@ func newAlterRowValidator(relation *relationDescriptor, schema string) alterRowV
 	return v
 }
 
-func needsNotNullScan(original, next *relationDescriptor) bool {
+func needsNotNullScan(original, next *catalog.Relation) bool {
 	for _, n := range next.NotNullConstraints {
 		if n.NotValid {
 			continue

@@ -6,13 +6,14 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgExtensionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3079}
 	d, ok := e.catalog.state.Relation(a)
@@ -22,11 +23,11 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Ob
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
+func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
+	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}
 	names := [8]string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}

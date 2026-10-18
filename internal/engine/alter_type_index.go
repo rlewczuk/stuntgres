@@ -2,17 +2,18 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
 
 type alterTypeIndex struct {
-	index     *relationDescriptor
+	index     *catalog.Relation
 	keys      []int
 	predicate bool
 	sql       string
 }
 
-func captureAlterTypeIndexes(scope *StatementScope, view CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
+func captureAlterTypeIndexes(scope *StatementScope, view CatalogRead, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
 	op := scope.op
 	hasType := false
 	for _, action := range actions {
@@ -23,7 +24,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view CatalogRead, original, 
 	}
 	var queue []alterTypeIndex
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != original.Address() {
 			continue
 		}
@@ -99,11 +100,11 @@ func captureAlterTypeIndexes(scope *StatementScope, view CatalogRead, original, 
 	return queue, nil
 }
 
-func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *relationDescriptor, stage *CatalogStage, queue []alterTypeIndex) error {
+func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []alterTypeIndex) error {
 	for _, pending := range queue {
 		copy := *pending.index
 		definition := *copy.SQLIndex
-		definition.Keys = append([]indexKey(nil), definition.Keys...)
+		definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
 		copy.SQLIndex = &definition
 		// This queue contains actual affected TYPE reconstructions, not generic
 		// descriptor evolution. Publish these flags only with the validated

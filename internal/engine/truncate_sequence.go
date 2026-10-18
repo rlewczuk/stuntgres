@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -11,13 +12,13 @@ import (
 // These observations fence the binding/descriptor, never a snapshot of counters.
 type truncateSequence struct {
 	ref       ids.ObjectRef
-	relation  *relationDescriptor
+	relation  *catalog.Relation
 	generator *sequenceGenerator
 	committed *sequenceGenerator
 }
 
-func truncateOwnsSequence(d *relationDescriptor, selected map[ids.ObjectAddress]int) bool {
-	if d.RelationKind != sequenceRelation || d.Sequence.Owned == (ids.ObjectAddress{}) {
+func truncateOwnsSequence(d *catalog.Relation, selected map[ids.ObjectAddress]int) bool {
+	if d.RelationKind != catalog.SequenceRelation || d.Sequence.Owned == (ids.ObjectAddress{}) {
 		return false
 	}
 	a := d.Sequence.Owned
@@ -33,7 +34,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	if err == nil {
 		for a, descriptor := range auth.catalog.Descriptors() {
-			d, ok := descriptor.(*relationDescriptor)
+			d, ok := descriptor.(*catalog.Relation)
 			if !ok || !truncateOwnsSequence(d, s.truncateSelected) {
 				continue
 			}
@@ -91,7 +92,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	// Host publication need not honor SQL locks. Do not silently omit an owned
 	// sequence added between closure capture and staging, even for an empty set.
 	for a, descriptor := range auth.catalog.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok && truncateOwnsSequence(d, s.truncateSelected) {
+		if d, ok := descriptor.(*catalog.Relation); ok && truncateOwnsSequence(d, s.truncateSelected) {
 			if _, captured := observed[a]; !captured {
 				return nil, CatalogConflict{}
 			}
@@ -128,7 +129,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		// source event also survives rollback, without changing observation
 		// validity/value, the last-demanded sequence, or a peer's analysis.
 		m.remaining = 0
-		m.analysisStamp = stage.Descriptors[a].(*relationDescriptor).SequencePlanStamp
+		m.analysisStamp = stage.Descriptors[a].(*catalog.Relation).SequencePlanStamp
 	}
 	s.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return observed, nil

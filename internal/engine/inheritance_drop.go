@@ -4,6 +4,7 @@ import (
 	"iter"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -47,7 +48,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view CatalogRead, roots 
 			}
 			seen[address] = true
 			table, ok := view.Relation(address)
-			if !ok || table.RelationKind != tableRelation || address.SubID != 0 {
+			if !ok || table.RelationKind != catalog.TableRelation || address.SubID != 0 {
 				return
 			}
 			tables = append(tables, address)

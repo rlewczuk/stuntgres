@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -15,7 +16,7 @@ type capturedRegTSInput struct {
 	temporary ids.ObjectAddress
 	path      []ids.ObjectAddress
 	qualified *[]ids.ObjectAddress
-	resolved  *[]expressionDependency
+	resolved  *[]catalog.ExpressionDependency
 }
 
 func (e *Engine) captureRegTSInput(auth AuthorizationView) (capturedRegTSInput, error) {
@@ -88,7 +89,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 		if d, ok := r.auth.catalog.TSDictionary(address); ok {
 			if r.resolved != nil {
 				ref := r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), d.Address())
-				*r.resolved = append(*r.resolved, expressionDependency{Ref: ref, Revision: d.Revision()})
+				*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
 			}
 			return uint32(d.Address().ObjectID), nil
 		}

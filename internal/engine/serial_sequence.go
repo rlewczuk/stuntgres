@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -51,7 +52,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 	if owner.SubID == 0 {
 		if isSystemColumn(column) {
 			switch relation.RelationKind {
-			case tableRelation, sequenceRelation, catalogRelation, indexRelation:
+			case catalog.TableRelation, catalog.SequenceRelation, catalog.CatalogRelation, catalog.IndexRelation:
 				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
@@ -61,8 +62,8 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if err := c.Context.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
-		sequence, ok := descriptor.(*relationDescriptor)
-		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.Owned != owner {
+		sequence, ok := descriptor.(*catalog.Relation)
+		if !ok || sequence.RelationKind != catalog.SequenceRelation || sequence.Sequence == nil || sequence.Sequence.Owned != owner {
 			continue
 		}
 		namespace, ok := view.Namespace(sequence.Namespace())

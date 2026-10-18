@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type inheritancePreparedAction struct {
-	old, next *relationDescriptor
+	old, next *catalog.Relation
 	added     addedColumn
 	drop      *preparedDrop
 	identity  *preparedIdentityDrop
@@ -19,9 +20,9 @@ type inheritancePreparedAction struct {
 	notices   []sqlstate.Error
 }
 type inheritancePreparedNode struct {
-	old                                            *relationDescriptor
+	old                                            *catalog.Relation
 	actions                                        []parser.AlterTableAction
-	graph                                          *tableInheritance
+	graph                                          *catalog.TableInheritance
 	steps                                          map[int]inheritancePreparedAction
 	inline                                         []inheritancePreparedAction
 	checks                                         preparedAddedChecks
@@ -30,7 +31,7 @@ type inheritancePreparedNode struct {
 	phaseZeroOnly                                  bool
 	usingIndexes                                   []usingIndexAttachment
 	usingNotNull                                   []inheritancePreparedAction
-	afterDropOld, usingCaptureOld                  *relationDescriptor
+	afterDropOld, usingCaptureOld                  *catalog.Relation
 	afterDropError, usingCaptureError, checksError error
 }
 
@@ -62,7 +63,7 @@ func alterActionPhase(action parser.AlterTableActionKind) int {
 	return -1
 }
 
-func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
+func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
 	state := scope.inheritanceAlter
 	prepared := &inheritancePreparedNode{old: old, actions: actions, graph: state.graph, steps: make(map[int]inheritancePreparedAction)}
 	prepared.phaseZeroOnly = state.only && !inheritancePureDefinitionPreparation(actions)
@@ -253,7 +254,7 @@ phases:
 	return prepared, nil
 }
 
-func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *relationDescriptor) ([]Descriptor, error) {
+func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *catalog.Relation) ([]Descriptor, error) {
 	if relation.RowType == 0 {
 		return nil, nil
 	}
@@ -285,7 +286,7 @@ func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode 
 	return scope.inheritanceAlter.prepared[scope.lockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *relationDescriptor, ref ids.ObjectRef, changes *catalogChanges) (*relationDescriptor, addedColumn, bool, error) {
+func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *catalog.Relation, ref ids.ObjectRef, changes *catalogChanges) (*catalog.Relation, addedColumn, bool, error) {
 	if prepared == nil {
 		return nil, addedColumn{}, false, nil
 	}
@@ -322,7 +323,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 	return step.next, step.added, true, nil
 }
 
-func detachPreparedInheritanceDefinition(next *relationDescriptor) *relationDescriptor {
+func detachPreparedInheritanceDefinition(next *catalog.Relation) *catalog.Relation {
 	copy := *next
 	copy.NotNullConstraints = slices.Clone(next.NotNullConstraints)
 	copy.CheckConstraints = slices.Clone(next.CheckConstraints)

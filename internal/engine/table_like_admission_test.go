@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -85,7 +86,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				}
 				retained := false
 				for _, descriptor := range stage.Descriptors {
-					index, ok := descriptor.(*relationDescriptor)
+					index, ok := descriptor.(*catalog.Relation)
 					if !ok || index.SQLIndex == nil {
 						continue
 					}

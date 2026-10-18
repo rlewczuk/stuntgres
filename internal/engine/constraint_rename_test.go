@@ -80,7 +80,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			}
 			e.DiscardCatalogStage(failed)
 			// The local helper checks the same revision exhaustion before slicing.
-			candidate.NotNullConstraints = []notNullConstraint{{Name: "nn"}}
+			candidate.NotNullConstraints = []catalog.NotNullConstraint{{Name: "nn"}}
 			if _, err := renameLocalConstraint(&candidate, "nn", "renamed_nn", 'n'); err == nil {
 				t.Fatal("revision exhaustion admitted")
 			}
@@ -347,7 +347,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
 	earlier := s.transactions.catalog
-	parent := earlier.descriptors[ref.Address].(*relationDescriptor)
+	parent := earlier.descriptors[ref.Address].(*catalog.Relation)
 	index := parent.UniqueConstraints[0].Index
 	root := earlier.uniqueRoots[index]
 	storage := earlier.storage[ref.Address].replacement

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -12,7 +13,7 @@ type ruleCTECommand struct {
 	definition *cteDefinition
 	command    ruleCommand
 	caller     AuthorizationView
-	events     []expressionDependency
+	events     []catalog.ExpressionDependency
 	mutation   int
 }
 
@@ -37,7 +38,7 @@ func ruleCTEProgramError(program ruleProgram) error {
 // All original bodies have completed ordinary typed analysis and parameter
 // inference. Rewrite modifiers before parent rules, without altering providers.
 func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth AuthorizationView, statement parser.Statement, b *binding) error {
-	matched := func(relation *relationDescriptor, statement parser.Statement) bool {
+	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
 		return relation != nil && slices.ContainsFunc(rulesOf(relation), func(rule ruleDefinition) bool { return rule.event == ruleEvent(statement) })
 	}
 	needed := b.ruleTemplate || matched(bindingRuleRelation(*b), statement)
@@ -71,7 +72,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		b.ruleCTEs[definition] = &ruleCTECommand{definition: definition, command: command, caller: auth, events: program.events, mutation: -1}
 		b.dependencies = append(b.dependencies, program.events...)
 		if command.binding.relation != nil {
-			b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
+			b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 		}
 		b.dependencies = append(b.dependencies, command.binding.dependencies...)
 		b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)

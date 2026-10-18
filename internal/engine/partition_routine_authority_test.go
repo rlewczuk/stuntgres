@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -34,9 +35,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		return auth
 	}
 	auth := capture(reader)
-	var owner *relationDescriptor
+	var owner *catalog.Relation
 	for _, descriptor := range auth.catalog.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == "partition_original" {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Name() == "partition_original" {
 			owner = relation
 		}
 	}
@@ -67,9 +68,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		return EvalContext{Context: context.Background(), Row: sentinel, Scope: 7, Frame: 9, statementScope: scope, catalog: auth.catalog, routineAuthority: &auth}
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
-		if plain, ok := descriptor.(*relationDescriptor); ok && plain.Name() == "partition_plain" {
+		if plain, ok := descriptor.(*catalog.Relation); ok && plain.Name() == "partition_plain" {
 			local := newEvaluation(auth)
-			var buffer [32]partitionDatum
+			var buffer [32]catalog.PartitionDatum
 			if _, err := partitionRowKey(plain, row, &local, buffer[:]); err != nil {
 				t.Fatal("plain key demand", err)
 			}

@@ -3,14 +3,15 @@ package engine
 import (
 	"maps"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // Only a target with checked nonunique indexes needs a mixed insertion lane.
 // Unique/exclusion bindings retain their existing ordered fast path otherwise.
 type indexInsertionBinding struct {
-	index       *relationDescriptor
-	parent      *relationDescriptor
+	index       *catalog.Relation
+	parent      *catalog.Relation
 	preparation indexExecutionPreparation
 	unique      *uniqueBoundKey
 	ordering    indexOrdering
@@ -109,7 +110,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion
 
 // The mixed lane may need ordinary prior-own keys again after catalog drift.
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
-func (s *StatementScope) retainExistingIndexOutput(index *relationDescriptor, row rowVersion, output indexRowOutput) {
+func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row rowVersion, output indexRowOutput) {
 	if s.existingIndexOutputs == nil {
 		s.existingIndexOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput)
 	}

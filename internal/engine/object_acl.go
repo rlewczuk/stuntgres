@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -223,7 +224,7 @@ func rawObjectACL(view CatalogRead, address ids.ObjectAddress) (authorization.AC
 		// AttrNumber is signed int16. Narrow only after choosing the column
 		// path, so wrapped zero never becomes a whole-object ACL request.
 		subid := int32(int16(address.SubID))
-		if relation, ok := d.(*relationDescriptor); ok && subid > 0 && relation.HasAttribute(subid) {
+		if relation, ok := d.(*catalog.Relation); ok && subid > 0 && relation.HasAttribute(subid) {
 			return relation.ColumnACL[subid], nil
 		}
 		return authorization.ACLValue{}, nil

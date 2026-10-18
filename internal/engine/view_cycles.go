@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -13,7 +14,7 @@ import (
 func validateViewReadGraph(view CatalogRead, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind == viewRelation {
+		if leaf.relation.RelationKind == catalog.ViewRelation {
 			hasView = true
 			break
 		}
@@ -23,9 +24,9 @@ func validateViewReadGraph(view CatalogRead, leaves []queryLeaf) (bool, error) {
 	}
 	active, done := make(map[ids.ObjectAddress]bool), make(map[ids.ObjectAddress]bool)
 	visibilityDemand := false
-	var visit func(*relationDescriptor) error
-	visit = func(d *relationDescriptor) error {
-		if d.RelationKind != viewRelation || done[d.Address()] {
+	var visit func(*catalog.Relation) error
+	visit = func(d *catalog.Relation) error {
+		if d.RelationKind != catalog.ViewRelation || done[d.Address()] {
 			return nil
 		}
 		if active[d.Address()] {
@@ -47,7 +48,7 @@ func validateViewReadGraph(view CatalogRead, leaves []queryLeaf) (bool, error) {
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind != viewRelation {
+		if leaf.relation.RelationKind != catalog.ViewRelation {
 			continue
 		}
 		current, ok := view.Relation(leaf.relation.Address())

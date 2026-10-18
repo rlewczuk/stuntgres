@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -29,7 +30,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		}
 		return v
 	}
-	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
+	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) catalog.CheckConstraint {
 		ref := view.Owner().Domain.Ref(view.Epoch(), leaf.Address())
 		ref.Address.SubID = leaf.Attributes[slot]
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
@@ -39,9 +40,9 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 			t.Fatal(err)
 		}
 		expression := comparisonExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, left: column, right: literal, predicate: predicate}
-		return checkConstraint{OID: oid, Name: name, NotValid: true, Expression: expression, Dependencies: []expressionDependency{{Ref: ref}}}
+		return catalog.CheckConstraint{OID: oid, Name: name, NotValid: true, Expression: expression, Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}
 	}
-	leaf.CheckConstraints = []checkConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
+	leaf.CheckConstraints = []catalog.CheckConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
 	oldValues := []sqltype.Value{integer(1), integer(0)}
 	dead := rowVersion{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(99), integer(99)}}
 	live := rowVersion{row: 2, version: 2, born: 3, values: oldValues}
@@ -119,14 +120,14 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// dependency cells still determine whether this old constraint is affected.
 	virtualLeaf := *leaf
 	sourceColumn := leaf.CheckConstraints[1].Expression.(comparisonExpression).left.(columnExpression)
-	virtualLeaf.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
+	virtualLeaf.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
 	virtualCheck := makeCheck(26002, "virtual_input", 1, sqltype.CompareEqual, 1)
 	virtualExpression := virtualCheck.Expression.(comparisonExpression)
 	virtualColumn := virtualExpression.left.(columnExpression)
 	virtualColumn = virtualColumn.withGeneration(&virtualLeaf, 1, 0)
 	virtualExpression.left = virtualColumn
 	virtualCheck.Expression = virtualExpression
-	virtualLeaf.CheckConstraints = []checkConstraint{virtualCheck}
+	virtualLeaf.CheckConstraints = []catalog.CheckConstraint{virtualCheck}
 	virtualHistory := history
 	virtualHistory.relation = &virtualLeaf
 	virtualBefore := []sqltype.Value{integer(1), sqltype.Null(typ)}
@@ -185,7 +186,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// An actual changed stored literal selects and enforces only its CHECK,
 	// despite unchanged row cells and an unrelated old violating constraint.
 	literalLeaf := *leaf
-	literalLeaf.CheckConstraints = append([]checkConstraint(nil), leaf.CheckConstraints...)
+	literalLeaf.CheckConstraints = append([]catalog.CheckConstraint(nil), leaf.CheckConstraints...)
 	literalCheck := literalLeaf.CheckConstraints[1].Expression.(comparisonExpression)
 	changedConstant := literalCheck.right.(literalExpression)
 	changedConstant.value = integer(2)

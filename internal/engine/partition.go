@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func hierarchyRelation(d *relationDescriptor) bool { return d.Partition != nil || d.Membership != nil }
+func hierarchyRelation(d *catalog.Relation) bool { return d.Partition != nil || d.Membership != nil }
 
-func validatePartitionDescriptor(view CatalogRead, d *relationDescriptor) error {
+func validatePartitionDescriptor(view CatalogRead, d *catalog.Relation) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition hierarchy descriptor") }
-	if (d.Partition != nil) != (d.RelationKind == partitionedRelation) {
+	if (d.Partition != nil) != (d.RelationKind == catalog.PartitionedRelation) {
 		return invalid()
 	}
-	if d.Membership != nil && d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
+	if d.Membership != nil && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return invalid()
 	}
 	if p := d.Partition; p != nil {
@@ -150,7 +151,7 @@ func validatePartitionDescriptor(view CatalogRead, d *relationDescriptor) error 
 			if len(membership.Lower) != len(parent.Partition.Keys) || len(membership.Upper) != len(parent.Partition.Keys) {
 				return invalid()
 			}
-			for _, tuple := range [2][]partitionDatum{membership.Lower, membership.Upper} {
+			for _, tuple := range [2][]catalog.PartitionDatum{membership.Lower, membership.Upper} {
 				var sentinel int8
 				for i, key := range parent.Partition.Keys {
 					v := tuple[i]
@@ -194,7 +195,7 @@ func validatePartitionDescriptor(view CatalogRead, d *relationDescriptor) error 
 // datums terminate comparison there; equal finite tuples terminate at the last
 // component. Callers needing PostgreSQL's equal-lower overlap position explicitly
 // select the first component instead.
-func comparePartitionTuple(ctx context.Context, keys []partitionKeyEntry, a, b []partitionDatum, input sqltype.InputEnvironment) (int, int, error) {
+func comparePartitionTuple(ctx context.Context, keys []catalog.PartitionKeyEntry, a, b []catalog.PartitionDatum, input sqltype.InputEnvironment) (int, int, error) {
 	for i, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return 0, i, err
@@ -217,12 +218,12 @@ func comparePartitionTuple(ctx context.Context, keys []partitionKeyEntry, a, b [
 }
 
 type partitionEvaluatedKey struct {
-	values  []partitionDatum
+	values  []catalog.PartitionDatum
 	anyNull bool
 	hash    uint64
 }
 
-func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *EvalContext, buffer []partitionDatum) (partitionEvaluatedKey, error) {
+func partitionRowKey(d *catalog.Relation, row []sqltype.Value, evaluation *EvalContext, buffer []catalog.PartitionDatum) (partitionEvaluatedKey, error) {
 	keys := d.Partition.Keys
 	result := partitionEvaluatedKey{values: buffer[:len(keys)]}
 	for i, key := range keys {
@@ -239,7 +240,7 @@ func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *Eva
 				return partitionEvaluatedKey{}, err
 			}
 		}
-		result.values[i] = partitionDatum{Value: value}
+		result.values[i] = catalog.PartitionDatum{Value: value}
 		result.anyNull = result.anyNull || value.IsNull()
 		if d.Partition.Strategy == parser.PartitionHash && !value.IsNull() {
 			hashed, err := key.Hash.Hash(evaluation.Context, value, 0x7a5b22367996dcfd)
@@ -252,7 +253,7 @@ func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *Eva
 	return result, nil
 }
 
-func partitionRangeContains(ctx context.Context, keys []partitionKeyEntry, bound *partitionMembership, values []partitionDatum, anyNull bool, input sqltype.InputEnvironment) (bool, error) {
+func partitionRangeContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, values []catalog.PartitionDatum, anyNull bool, input sqltype.InputEnvironment) (bool, error) {
 	if anyNull {
 		return false, nil
 	}
@@ -264,7 +265,7 @@ func partitionRangeContains(ctx context.Context, keys []partitionKeyEntry, bound
 	return upper < 0, err
 }
 
-func partitionContains(ctx context.Context, keys []partitionKeyEntry, bound *partitionMembership, key partitionEvaluatedKey, input sqltype.InputEnvironment) (bool, error) {
+func partitionContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, key partitionEvaluatedKey, input sqltype.InputEnvironment) (bool, error) {
 	if bound.Strategy == parser.PartitionHash {
 		return key.hash%uint64(bound.Modulus) == uint64(bound.Remainder), ctx.Err()
 	}
@@ -273,8 +274,8 @@ func partitionContains(ctx context.Context, keys []partitionKeyEntry, bound *par
 
 // DEFAULT is always the live complement; no copied DEFAULT predicate can
 // outlive an explicit sibling's publication or its atomic removal.
-func partitionAccepts(view CatalogRead, parent *relationDescriptor, child *relationDescriptor, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
-	var buffer [32]partitionDatum
+func partitionAccepts(view CatalogRead, parent *catalog.Relation, child *catalog.Relation, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
+	var buffer [32]catalog.PartitionDatum
 	key, err := partitionRowKey(parent, row, evaluation, buffer[:])
 	if err != nil {
 		return false, err
@@ -295,7 +296,7 @@ func partitionAccepts(view CatalogRead, parent *relationDescriptor, child *relat
 	return true, nil
 }
 
-func partitionPhysicalDescendants(catalog CatalogRead, d *relationDescriptor, visit func(*relationDescriptor) error) error {
+func partitionPhysicalDescendants(catalog CatalogRead, d *catalog.Relation, visit func(*catalog.Relation) error) error {
 	if d.Partition == nil {
 		return visit(d)
 	}

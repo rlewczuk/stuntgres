@@ -267,7 +267,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 		return d.Owner, authorization.ACLValue{}, nil
 	case *namespaceDescriptor:
 		return d.Owner, d.ACL, nil
-	case *relationDescriptor:
+	case *catalog.Relation:
 		return d.Owner, d.ACL, d.ColumnACL
 	case *typeDescriptor:
 		return d.Owner, d.ACL, nil
@@ -311,7 +311,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	if d.Kind() == ids.NamespaceObject {
 		return authorization.UsagePrivilege | authorization.CreatePrivilege
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
+	if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation {
 		return authorization.SelectPrivilege | authorization.UsagePrivilege | authorization.UpdatePrivilege
 	}
 	return authorization.TableGrantPrivileges
@@ -325,7 +325,7 @@ func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
 		return nil, fmt.Errorf("stuntgres: invalid authorization object")
 	}
 	if ref.Address.SubID > 0 {
-		r, ok := d.(*relationDescriptor)
+		r, ok := d.(*catalog.Relation)
 		if !ok || !r.HasAttribute(ref.Address.SubID) {
 			return nil, fmt.Errorf("stuntgres: invalid authorization column")
 		}
@@ -445,18 +445,18 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "foreign-data wrapper"
 		} else if d.Kind() == ids.ForeignServerObject {
 			kind = "foreign server"
-		} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
+		} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation {
 			kind = "sequence"
-		} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == foreignRelation {
+		} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ForeignRelation {
 			kind = "foreign table"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == viewRelation {
+		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ViewRelation {
 			kind = "view"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == materializedViewRelation {
+		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.MaterializedViewRelation {
 			kind = "materialized view"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == indexRelation {
+		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.IndexRelation {
 			kind = "index"
 		}
 		if req.Object.Address.SubID > 0 && d.Kind() == ids.RelationObject {
@@ -502,15 +502,15 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "foreign-data wrapper"
 	} else if d.Kind() == ids.ForeignServerObject {
 		kind = "foreign server"
-	} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
+	} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation {
 		kind = "sequence"
-	} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == foreignRelation {
+	} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ForeignRelation {
 		kind = "foreign table"
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == viewRelation {
+	if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ViewRelation {
 		kind = "view"
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == materializedViewRelation {
+	if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.MaterializedViewRelation {
 		kind = "materialized view"
 	}
 	name := d.Name()
@@ -542,7 +542,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	if _, err := r.Descriptor(owner); err != nil {
 		return err
 	}
-	if relation, ok := d.(*relationDescriptor); ok {
+	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Policies {
 			for _, role := range policy.Roles {
 				if role.Public {
@@ -559,7 +559,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 		return err
 	}
 	for sub, a := range cols {
-		relation, ok := d.(*relationDescriptor)
+		relation, ok := d.(*catalog.Relation)
 		if !ok || sub <= 0 || !relation.HasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
@@ -583,7 +583,7 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	}
 	owner, acl, cols := descriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
-	if relation, ok := d.(*relationDescriptor); ok {
+	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Policies {
 			for _, role := range policy.Roles {
 				if !role.Public {
@@ -719,7 +719,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if source.relation.RelationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
+		if source.relation.RelationKind == catalog.ViewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
 			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.state.CurrentUser); err != nil {
 				return err
 			}
@@ -728,7 +728,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	return nil
 }
 func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
-	if b.relation.RelationKind == sequenceRelation && mask != authorization.SelectPrivilege {
+	if b.relation.RelationKind == catalog.SequenceRelation && mask != authorization.SelectPrivilege {
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
 	whole, err := v.Effective(b.ref, false)
@@ -845,7 +845,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		n := *d
 		n.ACL = acl
 		next = &n
-	case *relationDescriptor:
+	case *catalog.Relation:
 		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
@@ -883,7 +883,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if n, ok := next.(*relationDescriptor); ok && n.RelationKind == sequenceRelation && ref.Address.SubID == 0 {
+	if n, ok := next.(*catalog.Relation); ok && n.RelationKind == catalog.SequenceRelation && ref.Address.SubID == 0 {
 		stamp, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err

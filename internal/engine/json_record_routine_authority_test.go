@@ -103,7 +103,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if evaluation.catalog.Get(address) != captured {
 				t.Fatal("call did not borrow the original owned descriptor")
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			selected := 0
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -157,13 +157,13 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original source/project admission", err)
 			}
-			missing := make([]expressionDependency, 0, len(original))
+			missing := make([]catalog.ExpressionDependency, 0, len(original))
 			for _, dependency := range original {
 				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
@@ -171,7 +171,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, epoch := range []bool{false, true} {
-				stale := append([]expressionDependency(nil), original...)
+				stale := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range stale {
 					if stale[i].Ref.Address == address {
 						if epoch {
@@ -206,7 +206,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if mapped.Plan.BaseIndex() != tc.base || len(mapped.Args) != arity || mapped.Defined != call.Defined || mapped.Properties() != call.Properties() || mapped.SourcePosition() != call.SourcePosition() {
 				t.Fatal("foreign retag changed physical call contract", mapped)
 			}
-			for _, manifest := range [][]expressionDependency{original, nil, {}} {
+			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("foreign retag manufactured original destination manifest")
@@ -240,7 +240,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		ref := roleTableRef(t, e, "json_authority_recipe")
 		recipe := view.MustRelation(ref.Address)
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "json_to_record('{}'::json)")
-		original := append([]expressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 		call := node.(functions.JSONRecord)
 		identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 		grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)

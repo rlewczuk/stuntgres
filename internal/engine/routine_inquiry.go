@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/catalog"
+
 // All SQL query/cursor evaluation borrowing queryAuthority is serialized by the
 // existing transactionOwner.admission lease through StatementScope.Finish (and
 // message End). Query pipelines do not dispatch parallel expression workers.
@@ -11,7 +13,7 @@ package engine
 // Both are consumed graphs owned by the same existing statement collection.
 type commandRoutineProgram struct {
 	outer     *procedureDescriptor
-	consumer  *relationDescriptor
+	consumer  *catalog.Relation
 	ri        bool
 	admission routineAdmissionProgram
 }

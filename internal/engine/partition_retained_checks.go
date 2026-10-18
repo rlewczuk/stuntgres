@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -11,12 +12,12 @@ import (
 // Captured with the existing replacement source mutex/frontier. Source versions
 // and datum payloads remain immutable; candidate copyRows owns separate vectors.
 type partitionRowHistory struct {
-	relation *relationDescriptor
+	relation *catalog.Relation
 	store    relationStorage
 	frontier ids.CommitSeq
 }
 
-func partitionNeedsRowHistory(catalog CatalogRead, d *relationDescriptor) bool {
+func partitionNeedsRowHistory(catalog CatalogRead, d *catalog.Relation) bool {
 	if d.Membership == nil || d.Partition != nil {
 		return false
 	}
@@ -46,7 +47,7 @@ func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candida
 	return nil, ids.ErrCatalogReplaced
 }
 
-func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistory, d *relationDescriptor, attribute int32, before, after []sqltype.Value) (bool, error) {
+func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistory, d *catalog.Relation, attribute int32, before, after []sqltype.Value) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -54,7 +55,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	if oldSlot < 0 || newSlot < 0 {
 		return false, ids.ErrCatalogReplaced
 	}
-	if generation, ok := h.relation.Generations[attribute]; ok && generation.Kind == generationVirtual {
+	if generation, ok := h.relation.Generations[attribute]; ok && generation.Kind == catalog.GenerationVirtual {
 		// Virtual cells have no stored value. Follow the already-certified
 		// generation dependency graph to its actual stored input cells.
 		for _, dependency := range generation.Dependencies {
@@ -89,8 +90,8 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 
 // Only material datum/provider changes make a retained NOT VALID check newly
 // relevant. Descriptor ownership alone does not change its old-row authority.
-func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *relationDescriptor, check checkConstraint, before, after []sqltype.Value) (bool, error) {
-	var original *checkConstraint
+func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
+	var original *catalog.CheckConstraint
 	for i := range h.relation.CheckConstraints {
 		if h.relation.CheckConstraints[i].Name == check.Name {
 			original = &h.relation.CheckConstraints[i]
@@ -177,12 +178,12 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 // CHECK preflight ordering. Its subset changes only when affected inputs change;
 // invalidate the existing preparation entry then, never a published descriptor.
 type partitionRetainedChecks struct {
-	descriptor     relationDescriptor
+	descriptor     catalog.Relation
 	initialized    bool
 	recipeAffected []bool
 }
 
-func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *relationDescriptor, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *EvalContext) (*relationDescriptor, error) {
+func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *EvalContext) (*catalog.Relation, error) {
 	if !p.initialized {
 		p.descriptor = *d
 		p.descriptor.CheckConstraints = slices.Clone(d.CheckConstraints)
@@ -192,7 +193,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 			if !check.NotValid {
 				continue
 			}
-			var original *checkConstraint
+			var original *catalog.CheckConstraint
 			for j := range h.relation.CheckConstraints {
 				if h.relation.CheckConstraints[j].Name == check.Name {
 					original = &h.relation.CheckConstraints[j]
@@ -216,7 +217,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 					continue
 				}
 				for attribute, generation := range h.relation.Generations {
-					if generation.Kind != generationVirtual || address.SubID != 0 && address.SubID != attribute {
+					if generation.Kind != catalog.GenerationVirtual || address.SubID != 0 && address.SubID != attribute {
 						continue
 					}
 					current, exists := d.Generations[attribute]

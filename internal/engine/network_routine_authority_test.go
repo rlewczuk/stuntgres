@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -87,7 +88,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			foreign := New()
 			for id := range want {
 				for _, mode := range []string{"missing", "foreign", "stale"} {
-					var checks []expressionDependency
+					var checks []catalog.ExpressionDependency
 					for _, dependency := range binder.dependencies {
 						if dependency.Ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}) {
 							switch mode {
@@ -114,7 +115,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation.routineChecks = []expressionDependency{}
+			evaluation.routineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}

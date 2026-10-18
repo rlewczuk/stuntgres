@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -96,7 +97,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if !ok {
 		t.Fatal("winning descriptor is absent")
 	}
-	relation := d.(*relationDescriptor)
+	relation := d.(*catalog.Relation)
 	if len(relation.Columns) != 1 || relation.Columns[0].Name != "kept" ||
 		relation.Columns[0].Usage.Type.ID() != sqltype.Text || relation.Columns[0].Nullable {
 		t.Fatalf("winning definition changed: %#v", relation.Columns)

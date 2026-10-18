@@ -84,7 +84,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if sameGroupExpression(n, changed) {
 		t.Fatal("argument identity collapsed")
 	}
-	consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
+	consumer := &catalog.Relation{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
-	consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
+	consumer := &catalog.Relation{ObjectAddress: address, Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {

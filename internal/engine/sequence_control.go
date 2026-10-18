@@ -56,8 +56,8 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]*sequenceGenerator, error) {
 	result := make(map[ids.ObjectAddress]*sequenceGenerator)
 	for a, d := range view.Descriptors() {
-		r, ok := d.(*relationDescriptor)
-		if !ok || r.RelationKind != sequenceRelation {
+		r, ok := d.(*catalog.Relation)
+		if !ok || r.RelationKind != catalog.SequenceRelation {
 			continue
 		}
 		g := source.sequences[a]
@@ -106,7 +106,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	// Persistent replacement cannot substitute imported domains for a live
 	// TEMP array's exact dependency identities. Fail before allocator/state work.
 	for _, descriptor := range temporary {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -176,7 +176,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 	}
 	for _, descriptor := range temporary {
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			for _, column := range relation.Columns {
 				retainBuiltin(column.Usage.Type)
 			}
@@ -246,8 +246,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					switch provider := e.catalog.state.Get(address).(type) {
 					case *typeDescriptor:
 						retainBuiltin(provider.SQLType)
-					case *relationDescriptor:
-						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalogRelation || !pgDependPinned(e.catalog.read(e.catalog.state), address) {
+					case *catalog.Relation:
+						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !pgDependPinned(e.catalog.read(e.catalog.state), address) {
 							continue
 						}
 						// The exact immutable catalog provider includes unused columns.
@@ -393,8 +393,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				if n != *r {
 					d = &n
 				}
-			case *relationDescriptor:
-				if target == a && r.RelationKind == catalogRelation && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
+			case *catalog.Relation:
+				if target == a && r.RelationKind == catalog.CatalogRelation && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					if _, moved := mapping[r.Namespace()]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
@@ -409,7 +409,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 							return destination
 						}
 						return address
-					}, func(origin inheritanceOrigin) ids.OID { return origin.Constraint })
+					}, func(origin catalog.InheritanceOrigin) ids.OID { return origin.Constraint })
 				}
 				if target != a {
 					n.Columns = append([]ColumnDescriptor(nil), r.Columns...)
@@ -423,7 +423,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					n.ObjectNamespace = dest
 				}
 				if len(r.UniqueConstraints) != 0 {
-					n.UniqueConstraints = append([]uniqueConstraint(nil), r.UniqueConstraints...)
+					n.UniqueConstraints = append([]catalog.UniqueConstraint(nil), r.UniqueConstraints...)
 					for i := range n.UniqueConstraints {
 						if dest, ok := mapping[n.UniqueConstraints[i].Index]; ok {
 							n.UniqueConstraints[i].Index = dest
@@ -434,7 +434,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					return err
 				}
 				if len(r.ExclusionConstraints) != 0 {
-					n.ExclusionConstraints = append([]exclusionConstraint(nil), r.ExclusionConstraints...)
+					n.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), r.ExclusionConstraints...)
 					for i := range n.ExclusionConstraints {
 						if dest, ok := mapping[n.ExclusionConstraints[i].Index]; ok {
 							n.ExclusionConstraints[i].Index = dest
@@ -442,7 +442,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					}
 				}
 				if len(r.ForeignKeys) != 0 {
-					n.ForeignKeys = append([]foreignKeyConstraint(nil), r.ForeignKeys...)
+					n.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), r.ForeignKeys...)
 					for i := range n.ForeignKeys {
 						if dest, ok := mapping[n.ForeignKeys[i].Target]; ok {
 							n.ForeignKeys[i].Target = dest
@@ -480,7 +480,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					n.Sequence = &o
 				}
 				if len(r.Identities) != 0 {
-					n.Identities = make(map[int32]columnIdentity, len(r.Identities))
+					n.Identities = make(map[int32]catalog.ColumnIdentity, len(r.Identities))
 					for attribute, identity := range r.Identities {
 						if destination, ok := mapping[identity.Sequence]; ok {
 							identity.Sequence = destination
@@ -543,7 +543,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	next.SetOperatorNames(operators.Index)
 	for address, descriptor := range temporary {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || len(relation.Policies) == 0 && len(rulesOf(relation)) == 0 {
 			continue
 		}
@@ -586,22 +586,22 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	for _, descriptor := range next.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.Policies) != 0 {
+		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Policies) != 0 {
 			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			if err := validateTypedAttachment(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Inheritance != nil {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
 			if err := validateInheritance(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.View != nil {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.View != nil {
 			if err := validateViewDefinition(e.catalog.read(next), relation); err != nil {
 				return err
 			}
@@ -632,7 +632,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 
 type dumpSequence struct {
 	owner, schema, name     string
-	options                 sequenceOptions
+	options                 catalog.SequenceOptions
 	state                   sequenceGenerator
 	comment                 string
 	ownedTable, ownedColumn string
@@ -748,7 +748,7 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
 	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range temporary {
-		consumer, ok := descriptor.(*relationDescriptor)
+		consumer, ok := descriptor.(*catalog.Relation)
 		if !ok || consumer.View == nil {
 			continue
 		}
@@ -768,7 +768,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			fail := func() error {
 				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
 			}
-			if old != captured || old.RelationKind != catalogRelation || !pgDependPinned(view, address) {
+			if old != captured || old.RelationKind != catalog.CatalogRelation || !pgDependPinned(view, address) {
 				return fail()
 			}
 			candidate, ok := next.Relation(address)

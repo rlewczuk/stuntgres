@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	view := e.CatalogRead()
 	descriptor, _ := view.Descriptor(ref.Address)
-	original := descriptor.(*relationDescriptor)
+	original := descriptor.(*catalog.Relation)
 	predicate := original.CheckConstraints[0].Expression.(comparisonExpression)
 	column := predicate.left.(columnExpression)
 	for _, tc := range []struct {
@@ -34,7 +35,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *original
-			copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
+			copy.CheckConstraints = append([]catalog.CheckConstraint(nil), original.CheckConstraints...)
 			bad := column
 			tc.change(&bad)
 			p := predicate
@@ -50,14 +51,14 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, slot: 0},
 	} {
 		copy := *original
-		copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
+		copy.CheckConstraints = append([]catalog.CheckConstraint(nil), original.CheckConstraints...)
 		copy.CheckConstraints[0].Expression = node
 		if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 			t.Fatalf("unpersistable %T accepted", node)
 		}
 	}
 	copy := *original
-	copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
+	copy.CheckConstraints = append([]catalog.CheckConstraint(nil), original.CheckConstraints...)
 	copy.CheckConstraints[0].Dependencies = nil
 	if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 		t.Fatal("missing dependency manifest accepted")
@@ -71,7 +72,7 @@ func TestCheckCompletedRowValidator(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
 	ref := roleTableRef(t, e, "t")
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
-	table := d.(*relationDescriptor)
+	table := d.(*catalog.Relation)
 	old := []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}
 	eval := EvalContext{Context: context.Background(), Row: old, Scope: 7, Frame: 9}
 	for _, n := range []int64{1, 2} {
@@ -111,7 +112,7 @@ func TestCheckNativeCatalogReplacementOrigins(t *testing.T) {
 			defer finish()
 			ref := roleTableRef(t, target, "t")
 			d, _ := target.CatalogRead().Descriptor(ref.Address)
-			if err := validateChecks(target.CatalogRead(), d.(*relationDescriptor), map[string]bool{}); err != nil {
+			if err := validateChecks(target.CatalogRead(), d.(*catalog.Relation), map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
 			ast := statement(t, "INSERT INTO t VALUES(2)")

@@ -12,7 +12,7 @@ import (
 
 // Bind a real query against genuine private TEMP descriptors, then exercise the
 // catalog-stage functions directly. No public SQL execution is duplicated here.
-func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query string) (*Engine, *Operation, *catalogChanges, *relationDescriptor, *CatalogStage, *relationDescriptor) {
+func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query string) (*Engine, *Operation, *catalogChanges, *catalog.Relation, *CatalogStage, *catalog.Relation) {
 	t.Helper()
 	e, op, changes, table := temporaryCatalogCandidate(t, action)
 	raw := statement(t, query).(*parser.CreateView)
@@ -30,12 +30,12 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 20008, viewRelation, true)
+	definition, err := e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 20008, catalog.ViewRelation, true)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, ObjectNamespace: table.Namespace(), ObjectName: "candidate_view", ObjectRevision: 1, Owner: table.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, ObjectNamespace: table.Namespace(), ObjectName: "candidate_view", ObjectRevision: 1, Owner: table.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	definition.consumer = d.Address()
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = e.stageRowTypeLocked(stage, d)

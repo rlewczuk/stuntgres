@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,7 +17,7 @@ const (
 	notNullValidation
 )
 
-func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, a parser.AlterTableAction, recursion notNullRecursion) (*relationDescriptor, error) {
+func notNullCandidate(op *Operation, view CatalogRead, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
 	slot, index := -1, -1
 	if a.Action == parser.DropConstraint {
 		for i, c := range old.NotNullConstraints {
@@ -34,7 +35,7 @@ func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, 
 		for _, c := range old.CheckConstraints {
 			if c.Name == a.Constraint.Text {
 				next := *old
-				next.CheckConstraints = make([]checkConstraint, 0, len(old.CheckConstraints)-1)
+				next.CheckConstraints = make([]catalog.CheckConstraint, 0, len(old.CheckConstraints)-1)
 				for _, constraint := range old.CheckConstraints {
 					if constraint.Name != a.Constraint.Text {
 						next.CheckConstraints = append(next.CheckConstraints, constraint)
@@ -56,7 +57,7 @@ func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, 
 					return nil, err
 				}
 				next := *old
-				next.UniqueConstraints = make([]uniqueConstraint, 0, len(old.UniqueConstraints)-1)
+				next.UniqueConstraints = make([]catalog.UniqueConstraint, 0, len(old.UniqueConstraints)-1)
 				next.UniqueConstraints = append(next.UniqueConstraints, old.UniqueConstraints[:i]...)
 				next.UniqueConstraints = append(next.UniqueConstraints, old.UniqueConstraints[i+1:]...)
 				transitionPhysicalNotNull(old, &next)
@@ -66,7 +67,7 @@ func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, 
 		for i, c := range old.ExclusionConstraints {
 			if c.Name == a.Constraint.Text {
 				next := *old
-				next.ExclusionConstraints = make([]exclusionConstraint, 0, len(old.ExclusionConstraints)-1)
+				next.ExclusionConstraints = make([]catalog.ExclusionConstraint, 0, len(old.ExclusionConstraints)-1)
 				next.ExclusionConstraints = append(next.ExclusionConstraints, old.ExclusionConstraints[:i]...)
 				next.ExclusionConstraints = append(next.ExclusionConstraints, old.ExclusionConstraints[i+1:]...)
 				return &next, nil
@@ -75,7 +76,7 @@ func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, 
 		for i, c := range old.ForeignKeys {
 			if c.Name == a.Constraint.Text {
 				next := *old
-				next.ForeignKeys = make([]foreignKeyConstraint, 0, len(old.ForeignKeys)-1)
+				next.ForeignKeys = make([]catalog.ForeignKeyConstraint, 0, len(old.ForeignKeys)-1)
 				next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[:i]...)
 				next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[i+1:]...)
 				return &next, nil
@@ -201,11 +202,11 @@ func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, 
 	next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
 	next.Columns[slot].Nullable = !adding
 	if adding {
-		next.NotNullConstraints = make([]notNullConstraint, len(old.NotNullConstraints)+1)
+		next.NotNullConstraints = make([]catalog.NotNullConstraint, len(old.NotNullConstraints)+1)
 		copy(next.NotNullConstraints, old.NotNullConstraints)
-		next.NotNullConstraints[len(old.NotNullConstraints)] = notNullConstraint{Name: name, Attribute: old.Attributes[slot], NotValid: a.NotValid, NoInherit: a.NoInherit}
+		next.NotNullConstraints[len(old.NotNullConstraints)] = catalog.NotNullConstraint{Name: name, Attribute: old.Attributes[slot], NotValid: a.NotValid, NoInherit: a.NoInherit}
 	} else {
-		next.NotNullConstraints = make([]notNullConstraint, 0, len(old.NotNullConstraints)-1)
+		next.NotNullConstraints = make([]catalog.NotNullConstraint, 0, len(old.NotNullConstraints)-1)
 		next.NotNullConstraints = append(next.NotNullConstraints, old.NotNullConstraints[:index]...)
 		next.NotNullConstraints = append(next.NotNullConstraints, old.NotNullConstraints[index+1:]...)
 	}

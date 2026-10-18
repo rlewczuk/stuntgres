@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -19,7 +20,7 @@ func indexCapability(message string, pos parser.Position) error {
 
 // Validate reloptions in input order. A first malformed value wins over a later
 // duplicate; RESET has a different contract and accepts unknown/repeated names.
-func validateIndexOptions(s *parser.AlterIndex, method indexMethod) error {
+func validateIndexOptions(s *parser.AlterIndex, method catalog.IndexMethod) error {
 	if s.Action == "reset" {
 		for _, o := range s.Options {
 			if o.HasValue {
@@ -36,7 +37,7 @@ func validateIndexOptions(s *parser.AlterIndex, method indexMethod) error {
 
 // CREATE rejects namespaces; ALTER retains PostgreSQL's toast-ignore policy.
 // This validates the complete list, without accepting physical options as no-ops.
-func validateIndexReloptions(options []parser.IndexOption, method indexMethod, alter bool) error {
+func validateIndexReloptions(options []parser.IndexOption, method catalog.IndexMethod, alter bool) error {
 	seen := make(map[string]bool, len(options))
 	for _, o := range options {
 		if alter && o.Namespace == "toast" {
@@ -49,7 +50,7 @@ func validateIndexReloptions(options []parser.IndexOption, method indexMethod, a
 		if o.Namespace != "" {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter namespace "%s"`, o.Namespace))
 		}
-		if name != "fillfactor" && (name != "deduplicate_items" || method != btreeMethod) {
+		if name != "fillfactor" && (name != "deduplicate_items" || method != catalog.BtreeMethod) {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
 		if seen[name] {

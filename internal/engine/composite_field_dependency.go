@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -26,22 +27,22 @@ func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32
 	return found
 }
 
-func stageCompositeFieldChecks(stage *CatalogStage, source *relationDescriptor, attribute int32, mode parser.DropMode, scope *StatementScope) error {
+func stageCompositeFieldChecks(stage *CatalogStage, source *catalog.Relation, attribute int32, mode parser.DropMode, scope *StatementScope) error {
 	return stageDropProvider(nil, stage, scope, nil, nil).compositeFieldChecks(source, attribute, mode)
 }
 
-func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, attribute int32, mode parser.DropMode) error {
-	var relations []*relationDescriptor
+func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
+	var relations []*catalog.Relation
 	var domains []*typeDescriptor
 	for _, descriptor := range provider.descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.CheckConstraints) != 0 {
+		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.CheckConstraints) != 0 {
 			relations = append(relations, relation)
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
 			domains = append(domains, domain)
 		}
 	}
-	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
+	slices.SortFunc(relations, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -52,7 +53,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 	})
 	var details []string
 	for _, relation := range relations {
-		var kept []checkConstraint
+		var kept []catalog.CheckConstraint
 		for _, check := range relation.CheckConstraints {
 			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				kept = append(kept, check)
@@ -82,7 +83,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 			graph := *next.Inheritance
 			graph.Checks = maps.Clone(graph.Checks)
 			for name := range graph.Checks {
-				if !slices.ContainsFunc(kept, func(check checkConstraint) bool { return check.Name == name }) {
+				if !slices.ContainsFunc(kept, func(check catalog.CheckConstraint) bool { return check.Name == name }) {
 					delete(graph.Checks, name)
 				}
 			}
@@ -137,7 +138,7 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 }
 
 // Only the already admitted typed propagation closure may prune inherited CHECKs.
-func typedFieldCheckOwner(stage *CatalogStage, relation *relationDescriptor) bool {
+func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool {
 	if stage.typedSource == (ids.ObjectAddress{}) || stage.typedObserved[relation.Address()] == nil {
 		return false
 	}

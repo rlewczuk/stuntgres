@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -42,14 +43,14 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 			}
 		}
 	}
-	for _, kind := range []relationKind{viewRelation, sequenceRelation, indexRelation} {
+	for _, kind := range []catalog.RelationKind{catalog.ViewRelation, catalog.SequenceRelation, catalog.IndexRelation} {
 		d.RelationKind = kind
 		var diagnostic *sqlstate.Error
 		if err := materializedRefreshAccess(auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "42809" {
 			t.Fatal(kind, err)
 		}
 	}
-	d.RelationKind = tableRelation
+	d.RelationKind = catalog.TableRelation
 	var diagnostic *sqlstate.Error
 	if err := materializedRefreshAccess(auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 		t.Fatal(err)

@@ -88,7 +88,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	f.child.SQLIndex.PartitionParent = f.parent.Address()
 	f.parent.SQLIndex.Include = nil
 	f.child.SQLIndex.Include = nil
-	for _, index := range [2]*relationDescriptor{f.parent, f.child} {
+	for _, index := range [2]*catalog.Relation{f.parent, f.child} {
 		index.Columns = index.Columns[:2]
 		index.Attributes = index.Attributes[:2]
 		index.AttributeHighWater = 2
@@ -100,10 +100,10 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	local.ObjectAddress.ObjectID = 19999
 	local.ObjectName = "unit_local_older"
 	definition.PartitionParent = ids.ObjectAddress{}
-	constraint := uniqueConstraint{OID: 46900, Name: local.Name(), Index: local.Address(), Attributes: []int32{22, 11}, IsLocal: true}
+	constraint := catalog.UniqueConstraint{OID: 46900, Name: local.Name(), Index: local.Address(), Attributes: []int32{22, 11}, IsLocal: true}
 	definition.Constraint = uniqueBacking(&constraint)
 	local.SQLIndex = &definition
-	f.leaf.UniqueConstraints = []uniqueConstraint{constraint}
+	f.leaf.UniqueConstraints = []catalog.UniqueConstraint{constraint}
 	f.view.State().SetDescriptor(local.Address(), &local)
 	f.view.State().BindName(catalog.DescriptorNameKey(&local), local.Address())
 	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
@@ -111,9 +111,9 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	r, c, pi, ci, li := f.root.Address().ObjectID, f.leaf.Address().ObjectID, f.parent.Address().ObjectID, f.child.Address().ObjectID, local.Address().ObjectID
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	consumer := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, ObjectNamespace: f.leaf.Namespace(), Owner: f.leaf.Owner, ObjectName: "unit_local_consumer", ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
+	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, ObjectNamespace: f.leaf.Namespace(), Owner: f.leaf.Owner, ObjectName: "unit_local_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
-	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
+	consumer.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
 	f.view.State().SetDescriptor(consumer.Address(), consumer)
 	f.view.State().BindName(catalog.DescriptorNameKey(consumer), consumer.Address())
 	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].Dependencies[0].Address, consumer.Address())

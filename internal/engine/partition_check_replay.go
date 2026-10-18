@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -37,7 +38,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if d.RelationKind == tableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil {
+	if d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil {
 		op.restorePartitionCheck = d
 	}
 	return nil
@@ -67,6 +68,6 @@ func partitionConstraintReplayImport(e *Engine, op *Operation, auth Authorizatio
 	return err == nil && bootstrap.Superuser
 }
 
-func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *relationDescriptor) bool {
-	return op != nil && op.restorePartitionCheck == d && d != nil && d.RelationKind == tableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
+	return op != nil && op.restorePartitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

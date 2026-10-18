@@ -3,11 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expression *policyExpression) error {
+func validatePolicyExpression(view CatalogRead, owner *catalog.Relation, expression *policyExpression) error {
 	if expression.syntax == nil || expression.expression == nil || expression.expression.ResultUsage().Type == nil || expression.expression.ResultUsage().Type.ID() != sqltype.Bool || expression.presentation == nil {
 		return fmt.Errorf("stuntgres: invalid policy condition")
 	}
@@ -70,7 +71,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 			return fmt.Errorf("stuntgres: invalid policy provider identity")
 		}
 		if a.SubID != 0 {
-			relation, ok := provider.(*relationDescriptor)
+			relation, ok := provider.(*catalog.Relation)
 			if !ok || !relation.HasAttribute(a.SubID) {
 				return fmt.Errorf("stuntgres: missing policy provider attribute")
 			}

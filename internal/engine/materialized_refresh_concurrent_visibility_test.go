@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -165,7 +166,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				case "rowtype":
 					copy.RowType++
 				case "ordinary_table":
-					copy.RelationKind = tableRelation
+					copy.RelationKind = catalog.TableRelation
 				}
 				e.catalog.state.SetDescriptor(d.Address(), &copy)
 			}

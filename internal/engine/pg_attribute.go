@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -13,15 +14,15 @@ const pgAttributeOID ids.OID = 1249
 
 var pgAttributeTypeIDs = [...]sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
 
-func relationAttributeMetadata(relation *relationDescriptor, slot int) attributeMetadata {
+func relationAttributeMetadata(relation *catalog.Relation, slot int) catalog.AttributeMetadata {
 	column := relation.Columns[slot]
 	attribute := relation.Attributes[slot]
-	metadata := attributeMetadata{Name: column.Name, TypeID: uint32(column.Usage.Type.ID()), Number: attribute, Facts: column.Usage.Type.AttributeFacts(), Typmod: column.Usage.Typmod, Dimensions: column.DeclaredDimensions, Collation: column.Usage.Collation.ID, NotNull: !column.Nullable, Local: true}
+	metadata := catalog.AttributeMetadata{Name: column.Name, TypeID: uint32(column.Usage.Type.ID()), Number: attribute, Facts: column.Usage.Type.AttributeFacts(), Typmod: column.Usage.Typmod, Dimensions: column.DeclaredDimensions, Collation: column.Usage.Collation.ID, NotNull: !column.Nullable, Local: true}
 	_, metadata.HasDefault = relation.Defaults[attribute]
 	if definition, ok := relation.Generations[attribute]; ok {
 		metadata.HasDefault = true
 		metadata.Generated = "s"
-		if definition.Kind == generationVirtual {
+		if definition.Kind == catalog.GenerationVirtual {
 			metadata.Generated = "v"
 		}
 	}
@@ -39,7 +40,7 @@ func relationAttributeMetadata(relation *relationDescriptor, slot int) attribute
 	if relation.Membership != nil {
 		metadata.Local, metadata.Inheritance = false, 1
 	}
-	if relation.RelationKind == viewRelation || relation.RelationKind == indexRelation {
+	if relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.IndexRelation {
 		metadata.NotNull = false
 	}
 	if relation.SQLIndex != nil {
@@ -48,14 +49,14 @@ func relationAttributeMetadata(relation *relationDescriptor, slot int) attribute
 			metadata.Collation = 0
 		}
 	}
-	if relation.RelationKind == catalogRelation {
+	if relation.RelationKind == catalog.CatalogRelation {
 		fact := relation.CatalogAttributes[slot]
 		metadata.NotNull, metadata.Dimensions, metadata.Collation = fact.NotNull, fact.Dimensions, fact.Collation
 	}
 	return metadata
 }
 
-func hasSystemAttributes(catalog CatalogRead, relation *relationDescriptor) bool {
+func hasSystemAttributes(catalog CatalogRead, relation *catalog.Relation) bool {
 	switch pgClassKind(catalog, relation) {
 	case "r", "p", "m", "S", "f":
 		return true
@@ -65,7 +66,7 @@ func hasSystemAttributes(catalog CatalogRead, relation *relationDescriptor) bool
 
 // Caller owns e.mu. Capture uses exactly the statement's selected relation and
 // paired role roots, not the live catalog, source origins or stored row data.
-func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			count += len(relation.Columns) + len(relation.DroppedAttributes)
 			if hasSystemAttributes(view, relation) {
 				count += 6
@@ -101,11 +102,11 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles
 	}
 	rows := make([][]sqltype.Value, 0, count)
 	for _, descriptor := range view.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
-		appendRow := func(metadata attributeMetadata) error {
+		appendRow := func(metadata catalog.AttributeMetadata) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -137,7 +138,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles
 			}{
 				{"tableoid", 26, -6, 4, true, "i"}, {"cmax", 29, -5, 4, true, "i"}, {"xmax", 28, -4, 4, true, "i"}, {"cmin", 29, -3, 4, true, "i"}, {"xmin", 28, -2, 4, true, "i"}, {"ctid", 27, -1, 6, false, "s"},
 			} {
-				metadata := attributeMetadata{Name: system.name, TypeID: system.oid, Number: system.number, Facts: sqltype.PostgreSQLAttributeFacts{Length: system.length, ByValue: system.byval, Alignment: system.align, Storage: "p"}, Typmod: -1, NotNull: true, Local: true}
+				metadata := catalog.AttributeMetadata{Name: system.name, TypeID: system.oid, Number: system.number, Facts: sqltype.PostgreSQLAttributeFacts{Length: system.length, ByValue: system.byval, Alignment: system.align, Storage: "p"}, Typmod: -1, NotNull: true, Local: true}
 				if err := appendRow(metadata); err != nil {
 					return nil, err
 				}
@@ -147,7 +148,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
 
-func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *relationDescriptor, metadata attributeMetadata) ([]sqltype.Value, error) {
+func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *catalog.Relation, metadata catalog.AttributeMetadata) ([]sqltype.Value, error) {
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
 		if failure == nil {

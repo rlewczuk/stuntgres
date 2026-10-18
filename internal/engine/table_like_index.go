@@ -5,10 +5,11 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func (in createLikeInput) attribute(destination *relationDescriptor, old int32) (int32, error) {
+func (in createLikeInput) attribute(destination *catalog.Relation, old int32) (int32, error) {
 	slot := slices.Index(in.source.Attributes, old)
 	if slot < 0 {
 		return 0, fmt.Errorf("stuntgres: missing LIKE index attribute")
@@ -18,20 +19,20 @@ func (in createLikeInput) attribute(destination *relationDescriptor, old int32) 
 
 // Clone live definitions, not source roots or validity flags. Invalid concurrent
 // source indexes are rebuilt as ordinary ready/valid/live destination indexes.
-func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *relationDescriptor, inputs []createLikeInput) error {
+func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []createLikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
 		if in.options&likeIndexes == 0 {
 			continue
 		}
-		var sources []*relationDescriptor
+		var sources []*catalog.Relation
 		for _, descriptor := range auth.catalog.Descriptors() {
-			index, ok := descriptor.(*relationDescriptor)
+			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.source.Address() && index.SQLIndex.Live {
 				sources = append(sources, index)
 			}
 		}
-		slices.SortFunc(sources, func(a, b *relationDescriptor) int {
+		slices.SortFunc(sources, func(a, b *catalog.Relation) int {
 			if a.Address().ObjectID < b.Address().ObjectID {
 				return -1
 			}
@@ -80,7 +81,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				derived := &derivedIndexKey{Definition: node, Execution: execution, Attributes: destination.Attributes}
+				derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: destination.Attributes}
 				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &derived.Dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
@@ -95,7 +96,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				predicate := &indexPredicate{Definition: node, Execution: execution, Attributes: destination.Attributes}
+				predicate := &catalog.IndexPredicate{Definition: node, Execution: execution, Attributes: destination.Attributes}
 				// The analyzed tree retains external dependencies even when the
 				// execution tree has folded their containing arm away.
 				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &predicate.Dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
@@ -129,8 +130,8 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				return err
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-			if old.Constraint != nil && old.Constraint.Kind == uniqueBackingKind {
-				c := uniqueConstraint{Name: name, IsLocal: true, Primary: old.Constraint.Primary, NullsNotDistinct: old.NullsNotDistinct, Index: address, Attributes: make([]int32, len(old.Keys))}
+			if old.Constraint != nil && old.Constraint.Kind == catalog.UniqueBackingKind {
+				c := catalog.UniqueConstraint{Name: name, IsLocal: true, Primary: old.Constraint.Primary, NullsNotDistinct: old.NullsNotDistinct, Index: address, Attributes: make([]int32, len(old.Keys))}
 				c.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return err
@@ -175,7 +176,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				columns[i].OriginAttribute = int16(i + 1)
 				lookup[columns[i].Name] = i
 			}
-			index := &relationDescriptor{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), AttributeHighWater: source.AttributeHighWater, Index: lookup, RelationKind: indexRelation, SQLIndex: &definition}
+			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), AttributeHighWater: source.AttributeHighWater, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition}
 			if in.options&likeComments != 0 {
 				index.Comment = source.Comment
 			}

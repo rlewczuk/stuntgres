@@ -73,7 +73,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	for _, tc := range []struct {
 		catalog CatalogRead
 		ref     ids.ObjectRef
-		source  *relationDescriptor
+		source  *catalog.Relation
 	}{
 		{CatalogRead{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
 	} {

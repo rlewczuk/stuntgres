@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -127,12 +128,12 @@ func TestNotNullGeneratedNames(t *testing.T) {
 }
 
 func TestNotNullProviderInvariants(t *testing.T) {
-	for _, mutate := range []func(*relationDescriptor){
-		func(d *relationDescriptor) { d.NotNullConstraints = nil },
-		func(d *relationDescriptor) { d.NotNullConstraints[0].Attribute = 2 },
-		func(d *relationDescriptor) { d.NotNullConstraints[0].Name = "" },
-		func(d *relationDescriptor) { d.Columns[0].Nullable = true },
-		func(d *relationDescriptor) {
+	for _, mutate := range []func(*catalog.Relation){
+		func(d *catalog.Relation) { d.NotNullConstraints = nil },
+		func(d *catalog.Relation) { d.NotNullConstraints[0].Attribute = 2 },
+		func(d *catalog.Relation) { d.NotNullConstraints[0].Name = "" },
+		func(d *catalog.Relation) { d.Columns[0].Nullable = true },
+		func(d *catalog.Relation) {
 			d.NotNullConstraints = append(d.NotNullConstraints, d.NotNullConstraints[0])
 		},
 	} {
@@ -143,7 +144,7 @@ func TestNotNullProviderInvariants(t *testing.T) {
 		next := *old
 		next.ObjectRevision++
 		next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
-		next.NotNullConstraints = append([]notNullConstraint(nil), old.NotNullConstraints...)
+		next.NotNullConstraints = append([]catalog.NotNullConstraint(nil), old.NotNullConstraints...)
 		mutate(&next)
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Replace(&next); err != nil {
@@ -185,7 +186,7 @@ func TestNotNullAlterScanFailureAndPreparedUtility(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE t ALTER a SET NOT NULL")
 }
 
-func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *relationDescriptor) {
+func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
@@ -193,7 +194,7 @@ func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef
 	next.ObjectRevision++
 	next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
 	next.Columns[0].Nullable = false
-	next.NotNullConstraints = []notNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
+	next.NotNullConstraints = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	e.mu.Lock()
 	err := e.assignDefinitionOIDsLocked(&next)
 	e.mu.Unlock()
@@ -279,7 +280,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 					storage.versions = append(storage.versions, rowVersion{row: 99, version: 99, born: e.commitSeq, values: []sqltype.Value{value, storage.versions[0].values[1]}})
 					e.mu.Unlock()
 				case "descriptor":
-					next := *old.(*relationDescriptor)
+					next := *old.(*catalog.Relation)
 					next.ObjectRevision++
 					next.Comment = "changed"
 					stage := e.BeginCatalogStage(e.CatalogRead())
@@ -323,7 +324,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				}
 				if dropping {
 					current := e.catalog.state.MustRelation(ref.Address)
-					if !reflect.DeepEqual(current.NotNullConstraints, old.(*relationDescriptor).NotNullConstraints) || current.Columns[0].Nullable || current.Columns[1].Nullable {
+					if !reflect.DeepEqual(current.NotNullConstraints, old.(*catalog.Relation).NotNullConstraints) || current.Columns[0].Nullable || current.Columns[1].Nullable {
 						t.Fatal("failed drop removed enforcement", current)
 					}
 					notNullDropEnforcement(t, e)

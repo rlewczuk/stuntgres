@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -221,7 +222,7 @@ type restoredGenerationRecipe struct {
 	attribute  int32
 	generation ids.OID
 	usage      sqltype.Usage
-	kind       generationKind
+	kind       catalog.GenerationKind
 }
 type restoredGenerationKey struct {
 	relation  ids.ObjectAddress
@@ -383,7 +384,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		return err
 	}
 	target, ok := auth.catalog.Relation(ref.Address)
-	if !ok || target.RelationKind != tableRelation || target.Partition != nil || target.Membership != nil {
+	if !ok || target.RelationKind != catalog.TableRelation || target.Partition != nil || target.Membership != nil {
 		return reject()
 	}
 	namespace, namespaceOK := auth.catalog.Namespace(target.Namespace())
@@ -458,7 +459,7 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.Inheritance != nil && len(table.Generations) != 0 {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Inheritance != nil && len(table.Generations) != 0 {
 			if namespace, ok := view.Namespace(table.Namespace()); ok && namespace.Temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
@@ -470,8 +471,8 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 	}
 	var tables []dumpRelation
 	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.RelationKind != tableRelation || table.Partition != nil || table.Membership != nil {
+		table, ok := descriptor.(*catalog.Relation)
+		if !ok || table.RelationKind != catalog.TableRelation || table.Partition != nil || table.Membership != nil {
 			continue
 		}
 		if namespace, ok := view.Namespace(table.Namespace()); !ok || namespace.Temporary != (ids.SessionToken{}) {

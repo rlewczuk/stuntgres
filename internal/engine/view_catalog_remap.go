@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -64,7 +65,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 					return err
 				}
 				check.Expression = node
-				check.Dependencies = append([]expressionDependency(nil), check.Dependencies...)
+				check.Dependencies = append([]catalog.ExpressionDependency(nil), check.Dependencies...)
 				for j := range check.Dependencies {
 					check.Dependencies[j].Ref = ref(check.Dependencies[j].Ref)
 					address := check.Dependencies[j].Ref.Address
@@ -77,7 +78,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			next.SetDescriptor(address, &copy)
 			continue
 		}
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -94,7 +95,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		}
 		if len(d.Defaults) != 0 {
 			copy := *d
-			copy.Defaults = make(map[int32]columnDefault, len(d.Defaults))
+			copy.Defaults = make(map[int32]catalog.ColumnDefault, len(d.Defaults))
 			for attribute, definition := range d.Defaults {
 				node, err := remapBoundExpression(definition.Expression, ref, nil)
 				if err != nil {
@@ -116,7 +117,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		}
 		if len(d.Generations) != 0 {
 			copy := *d
-			copy.Generations = make(map[int32]columnGeneration, len(d.Generations))
+			copy.Generations = make(map[int32]catalog.ColumnGeneration, len(d.Generations))
 			for attribute, definition := range d.Generations {
 				node, err := remapBoundExpression(definition.Expression, ref, nil)
 				if err != nil {
@@ -147,7 +148,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		}
 		if len(d.CheckConstraints) != 0 {
 			copy := *d
-			copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
+			copy.CheckConstraints = append([]catalog.CheckConstraint(nil), d.CheckConstraints...)
 			for i := range copy.CheckConstraints {
 				c := &copy.CheckConstraints[i]
 				node, err := remapBoundExpression(c.Expression, ref, nil)
@@ -159,7 +160,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 					return err
 				}
 				c.Expression = node
-				c.Dependencies = append([]expressionDependency(nil), c.Dependencies...)
+				c.Dependencies = append([]catalog.ExpressionDependency(nil), c.Dependencies...)
 				for j := range c.Dependencies {
 					c.Dependencies[j].Ref = ref(c.Dependencies[j].Ref)
 					if c.Dependencies[j].Ref.Address.ClassID == ids.ProcedureClassID {
@@ -180,7 +181,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if d.SQLIndex != nil {
 			copy := *d
 			definition := *d.SQLIndex
-			definition.Keys = append([]indexKey(nil), definition.Keys...)
+			definition.Keys = append([]catalog.IndexKey(nil), definition.Keys...)
 			for i, key := range definition.Keys {
 				if collation != nil {
 					capability, err := collation(key.CollationRef)

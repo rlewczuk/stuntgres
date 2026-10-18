@@ -244,9 +244,9 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 			case "nil":
 				deps = nil
 			case "empty":
-				deps = []expressionDependency{}
+				deps = []catalog.ExpressionDependency{}
 			case "missing":
-				deps = slices.DeleteFunc(deps, func(d expressionDependency) bool { return d.Ref.Address == n.ref.Address })
+				deps = slices.DeleteFunc(deps, func(d catalog.ExpressionDependency) bool { return d.Ref.Address == n.ref.Address })
 			default:
 				for i := range deps {
 					if deps[i].Ref.Address != n.ref.Address {

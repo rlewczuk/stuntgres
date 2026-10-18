@@ -27,7 +27,7 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	composite.ObjectAddress.ObjectID = 20020
 	composite.ObjectName = "standalone"
 	composite.RowType = 0
-	composite.RelationKind = compositeRelation
+	composite.RelationKind = catalog.CompositeRelation
 	f.e.mu.Lock()
 	err := f.e.stageRowTypeLocked(stage, &composite)
 	f.e.mu.Unlock()

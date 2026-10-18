@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}
 	source, ok := catalog.Relation(address)
@@ -40,7 +40,7 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgDatabaseUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
+	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}

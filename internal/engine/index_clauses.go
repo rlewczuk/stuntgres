@@ -2,13 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
+func indexKeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 	if key.Collation != 0 {
 		u.Collation = sqltype.CollationRef{ID: key.Collation, Derivation: sqltype.Default}
 		if key.CollationRef.Valid() && key.CollationRef.ID == key.Collation {
@@ -18,7 +19,7 @@ func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
 	return u
 }
 
-func reconstructIndexKey(key indexKey, oldUsage, newUsage sqltype.Usage, method indexMethod) indexKey {
+func reconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, method catalog.IndexMethod) catalog.IndexKey {
 	oldDefault, _ := method.DefaultClass(oldUsage.Type)
 	if key.Class.Name == "" || key.Class == oldDefault {
 		key.Class, _ = method.DefaultClass(newUsage.Type)
@@ -42,7 +43,7 @@ func indexSemanticError(err error) error {
 	return err
 }
 
-func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method indexMethod) (sqltype.IndexClass, error) {
+func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
 	path, err := e.lookupNamespaces(auth, raw, operatorLookup)
 	if err != nil {
 		return sqltype.IndexClass{}, indexSemanticError(err)
@@ -57,8 +58,8 @@ func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName,
 	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, objectNameText(raw), method))
 }
 
-func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method indexMethod) (indexKey, error) {
-	key := indexKey{Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
+func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method catalog.IndexMethod) (catalog.IndexKey, error) {
+	key := catalog.IndexKey{Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
 	if raw.Collation != nil {
 		id, err := e.lookupCollation(*raw.Collation, op)
 		if err != nil {
@@ -91,13 +92,13 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		return key, indexDefaultClassError(u.Type.DiagnosticName(), method)
 	}
 	key.Class = c
-	if method == gistMethod {
+	if method == catalog.GistMethod {
 		if raw.DirectionExplicit || raw.Nulls != parser.NullsDefault {
 			return key, sqlError("0A000", `access method "gist" does not support ordering options`)
 		}
 		return key, nil
 	}
-	if method == hashMethod {
+	if method == catalog.HashMethod {
 		if err := validateHashKeyDirection(raw); err != nil {
 			return key, err
 		}
@@ -108,7 +109,7 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 	return key, err
 }
 
-func indexDefaultClassError(name string, method indexMethod) error {
+func indexDefaultClassError(name string, method catalog.IndexMethod) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704",
 		Message: fmt.Sprintf("data type %s has no default operator class for access method %q", name, method.String()),
 		Hint:    "You must specify an operator class for the index or define a default operator class for the data type."}
@@ -117,7 +118,7 @@ func indexDefaultClassError(name string, method indexMethod) error {
 // Validate released system attribute identity without manufacturing an owned
 // storage descriptor or comparator. Final system prohibition stays after all
 // attributes, so a later ordinary missing column can still win.
-func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, raw parser.IndexKey, method indexMethod) error {
+func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, raw parser.IndexKey, method catalog.IndexMethod) error {
 	id, name := sqltype.SystemAttributeType(raw.Column.Text)
 	if raw.Collation != nil {
 		_, err := e.lookupCollation(*raw.Collation, op)
@@ -218,14 +219,14 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 	}
 }
 
-func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, s *parser.CreateIndex) (*indexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
+func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	d := &indexDefinition{Method: btreeMethod, Parent: parent.Address(), Keys: make([]indexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
+	d := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	if s.Method == "hash" {
-		d.Method = hashMethod
+		d.Method = catalog.HashMethod
 	}
 	if s.Method == "gist" {
-		d.Method = gistMethod
+		d.Method = catalog.GistMethod
 	}
 	columns := make([]ColumnDescriptor, total)
 	attributes := make([]int32, total)
@@ -239,7 +240,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 		} else {
 			raw = s.Keys[i]
 		}
-		fail := func(err error) (*indexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
+		fail := func(err error) (*catalog.IndexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
 			return nil, nil, nil, nil, err
 		}
 		label := raw.Column.Text
@@ -274,7 +275,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 				} else if err := e.validateSystemIndexKey(op, auth, raw, d.Method); err != nil {
 					return fail(err)
 				}
-				if !included && d.Method == hashMethod {
+				if !included && d.Method == catalog.HashMethod {
 					if err := validateHashKeyDirection(raw); err != nil {
 						return fail(err)
 					}

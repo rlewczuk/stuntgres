@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // Called under Engine.mu after namespace relation collisions have been checked.
 // Publish parent constraint and backing descriptor together, preserving all key
 // and constraint identities and sharing their immutable attribute vectors.
-func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) error {
+func stageBackingIndexRename(stage *CatalogStage, index *catalog.Relation) error {
 	parent, ok := stage.Base.Relation(index.SQLIndex.Parent)
 	if !ok {
 		return ids.ErrCatalogReplaced
@@ -56,10 +57,10 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	next := *parent
 	next.ObjectRevision++
 	if index.SQLIndex.IsExclusion() {
-		next.ExclusionConstraints = append([]exclusionConstraint(nil), parent.ExclusionConstraints...)
+		next.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), parent.ExclusionConstraints...)
 		next.ExclusionConstraints[slot].Name = index.Name()
 	} else {
-		next.UniqueConstraints = append([]uniqueConstraint(nil), parent.UniqueConstraints...)
+		next.UniqueConstraints = append([]catalog.UniqueConstraint(nil), parent.UniqueConstraints...)
 		next.UniqueConstraints[slot].Name = index.Name()
 	}
 	definition := *index.SQLIndex

@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgTypeUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1247}
 	d, ok := e.catalog.state.Relation(address)
@@ -21,7 +21,7 @@ func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	}
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
-func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map[uint32][]sqltype.Value {
+func pgTypeUnitBag(t *testing.T, source *querySource, d *catalog.Relation) map[uint32][]sqltype.Value {
 	t.Helper()
 	bag := make(map[uint32][]sqltype.Value)
 	for _, row := range source.anonymous {

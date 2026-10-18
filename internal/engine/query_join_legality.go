@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -306,7 +307,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view CatalogRead,
 		return nil
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
-		if d, ok := view.Relation(n.ref.Address); ok && d.RelationKind == viewRelation {
+		if d, ok := view.Relation(n.ref.Address); ok && d.RelationKind == catalog.ViewRelation {
 			if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(mark)); err != nil {
 				return err
 			}

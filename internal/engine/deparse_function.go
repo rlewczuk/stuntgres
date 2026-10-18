@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -284,7 +285,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 				}
 				continue
 			}
-			relation, ok := descriptor.(*relationDescriptor)
+			relation, ok := descriptor.(*catalog.Relation)
 			if !ok {
 				continue
 			}
@@ -370,7 +371,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
 		}
-		var relation *relationDescriptor
+		var relation *catalog.Relation
 		if id != 0 {
 			relation, ok = view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)})
 			if !ok {
@@ -386,7 +387,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return sqltype.String(e.Usage.Type, text), nil
 }
 
-func deparseAttribute(relation *relationDescriptor, attr int32) (string, error) {
+func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
 	if relation == nil {
 		return "", sqlError("22023", "expression contains variables")
 	}

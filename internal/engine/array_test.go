@@ -253,7 +253,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		if mapped, ok := mapping[address]; ok {
 			target = mapped
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && target != address {
+		if relation, ok := descriptor.(*catalog.Relation); ok && target != address {
 			copy := *relation
 			copy.ObjectAddress = target
 			copy.Columns = append([]ColumnDescriptor(nil), relation.Columns...)
@@ -301,7 +301,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 }
 
 // These are valid catalog-provider component fixtures, not public TEMP-table SQL.
-func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *relationDescriptor) *relationDescriptor {
+func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	e.mu.Lock()
 	nsOID, err := e.catalog.allocateOIDLocked()

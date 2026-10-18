@@ -15,7 +15,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
-	d := &relationDescriptor{ObjectAddress: address, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "ssi_unit", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "ssi_unit", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: catalog.TableRelation, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -271,7 +271,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	}
 	var persistentGenerator, temporaryGenerator *sequenceGenerator
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok && d.RelationKind == sequenceRelation {
+		if d, ok := descriptor.(*catalog.Relation); ok && d.RelationKind == catalog.SequenceRelation {
 			if d.Name() == "persistent_s" {
 				persistentGenerator = e.sequences[address]
 			}

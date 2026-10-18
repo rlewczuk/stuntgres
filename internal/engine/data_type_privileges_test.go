@@ -103,7 +103,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := catalog.CloneState(f.e.catalog.state)
 	typ, _ := (f.e.catalog.read(state)).LookupType(sqltype.Int4)
-	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, ObjectNamespace: f.schema, ObjectName: "dtp_unit", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, ObjectNamespace: f.schema, ObjectName: "dtp_unit", Owner: f.owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
 	state.SetDescriptor(relation.Address(), relation)
 	view := f.e.catalog.read(state)
 	auth := dtpUnitAuthority(t, f, view)

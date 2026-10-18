@@ -6,12 +6,13 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
+func availableUnitSource(e *Engine, oid ids.OID) (*catalog.Relation, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 	return e.catalog.state.MustRelation(a), e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
@@ -29,7 +30,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if !d.VirtualView || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
+		if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}
 		if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {

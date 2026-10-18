@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 type defaultDependencyEdge struct {
-	relation  *relationDescriptor
+	relation  *catalog.Relation
 	attribute int32
 	column    string
 	target    ids.ObjectAddress
 }
 
-func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
+func defaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	for _, definition := range d.Defaults {
 		for _, dependency := range definition.Dependencies {
 			a := dependency.Address
@@ -31,7 +32,7 @@ func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 
 // Validate only captured provider authority against the merged publication root.
 // Full expression/dependency agreement is already checked on the private stage.
-func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
+func validateDefaultProviders(view CatalogRead, d *catalog.Relation) error {
 	for _, definition := range d.Defaults {
 		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
 			return err
@@ -40,7 +41,7 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 	return nil
 }
 
-func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, definition columnDefault) error {
+func validateColumnDefaultProviders(view CatalogRead, d *catalog.Relation, definition catalog.ColumnDefault) error {
 	for _, ref := range definition.Dependencies {
 		address := ref.Address
 		address.SubID = 0
@@ -48,7 +49,7 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 		if !ok || !storedReferenceEpochValid(view, d, ref) {
 			return fmt.Errorf("stuntgres: missing default provider dependency")
 		}
-		if relation, ok := provider.(*relationDescriptor); ok {
+		if relation, ok := provider.(*catalog.Relation); ok {
 			if ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid default relation provider")
 			}
@@ -81,11 +82,11 @@ func stageDefaultDependents(stage *CatalogStage, targets []ids.ObjectAddress, mo
 func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
 	for address, descriptor := range provider.inputDescriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
-		if replacement, ok := provider.replacement(address).(*relationDescriptor); ok {
+		if replacement, ok := provider.replacement(address).(*catalog.Relation); ok {
 			d = replacement
 		}
 		if provider.removed(address) {

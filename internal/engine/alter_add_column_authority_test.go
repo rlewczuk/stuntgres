@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -117,7 +118,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				candidate := scope.catalog.descriptors[ref.Address].(*relationDescriptor)
+				candidate := scope.catalog.descriptors[ref.Address].(*catalog.Relation)
 				shape := scope.catalog.storage[ref.Address]
 				if candidate == old || candidate.AttributeHighWater != old.AttributeHighWater+1 || len(candidate.Columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.last != 6 {
 					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.last)

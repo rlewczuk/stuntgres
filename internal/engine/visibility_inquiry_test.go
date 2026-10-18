@@ -122,7 +122,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		})
 	}
 	broken := *relation
-	broken.CheckConstraints = append([]checkConstraint(nil), relation.CheckConstraints...)
+	broken.CheckConstraints = append([]catalog.CheckConstraint(nil), relation.CheckConstraints...)
 	broken.CheckConstraints[0].VisibilitySnapshot = false
 	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid capture manifest accepted")

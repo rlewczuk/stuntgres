@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *typeDescriptor, *relationDescriptor, *CatalogStage, *PreparedCatalogPublication) {
+func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *typeDescriptor, *catalog.Relation, *CatalogStage, *PreparedCatalogPublication) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

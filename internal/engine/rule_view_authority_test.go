@@ -32,7 +32,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: role}, Privileges: authorization.SelectPrivilege, Grantor: bootstrap}}}
 			}
 			baseRef := ruleUnitRef(e, base)
-			inner.Owner, inner.RelationKind = owner.Ref, viewRelation
+			inner.Owner, inner.RelationKind = owner.Ref, catalog.ViewRelation
 			inner.ACL = grant(actor.Ref)
 			inner.ACL.Entries = append(inner.ACL.Entries, grant(owner.Ref).Entries...)
 			inner.View = &viewDefinition{invoker: shape == "invoker" || shape == "definer_over_invoker", sources: []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1, 2}}}}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 		return rewriteQueryExpressions(root, rewrite)
 	}
 	var definition *viewDefinition
-	var consumer *relationDescriptor
+	var consumer *catalog.Relation
 	for _, layer := range w.layers {
 		if _, found := viewOf(layer.relation).queries[project.syntax]; found {
 			definition = viewOf(layer.relation)

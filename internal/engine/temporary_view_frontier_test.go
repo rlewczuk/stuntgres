@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -31,7 +32,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 	viewAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"})
 	original := before.MustRelation(viewAddress)
 	oldBase := e.catalog.Domain.Ref(before.Epoch(), baseAddress)
-	providers := make(map[ids.ObjectAddress]*relationDescriptor)
+	providers := make(map[ids.ObjectAddress]*catalog.Relation)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
 		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: name})
 		consumer := before.MustRelation(address)

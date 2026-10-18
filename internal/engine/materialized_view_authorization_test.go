@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -31,7 +32,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	}
 	base := *d
 	base.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: baseOID}
-	base.ObjectName, base.RelationKind, base.View = "unit_base", tableRelation, nil
+	base.ObjectName, base.RelationKind, base.View = "unit_base", catalog.TableRelation, nil
 	base.ACL = authorization.ACLValue{Explicit: true}
 	if err := stage.Create(&base); err != nil {
 		t.Fatal(err)

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -22,7 +23,7 @@ func (e *Engine) Comment(r CatalogRead, ref ids.ObjectRef) (string, bool, error)
 	sub := a.SubID
 	a.SubID = 0
 	switch r.Get(a).(type) {
-	case *namespaceDescriptor, *typeDescriptor, *relationDescriptor:
+	case *namespaceDescriptor, *typeDescriptor, *catalog.Relation:
 	default:
 		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
 	}
@@ -154,7 +155,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		n.Comment = text
 		n.ObjectRevision = revision
 		updated = &n
-	case *relationDescriptor:
+	case *catalog.Relation:
 		n := *d
 		n.ObjectRevision = revision
 		if ref.Address.SubID == 0 {

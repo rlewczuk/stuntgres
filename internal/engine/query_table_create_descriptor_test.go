@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -56,7 +57,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var stage *CatalogStage
-	var d *relationDescriptor
+	var d *catalog.Relation
 	var skipped bool
 	if err == nil {
 		stage, d, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: query})

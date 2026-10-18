@@ -48,7 +48,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	for _, f := range c.indexFences {
 		count := 0
 		for a, d := range e.catalog.state.Descriptors() {
-			r, ok := d.(*relationDescriptor)
+			r, ok := d.(*catalog.Relation)
 			if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
 				if !f.indexes[a] {
 					return CatalogConflict{}
@@ -163,7 +163,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return CatalogConflict{}
 		}
 		if snapshot := s.materializedSourceView; snapshot != nil {
-			if relation, ok := source.(*relationDescriptor); ok && relation.RelationKind == materializedViewRelation {
+			if relation, ok := source.(*catalog.Relation); ok && relation.RelationKind == catalog.MaterializedViewRelation {
 				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.generationAt(relation.Address())}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.Address()] == nil {
 					c.materializedSources = append(c.materializedSources, fence)
@@ -197,7 +197,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return err
 		}
 		if c.indexRebuilds == nil {
-			c.indexRebuilds = map[ids.ObjectAddress]*relationDescriptor{}
+			c.indexRebuilds = map[ids.ObjectAddress]*catalog.Relation{}
 		}
 		c.indexRebuilds[a] = d
 	}
@@ -211,7 +211,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	for parent := range s.indexSets {
 		for address, descriptor := range current.Descriptors() {
-			index, ok := descriptor.(*relationDescriptor)
+			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
 				if err := observe(address, index); err != nil {
 					return err
@@ -220,7 +220,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
 		for a, d := range e.catalog.state.Descriptors() {
-			r, ok := d.(*relationDescriptor)
+			r, ok := d.(*catalog.Relation)
 			if ok && r.SQLIndex != nil && r.SQLIndex.Parent == parent {
 				f.indexes[a] = true
 			}
@@ -255,7 +255,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		captureStorage(d.Address())
 	}
 	for a, candidate := range s.indexCandidates {
-		index, ok := s.Descriptors[a].(*relationDescriptor)
+		index, ok := s.Descriptors[a].(*catalog.Relation)
 		if !ok {
 			index, ok = current.Relation(a)
 		}

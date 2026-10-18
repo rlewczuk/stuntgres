@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -239,7 +240,7 @@ func captureRetainedDefinitionInput(view CatalogRead, definition *viewDefinition
 		}
 		for _, source := range definition.sources {
 			relation, ok := view.Relation(source.ref.Address)
-			if ok && relation.RelationKind == viewRelation {
+			if ok && relation.RelationKind == catalog.ViewRelation {
 				if err := capture(viewOf(relation)); err != nil {
 					return err
 				}
@@ -252,7 +253,7 @@ func captureRetainedDefinitionInput(view CatalogRead, definition *viewDefinition
 
 // Retained write expressions are not rebound with the consuming statement.
 // Capture input authority and lazy naming without evaluating defaults or branches.
-func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, generations map[int32]columnGeneration, checks []checkConstraint) error {
+func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, generations map[int32]catalog.ColumnGeneration, checks []catalog.CheckConstraint) error {
 	var failure error
 	visit := func(node expr.Expr) {
 		if failure != nil {

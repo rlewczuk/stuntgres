@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *relationDescriptor, *relationDescriptor, *relationDescriptor) {
+func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	owner := sessionStart(t, e, nil)
@@ -21,9 +21,9 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *relationDescr
 	} {
 		sessionSQL(t, owner, q)
 	}
-	var provider, survivor, index *relationDescriptor
+	var provider, survivor, index *catalog.Relation
 	for _, d := range e.catalog.state.Descriptors() {
-		if r, ok := d.(*relationDescriptor); ok {
+		if r, ok := d.(*catalog.Relation); ok {
 			switch r.Name() {
 			case "shape_provider":
 				provider = r
@@ -40,7 +40,7 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *relationDescr
 	return e, owner, provider, survivor, index
 }
 
-func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescriptor) (*CatalogStage, *temporarySessionIndexes) {
+func temporaryProjectionStage(t *testing.T, e *Engine, provider *catalog.Relation) (*CatalogStage, *temporarySessionIndexes) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
@@ -58,7 +58,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	return stage, indexes
 }
 
-func temporaryProjectionInstall(e *Engine, owner *Session, provider *relationDescriptor, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
+func temporaryProjectionInstall(e *Engine, owner *Session, provider *catalog.Relation, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.installTemporarySessionStageLocked(owner, stage, []ids.ObjectAddress{provider.Namespace()}, indexes)
@@ -164,8 +164,8 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	})
 	stage, indexes := temporaryProjectionStage(t, e, provider)
 	projected := stage.rowShapes[survivor.Address()].replacement
-	next := stage.Descriptors[survivor.Address()].(*relationDescriptor)
-	nextIndex := stage.Descriptors[index.Address()].(*relationDescriptor)
+	next := stage.Descriptors[survivor.Address()].(*catalog.Relation)
+	nextIndex := stage.Descriptors[index.Address()].(*catalog.Relation)
 	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.generation != maximumStore.generation || projected.ends != maximumStore.ends || sameVersionRoot(projected.versions, retained) {
 		t.Fatal("terminal maxima require fresh descriptor/store/vector and unchanged history")
 	}
@@ -219,7 +219,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	before := cloneCatalogChanges(owner.transactions.catalog)
 	var address ids.ObjectAddress
 	for a, d := range before.descriptors {
-		if relation, ok := d.(*relationDescriptor); ok && relation.Name() == "private_shape" {
+		if relation, ok := d.(*catalog.Relation); ok && relation.Name() == "private_shape" {
 			address = a
 			break
 		}
@@ -336,9 +336,9 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 	} {
 		sessionSQL(t, owner, q)
 	}
-	var survivor *relationDescriptor
+	var survivor *catalog.Relation
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.Name() == "shape_survivor" {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Name() == "shape_survivor" {
 			survivor = table
 		}
 	}

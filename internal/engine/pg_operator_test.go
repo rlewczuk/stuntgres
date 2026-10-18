@@ -9,12 +9,13 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgOperatorUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2617}
 	d, ok := e.catalog.state.Relation(a)
@@ -40,7 +41,7 @@ func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
 	return rows[1:]
 }
 
-func pgOperatorUnitBag(t *testing.T, rows *querySource, source *relationDescriptor) map[uint32][]string {
+func pgOperatorUnitBag(t *testing.T, rows *querySource, source *catalog.Relation) map[uint32][]string {
 	t.Helper()
 	bag := map[uint32][]string{}
 	for _, row := range rows.anonymous {
@@ -156,7 +157,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	for _, source := range []*relationDescriptor{&invalid, {Columns: d.Columns[:14]}} {
+	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:14]}} {
 		if got, err := capturePGOperator(context.Background(), view, ref, source); got != nil || err == nil {
 			t.Fatal("invalid source accepted", got, err)
 		}

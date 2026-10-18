@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -12,8 +13,8 @@ type rowPublication struct {
 	address            ids.ObjectAddress
 	store              *relationStorage
 	original           *relationStorage
-	originalRelation   *relationDescriptor
-	relation           *relationDescriptor
+	originalRelation   *catalog.Relation
+	relation           *catalog.Relation
 	root, next, writes []rowVersion
 	ends, nextEnds     *deletionRoot
 	deletion           *privateDeletionRoot
@@ -301,7 +302,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 			}
 			var indexErr error
-			var rebuildIntents map[ids.ObjectAddress]*relationDescriptor
+			var rebuildIntents map[ids.ObjectAddress]*catalog.Relation
 			var indexCandidates map[ids.ObjectAddress]indexRootCandidate
 			if c != nil {
 				rebuildIntents = c.indexRebuilds
@@ -443,7 +444,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					shape.original.materializedLineage = token
 					shape.replacement.materializedLineage = token
 				}
-				if shape.rewritten && shape.relation.RelationKind == materializedViewRelation {
+				if shape.rewritten && shape.relation.RelationKind == catalog.MaterializedViewRelation {
 					for i := range shape.replacement.versions {
 						shape.replacement.versions[i].born = e.commitSeq + 1
 					}

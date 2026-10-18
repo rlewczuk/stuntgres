@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -24,11 +25,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
 	}
 	switch d.RelationKind {
-	case foreignRelation:
+	case catalog.ForeignRelation:
 		source, err := e.captureForeignSourceLocked(scope, ref, d, invoker, outputUses, mark)
 		e.mu.Unlock()
 		return source, err
-	case catalogRelation:
+	case catalog.CatalogRelation:
 		switch d.Address().ObjectID {
 		case pgLocksOID:
 			return e.capturePGLocksLocked(ctx, ref, d)
@@ -129,11 +130,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		source, err := e.captureCatalogSourceLocked(ctx, catalog, roles, ref, d)
 		e.mu.Unlock()
 		return source, err
-	case sequenceRelation:
+	case catalog.SequenceRelation:
 		source, err := e.captureSequenceSourceLocked(scope, ref, d)
 		e.mu.Unlock()
 		return source, err
-	case viewRelation:
+	case catalog.ViewRelation:
 		for _, active := range scope.activeViews {
 			if active == d.Address() {
 				e.mu.Unlock()
@@ -153,7 +154,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}
 		}
 		return bridge, nil
-	case partitionedRelation:
+	case catalog.PartitionedRelation:
 		var leaves [1]queryLeaf
 		leaves[0] = queryLeaf{ref: ref, relation: d}
 		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves[:], false, invoker, mark, locks)
@@ -166,7 +167,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			return nil, err
 		}
 		return source, nil
-	case indexRelation:
+	case catalog.IndexRelation:
 		e.mu.Unlock()
 		return nil, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.Name()))
 	default:

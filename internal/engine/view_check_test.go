@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -80,7 +81,7 @@ func TestViewCheckStack(t *testing.T) {
 	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
 	project := viewOf(f.view).query.Root.(*projectNode)
 	project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: guard}
-	layers := []*relationDescriptor{f.view}
+	layers := []*catalog.Relation{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
 	for depth := range 2 {
 		source := layers[depth]
@@ -170,7 +171,7 @@ func TestViewCheckPredicate(t *testing.T) {
 		return sqltype.Boolean(f.boolean, true), nil
 	})
 	for _, value := range []sqltype.Value{sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)} {
-		b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: &relationDescriptor{ObjectName: "outer"}, predicates: []expr.Expr{pass}}, {relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: value}}}}}}
+		b := binding{relation: f.base, ref: f.baseRef, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: &catalog.Relation{ObjectName: "outer"}, predicates: []expr.Expr{pass}}, {relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: value}}}}}}
 		eval := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, Row: old, Output: scope.output}
 		err := f.e.checkViewRow(scope, &b, row, &eval)
 		var d *sqlstate.Error

@@ -93,7 +93,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 
 // The executable projection shares one authority with named and supported user
 // rows; catalog/builtin row identities remain lookup-only.
-func compositeMembers(relation *relationDescriptor) []sqltype.CompositeMember {
+func compositeMembers(relation *catalog.Relation) []sqltype.CompositeMember {
 	members := make([]sqltype.CompositeMember, len(relation.Columns))
 	for i, c := range relation.Columns {
 		members[i] = sqltype.CompositeMember{Attribute: relation.Attributes[i], Name: c.Name, Usage: c.Usage}
@@ -101,8 +101,8 @@ func compositeMembers(relation *relationDescriptor) []sqltype.CompositeMember {
 	return members
 }
 
-func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescriptor) error {
-	if !relation.RelationKind.Stored() && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != compositeRelation && relation.RelationKind != foreignRelation || relation.RowType != 0 {
+func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relation) error {
+	if !relation.RelationKind.Stored() && relation.RelationKind != catalog.PartitionedRelation && relation.RelationKind != catalog.ViewRelation && relation.RelationKind != catalog.CompositeRelation && relation.RelationKind != catalog.ForeignRelation || relation.RowType != 0 {
 		return nil
 	}
 	arrayID, err := e.catalog.allocateOIDLocked()
@@ -130,7 +130,7 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	baseline := authorization.DefaultBaseline(relation.Owner, authorization.DefaultTypes, false)
 	acl := baseline
 	synthetic := true
-	if relation.RelationKind == compositeRelation {
+	if relation.RelationKind == catalog.CompositeRelation {
 		acl, synthetic = stage.creationTypeACL(relation.Owner, relation.Namespace())
 	}
 	if err := stage.Create(&typeDescriptor{SQLType: typ, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), OwningRelation: relation.Address()}); err != nil {
@@ -139,11 +139,11 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: baseline, ACLSyntheticDefault: true, OwningRelation: relation.Address()})
 }
 
-func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {
+func (stage *CatalogStage) synchronizeRowType(relation *catalog.Relation) error {
 	return stageDropProvider(nil, stage, nil, nil, nil).synchronizeRowType(relation)
 }
 
-func (provider *dropProvider) synchronizeRowType(relation *relationDescriptor) error {
+func (provider *dropProvider) synchronizeRowType(relation *catalog.Relation) error {
 	if relation.RowType == 0 {
 		return nil
 	}
@@ -161,7 +161,7 @@ func (provider *dropProvider) synchronizeRowType(relation *relationDescriptor) e
 // synchronizeRowTypeMetadata is the shared metadata-only cooking core. replace
 // records each actual effect before the next lookup, preserving row/array name
 // occupancy and provider order without constructing a catalog or stage.
-func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescriptor, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
+func synchronizeRowTypeMetadata(relation *catalog.Relation, row *typeDescriptor, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
 	same := row.Namespace() == relation.Namespace() && row.Name() == relation.Name()
 	if row.SQLType.IsComposite() {
 		same = same && row.SQLType.CompositeLen() == len(relation.Columns)

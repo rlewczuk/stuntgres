@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ var pgConstraintTypeIDs = [28]sqltype.ID{
 
 // Each capture projects the caller's immutable owner generation, including its
 // transaction overlay. There is no independently mutable constraint registry.
-func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRe
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if table, ok := descriptor.(*relationDescriptor); ok {
+		if table, ok := descriptor.(*catalog.Relation); ok {
 			count += len(table.NotNullConstraints) + len(table.CheckConstraints) + len(table.UniqueConstraints) + len(table.ForeignKeys) + len(table.ExclusionConstraints)
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
@@ -75,7 +76,7 @@ func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRe
 			}
 			continue
 		}
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -296,7 +297,7 @@ func (b *pgConstraintBuilder) keys(row []sqltype.Value, i int, attributes []int3
 	}
 	b.vector(row, i, values)
 }
-func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value, table *relationDescriptor, expression expr.Expr) {
+func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value, table *catalog.Relation, expression expr.Expr) {
 	var values []sqltype.Value
 	walkBoundExpression(expression, func(node expr.Expr) {
 		if b.err != nil {
@@ -368,7 +369,7 @@ func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID
 	return address.ObjectID, nil
 }
 
-func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog CatalogRead, row []sqltype.Value, child *relationDescriptor, f foreignKeyConstraint) error {
+func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog CatalogRead, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
 	if len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 		return fmt.Errorf("stuntgres: invalid foreign-key metadata keys")
 	}

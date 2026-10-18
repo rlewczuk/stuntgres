@@ -3,12 +3,13 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *catalogChanges) bool {
 	d, ok := e.privateCatalogLocked(changes).Relation(ref.Address)
-	if !ok || d.RelationKind != tableRelation {
+	if !ok || d.RelationKind != catalog.TableRelation {
 		return false
 	}
 	ns, ok := e.privateCatalogLocked(changes).Namespace(d.Namespace())

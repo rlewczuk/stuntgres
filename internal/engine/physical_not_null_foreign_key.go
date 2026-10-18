@@ -2,11 +2,12 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKeyConstraint) bool {
+func physicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.ForeignKeyConstraint) bool {
 	if len(table.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.Address() {
 		return false
 	}
@@ -19,7 +20,7 @@ func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKe
 	return false
 }
 
-func emitPhysicalSelfForeignKeys(view CatalogRead, table *relationDescriptor, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
+func emitPhysicalSelfForeignKeys(view CatalogRead, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
 	if len(table.PhysicalNotNull) == 0 || len(table.ForeignKeys) == 0 {
 		return nil
 	}
@@ -51,8 +52,8 @@ type restoredPhysicalForeignKeyProvider struct {
 	op             *Operation
 	authority      AuthorizationView
 	ref            ids.ObjectRef
-	current        *relationDescriptor
-	primary        *physicalPrimarySupport
+	current        *catalog.Relation
+	primary        *catalog.PhysicalPrimarySupport
 	ownerDirective bool
 	permuted       bool
 }
@@ -78,7 +79,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 		return nil, nil
 	}
 	for attribute, proof := range old.PhysicalNotNull {
-		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != physicalNotNullImportCleanup && proof.Cause.Kind != physicalNotNullImportFlag {
+		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
@@ -141,7 +142,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 				return reject()
 			}
 			attribute := old.Attributes[slot]
-			if !slices.ContainsFunc(provider.primary.Keys, func(key physicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
+			if !slices.ContainsFunc(provider.primary.Keys, func(key catalog.PhysicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
 				return reject()
 			}
 			for _, prior := range foreign.Referenced[:i] {
@@ -160,7 +161,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 			attributes[i] = key.Attribute
 		}
 		for _, descriptor := range auth.catalog.Descriptors() {
-			index, ok := descriptor.(*relationDescriptor)
+			index, ok := descriptor.(*catalog.Relation)
 			if !ok || index.Address() == provider.primary.Index {
 				continue
 			}

@@ -5,13 +5,14 @@ import (
 	"errors"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*CatalogStage, *relationDescriptor) {
+func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*CatalogStage, *catalog.Relation) {
 	t.Helper()
 	columns := make([]ColumnDescriptor, width)
 	for i := range columns {
@@ -53,7 +54,7 @@ func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]
 	}
 }
 
-func queryCreateAssertAbsent(t *testing.T, e *Engine, d *relationDescriptor) {
+func queryCreateAssertAbsent(t *testing.T, e *Engine, d *catalog.Relation) {
 	t.Helper()
 	view := e.CatalogRead()
 	if _, ok := view.Descriptor(d.Address()); ok || e.storage[d.Address()] != nil {

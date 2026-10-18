@@ -13,14 +13,14 @@ import (
 
 type usingIndexAttachment struct {
 	syntax          *parser.UsingIndexConstraint
-	index           *relationDescriptor
+	index           *catalog.Relation
 	attributes      []int32
 	notNullPrepared bool
 }
 
 // Capture all eligibility before any runtime attachment changes its name or
 // ownership. The stage already contains the effective DROP/TYPE shape.
-func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescriptor, actions []parser.AlterTableAction, transformations []columnTransformation) ([]usingIndexAttachment, error) {
+func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *catalog.Relation, actions []parser.AlterTableAction, transformations []columnTransformation) ([]usingIndexAttachment, error) {
 	var captured []usingIndexAttachment
 	for _, action := range actions {
 		if action.Action != parser.AddUsingIndex {
@@ -82,7 +82,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 	return captured, nil
 }
 
-func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingIndexConstraint) ([]int32, error) {
+func usingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingIndexConstraint) ([]int32, error) {
 	definition := index.SQLIndex
 	fail := func(code, message string, detail bool) ([]int32, error) {
 		diagnostic := expr.ErrorAt(code, message, raw.Pos).(*sqlstate.Error)
@@ -123,7 +123,7 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 	}
 	// Deferred native UNIQUE is not represented. Associated EXCLUDE indexes have
 	// already failed above; standalone represented indexes are inherently immediate.
-	if definition.Method != btreeMethod {
+	if definition.Method != catalog.BtreeMethod {
 		return fail("42809", fmt.Sprintf(`index "%s" is not a btree`, name), false)
 	}
 	for i, key := range definition.Keys {
@@ -149,13 +149,13 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 	return slices.Clone(attributes[:len(definition.Keys)]), nil
 }
 
-func usingIndexCatalogDuplicate(parent *relationDescriptor, name string) error {
+func usingIndexCatalogDuplicate(parent *catalog.Relation, name string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_constraint_conrelid_contypid_conname_index"`, Detail: fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", parent.Address().ObjectID, name), Schema: "pg_catalog", Table: "pg_constraint", Constraint: "pg_constraint_conrelid_contypid_conname_index"}
 }
 
 // Runtime effects follow action order, but remain immutable statement candidates.
 // Row nullability is validated by the existing final effective-row ALTER scan.
-func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *relationDescriptor, captured usingIndexAttachment) (*relationDescriptor, error) {
+func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
 	prepared, err := e.prepareUsingIndexMetadata(op, e.stageRead(stage), stageDefinitionReader{stage}, parent, captured)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *rel
 	return stagePreparedUsingIndex(op, stage, parent, prepared)
 }
 
-func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relationDescriptor, prepared *usingIndexPreparation) (*relationDescriptor, error) {
+func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
 	if prepared == nil || prepared.parent != parent {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -196,6 +196,6 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 
 // CREATE's inline UNIQUE/PK surface cannot represent included attributes.
 // Emit the actual backing index and attach it through the selected ALTER path.
-func usingIndexDump(index *relationDescriptor) bool {
-	return index.SQLIndex != nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == uniqueBackingKind && len(index.SQLIndex.Include) != 0
+func usingIndexDump(index *catalog.Relation) bool {
+	return index.SQLIndex != nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == catalog.UniqueBackingKind && len(index.SQLIndex.Include) != 0
 }

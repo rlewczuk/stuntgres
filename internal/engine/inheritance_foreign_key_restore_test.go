@@ -8,6 +8,7 @@ import (
 	"maps"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -79,7 +80,7 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 				view := e.CatalogRead()
 				parent := view.MustRelation(roleTableRef(t, e, "p").Address)
 				child := view.MustRelation(roleTableRef(t, e, "c").Address)
-				var forward *foreignKeyConstraint
+				var forward *catalog.ForeignKeyConstraint
 				for i := range parent.ForeignKeys {
 					if parent.ForeignKeys[i].Name == "forward_fk" {
 						forward = &parent.ForeignKeys[i]

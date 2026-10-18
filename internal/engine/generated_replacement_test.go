@@ -66,7 +66,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
-	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: leaf, Planned: leaf}}
+	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
 	probe := functions.Random{Info: expr.Info{Usage: floating.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
@@ -83,7 +83,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, origin: columnRef, scope: 1, frame: 1, slot: 1}
 	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: repairedCell, right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, predicate: predicate, operator: "="}
 	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: probe, not: true}
-	d.CheckConstraints = []checkConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
+	d.CheckConstraints = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
 	base, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)

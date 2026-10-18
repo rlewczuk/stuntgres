@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -51,7 +52,7 @@ func conversionDescription(oid ids.OID) string {
 	return builtinConversionDescriptions[index]
 }
 
-func capturePGDescription(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGDescription(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func capturePGDescription(ctx context.Context, view CatalogRead, ref ids.ObjectR
 		if err := appendDescription(descriptor.Address(), 0, catalogDescription(descriptor, 0)); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			for _, attribute := range relation.Attributes {
 				if err := ctx.Err(); err != nil {
 					return nil, err

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -25,7 +26,7 @@ func structuralNull(node expr.Expr) bool {
 	}
 }
 
-func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
+func (e *Engine) assignDefinitionOIDsLocked(d *catalog.Relation) error {
 	for i := range d.NotNullConstraints {
 		if d.NotNullConstraints[i].OID == 0 {
 			id, err := e.catalog.allocateOIDLocked()
@@ -88,7 +89,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 }
 
 func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
-	d, relation := descriptor.(*relationDescriptor)
+	d, relation := descriptor.(*catalog.Relation)
 	if !relation {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
@@ -160,7 +161,7 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 // Descriptor and owned-definition OIDs share one identity space. Replacement
 // must reserve both before allocating any collision replacement.
 func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
-	d, relation := descriptor.(*relationDescriptor)
+	d, relation := descriptor.(*catalog.Relation)
 	if !relation {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
@@ -233,7 +234,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				}
 			}
 		}
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -295,7 +296,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 // Reserve the entire candidate before allocating collision replacements.
 func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	reserved := make(map[ids.OID]bool)
-	var relations []*relationDescriptor
+	var relations []*catalog.Relation
 	var domains []*typeDescriptor
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] = true
@@ -306,7 +307,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			domains = append(domains, domain)
 			reserveDefinitionOIDs(reserved, domain)
 		}
-		if d, ok := descriptor.(*relationDescriptor); ok {
+		if d, ok := descriptor.(*catalog.Relation); ok {
 			relations = append(relations, d)
 			reserveDefinitionOIDs(reserved, d)
 		}
@@ -438,7 +439,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if len(d.Policies) != 0 && &d.Policies[0] == &old.Policies[0] {
-				d.Policies = append([]policyDefinition(nil), old.Policies...)
+				d.Policies = append([]catalog.PolicyDefinition(nil), old.Policies...)
 			}
 			d.Policies[i].OID = id
 			changed = true
@@ -452,7 +453,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if !nullCopied {
-				d.NotNullConstraints = append([]notNullConstraint(nil), old.NotNullConstraints...)
+				d.NotNullConstraints = append([]catalog.NotNullConstraint(nil), old.NotNullConstraints...)
 				nullCopied = true
 			}
 			d.NotNullConstraints[i].OID = id
@@ -468,7 +469,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if !checkCopied {
-				d.CheckConstraints = append([]checkConstraint(nil), old.CheckConstraints...)
+				d.CheckConstraints = append([]catalog.CheckConstraint(nil), old.CheckConstraints...)
 				checkCopied = true
 			}
 			d.CheckConstraints[i].OID = id
@@ -485,7 +486,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if d.UniqueConstraints == nil || &d.UniqueConstraints[0] == &old.UniqueConstraints[0] {
-				d.UniqueConstraints = append([]uniqueConstraint(nil), old.UniqueConstraints...)
+				d.UniqueConstraints = append([]catalog.UniqueConstraint(nil), old.UniqueConstraints...)
 			}
 			d.UniqueConstraints[i].OID = id
 			recordConstraint(def.OID, id)
@@ -510,7 +511,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if d.ExclusionConstraints == nil || &d.ExclusionConstraints[0] == &old.ExclusionConstraints[0] {
-				d.ExclusionConstraints = append([]exclusionConstraint(nil), old.ExclusionConstraints...)
+				d.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), old.ExclusionConstraints...)
 			}
 			d.ExclusionConstraints[i].OID = id
 			recordConstraint(def.OID, id)
@@ -534,7 +535,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if &d.ForeignKeys[0] == &old.ForeignKeys[0] {
-				d.ForeignKeys = append([]foreignKeyConstraint(nil), old.ForeignKeys...)
+				d.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), old.ForeignKeys...)
 			}
 			d.ForeignKeys[i].OID = id
 			recordConstraint(def.OID, id)
@@ -549,7 +550,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if !defaultCopied {
-				d.Defaults = make(map[int32]columnDefault, len(old.Defaults))
+				d.Defaults = make(map[int32]catalog.ColumnDefault, len(old.Defaults))
 				for key, value := range old.Defaults {
 					d.Defaults[key] = value
 				}
@@ -569,7 +570,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				continue
 			}
 			if !generationCopied {
-				d.Generations = make(map[int32]columnGeneration, len(old.Generations))
+				d.Generations = make(map[int32]catalog.ColumnGeneration, len(old.Generations))
 				for key, value := range old.Generations {
 					d.Generations[key] = value
 				}
@@ -585,11 +586,11 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	for _, descriptor := range next.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || len(table.UniqueConstraints) == 0 && len(table.ExclusionConstraints) == 0 {
 			continue
 		}
-		var changed *relationDescriptor
+		var changed *catalog.Relation
 		for i, constraint := range table.UniqueConstraints {
 			parent, exists := uniqueMapping[constraint.Parent]
 			if !exists || parent == constraint.Parent {
@@ -597,7 +598,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			if changed == nil {
 				copy := *table
-				copy.UniqueConstraints = append([]uniqueConstraint(nil), table.UniqueConstraints...)
+				copy.UniqueConstraints = append([]catalog.UniqueConstraint(nil), table.UniqueConstraints...)
 				changed = &copy
 			}
 			changed.UniqueConstraints[i].Parent = parent
@@ -612,7 +613,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				changed = &copy
 			}
 			if changed.ExclusionConstraints == nil || &changed.ExclusionConstraints[0] == &table.ExclusionConstraints[0] {
-				changed.ExclusionConstraints = append([]exclusionConstraint(nil), table.ExclusionConstraints...)
+				changed.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), table.ExclusionConstraints...)
 			}
 			changed.ExclusionConstraints[i].Parent = parent.ObjectID
 		}
@@ -623,7 +624,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	if len(constraintMapping) != 0 {
 		view := e.catalog.read(next)
 		for address, descriptor := range next.Descriptors() {
-			parent, ok := descriptor.(*relationDescriptor)
+			parent, ok := descriptor.(*catalog.Relation)
 			if !ok || len(rulesOf(parent)) == 0 {
 				continue
 			}

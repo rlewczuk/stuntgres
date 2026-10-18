@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -9,7 +10,7 @@ import (
 
 // Metadata-only graph evolution shares the same one-stage atomic publication
 // contract as shape ALTER, without running a physical row rewrite.
-func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operation, auth AuthorizationView, root *relationDescriptor, column, destination string, only bool) (Result, error) {
+func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
 	candidate, err := renameColumnCandidate(root, column, destination)
 	if err != nil {
 		e.mu.Unlock()
@@ -77,7 +78,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 	return Result{}, err
 }
 
-func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *relationDescriptor, kind byte) (Result, error) {
+func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
 	name := raw.Constraint.Text
 	inherited := false
 	noInherit := false
@@ -173,11 +174,11 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 // The caller holds Engine.mu. Success retains it so the caller can create its
 // sole stage from the returned authentic authorization/catalog without a gap;
 // every error returns unlocked. AX waits always run outside Engine.mu.
-func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescriptor, recurse bool) ([]*relationDescriptor, AuthorizationView, error) {
+func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relation, recurse bool) ([]*catalog.Relation, AuthorizationView, error) {
 	e := scope.op.session.Engine()
 	epoch := scope.lockedRef.Epoch
-	captured := map[ids.ObjectAddress]*relationDescriptor{root.Address(): root}
-	fail := func(err error) ([]*relationDescriptor, AuthorizationView, error) {
+	captured := map[ids.ObjectAddress]*catalog.Relation{root.Address(): root}
+	fail := func(err error) ([]*catalog.Relation, AuthorizationView, error) {
 		e.mu.Unlock()
 		return nil, AuthorizationView{}, err
 	}
@@ -203,13 +204,13 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 			}
 		}
 		root = captured[root.Address()]
-		var targets []*relationDescriptor
+		var targets []*catalog.Relation
 		if recurse {
 			targets = inheritanceAlterOrder(view, root)
 		} else {
-			targets = []*relationDescriptor{root}
+			targets = []*catalog.Relation{root}
 		}
-		var pending *relationDescriptor
+		var pending *catalog.Relation
 		for _, old := range targets {
 			ref := scope.lockedRef
 			ref.Address = old.Address()

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -33,18 +34,18 @@ type boundMergeArm struct {
 	syntax    []parser.Expr
 }
 
-func mergeRelationKind(relation *relationDescriptor) error {
-	if relation.RelationKind == tableRelation || relation.RelationKind == partitionedRelation {
+func mergeRelationKind(relation *catalog.Relation) error {
+	if relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.PartitionedRelation {
 		return nil
 	}
-	if relation.RelationKind == viewRelation {
+	if relation.RelationKind == catalog.ViewRelation {
 		return sqlError("0A000", "MERGE into views is unsupported")
 	}
 	err := sqlError("0A000", fmt.Sprintf(`cannot execute MERGE on relation "%s"`, relation.Name())).(*sqlstate.Error)
 	switch relation.RelationKind {
-	case sequenceRelation:
+	case catalog.SequenceRelation:
 		err.Detail = "This operation is not supported for sequences."
-	case indexRelation:
+	case catalog.IndexRelation:
 		err.Detail = "This operation is not supported for indexes."
 	default:
 		err.Detail = "This operation is not supported for this relation kind."
@@ -82,7 +83,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		}
 	}
 	out.storage = e.authorizationStorageLocked(auth, ref.Address)
-	if out.storage == nil && out.relation.RelationKind != partitionedRelation && !guardedCatalogRelation(out.relation) {
+	if out.storage == nil && out.relation.RelationKind != catalog.PartitionedRelation && !guardedCatalogRelation(out.relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	binder.relation, binder.ref = out.relation, ref

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -166,7 +167,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			c.keys[i].collation = id
 		}
 		if key.Opclass != nil {
-			class, err := e.lookupIndexClass(auth, *key.Opclass, btreeMethod)
+			class, err := e.lookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
 			if err != nil {
 				return err
 			}
@@ -191,13 +192,13 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	return nil
 }
 
-func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationDescriptor, view CatalogRead) error {
+func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *catalog.Relation, view CatalogRead) error {
 	c.selected = c.selected[:0]
 	if c.constraint != (ids.ObjectAddress{}) && c.namedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
 	}
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
@@ -250,7 +251,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 	return nil
 }
 
-func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDefinition) (bool, error) {
+func (c *boundInsertConflict) matches(parent *catalog.Relation, index *catalog.IndexDefinition) (bool, error) {
 	// Both directions compare sets, not key order/multiplicity. Decorations
 	// restrict a matching key occurrence without changing the expression set.
 	for _, target := range c.keys {

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -27,30 +28,30 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			defaultExpression := literalExpression{Info: expr.Info{Usage: integer}, value: value}
-			child.NotNullConstraints = []notNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
-			child.CheckConstraints = []checkConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
-			child.Defaults = map[int32]columnDefault{7: {OID: 23005, Expression: defaultExpression}}
-			column := inheritedColumn{Local: kind != "other_parent", Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}
-			nn := inheritedConstraint{Local: kind == "local", Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 23000}}}
-			check := inheritedConstraint{Local: kind == "local", Origins: []inheritanceOrigin{{Parent: parent.Address(), Constraint: 23002}}}
+			child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
+			child.CheckConstraints = []catalog.CheckConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
+			child.Defaults = map[int32]catalog.ColumnDefault{7: {OID: 23005, Expression: defaultExpression}}
+			column := catalog.InheritedColumn{Local: kind != "other_parent", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}
+			nn := catalog.InheritedConstraint{Local: kind == "local", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 23000}}}
+			check := catalog.InheritedConstraint{Local: kind == "local", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Constraint: 23002}}}
 			parents := []ids.ObjectAddress{parent.Address()}
-			var other *relationDescriptor
+			var other *catalog.Relation
 			if kind == "other_parent" {
 				other = inheritanceUnitRelation(e, "q", 22002, "id")
 				other.Columns[0].Nullable = false
-				other.NotNullConstraints = []notNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
-				other.CheckConstraints = []checkConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
-				other.Defaults = map[int32]columnDefault{1: {OID: 23012, Expression: defaultExpression}}
+				other.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
+				other.CheckConstraints = []catalog.CheckConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
+				other.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23012, Expression: defaultExpression}}
 				parents = append(parents, other.Address())
-				column.Origins = append(column.Origins, inheritanceOrigin{Parent: other.Address(), Attribute: 1})
-				nn.Origins = append(nn.Origins, inheritanceOrigin{Parent: other.Address(), Attribute: 1, Constraint: 23010})
-				check.Origins = append(check.Origins, inheritanceOrigin{Parent: other.Address(), Constraint: 23011})
+				column.Origins = append(column.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Attribute: 1})
+				nn.Origins = append(nn.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Attribute: 1, Constraint: 23010})
+				check.Origins = append(check.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Constraint: 23011})
 			}
-			child.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{7: column}, NotNull: map[int32]inheritedConstraint{7: nn}, Checks: map[string]inheritedConstraint{"positive": check}}
+			child.Inheritance = &catalog.TableInheritance{Parents: parents, Columns: map[int32]catalog.InheritedColumn{7: column}, NotNull: map[int32]catalog.InheritedConstraint{7: nn}, Checks: map[string]catalog.InheritedConstraint{"positive": check}}
 			// The parent's attribute and its owned constraints/default are retired;
 			// the child attribute remains independently live.
 			parent.Columns, parent.Attributes, parent.Index = nil, nil, map[string]int{}
-			relations := []*relationDescriptor{parent, child}
+			relations := []*catalog.Relation{parent, child}
 			if other != nil {
 				relations = append(relations, other)
 			}
@@ -71,7 +72,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				if !graph.NotNull[7].Local || !graph.Checks["positive"].Local || len(graph.NotNull[7].Origins) != 0 || len(graph.Checks["positive"].Origins) != 0 || !graph.Columns[7].ExplicitDefault {
 					t.Fatal("last provider did not become replayable local authority", graph)
 				}
-			} else if graph.NotNull[7].Local || graph.Checks["positive"].Local || graph.Columns[7].ExplicitDefault || !reflect.DeepEqual(graph.NotNull[7].Origins, []inheritanceOrigin{{Parent: other.Address(), Attribute: 1, Constraint: 23010}}) || !reflect.DeepEqual(graph.Checks["positive"].Origins, []inheritanceOrigin{{Parent: other.Address(), Constraint: 23011}}) {
+			} else if graph.NotNull[7].Local || graph.Checks["positive"].Local || graph.Columns[7].ExplicitDefault || !reflect.DeepEqual(graph.NotNull[7].Origins, []catalog.InheritanceOrigin{{Parent: other.Address(), Attribute: 1, Constraint: 23010}}) || !reflect.DeepEqual(graph.Checks["positive"].Origins, []catalog.InheritanceOrigin{{Parent: other.Address(), Constraint: 23011}}) {
 				t.Fatal("surviving provider authority was lost", graph)
 			}
 			if len(child.Inheritance.NotNull[7].Origins) != len(nn.Origins) || child.Inheritance.Columns[7].ExplicitDefault {
@@ -94,7 +95,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	for i, attribute := range child.Attributes {
 		child.Columns[i].OriginTable, child.Columns[i].OriginAttribute = uint32(child.Address().ObjectID), int16(attribute)
 	}
-	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}, Columns: map[int32]inheritedColumn{3: {Origins: []inheritanceOrigin{{Parent: table.Address(), Attribute: 1}}}, 8: {Origins: []inheritanceOrigin{{Parent: table.Address(), Attribute: 7}}}}}
+	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{table.Address()}, Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: table.Address(), Attribute: 1}}}, 8: {Origins: []catalog.InheritanceOrigin{{Parent: table.Address(), Attribute: 7}}}}}
 	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.Address(): {1: true}})
 	if err != nil || len(actions) != 1 || actions[0].action.Action != parser.AlterColumnType || actions[0].action.Column.Text != "id" {
 		t.Fatal("same-usage inherited TYPE disappeared", actions, err)

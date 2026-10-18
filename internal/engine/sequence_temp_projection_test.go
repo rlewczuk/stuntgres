@@ -48,13 +48,13 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 		if len(found) != 1 || found[0] != a {
 			t.Fatal("descriptor lost its unique name binding", a, found)
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation && e.sequences[a] == nil {
+		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation && e.sequences[a] == nil {
 			t.Fatal("published sequence has no generator", a)
 		}
 	}
 	for a := range e.sequences {
 		r, ok := view.Relation(a)
-		if !ok || r.RelationKind != sequenceRelation {
+		if !ok || r.RelationKind != catalog.SequenceRelation {
 			t.Fatal("orphan generator", a)
 		}
 	}
@@ -188,8 +188,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	retainedTypedRows := sessionSQL(t, a, "SELECT wide,flag,absent_n,absent_b FROM portable.survivor ORDER BY v")
 	retainedTypes := map[sqltype.ID]*sqltype.Descriptor{
-		sqltype.Int8: descriptor.(*relationDescriptor).Columns[0].Usage.Type,
-		sqltype.Bool: descriptor.(*relationDescriptor).Columns[2].Usage.Type,
+		sqltype.Int8: descriptor.(*catalog.Relation).Columns[0].Usage.Type,
+		sqltype.Bool: descriptor.(*catalog.Relation).Columns[2].Usage.Type,
 	}
 	oldRows := sessionSQL(t, b, "SELECT v FROM public.old_table")
 	sourceRows := sessionSQL(t, a, "SELECT v FROM portable.owner_table")

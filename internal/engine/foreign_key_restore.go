@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -93,7 +94,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		child, ok := stage.Descriptors[declaration.child.Address].(*relationDescriptor)
+		child, ok := stage.Descriptors[declaration.child.Address].(*catalog.Relation)
 		if !ok {
 			old, ok := base.Relation(declaration.child.Address)
 			if !ok {
@@ -183,7 +184,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 	return err
 }
 
-func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *relationDescriptor, f foreignKeyConstraint, comparisons []foreignKeyComparison, children, parents foreignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, comparisons []foreignKeyComparison, children, parents foreignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	index, ok := auth.catalog.Relation(f.Index)
 	if !ok {
 		return ids.ErrCatalogReplaced

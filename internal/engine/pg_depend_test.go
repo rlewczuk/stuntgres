@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -50,7 +51,7 @@ func TestPGDependShape(t *testing.T) {
 	if !ok {
 		t.Fatal("missing pg_depend descriptor")
 	}
-	if source.Name() != "pg_depend" || source.Namespace().ObjectID != 11 || source.RelationKind != catalogRelation || source.AttributeHighWater != 7 || len(source.Columns) != 7 {
+	if source.Name() != "pg_depend" || source.Namespace().ObjectID != 11 || source.RelationKind != catalog.CatalogRelation || source.AttributeHighWater != 7 || len(source.Columns) != 7 {
 		t.Fatal(source)
 	}
 	names := []string{"classid", "objid", "objsubid", "refclassid", "refobjid", "refobjsubid", "deptype"}
@@ -84,16 +85,16 @@ func TestPGDependConstructionBags(t *testing.T) {
 	variable := columnExpression{Info: expr.Info{Usage: integer.Usage()}, origin: ref}
 	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
 	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
-	uq := uniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
-	table := &relationDescriptor{ObjectAddress: tableAddress, ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: tableRelation, Attributes: []int32{2, 3, 4, 5}, AttributeHighWater: 5, Columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, NotNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, CheckConstraints: []checkConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, UniqueConstraints: []uniqueConstraint{uq}, Defaults: map[int32]columnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]columnGeneration{4: {Kind: generationStored, OID: 43002, Expression: repeated}}}
+	uq := catalog.UniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
+	table := &catalog.Relation{ObjectAddress: tableAddress, ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.TableRelation, Attributes: []int32{2, 3, 4, 5}, AttributeHighWater: 5, Columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, NotNullConstraints: []catalog.NotNullConstraint{{OID: 42001, Attribute: 3}}, CheckConstraints: []catalog.CheckConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, UniqueConstraints: []catalog.UniqueConstraint{uq}, Defaults: map[int32]catalog.ColumnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]catalog.ColumnGeneration{4: {Kind: catalog.GenerationStored, OID: 43002, Expression: repeated}}}
 	view.State().SetDescriptor(tableAddress, table)
-	simple := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44001, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Keys: []indexKey{{Attribute: 2}, {Attribute: 2}}, Include: []int32{3}}}
-	expression := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44002, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Keys: []indexKey{{Derived: &derivedIndexKey{Definition: repeated}}}}}
-	backing := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44003, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Unique: true, Keys: []indexKey{{Attribute: 5}}, Include: []int32{3}, Constraint: uniqueBacking(&uq)}}
-	standalone := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44004, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Unique: true, Keys: []indexKey{{Attribute: 2}}, Include: []int32{3}}}
-	sequence := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 45001, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: column}}
-	identity := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 45002, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: column, Identity: true}}
-	for _, d := range []*relationDescriptor{simple, expression, backing, standalone, sequence, identity} {
+	simple := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44001, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: tableAddress, Keys: []catalog.IndexKey{{Attribute: 2}, {Attribute: 2}}, Include: []int32{3}}}
+	expression := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44002, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: tableAddress, Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: repeated}}}}}
+	backing := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44003, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: tableAddress, Unique: true, Keys: []catalog.IndexKey{{Attribute: 5}}, Include: []int32{3}, Constraint: uniqueBacking(&uq)}}
+	standalone := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 44004, 0), RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: tableAddress, Unique: true, Keys: []catalog.IndexKey{{Attribute: 2}}, Include: []int32{3}}}
+	sequence := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 45001, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: column}}
+	identity := &catalog.Relation{ObjectAddress: pgDependUnitAddress(1259, 45002, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: column, Identity: true}}
+	for _, d := range []*catalog.Relation{simple, expression, backing, standalone, sequence, identity} {
 		view.State().SetDescriptor(d.Address(), d)
 	}
 	got, err := collectPGDepend(context.Background(), view)

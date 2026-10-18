@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -20,14 +21,14 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name   string
-		change func([]checkConstraint)
+		change func([]catalog.CheckConstraint)
 	}{
-		{"negative", func(c []checkConstraint) { c[0].Ordinal = -1 }},
-		{"duplicate", func(c []checkConstraint) { c[1].Ordinal = c[0].Ordinal }},
+		{"negative", func(c []catalog.CheckConstraint) { c[0].Ordinal = -1 }},
+		{"duplicate", func(c []catalog.CheckConstraint) { c[1].Ordinal = c[0].Ordinal }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *d
-			copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
+			copy.CheckConstraints = append([]catalog.CheckConstraint(nil), d.CheckConstraints...)
 			tc.change(copy.CheckConstraints)
 			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("malformed declaration ordinal accepted")

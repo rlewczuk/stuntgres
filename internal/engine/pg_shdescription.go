@@ -4,13 +4,14 @@ import (
 	"context"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Shared comments follow principal identities, not database-local descriptors.
 // The caller supplies the statement's saved RoleRead, including nested views.
-func capturePGShDescription(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGShDescription(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

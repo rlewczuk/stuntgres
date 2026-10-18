@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -111,8 +112,8 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				namespace := path.at(i)
 				matched := false
 				for _, descriptor := range auth.catalog.Descriptors() {
-					parent, ok := descriptor.(*relationDescriptor)
-					if !ok || parent.Namespace() != namespace || parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation {
+					parent, ok := descriptor.(*catalog.Relation)
+					if !ok || parent.Namespace() != namespace || parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation {
 						continue
 					}
 					for _, c := range parent.ExclusionConstraints {
@@ -164,7 +165,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		for changed := true; changed; {
 			changed = false
 			for _, descriptor := range auth.catalog.Descriptors() {
-				parent, ok := descriptor.(*relationDescriptor)
+				parent, ok := descriptor.(*catalog.Relation)
 				if !ok {
 					continue
 				}

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -100,7 +101,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 			if !ok {
 				return fmt.Errorf("stuntgres: missing domain CHECK provider")
 			}
-			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: provider.Revision()})
+			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: provider.Revision()})
 			if stage != nil {
 				stage.domainBases = append(stage.domainBases, provider)
 			}

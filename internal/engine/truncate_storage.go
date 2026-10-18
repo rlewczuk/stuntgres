@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -44,7 +45,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 				}
 			}
 			for address, descriptor := range current.Descriptors() {
-				d, ok := descriptor.(*relationDescriptor)
+				d, ok := descriptor.(*catalog.Relation)
 				if !ok || !truncateOwnsSequence(d, fence.targets) {
 					continue
 				}
@@ -63,7 +64,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 			if descriptor == fence.base.Get(address) || fence.targets[address] != 0 {
 				continue
 			}
-			d, ok := descriptor.(*relationDescriptor)
+			d, ok := descriptor.(*catalog.Relation)
 			if !ok {
 				continue
 			}
@@ -134,7 +135,7 @@ func (s *StatementScope) stageTruncate() error {
 			break
 		}
 		stage.querySources = append(stage.querySources, d)
-		if d.RelationKind == partitionedRelation {
+		if d.RelationKind == catalog.PartitionedRelation {
 			continue
 		}
 		if store == nil {
@@ -193,7 +194,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
-		if selected.relation.RelationKind != partitionedRelation {
+		if selected.relation.RelationKind != catalog.PartitionedRelation {
 			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
 				return err
 			}

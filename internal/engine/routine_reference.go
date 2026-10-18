@@ -67,15 +67,15 @@ func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
 		current.Conversion == captured.Conversion
 }
 
-func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
+func expressionRecipeDescriptor(node expr.Expr) (*catalog.Relation, error) {
 	carrier, ok := node.(interface {
 		CallRoutineRecipeReference() expr.RoutineRecipeReference
 	})
 	if !ok || carrier.CallRoutineRecipeReference() == nil {
 		return nil, nil
 	}
-	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
-	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != viewRelation || recipe.Address().ClassID != ids.RelationClassID || recipe.Address().ObjectID == 0 {
+	recipe, ok := carrier.CallRoutineRecipeReference().(*catalog.Relation)
+	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != catalog.ViewRelation || recipe.Address().ClassID != ids.RelationClassID || recipe.Address().ObjectID == 0 {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
 	if consumer, temporary := recipe.View.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.Address() ||
@@ -87,7 +87,7 @@ func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
 
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.
-func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
+func (c *EvalContext) selectExpressionRecipe(recipe *catalog.Relation) error {
 	c.routineGraft = recipe != nil
 	c.routineRecipe = recipe != nil
 	c.routineReferences = nil

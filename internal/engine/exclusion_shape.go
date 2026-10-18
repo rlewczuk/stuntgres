@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) prepareExclusionShape(original, parent *relationDescriptor, view CatalogRead, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view CatalogRead, writes []rowVersion, deletes *privateDeletionRoot) error {
 	if len(original.ExclusionConstraints)+len(parent.ExclusionConstraints) == 0 {
 		return nil
 	}
@@ -36,7 +37,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				if !output.member {
 					continue
 				}
-				if index.SQLIndex.Method == hashMethod {
+				if index.SQLIndex.Method == catalog.HashMethod {
 					if output.key.IsNull() {
 						continue
 					}

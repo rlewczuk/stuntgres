@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2396}
 	d, ok := e.catalog.state.Relation(address)
@@ -151,7 +151,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 func TestPGShDescriptionDescriptor(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
+	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -238,7 +238,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	snapshot := catalog.CloneState(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	snapshot.SetDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
+	snapshot.SetDescriptor(local, &catalog.Relation{ObjectAddress: local, Comment: "local collision"})
 	read := e.catalog.read(snapshot)
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
@@ -304,7 +304,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view := *d
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.ObjectName, view.RelationKind = name, viewRelation
+		view.ObjectName, view.RelationKind = name, catalog.ViewRelation
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
 		e.catalog.state.SetDescriptor(view.Address(), &view)

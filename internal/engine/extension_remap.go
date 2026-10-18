@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n := *d
 		n.Extension = next
 		return &n
-	case *relationDescriptor:
+	case *catalog.Relation:
 		var addresses []ids.ObjectAddress
 		for i, a := range d.AutoExtensions {
 			next := address(a)

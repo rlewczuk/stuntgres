@@ -6,18 +6,19 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // evolveIndexRevision records this only for its explicit slot-only path, with
 // unchanged referenced Usage. Pointer equality of remapped ASTs is not a proof.
 type indexLayoutLineage struct {
-	source, target             *relationDescriptor
-	sourceParent, targetParent *relationDescriptor
+	source, target             *catalog.Relation
+	sourceParent, targetParent *catalog.Relation
 	previous                   *indexLayoutLineage
 }
 
-func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bool {
+func indexLayoutInputsUnchanged(index, oldParent, parent *catalog.Relation) bool {
 	if index == nil || oldParent == nil || parent == nil || oldParent.Address() != parent.Address() {
 		return false
 	}
@@ -57,7 +58,7 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 
 // Only referenced dense slots affect index extraction authority. Dropping an
 // unrelated tail or attaching metadata does not replace an immutable root.
-func indexLayoutSlotsUnchanged(index, oldParent, parent *relationDescriptor) bool {
+func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool {
 	for oldSlot, attribute := range oldParent.Attributes {
 		if indexAttributeAffected(index.SQLIndex, attribute) && slices.Index(parent.Attributes, attribute) != oldSlot {
 			return false
@@ -68,7 +69,7 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *relationDescriptor) boo
 
 // A layout projection preserves surviving cells and exact row/version order.
 // Both baseline entries and private row outputs therefore travel without SQL.
-func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *relationDescriptor, sourceStore, targetStore *relationStorage, sourceWrites, writes []rowVersion) ([]rowVersion, bool, error) {
+func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *relationStorage, sourceWrites, writes []rowVersion) ([]rowVersion, bool, error) {
 	if len(stage.indexLayouts) == 0 {
 		return writes, false, nil
 	}
@@ -266,7 +267,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 // unlocked; the normal catalog preflight owns the publication veto.
 func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
 	for _, descriptor := range snapshot.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
 		}
@@ -285,20 +286,20 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalogState, cha
 		return ids.ErrCatalogReplaced
 	}
 	for _, descriptor := range snapshot.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == partitionedRelation {
+		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == catalog.PartitionedRelation {
 			delete(changes.uniqueRoots, index.Address())
 			delete(changes.indexCandidates, index.Address())
 			continue
 		}
 		var root *logicalIndexRoot
-		if index.SQLIndex.Method == hashMethod {
+		if index.SQLIndex.Method == catalog.HashMethod {
 			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return err

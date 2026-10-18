@@ -102,7 +102,7 @@ func usingIndexUnitTable(name string) *parser.CreateTable {
 	table.Elements = table.Elements[:3]
 	return table
 }
-func usingIndexUnitSeed(t *testing.T, e *Engine, s *Session) (*relationDescriptor, *relationDescriptor) {
+func usingIndexUnitSeed(t *testing.T, e *Engine, s *Session) (*catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	usingIndexUnitExecute(t, e, s, usingIndexUnitTable("t"))
 	for _, a := range []int64{1, 2} {
@@ -114,7 +114,7 @@ func usingIndexUnitSeed(t *testing.T, e *Engine, s *Session) (*relationDescripto
 	usingIndexUnitExecute(t, e, s, &parser.CreateIndex{Name: parser.Identifier{Text: "sibling"}, Table: primaryKeyUnitName("t"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "b"}}}})
 	return primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "prebuilt")
 }
-func usingIndexUnitFixture(t *testing.T) (*Engine, *Session, *relationDescriptor, *relationDescriptor) {
+func usingIndexUnitFixture(t *testing.T) (*Engine, *Session, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -362,7 +362,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before"}})
 	usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))
 	attached := s.transactions.catalog
-	if attached == earlier || attached.uniqueRoots[index.Address()] != privateRoot || attached.storage[parent.Address()].replacement != privateStore || earlier.descriptors[index.Address()].(*relationDescriptor).SQLIndex.Constraint != nil || attached.originals[parent.Address()] != parent || attached.originals[index.Address()] != index || e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(index.Address()) != index {
+	if attached == earlier || attached.uniqueRoots[index.Address()] != privateRoot || attached.storage[parent.Address()].replacement != privateStore || earlier.descriptors[index.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.originals[parent.Address()] != parent || attached.originals[index.Address()] != index || e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(index.Address()) != index {
 		t.Fatal("private attachment copied roots, changed originals or leaked")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "attached"}})

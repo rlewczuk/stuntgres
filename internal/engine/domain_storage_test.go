@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *relationDescriptor {
+func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, q).(*parser.CreateTable)
 	e.mu.Lock()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,8 +12,8 @@ import (
 
 func typedClosure(view CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddress]Descriptor {
 	result := make(map[ids.ObjectAddress]Descriptor)
-	var visit func(*relationDescriptor)
-	visit = func(table *relationDescriptor) {
+	var visit func(*catalog.Relation)
+	visit = func(table *catalog.Relation) {
 		if result[table.Address()] != nil {
 			return
 		}
@@ -22,7 +23,7 @@ func typedClosure(view CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddr
 		}
 	}
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.OfType == source {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.OfType == source {
 			visit(table)
 		}
 	}
@@ -32,10 +33,10 @@ func typedClosure(view CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddr
 	rowTypes := make([]sqltype.ID, 1, len(result)+1)
 	rowTypes[0] = sqltype.ID(source.ObjectID)
 	for _, descriptor := range result {
-		rowTypes = append(rowTypes, descriptor.(*relationDescriptor).RowType)
+		rowTypes = append(rowTypes, descriptor.(*catalog.Relation).RowType)
 	}
 	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || !table.RelationKind.Stored() || result[table.Address()] != nil {
 			continue
 		}
@@ -75,10 +76,10 @@ func typedObservationValid(stage *CatalogStage, current CatalogRead) bool {
 }
 
 // Parent-before-child order processes a diamond only after both incoming edges.
-func typedPropagationOrder(view CatalogRead, source ids.ObjectAddress) []*relationDescriptor {
-	selected := make(map[ids.ObjectAddress]*relationDescriptor)
-	var selectTable func(*relationDescriptor)
-	selectTable = func(table *relationDescriptor) {
+func typedPropagationOrder(view CatalogRead, source ids.ObjectAddress) []*catalog.Relation {
+	selected := make(map[ids.ObjectAddress]*catalog.Relation)
+	var selectTable func(*catalog.Relation)
+	selectTable = func(table *catalog.Relation) {
 		if selected[table.Address()] != nil {
 			return
 		}
@@ -88,14 +89,14 @@ func typedPropagationOrder(view CatalogRead, source ids.ObjectAddress) []*relati
 		}
 	}
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.OfType == source {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.OfType == source {
 			selectTable(table)
 		}
 	}
-	var ordered []*relationDescriptor
+	var ordered []*catalog.Relation
 	seen := make(map[ids.ObjectAddress]bool, len(selected))
-	var visit func(*relationDescriptor)
-	visit = func(table *relationDescriptor) {
+	var visit func(*catalog.Relation)
+	visit = func(table *catalog.Relation) {
 		if seen[table.Address()] {
 			return
 		}
@@ -128,7 +129,7 @@ func typedPropagationOrder(view CatalogRead, source ids.ObjectAddress) []*relati
 	return ordered
 }
 
-func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bool) ([]typedColumnAction, map[int32]string) {
+func typedShapeActions(old, next, table *catalog.Relation, forced map[int32]bool) ([]typedColumnAction, map[int32]string) {
 	var actions []typedColumnAction
 	renames := make(map[int32]string)
 	for i, attribute := range old.Attributes {
@@ -157,7 +158,7 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 	return actions, renames
 }
 
-func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *tableInheritance, error) {
+func typedInheritedActions(view CatalogRead, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
 	graph := *old.Inheritance
 	graph.Columns = maps.Clone(graph.Columns)
 	graph.Checks = maps.Clone(graph.Checks)
@@ -166,7 +167,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 	renames := make(map[int32]string)
 	for i, attribute := range old.Attributes {
 		provenance := graph.Columns[attribute]
-		var origins []inheritanceOrigin
+		var origins []catalog.InheritanceOrigin
 		var desired *ColumnDescriptor
 		forceType := false
 		requestedDimensions := int16(0)
@@ -214,7 +215,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 	for _, address := range graph.Parents {
 		parent := view.MustRelation(address)
 		for i, member := range parent.Columns {
-			origin := inheritanceOrigin{Parent: address, Attribute: parent.Attributes[i]}
+			origin := catalog.InheritanceOrigin{Parent: address, Attribute: parent.Attributes[i]}
 			found := false
 			for _, provenance := range graph.Columns {
 				if slices.Contains(provenance.Origins, origin) {
@@ -252,14 +253,14 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 	return actions, renames, &graph, nil
 }
 
-func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *tableInheritance) {
+func finishTypedInheritance(view CatalogRead, next *catalog.Relation, graph *catalog.TableInheritance) {
 	for i, attribute := range next.Attributes {
 		provenance, exists := graph.Columns[attribute]
 		if !exists {
 			for _, address := range graph.Parents {
 				parent := view.MustRelation(address)
 				if slot, found := parent.Index[next.Columns[i].Name]; found {
-					provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: address, Attribute: parent.Attributes[slot]})
+					provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: address, Attribute: parent.Attributes[slot]})
 				}
 			}
 		}
@@ -279,11 +280,11 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		graph.Columns[attribute] = provenance
 	}
 	for name, provenance := range graph.Checks {
-		if !slices.ContainsFunc(next.CheckConstraints, func(c checkConstraint) bool { return c.Name == name }) {
+		if !slices.ContainsFunc(next.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == name }) {
 			delete(graph.Checks, name)
 			continue
 		}
-		var origins []inheritanceOrigin
+		var origins []catalog.InheritanceOrigin
 		for _, origin := range provenance.Origins {
 			parent := view.MustRelation(origin.Parent)
 			for _, constraint := range parent.CheckConstraints {
@@ -308,7 +309,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 			delete(graph.NotNull, attribute)
 			continue
 		}
-		var origins []inheritanceOrigin
+		var origins []catalog.InheritanceOrigin
 		for _, origin := range provenance.Origins {
 			parent := view.MustRelation(origin.Parent)
 			for _, constraint := range parent.NotNullConstraints {
@@ -328,7 +329,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 	next.Inheritance = graph
 }
 
-func typedSortedAddresses(tables []*relationDescriptor) []ids.ObjectAddress {
+func typedSortedAddresses(tables []*catalog.Relation) []ids.ObjectAddress {
 	addresses := make([]ids.ObjectAddress, len(tables))
 	for i, table := range tables {
 		addresses[i] = table.Address()

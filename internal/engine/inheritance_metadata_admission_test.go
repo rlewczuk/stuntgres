@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -74,7 +75,7 @@ func inheritanceMetadataScope(t *testing.T, e *Engine, role, sql string) *inheri
 
 func (command *inheritanceMetadataAdmissionCase) run() error {
 	command.e.mu.Lock()
-	root := command.scope.lockedDescriptor.(*relationDescriptor)
+	root := command.scope.lockedDescriptor.(*catalog.Relation)
 	var err error
 	switch raw := command.raw.(type) {
 	case *parser.AlterTableDefault:
@@ -90,7 +91,7 @@ func (command *inheritanceMetadataAdmissionCase) run() error {
 	return err
 }
 
-func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *relationDescriptor, *relationDescriptor) {
+func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	// Use the actual shape provider to install allocated, validated NN facts and
@@ -119,7 +120,7 @@ func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *relationD
 	return e, view.MustRelation(p.Address()), view.MustRelation(c.Address())
 }
 
-func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescriptor, name string, value int64, owner authorization.PrincipalRef) *relationDescriptor {
+func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation, name string, value int64, owner authorization.PrincipalRef) *catalog.Relation {
 	t.Helper()
 	// The genuine CREATE provider remaps inherited recipes, allocates fresh
 	// stored-definition identities/fact generations and records dependencies.
@@ -130,14 +131,14 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var stage *CatalogStage
-	var child *relationDescriptor
+	var child *catalog.Relation
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.catalog)
 		err = e.schemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
 		address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}]
-		child, _ = stage.Descriptors[address].(*relationDescriptor)
+		child, _ = stage.Descriptors[address].(*catalog.Relation)
 		if child == nil {
 			err = errors.New("authentic CREATE provider did not stage the descendant")
 		}
@@ -154,7 +155,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 	return e.CatalogRead().MustRelation(child.Address())
 }
 
-func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissionCase, holder *StatementScope, child *relationDescriptor) (<-chan error, func()) {
+func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissionCase, holder *StatementScope, child *catalog.Relation) (<-chan error, func()) {
 	t.Helper()
 	result := make(chan error, 1)
 	joined := false
@@ -188,7 +189,7 @@ var inheritanceMetadataActions = []struct{ name, sql string }{
 	{"constraint_rename", "ALTER TABLE p RENAME CONSTRAINT metadata_nn TO renamed_nn"},
 }
 
-func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, current *relationDescriptor) {
+func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, current *catalog.Relation) {
 	t.Helper()
 	if current == nil || current == old || current.Owner != old.Owner || !slices.Equal(current.Attributes, old.Attributes) || current.AttributeHighWater != old.AttributeHighWater || current.Columns[0].Usage != old.Columns[0].Usage || len(current.NotNullConstraints) != 1 || current.NotNullConstraints[0].OID != old.NotNullConstraints[0].OID || current.NotNullConstraints[0].Attribute != old.NotNullConstraints[0].Attribute || current.NotNullConstraints[0].NotValid || current.NotNullConstraints[0].NoInherit {
 		t.Fatal("metadata operation lost actual attribute/owner/fact identity", old.Name(), current)

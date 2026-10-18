@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -14,19 +15,19 @@ import (
 // Virtual partition roots have no store but participate in locks and closure.
 type truncateRelation struct {
 	ref       ids.ObjectRef
-	relation  *relationDescriptor
+	relation  *catalog.Relation
 	storage   *relationStorage
 	privilege bool
 }
 
-func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, privilege, only bool) error {
+func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
 	if guardedCatalogRelation(d) {
 		return guardedCatalogMutationError(auth, d, true)
 	}
-	if d.RelationKind == foreignRelation {
+	if d.RelationKind == catalog.ForeignRelation {
 		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
 	}
-	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
+	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
 	}
 	if privilege {
@@ -42,7 +43,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 
 // Descendant admission and its final graph fence share the inherited-query
 // consumer's namespace/session-token authority, not child ACL or USAGE checks.
-func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) (bool, error) {
+func truncateOtherTemporary(catalog CatalogRead, relation *catalog.Relation, token ids.SessionToken) (bool, error) {
 	namespace, ok := catalog.Namespace(relation.Namespace())
 	if !ok {
 		return false, ids.ErrCatalogReplaced
@@ -65,7 +66,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	open = func(ref ids.ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
-		var before *relationDescriptor
+		var before *catalog.Relation
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
@@ -123,7 +124,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		}
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(s.op, stmt)
-		var d *relationDescriptor
+		var d *catalog.Relation
 		if err == nil {
 			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -160,7 +161,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				}
 			}
 		}
-		var children []*relationDescriptor
+		var children []*catalog.Relation
 		if err == nil && recurse && !expanded[ref.Address] {
 			expanded[ref.Address] = true
 			children = inheritanceChildren(auth.catalog, ref.Address)
@@ -173,7 +174,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					}
 					children = append(children, child)
 				}
-				slices.SortFunc(children, func(a, b *relationDescriptor) int { return compareTruncateAddress(a.Address(), b.Address()) })
+				slices.SortFunc(children, func(a, b *catalog.Relation) int { return compareTruncateAddress(a.Address(), b.Address()) })
 			}
 		}
 		e.mu.Unlock()
@@ -238,7 +239,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	}
 }
 
-type truncateReferencer struct{ relation, parent *relationDescriptor }
+type truncateReferencer struct{ relation, parent *catalog.Relation }
 
 func compareTruncateAddress(a, b ids.ObjectAddress) int {
 	if a.ObjectID < b.ObjectID {
@@ -254,7 +255,7 @@ func compareTruncateAddress(a, b ids.ObjectAddress) int {
 func truncateReferencers(view CatalogRead, selected map[ids.ObjectAddress]int) []truncateReferencer {
 	var result []truncateReferencer
 	for address, descriptor := range view.Descriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || selected[address] != 0 {
 			continue
 		}

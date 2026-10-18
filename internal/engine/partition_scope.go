@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement parser.Statement, d *relationDescriptor) error {
+func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement parser.Statement, d *catalog.Relation) error {
 	if !hierarchyRelation(d) {
 		return nil
 	}
@@ -75,7 +76,7 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 
 // These newly admitted mutation forms finish ordinary analysis and ACL checks,
 // but must not demand defaults, capture virtual storage or publish routed effects.
-func partitionWriteExtensionBoundary(statement parser.Statement, d *relationDescriptor) error {
+func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
 	if d == nil || !hierarchyRelation(d) {
 		return nil
 	}
@@ -123,7 +124,7 @@ func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationV
 	return parentAuth, nil
 }
 
-func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
+func partitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
 	if d.Partition == nil {
 		return false
 	}
@@ -174,7 +175,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	}
 	if hierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
 		if s.partitionRelations == nil {
-			s.partitionRelations = make(map[ids.ObjectAddress]*relationDescriptor)
+			s.partitionRelations = make(map[ids.ObjectAddress]*catalog.Relation)
 		}
 		s.partitionRelations[ref.Address] = d
 	}
@@ -276,7 +277,7 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 
 // The stored defining arrays/key providers remain identical. Only an appended
 // child manifest may cross the read admission fence; no name/shape retargeting.
-func partitionAppendCompatible(old, current *relationDescriptor) bool {
+func partitionAppendCompatible(old, current *catalog.Relation) bool {
 	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
 		!relationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
 		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||

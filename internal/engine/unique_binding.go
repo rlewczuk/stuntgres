@@ -3,14 +3,15 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
 
 // Source provenance is CREATE-local, never part of the persistent constraint.
 // Ordinary LIKE index copies retain their existing independent copy semantics.
 type createUniqueConstraint struct {
-	uniqueConstraint
-	source       *relationDescriptor
+	catalog.UniqueConstraint
+	source       *catalog.Relation
 	like         *createLikeInput
 	copyComments bool
 }
@@ -27,7 +28,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 		if err != nil {
 			return err
 		}
-		c := createUniqueConstraint{uniqueConstraint: definition}
+		c := createUniqueConstraint{UniqueConstraint: definition}
 		if raw.Primary {
 			primary = len(declarations)
 		}
@@ -90,7 +91,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 			if !ok || source.SQLIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}
-			c := createUniqueConstraint{uniqueConstraint: uniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, source: source, like: in, copyComments: in.options&likeComments != 0}
+			c := createUniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, source: source, like: in, copyComments: in.options&likeComments != 0}
 			for i, attribute := range old.Attributes {
 				slot := slices.Index(in.source.Attributes, attribute)
 				if slot < 0 {
@@ -109,15 +110,15 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 
 // CREATE's sequential attributes and ALTER's sparse stable attributes use the
 // same key-list rules, without synthesizing a CREATE statement or slot identity.
-func bindUniqueAttributes(raw *parser.UniqueConstraint, column *parser.Column, index map[string]int, attributes []int32) (uniqueConstraint, error) {
+func bindUniqueAttributes(raw *parser.UniqueConstraint, column *parser.Column, index map[string]int, attributes []int32) (catalog.UniqueConstraint, error) {
 	width := len(raw.Columns)
 	if column != nil {
 		width = 1
 	}
 	if width == 0 || width > 32 {
-		return uniqueConstraint{}, sqlError("54011", "cannot use more than 32 columns in an index")
+		return catalog.UniqueConstraint{}, sqlError("54011", "cannot use more than 32 columns in an index")
 	}
-	c := uniqueConstraint{Name: raw.Name.Text, Primary: raw.Primary, NullsNotDistinct: raw.NullsNotDistinct, Attributes: make([]int32, width)}
+	c := catalog.UniqueConstraint{Name: raw.Name.Text, Primary: raw.Primary, NullsNotDistinct: raw.NullsNotDistinct, Attributes: make([]int32, width)}
 	for i := range c.Attributes {
 		name := ""
 		if column != nil {
@@ -127,7 +128,7 @@ func bindUniqueAttributes(raw *parser.UniqueConstraint, column *parser.Column, i
 		}
 		slot, ok := index[name]
 		if !ok {
-			return uniqueConstraint{}, insertError("42703", fmt.Sprintf(`column "%s" named in key does not exist`, name), raw.Pos)
+			return catalog.UniqueConstraint{}, insertError("42703", fmt.Sprintf(`column "%s" named in key does not exist`, name), raw.Pos)
 		}
 		attribute := int32(slot + 1)
 		if attributes != nil {
@@ -138,7 +139,7 @@ func bindUniqueAttributes(raw *parser.UniqueConstraint, column *parser.Column, i
 			if raw.Primary {
 				kind = "primary key"
 			}
-			return uniqueConstraint{}, insertError("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, name, kind), raw.Pos)
+			return catalog.UniqueConstraint{}, insertError("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, name, kind), raw.Pos)
 		}
 		c.Attributes[i] = attribute
 	}

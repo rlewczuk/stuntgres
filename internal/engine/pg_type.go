@@ -89,11 +89,11 @@ func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error)
 }
 
 // Caller owns e.mu. Captures own their rows and retain only immutable roots.
-func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalog.CatalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
 	if len(source.Columns) != len(pgTypeColumnIDs) {

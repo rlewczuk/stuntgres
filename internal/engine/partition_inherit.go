@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 // Inherited columns and cooked definitions carry admitted catalog identities.
 // Re-parsing their qualified names would add schema/cast/function privileges
 // PostgreSQL does not demand and could resolve a different provider by name.
-func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*relationDescriptor, error) {
+func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*catalog.Relation, error) {
 	op := scope.op
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
 	available, err := e.displaceAssociatedArrayLocked(stage, namespace, name)
@@ -109,7 +110,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		return nil, err
 	}
 	if len(parent.Defaults) != 0 || len(localDefaults) != 0 {
-		d.Defaults = make(map[int32]columnDefault, len(parent.Defaults)+len(localDefaults))
+		d.Defaults = make(map[int32]catalog.ColumnDefault, len(parent.Defaults)+len(localDefaults))
 		for i, attribute := range parent.Attributes {
 			if declarations[i].defaultExpr != nil || declarations[i].identity != nil || declarations[i].generation != nil {
 				continue
@@ -126,7 +127,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = e.bindCreateGenerations(op, auth, d, declarations, scope.input); err != nil {
 		return nil, err
 	}
-	inherited := make(map[string]checkConstraint, len(parent.CheckConstraints))
+	inherited := make(map[string]catalog.CheckConstraint, len(parent.CheckConstraints))
 	if len(parent.CheckConstraints) != 0 {
 		slots := make(map[int32]int, len(d.Attributes))
 		for i, attribute := range d.Attributes {
@@ -159,7 +160,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			if err != nil {
 				return nil, err
 			}
-			definition.Dependencies = make([]expressionDependency, 0, len(refs))
+			definition.Dependencies = make([]catalog.ExpressionDependency, 0, len(refs))
 			for _, ref := range refs {
 				address := ref.Address
 				address.SubID = 0
@@ -167,7 +168,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				if object, ok := auth.catalog.Descriptor(address); ok {
 					revision = object.Revision()
 				}
-				definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
+				definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 			}
 			d.CheckConstraints = append(d.CheckConstraints, definition)
 			inherited[definition.Name] = definition

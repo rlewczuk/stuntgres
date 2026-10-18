@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -41,8 +42,8 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	old := scope.lockedDescriptor.(*relationDescriptor)
-	if old.RelationKind != tableRelation && old.RelationKind != viewRelation && old.RelationKind != materializedViewRelation && old.RelationKind != foreignRelation {
+	old := scope.lockedDescriptor.(*catalog.Relation)
+	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.ViewRelation && old.RelationKind != catalog.MaterializedViewRelation && old.RelationKind != catalog.ForeignRelation {
 		return fail(sqlError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
 	destination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})
@@ -72,18 +73,18 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, nil
 	}
-	owned := make([]*relationDescriptor, 0)
+	owned := make([]*catalog.Relation, 0)
 	for _, d := range auth.catalog.Descriptors() {
-		r, ok := d.(*relationDescriptor)
+		r, ok := d.(*catalog.Relation)
 		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == old.Address() {
 			owned = append(owned, r)
 			continue
 		}
-		if !ok || r.RelationKind != sequenceRelation {
+		if !ok || r.RelationKind != catalog.SequenceRelation {
 			continue
 		}
 		a := r.Sequence.Owned
-		if old.RelationKind == tableRelation && a.ClassID == old.Address().ClassID && a.ObjectID == old.Address().ObjectID && old.HasAttribute(a.SubID) {
+		if old.RelationKind == catalog.TableRelation && a.ClassID == old.Address().ClassID && a.ObjectID == old.Address().ObjectID && old.HasAttribute(a.SubID) {
 			owned = append(owned, r)
 		}
 	}
@@ -128,7 +129,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
 	}
-	group := make([]*relationDescriptor, 0, len(owned)+1)
+	group := make([]*catalog.Relation, 0, len(owned)+1)
 	group = append(group, old)
 	for _, r := range owned {
 		live, ok := auth.catalog.Relation(r.Address())
@@ -139,18 +140,18 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 			group = append(group, live)
 			continue
 		}
-		if !ok || live.RelationKind != sequenceRelation || live.Sequence.Owned != r.Sequence.Owned || live.Namespace() != old.Namespace() || live.Owner != old.Owner {
+		if !ok || live.RelationKind != catalog.SequenceRelation || live.Sequence.Owned != r.Sequence.Owned || live.Namespace() != old.Namespace() || live.Owner != old.Owner {
 			return fail(ids.ErrCatalogReplaced)
 		}
 		group = append(group, live)
 	}
-	collision := func(r *relationDescriptor) error {
+	collision := func(r *catalog.Relation) error {
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists in schema "%s"`, r.Name(), s.Schema.Text))
 	}
-	typeCollision := func(r *relationDescriptor) error {
+	typeCollision := func(r *catalog.Relation) error {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists in schema "%s"`, r.Name(), s.Schema.Text))
 	}
-	next := make([]relationDescriptor, len(group))
+	next := make([]catalog.Relation, len(group))
 	for i, r := range group {
 		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.Name()}); exists {
 			return fail(collision(r))
@@ -166,7 +167,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		}
 		next[i] = *r
 		next[i].ObjectNamespace, next[i].ObjectRevision = destination.Address, frontier+1
-		if r.RelationKind == sequenceRelation {
+		if r.RelationKind == catalog.SequenceRelation {
 			next[i].SequencePlanStamp = frontier + 1
 		}
 	}

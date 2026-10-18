@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -23,7 +24,7 @@ type indexPresentation struct {
 	exclusion   bool
 }
 
-func indexDefinitionSQL(ctx context.Context, view CatalogRead, index *relationDescriptor, presentation indexPresentation) (string, error) {
+func indexDefinitionSQL(ctx context.Context, view CatalogRead, index *catalog.Relation, presentation indexPresentation) (string, error) {
 	if err := validateIndexDefinition(view, index); err != nil {
 		return "", err
 	}
@@ -145,7 +146,7 @@ func indexDefinitionSQL(ctx context.Context, view CatalogRead, index *relationDe
 			}
 			sql.WriteString(identifier(presented.Class.Name))
 		}
-		if index.SQLIndex.Method == btreeMethod {
+		if index.SQLIndex.Method == catalog.BtreeMethod {
 			if key.Desc {
 				sql.WriteString(" DESC")
 			} else if presentation.dump {
@@ -305,7 +306,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 // the existing TYPE-buffer function grammar, and the decoration reconstruction
 // owner. Return the classified column/expression usage, not its type default:
 // PostgreSQL compares full-key collation with that usage. Dump stays canonical.
-func compactIndexKeySQL(ctx context.Context, view CatalogRead, parent *relationDescriptor, key indexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
+func compactIndexKeySQL(ctx context.Context, view CatalogRead, parent *catalog.Relation, key catalog.IndexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
 	if presentation.reconstruct && key.Derived != nil {
 		node := key.Derived.Definition
 		text, err := (pgRenderer{view: view, relation: parent, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})
@@ -316,7 +317,7 @@ func compactIndexKeySQL(ctx context.Context, view CatalogRead, parent *relationD
 		return "", false, sqltype.Usage{}, err
 	}
 	if node == nil {
-		usage, err := indexKeyBaseUsage(parent, indexKey{Attribute: attribute})
+		usage, err := indexKeyBaseUsage(parent, catalog.IndexKey{Attribute: attribute})
 		if err != nil {
 			return "", false, sqltype.Usage{}, err
 		}

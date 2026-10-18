@@ -4,13 +4,14 @@ import (
 	"context"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Project only current NOLOGIN identities and their direct membership records
 // from the statement's immutable role root. Options and credentials are not read.
-func capturePGGroup(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGGroup(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

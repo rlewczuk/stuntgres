@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
-	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
+	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
 	e.catalog.state = inheritanceUnitView(e, parent).State()
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()

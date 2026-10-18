@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -166,9 +167,9 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	}
 	// Stored generation manifests retain the real installed routine provider,
 	// rather than reducing the call to its extension or output type.
-	generated := &relationDescriptor{
-		Generations: map[int32]columnGeneration{
-			1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}},
+	generated := &catalog.Relation{
+		Generations: map[int32]catalog.ColumnGeneration{
+			1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}},
 		},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err != nil {
@@ -179,7 +180,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	}
 	stale := n.ref
 	stale.Epoch = 0
-	generated.Generations[1] = columnGeneration{Dependencies: []ids.ObjectRef{stale}}
+	generated.Generations[1] = catalog.ColumnGeneration{Dependencies: []ids.ObjectRef{stale}}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err == nil {
 		t.Fatal("invalid installed generation epoch accepted")
 	}

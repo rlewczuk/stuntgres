@@ -28,13 +28,13 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		want authorization.Privileges
 	}{
 		{&namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, ObjectName: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, ObjectName: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: tableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, ObjectName: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, ObjectName: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, ObjectName: "sequence", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, ObjectName: "index", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: indexRelation}, 0},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, ObjectName: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalogRelation}, authorization.SelectPrivilege},
-		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, ObjectName: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation, VirtualView: true}, authorization.SelectPrivilege},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, ObjectName: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.TableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, ObjectName: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.ViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, ObjectName: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.MaterializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, ObjectName: "sequence", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.SequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, ObjectName: "index", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.IndexRelation}, 0},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, ObjectName: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.CatalogRelation}, authorization.SelectPrivilege},
+		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, ObjectName: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.ViewRelation, VirtualView: true}, authorization.SelectPrivilege},
 	}
 	state := catalog.CloneState(e.catalog.state)
 	for _, tc := range descriptors {
@@ -66,7 +66,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	}
 	// An ordinary ACL supplements predefined capabilities; revocation changes
 	// only fresh role views, never retained descriptor or authority snapshots.
-	table := descriptors[1].d.(*relationDescriptor)
+	table := descriptors[1].d.(*catalog.Relation)
 	withColumn := *table
 	withColumn.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := catalog.CloneState(state)

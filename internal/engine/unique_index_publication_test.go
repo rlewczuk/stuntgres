@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 
 type uniquePublicationFixture struct {
 	e              *Engine
-	parent, index  *relationDescriptor
+	parent, index  *catalog.Relation
 	ref            ids.ObjectRef
 	auth           AuthorizationView
 	keys           int

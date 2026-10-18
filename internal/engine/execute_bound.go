@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -18,7 +19,7 @@ type preparedCommandExecution struct {
 
 // Enter with Engine.mu held; every outcome releases it. Binding, signature and
 // parameter import are statement-wide and have already completed exactly once.
-func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *relationDescriptor, prepared *preparedCommandExecution) (Result, error) {
+func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
 	var err error
@@ -259,7 +260,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
-		if b.viewWrite == nil && b.relation.RelationKind != materializedViewRelation {
+		if b.viewWrite == nil && b.relation.RelationKind != catalog.MaterializedViewRelation {
 			if err := tableKind(b.relation, "change"); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -306,7 +307,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	if scope.owner.readOnly {
 		if selecting {
 			for _, leaf := range b.querySources {
-				if leaf.mark.mode != 0 && leaf.relation.RelationKind == viewRelation {
+				if leaf.mark.mode != 0 && leaf.relation.RelationKind == catalog.ViewRelation {
 					tag = "SELECT"
 					break
 				}
@@ -327,7 +328,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	if b.relation != nil && b.relation.RelationKind == materializedViewRelation {
+	if b.relation != nil && b.relation.RelationKind == catalog.MaterializedViewRelation {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete:
 			e.mu.Unlock()
@@ -388,7 +389,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	return e.executePreparedCommandLocked(scope, stmt, &execution, canonical, creationStage, creationDescriptor)
 }
 
-func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *relationDescriptor) (Result, error) {
+func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
 	var err error

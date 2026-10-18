@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -10,7 +11,7 @@ import (
 // The initialization-only registry supplies availability; the captured catalog
 // supplies installed state. Neither target-schema visibility nor provider calls
 // participate in this metadata projection.
-func captureAvailableExtensions(ctx context.Context, registry map[string]extensionImplementation, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureAvailableExtensions(ctx context.Context, registry map[string]extensionImplementation, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]extensi
 
 // Metadata-only component seam: fixed control schema is not the installed
 // target namespace, and an unknown installed version never creates a package.
-func projectAvailableExtension(name string, registration extensionControl, installed *extensionDescriptor, source *relationDescriptor) ([]sqltype.Value, error) {
+func projectAvailableExtension(name string, registration extensionControl, installed *extensionDescriptor, source *catalog.Relation) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(source.Columns))
 	for i, column := range source.Columns {
 		row[i] = sqltype.Null(column.Usage.Type)

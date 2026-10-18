@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -98,7 +99,7 @@ func (r installedExtensionRoutine) Validate() error {
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
 	ref := b.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
-	appended := expressionDependency{Ref: ref, Revision: p.Revision()}
+	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
 		if uuidOsspProviderOf(p) != stockUUIDOssp {

@@ -15,7 +15,7 @@ type catalogStorageChange struct {
 	ends        *deletionRoot
 	generation  uint64
 	replacement *relationStorage
-	relation    *relationDescriptor
+	relation    *catalog.Relation
 	snapshot    []rowVersion
 	hasSnapshot bool
 	rewritten   bool
@@ -115,7 +115,7 @@ type columnProjection struct {
 	fills []sqltype.Value
 }
 
-func newColumnProjection(old, next *relationDescriptor, fills map[int32]sqltype.Value) (columnProjection, error) {
+func newColumnProjection(old, next *catalog.Relation, fills map[int32]sqltype.Value) (columnProjection, error) {
 	p := columnProjection{width: len(old.Columns), slots: make([]int, len(next.Attributes))}
 	source := 0
 	for j, attribute := range next.Attributes {
@@ -140,7 +140,7 @@ func newColumnProjection(old, next *relationDescriptor, fills map[int32]sqltype.
 	return p, nil
 }
 
-func projectVersions(ctx context.Context, rows []rowVersion, old, next *relationDescriptor, fills map[int32]sqltype.Value) ([]rowVersion, error) {
+func projectVersions(ctx context.Context, rows []rowVersion, old, next *catalog.Relation, fills map[int32]sqltype.Value) ([]rowVersion, error) {
 	if len(rows) == 0 {
 		return rows, nil
 	}

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -73,7 +74,7 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *
 }
 func (c *inheritanceAlterAdmissionCase) run() error {
 	c.e.mu.Lock()
-	prepared, err := c.e.prepareAlterTableActions(c.scope, c.op, c.auth, c.scope.lockedDescriptor.(*relationDescriptor), c.scope.lockedRef, c.raw.Actions)
+	prepared, err := c.e.prepareAlterTableActions(c.scope, c.op, c.auth, c.scope.lockedDescriptor.(*catalog.Relation), c.scope.lockedRef, c.raw.Actions)
 	if err != nil {
 		c.e.mu.Unlock()
 		return err
@@ -83,7 +84,7 @@ func (c *inheritanceAlterAdmissionCase) run() error {
 	_, err = c.e.alterInheritanceLocked(c.scope, c.op, c.auth, &command, 0, prepared.destination, prepared.types)
 	return err
 }
-func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor) *StatementScope {
+func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *catalog.Relation) *StatementScope {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
@@ -133,7 +134,7 @@ func inheritanceAlterJoin(t *testing.T, result <-chan error, joined func()) erro
 		return nil
 	}
 }
-func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, table *relationDescriptor) *inheritanceAlterState {
+func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, table *catalog.Relation) *inheritanceAlterState {
 	t.Helper()
 	lockPending(t, c.e, 1)
 	ref := c.e.catalog.Domain.Ref(c.e.CatalogRead().Epoch(), table.Address())
@@ -180,7 +181,7 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 	}
 	return state
 }
-func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *relationDescriptor, want []sqltype.Value) {
+func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *catalog.Relation, want []sqltype.Value) {
 	t.Helper()
 	store := e.storage[table.Address()]
 	if store == nil || len(store.versions) != 1 || !reflect.DeepEqual(store.versions[0].values, want) {
@@ -198,10 +199,10 @@ func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
 	}
 	return roots
 }
-func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *relationDescriptor) *relationDescriptor {
+func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
-	g.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{c.Address()}, Columns: map[int32]inheritedColumn{g.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
+	g.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{c.Address()}, Columns: map[int32]catalog.InheritedColumn{g.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -241,18 +242,18 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	if e.CatalogRead().State() != grown.State() {
 		t.Fatal("controller published before statement Finish")
 	}
-	for _, old := range []*relationDescriptor{p, currentChild, g} {
+	for _, old := range []*catalog.Relation{p, currentChild, g} {
 		ref := e.catalog.Domain.Ref(grown.Epoch(), old.Address())
 		if !command.scope.holdsColumnDropGrant(ref) {
 			t.Fatal("expanded graph lacks real AX admission", old.Name())
 		}
-		replacement := command.scope.catalog.descriptors[old.Address()].(*relationDescriptor)
+		replacement := command.scope.catalog.descriptors[old.Address()].(*catalog.Relation)
 		if len(replacement.Columns) != 2 || replacement.Columns[1].Name != "extra" {
 			t.Fatal("new grandchild missed actual provider application", old.Name())
 		}
 	}
 	for _, pair := range []struct {
-		old   *relationDescriptor
+		old   *catalog.Relation
 		value int64
 	}{{p, 10}, {c, 20}, {g, 30}} {
 		inheritanceAlterAssertRows(t, e, pair.old, []sqltype.Value{inheritanceQueryInt(e, pair.value)})
@@ -261,7 +262,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pair := range []struct {
-		old   *relationDescriptor
+		old   *catalog.Relation
 		value int64
 	}{{p, 10}, {c, 20}, {g, 30}} {
 		current := e.CatalogRead().MustRelation(pair.old.Address())
@@ -640,7 +641,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if err := inheritanceAlterJoin(t, result, joined); err != nil {
 				t.Fatal(err)
 			}
-			candidate := command.scope.catalog.descriptors[p.Address()].(*relationDescriptor)
+			candidate := command.scope.catalog.descriptors[p.Address()].(*catalog.Relation)
 			if candidate.NotNullConstraints[0].OID == 0 || candidate.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || candidate.CheckConstraints[0].OID == 0 || candidate.CheckConstraints[0].OID == p.CheckConstraints[0].OID || candidate.NotNullConstraints[0].Name != cooked.NotNullConstraints[0].Name || candidate.NotNullConstraints[0].Attribute != cooked.NotNullConstraints[0].Attribute || candidate.CheckConstraints[0].Name != cooked.CheckConstraints[0].Name || !sameGroupExpression(candidate.CheckConstraints[0].Expression, cooked.CheckConstraints[0].Expression) {
 				t.Fatal("sole pipeline lost exact cooked names/keys/recipe or reused removed fact OIDs")
 			}
@@ -660,7 +661,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("genuine CASCADE dependency survived cached DROP")
 			}
 			for _, pair := range []struct {
-				old   *relationDescriptor
+				old   *catalog.Relation
 				value int64
 			}{{p, 1}, {c, 2}} {
 				current := e.CatalogRead().MustRelation(pair.old.Address())

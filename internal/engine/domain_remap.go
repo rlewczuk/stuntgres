@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -368,7 +369,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		return nil
 	}
 	for address, descriptor := range next.Descriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}

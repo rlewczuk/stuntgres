@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -12,7 +13,7 @@ const temporaryTypedReplacementError = "stuntgres: catalog replacement with live
 // admission points. A replacement cannot retarget an attachment by name or OID.
 func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || table.OfType == (ids.ObjectAddress{}) {
 			continue
 		}

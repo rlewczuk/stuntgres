@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -201,7 +202,7 @@ func conflictUpdateCardinalityError() error {
 
 // Committed hits retain their provider's exact physical hint. Private overlays
 // are keyed by RowID, with this command's replacement ahead of prior writes.
-func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate uniqueConflict) (rowVersion, *relationDescriptor, string, bool, error) {
+func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate uniqueConflict) (rowVersion, *catalog.Relation, string, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {

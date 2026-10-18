@@ -154,7 +154,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		if err != nil || truth != False {
 			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.row, truth, err)
 		}
-		matched, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{Predicate: predicate}, row.values, nil, nil)
+		matched, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.values, nil, nil)
 		if err != nil || matched {
 			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.row, matched, err)
 		}

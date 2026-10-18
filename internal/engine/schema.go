@@ -212,7 +212,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 
 // The table identity owner is shared by declared and query-derived schemas.
 // The caller transfers a private column slice; source definitions are not mutated.
-func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*relationDescriptor, error) {
+func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*catalog.Relation, error) {
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, own
 			index[column.Name] = i
 		}
 	}
-	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns, ObjectName: name, ObjectRevision: revision, Owner: owner, Columns: columns, Index: index, Attributes: make([]int32, len(columns))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns, ObjectName: name, ObjectRevision: revision, Owner: owner, Columns: columns, Index: index, Attributes: make([]int32, len(columns))}
 	d.AttributeHighWater = int32(len(columns))
 	for i := range columns {
 		d.Attributes[i] = int32(i + 1)
@@ -295,7 +295,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	var removedRelations []ids.ObjectAddress
 	for address, removal := range stage.Removals {
-		if _, ok := removal.Descriptor.(*relationDescriptor); ok {
+		if _, ok := removal.Descriptor.(*catalog.Relation); ok {
 			removedRelations = append(removedRelations, address)
 		}
 	}
@@ -310,7 +310,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.Removals {
-		if r, ok := stage.Base.Relation(a); ok && r.RelationKind == sequenceRelation {
+		if r, ok := stage.Base.Relation(a); ok && r.RelationKind == catalog.SequenceRelation {
 			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
@@ -580,7 +580,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			schemas = append(schemas, d)
 		}
-		var dependent []*relationDescriptor
+		var dependent []*catalog.Relation
 		var domains []Descriptor
 		children, err := namespaceChildren(auth.catalog, seen)
 		if err != nil {
@@ -591,15 +591,15 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if extensionMembership(d) != (ids.ObjectAddress{}) {
 				continue // the extension owns these members as one namespace dependent
 			}
-			if r, ok := d.(*relationDescriptor); ok {
-				if r.RelationKind == compositeRelation {
+			if r, ok := d.(*catalog.Relation); ok {
+				if r.RelationKind == catalog.CompositeRelation {
 					continue
 				}
 				if r.SQLIndex != nil {
 					continue
 				}
 				dependent = append(dependent, r)
-			} else if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsUserDefined() && (t.OwningRelation == (ids.ObjectAddress{}) || t.SQLType.IsComposite() && auth.catalog.MustRelation(t.OwningRelation).RelationKind == compositeRelation) {
+			} else if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsUserDefined() && (t.OwningRelation == (ids.ObjectAddress{}) || t.SQLType.IsComposite() && auth.catalog.MustRelation(t.OwningRelation).RelationKind == catalog.CompositeRelation) {
 				domains = append(domains, t)
 			} else if c, ok := d.(*collationDescriptor); ok {
 				domains = append(domains, c)

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -267,12 +268,12 @@ func (e indexPropertyExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 		if e.kind == wholeIndexProperty {
 			switch relation.SQLIndex.Method {
-			case btreeMethod, hashMethod, gistMethod:
+			case catalog.BtreeMethod, catalog.HashMethod, catalog.GistMethod:
 				switch property {
 				case "clusterable":
-					result, known = relation.SQLIndex.Method != hashMethod, true
+					result, known = relation.SQLIndex.Method != catalog.HashMethod, true
 				case "backward_scan":
-					result, known = relation.SQLIndex.Method != gistMethod, true
+					result, known = relation.SQLIndex.Method != catalog.GistMethod, true
 				case "index_scan", "bitmap_scan":
 					result, known = true, true
 				}
@@ -336,11 +337,11 @@ func indexAMProperty(oid uint32, property string) (bool, bool) {
 	return false, false
 }
 
-func indexColumnCapability(index *indexDefinition, ordinal int64, property string) (bool, bool) {
+func indexColumnCapability(index *catalog.IndexDefinition, ordinal int64, property string) (bool, bool) {
 	if ordinal <= 0 || ordinal > int64(len(index.Keys)+len(index.Include)) {
 		return false, false
 	}
-	if index.Method == gistMethod {
+	if index.Method == catalog.GistMethod {
 		key := ordinal <= int64(len(index.Keys))
 		switch property {
 		case "orderable":
@@ -363,7 +364,7 @@ func indexColumnCapability(index *indexDefinition, ordinal int64, property strin
 		}
 		return false, false
 	}
-	if index.Method == hashMethod {
+	if index.Method == catalog.HashMethod {
 		switch property {
 		case "asc", "desc", "nulls_first", "nulls_last", "orderable", "distance_orderable", "returnable", "search_array", "search_nulls":
 			return false, true

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ func enumReownVersions(next *catalogState, versions []rowVersion) ([]rowVersion,
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *catalogChanges, stage *CatalogStage) error {
 	next := e.stageRead(stage).State()
 	for a, rebound := range stage.rowShapes {
-		consumer, ok := stage.Descriptors[a].(*relationDescriptor)
+		consumer, ok := stage.Descriptors[a].(*catalog.Relation)
 		if !ok {
 			continue
 		}

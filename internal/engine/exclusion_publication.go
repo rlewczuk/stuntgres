@@ -2,10 +2,11 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
-func validateExclusionPair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	if previous.row == current.row || uniqueHasNull(previous.keys) || uniqueHasNull(current.keys) {
 		return nil
 	}
@@ -31,7 +32,7 @@ func validateExclusionPair(ctx context.Context, parent, index *relationDescripto
 	}
 	return exclusionDiagnostic(ctx, parent, index, key, existing, schema, output, allowed, building, catalog)
 }
-func validateExclusionRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	if root == nil {
 		return ctx.Err()
 	}
@@ -55,10 +56,10 @@ func validateExclusionRoot(ctx context.Context, parent, index *relationDescripto
 	return ctx.Err()
 }
 
-func validateExclusionEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateExclusionEntries(ctx context.Context, parent, index *catalog.Relation, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	for i, current := range entries {
 		start := 0
-		if index.SQLIndex.Method == btreeMethod {
+		if index.SQLIndex.Method == catalog.BtreeMethod {
 			start = max(0, i-1)
 		}
 		for _, previous := range entries[start:i] {

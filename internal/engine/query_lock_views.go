@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -90,9 +91,9 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	if mode := queryRootRowMode(root); mode != 0 {
 		return mode, nil
 	}
-	var visit func(*relationDescriptor, queryRowMark, lock.Mode) (lock.Mode, error)
-	visit = func(d *relationDescriptor, inherited queryRowMark, diagnostic lock.Mode) (lock.Mode, error) {
-		if d.RelationKind != viewRelation {
+	var visit func(*catalog.Relation, queryRowMark, lock.Mode) (lock.Mode, error)
+	visit = func(d *catalog.Relation, inherited queryRowMark, diagnostic lock.Mode) (lock.Mode, error) {
+		if d.RelationKind != catalog.ViewRelation {
 			if inherited.mode == 0 {
 				return 0, nil
 			}
@@ -127,11 +128,11 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	}
 	return 0, nil
 }
-func viewHasStoredRowMarks(d *relationDescriptor, view CatalogRead) bool {
+func viewHasStoredRowMarks(d *catalog.Relation, view CatalogRead) bool {
 	seen := make(map[ids.ObjectAddress]bool)
-	var visit func(*relationDescriptor) bool
-	visit = func(d *relationDescriptor) bool {
-		if d.RelationKind != viewRelation || seen[d.Address()] {
+	var visit func(*catalog.Relation) bool
+	visit = func(d *catalog.Relation) bool {
+		if d.RelationKind != catalog.ViewRelation || seen[d.Address()] {
 			return false
 		}
 		seen[d.Address()] = true
@@ -281,9 +282,9 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		return err
 	}
 	scope.visibilityDemand = scope.visibilityDemand || visibilityDemand
-	var visit func(*relationDescriptor, queryRowMark, bool) error
-	visit = func(d *relationDescriptor, inherited queryRowMark, referenceMarked bool) error {
-		if d.RelationKind == viewRelation {
+	var visit func(*catalog.Relation, queryRowMark, bool) error
+	visit = func(d *catalog.Relation, inherited queryRowMark, referenceMarked bool) error {
+		if d.RelationKind == catalog.ViewRelation {
 			if queryHasSetOutput(viewOf(d).query.Root) {
 				referenceMarked = false
 			}
@@ -306,19 +307,19 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		if isPGSequencesRelation(d) {
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
-		if (referenceMarked || inherited.mode != 0) && d.RelationKind == materializedViewRelation {
+		if (referenceMarked || inherited.mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.Name()))
 		}
 		// PostgreSQL validates reference rowmark kinds even for an unselected
 		// sequence sibling. This does not confer UPDATE ACLs or tuple grants.
-		if referenceMarked && d.RelationKind == sequenceRelation {
+		if referenceMarked && d.RelationKind == catalog.SequenceRelation {
 			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.Name()))
 		}
 		if inherited.mode == 0 {
 			return nil
 		}
 		marked = true
-		if d.RelationKind == catalogRelation {
+		if d.RelationKind == catalog.CatalogRelation {
 			return sqlError("0A000", "row locking is not supported for virtual catalog relations")
 		}
 		return nil
@@ -334,15 +335,15 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	return nil
 }
 
-func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited queryRowMark, invoker authorization.PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited queryRowMark, invoker authorization.PrincipalRef) error {
 	if _, err := validateViewReadGraph(v.catalog, []queryLeaf{{relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
 }
 
-func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited queryRowMark, invoker authorization.PrincipalRef) error {
-	if d.RelationKind != viewRelation {
+func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inherited queryRowMark, invoker authorization.PrincipalRef) error {
+	if d.RelationKind != catalog.ViewRelation {
 		return nil
 	}
 	if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(inherited)); err != nil {

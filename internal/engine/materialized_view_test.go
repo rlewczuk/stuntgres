@@ -14,7 +14,7 @@ import (
 )
 
 // Exercise the private binder/stager directly, not SQL execution wrappers.
-func materializedUnitStage(t *testing.T, e *Engine) (*Operation, func(), *CatalogStage, *relationDescriptor) {
+func materializedUnitStage(t *testing.T, e *Engine) (*Operation, func(), *CatalogStage, *catalog.Relation) {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.unit_mv AS SELECT 1::int AS i WITH NO DATA")
@@ -58,7 +58,7 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, &populated); err != nil {
 		t.Fatal("empty populated descriptor:", err)
 	}
-	for _, kind := range []relationKind{tableRelation, viewRelation, catalogRelation} {
+	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.ViewRelation, catalog.CatalogRelation} {
 		invalid := populated
 		invalid.RelationKind = kind
 		if err := (relationProvider{}).Validate(view, &invalid); err == nil {
@@ -96,7 +96,7 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 	if err := stage.validateInitialTables(); err == nil {
 		t.Fatal("unpopulated store accepted rows")
 	}
-	d.Populated, d.RelationKind = false, viewRelation
+	d.Populated, d.RelationKind = false, catalog.ViewRelation
 	if err := stage.validateInitialTables(); err == nil {
 		t.Fatal("dynamic view accepted physical rows")
 	}
@@ -106,16 +106,16 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	e := New()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	source := &relationDescriptor{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
+	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
-	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{Ref: ref, Revision: d.Revision()}}}
+	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, viewOf(d).syntax, b, false, false, 0, materializedViewRelation, false)
+	definition, err := e.freezeViewDefinitionLocked(auth, viewOf(d).syntax, b, false, false, 0, catalog.MaterializedViewRelation, false)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

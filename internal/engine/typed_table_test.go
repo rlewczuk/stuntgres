@@ -13,7 +13,7 @@ import (
 )
 
 // Package fixtures construct providers, not SQL sessions or public-driver mocks.
-func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *relationDescriptor) {
+func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -35,7 +35,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	e.mu.Lock()
 	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
 	if err == nil {
-		source.RelationKind = compositeRelation
+		source.RelationKind = catalog.CompositeRelation
 		if !empty {
 			source.Attributes = []int32{2, 4}
 			source.AttributeHighWater = 4
@@ -44,7 +44,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 		}
 		err = e.stageRowTypeLocked(stage, source)
 	}
-	var table *relationDescriptor
+	var table *catalog.Relation
 	if err == nil {
 		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]ColumnDescriptor(nil), columns...), index)
 	}
@@ -139,12 +139,12 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 	}
 }
 
-func typedRenameStage(t *testing.T, e *Engine, source, table *relationDescriptor) *CatalogStage {
+func typedRenameStage(t *testing.T, e *Engine, source, table *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.typedSource = table.OfType
 	stage.typedObserved = typedClosure(stage.Base, table.OfType)
-	for _, old := range []*relationDescriptor{source, table} {
+	for _, old := range []*catalog.Relation{source, table} {
 		next, err := renameColumnCandidate(old, "note", "label")
 		if err != nil {
 			t.Fatal(err)
@@ -194,7 +194,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			next.SetDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
-			late.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
+			late.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
 			next.SetDescriptor(late.Address(), &late)
 		case "descriptor":
 			replacement := *table

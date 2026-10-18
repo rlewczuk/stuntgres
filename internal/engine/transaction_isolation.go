@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ type transactionRoot struct {
 	versions []rowVersion
 	ends     *deletionRoot
 	storage  *relationStorage
-	relation *relationDescriptor
+	relation *catalog.Relation
 }
 
 func isolationFromText(text string) Isolation {

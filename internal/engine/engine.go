@@ -79,7 +79,7 @@ type Result struct {
 type binding struct {
 	ruleTemplate          bool
 	insertSubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
-	relation              *relationDescriptor
+	relation              *catalog.Relation
 	storage               *relationStorage
 	ref                   ids.ObjectRef
 	viewWrite             *viewWrite
@@ -111,12 +111,12 @@ type binding struct {
 	deleteSourceWidth     int
 	currentOf             string
 	returning             *boundReturning
-	dependencies          []expressionDependency
+	dependencies          []catalog.ExpressionDependency
 	parameters            ParameterInfo
 	expressions           [][]expr.Expr
 	insertRows            [][]parser.Expr
 	createColumns         []ColumnDescriptor
-	createNotNull         []notNullConstraint
+	createNotNull         []catalog.NotNullConstraint
 	createColumnIndex     map[string]int
 	createUniques         []createUniqueConstraint
 	createDeclarations    []createColumnDeclaration
@@ -430,7 +430,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		b.dependencies = append(b.dependencies, program.events...)
 		for _, command := range program.commands {
 			if command.binding.relation != nil {
-				b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
+				b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 			}
 			b.dependencies = append(b.dependencies, command.binding.dependencies...)
 			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
@@ -622,12 +622,12 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, err
 				}
 				source := auth.catalog.MustRelation(ref.Address)
-				if source.RelationKind != tableRelation && source.RelationKind != foreignRelation && source.RelationKind != viewRelation && source.RelationKind != compositeRelation {
+				if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ForeignRelation && source.RelationKind != catalog.ViewRelation && source.RelationKind != catalog.CompositeRelation {
 					kind := "relations of this kind"
-					if source.RelationKind == sequenceRelation {
+					if source.RelationKind == catalog.SequenceRelation {
 						kind = "sequences"
 					}
-					if source.RelationKind == indexRelation {
+					if source.RelationKind == catalog.IndexRelation {
 						kind = "indexes"
 					}
 					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.Name())).(*sqlstate.Error)
@@ -638,7 +638,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, diagnostic
 				}
 				var sourceType *typeDescriptor
-				if source.RelationKind == compositeRelation {
+				if source.RelationKind == catalog.CompositeRelation {
 					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
@@ -657,7 +657,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				for _, constraint := range source.NotNullConstraints {
 					for i, attribute := range source.Attributes {
 						if constraint.Attribute == attribute {
-							inherited = append(inherited, createLikeConstraint{Element: elementIndex, notNullConstraint: notNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
+							inherited = append(inherited, createLikeConstraint{Element: elementIndex, NotNullConstraint: catalog.NotNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
 							break
 						}
 					}
@@ -909,7 +909,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		return ids.ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 	}
 	descriptor, exists := auth.definitionDescriptor(a)
-	d, valid := descriptor.(*relationDescriptor)
+	d, valid := descriptor.(*catalog.Relation)
 	if !exists || !valid {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}

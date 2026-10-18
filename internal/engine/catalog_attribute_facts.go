@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Condensed projections keep their established result order. Stable attribute
 // numbers instead follow REL_18_0 catalog headers, including omitted neighbors.
@@ -55,7 +58,7 @@ func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 	return ordinal
 }
 
-func initializeCatalogAttributes(d *relationDescriptor) {
+func initializeCatalogAttributes(d *catalog.Relation) {
 	d.CatalogAttributes = make([]catalogAttribute, len(d.Columns))
 	view := d.VirtualView || representedSummaryViewDefinition(d.Address().ObjectID) != ""
 	for i, column := range d.Columns {

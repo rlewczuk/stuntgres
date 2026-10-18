@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -26,7 +27,7 @@ type capturedRegtypeInput struct {
 	position  parser.Position
 	portal    string
 	qualified *[]ids.ObjectAddress
-	resolved  *[]expressionDependency
+	resolved  *[]catalog.ExpressionDependency
 }
 
 func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *Operation) (capturedRegtypeInput, error) {
@@ -230,7 +231,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		d, _ := r.auth.definitionDescriptor(address)
 		ref := r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), address)
-		*r.resolved = append(*r.resolved, expressionDependency{Ref: ref, Revision: d.Revision()})
+		*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
 	}
 	return uint32(typ.ID()), nil
 }

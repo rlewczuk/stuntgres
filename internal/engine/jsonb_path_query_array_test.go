@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -70,7 +71,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 		t.Fatal("current OID repaired missing original manifest")
 	}
-	checks := append([]expressionDependency(nil), b.dependencies...)
+	checks := append([]catalog.ExpressionDependency(nil), b.dependencies...)
 	for i := range checks {
 		if checks[i].Ref.Address == address {
 			checks[i].Revision++

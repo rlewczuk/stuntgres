@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type physicalNotNullConstructor struct {
-	before    *relationDescriptor
+	before    *catalog.Relation
 	ref       ids.ObjectRef
 	repairs   []physicalNotNullRepair
 	indexName string
@@ -26,10 +27,10 @@ type restoredPhysicalNotNull struct {
 	op             *Operation
 	authority      AuthorizationView
 	ref            ids.ObjectRef
-	current        *relationDescriptor
+	current        *catalog.Relation
 	repairs        []physicalNotNullRepair
 	facts          []restoredPhysicalNotNullFact
-	primary        *physicalPrimarySupport
+	primary        *catalog.PhysicalPrimarySupport
 	position       int
 	ownerDirective bool
 }
@@ -105,7 +106,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 		return nil, err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+	if !ok || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	seen := make(map[int32]bool, len(repairs))
@@ -118,7 +119,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 			return reject()
 		}
 		attribute := old.Attributes[slot]
-		if seen[attribute] || slices.ContainsFunc(old.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute }) {
+		if seen[attribute] || slices.ContainsFunc(old.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute }) {
 			return reject()
 		}
 		seen[attribute] = true
@@ -131,7 +132,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*relationDescriptor) (*restoredPhysicalNotNull, error) {
+func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
 	auth, err := op.Authorization()
 	if err != nil {
 		return nil, err
@@ -145,7 +146,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 		return reject()
 	}
 	current, ok := auth.catalog.Relation(constructor.ref.Address)
-	if !ok || current == constructor.before || current.Owner != constructor.before.Owner || current.RelationKind != tableRelation || current.Partition != nil || current.Membership != nil {
+	if !ok || current == constructor.before || current.Owner != constructor.before.Owner || current.RelationKind != catalog.TableRelation || current.Partition != nil || current.Membership != nil {
 		return reject()
 	}
 	if constructor.deferred != nil {
@@ -159,7 +160,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 			return reject()
 		}
 		attribute := current.Attributes[slot]
-		index := slices.IndexFunc(current.NotNullConstraints, func(c notNullConstraint) bool {
+		index := slices.IndexFunc(current.NotNullConstraints, func(c catalog.NotNullConstraint) bool {
 			return c.Attribute == attribute && c.OID != 0 && !c.NotValid && !c.NoInherit
 		})
 		if index < 0 {
@@ -174,7 +175,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 		pair.facts[i] = restoredPhysicalNotNullFact{attribute: attribute, oid: current.NotNullConstraints[index].OID, usage: current.Columns[slot].Usage}
 		primary := physicalPrimaryForAttribute(current, attribute)
 		if repair.primary == "" {
-			if slices.ContainsFunc(current.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+			if slices.ContainsFunc(current.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 				return reject()
 			}
 		} else {
@@ -252,7 +253,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 	}
 	fact := pair.facts[pair.position]
 	slot := old.IndexForAttribute(fact.attribute)
-	index := slices.IndexFunc(old.NotNullConstraints, func(c notNullConstraint) bool {
+	index := slices.IndexFunc(old.NotNullConstraints, func(c catalog.NotNullConstraint) bool {
 		return c.OID == fact.oid && c.Attribute == fact.attribute && !c.NotValid && !c.NoInherit
 	})
 	if slot < 0 || old.Columns[slot].Name != repair.column || old.Columns[slot].Usage != fact.usage || old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown || index < 0 {
@@ -268,7 +269,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 	}
 	primary := physicalPrimaryForAttribute(old, fact.attribute)
 	if pair.primary == nil {
-		if primary != nil || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+		if primary != nil || slices.ContainsFunc(old.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 			e.mu.Unlock()
 			return reject()
 		}
@@ -287,18 +288,18 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		next.Inheritance = cloneInheritance(old.Inheritance)
 	}
 	removeDetachedNotNullMetadata(&next, old.NotNullConstraints[index])
-	cause := &physicalNotNullCause{Kind: physicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.attribute, RemovedNN: fact.oid, Usage: fact.usage}
+	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.attribute, RemovedNN: fact.oid, Usage: fact.usage}
 	if pair.primary != nil {
-		cause.Kind = physicalNotNullImportCleanup
+		cause.Kind = catalog.PhysicalNotNullImportCleanup
 		cause.Primary = pair.primary.Constraint
 		cause.Index = pair.primary.Index
 	}
 	cause.Self = cause
 	next.PhysicalNotNull = maps.Clone(old.PhysicalNotNull)
 	if next.PhysicalNotNull == nil {
-		next.PhysicalNotNull = make(map[int32]physicalNotNullProof)
+		next.PhysicalNotNull = make(map[int32]catalog.PhysicalNotNullProof)
 	}
-	next.PhysicalNotNull[fact.attribute] = physicalNotNullProof{Cause: cause, Usage: fact.usage, Support: pair.primary}
+	next.PhysicalNotNull[fact.attribute] = catalog.PhysicalNotNullProof{Cause: cause, Usage: fact.usage, Support: pair.primary}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()

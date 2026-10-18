@@ -156,7 +156,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if err := staleActor.CanUse(ref); err == nil {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}
-	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, ACL: authorization.ACLValue{Explicit: true}}
 	state.SetDescriptor(table.Address(), table)
 	tableRef := f.e.catalog.Domain.Ref(state.Epoch(), table.Address())
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")

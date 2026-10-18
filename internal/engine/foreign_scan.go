@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -67,7 +68,7 @@ func copyForeignCells(cells []driver.Value) []driver.Value {
 
 // Capture only metadata while locked. Planning, source admission, conversion,
 // restart and teardown all run from internal demand after the mutex is released.
-func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *relationDescriptor, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
+func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
 	if mark.mode != 0 {
 		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
 	}
@@ -116,7 +117,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 
 // Logical virtual-column ACL uses remain unchanged. Only their existing bound
 // expression's base inputs belong in the external row layout.
-func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int32, error) {
+func foreignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32, error) {
 	count := len(uses)
 	if uses == nil {
 		count = len(relation.Columns)
@@ -136,7 +137,7 @@ func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int3
 		if slot < 0 || slot >= len(relation.Attributes) {
 			return nil, fmt.Errorf("stuntgres: invalid foreign required attribute")
 		}
-		if generation, ok := relation.Generations[relation.Attributes[slot]]; ok && generation.Kind == generationVirtual {
+		if generation, ok := relation.Generations[relation.Attributes[slot]]; ok && generation.Kind == catalog.GenerationVirtual {
 			walkBoundExpression(generation.Planned, func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok {
 					add(column.slot)

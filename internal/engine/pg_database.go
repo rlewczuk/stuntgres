@@ -23,7 +23,7 @@ func databaseCollationActualVersion() (*string, error) {
 
 // Caller owns e.mu. Only the supplied catalog and paired role read participate;
 // neither session identity nor the live engine catalog replaces captured facts.
-func (e *Engine) capturePGDatabase(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGDatabase(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

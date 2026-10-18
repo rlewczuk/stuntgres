@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,7 +14,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLanguageOID}
 	source := view.MustRelation(address)
-	checkTypeLinks := func(catalog CatalogRead, relation *relationDescriptor) {
+	checkTypeLinks := func(catalog CatalogRead, relation *catalog.Relation) {
 		t.Helper()
 		if relation.RowType != 10021 {
 			t.Fatal("native row type identity", relation.RowType)

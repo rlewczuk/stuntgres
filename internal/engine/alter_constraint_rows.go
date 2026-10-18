@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Historical ALTER worklists are separate from unconditional successor DML.
 // The caller supplies only selected valid CHECKs and required valid NN jobs.
@@ -35,7 +38,7 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 	return scan(writes, false)
 }
 
-func validCheckTraversal(parent *relationDescriptor) *relationDescriptor {
+func validCheckTraversal(parent *catalog.Relation) *catalog.Relation {
 	valid := 0
 	for _, c := range parent.CheckConstraints {
 		if !c.NotValid {
@@ -46,7 +49,7 @@ func validCheckTraversal(parent *relationDescriptor) *relationDescriptor {
 		return parent
 	}
 	next := *parent
-	next.CheckConstraints = make([]checkConstraint, 0, valid)
+	next.CheckConstraints = make([]catalog.CheckConstraint, 0, valid)
 	for _, c := range parent.CheckConstraints {
 		if !c.NotValid {
 			next.CheckConstraints = append(next.CheckConstraints, c)

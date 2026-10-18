@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -112,7 +113,7 @@ func descriptorComment(d Descriptor, sub int32) string {
 		if sub == 0 {
 			return d.Comment
 		}
-	case *relationDescriptor:
+	case *catalog.Relation:
 		if sub == 0 {
 			return d.Comment
 		}

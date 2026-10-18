@@ -58,7 +58,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().catalog.Domain.Ref(r.ref.Epoch, r.ref.Address) },
 		"attribute": func(r *restoredGenerationRecipe) { r.attribute++ },
 		"identity":  func(r *restoredGenerationRecipe) { r.generation++ },
-		"kind":      func(r *restoredGenerationRecipe) { r.kind = generationStored },
+		"kind":      func(r *restoredGenerationRecipe) { r.kind = catalog.GenerationStored },
 		"usage":     func(r *restoredGenerationRecipe) { r.usage = testUsage(e, sqltype.Int8) },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	before := e.catalog.state
 	child := *before.MustRelation(refs["c"].Address)
 	child.Inheritance = cloneInheritance(child.Inheritance)
-	child.Inheritance.Columns[2] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: refs["q"].Address, Attribute: 1}}}
+	child.Inheritance.Columns[2] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: refs["q"].Address, Attribute: 1}}}
 	changed := catalog.CloneState(before)
 	changed.SetDescriptor(child.Address(), &child)
 	e.catalog.state = changed

@@ -344,7 +344,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				changes.originals[sequence] = nil
 			case "changed-check":
 				changed := *table
-				changed.CheckConstraints = append([]checkConstraint(nil), table.CheckConstraints...)
+				changed.CheckConstraints = append([]catalog.CheckConstraint(nil), table.CheckConstraints...)
 				extra := changed.CheckConstraints[0]
 				extra.Name = "late_check"
 				changed.CheckConstraints = append(changed.CheckConstraints, extra)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -159,7 +160,7 @@ func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ids.Ob
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 	descriptor, _ := definitionDescriptorAt(view, reader, address)
-	if d, ok := descriptor.(*relationDescriptor); ok {
+	if d, ok := descriptor.(*catalog.Relation); ok {
 		text := regclassIdentifier(d.Name())
 		if namedObjectVisibleAt(view, reader, path, d) {
 			return text

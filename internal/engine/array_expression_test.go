@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -206,7 +207,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	intArray := b.typ(b.typ(sqltype.Int4).AssociatedArray())
-	b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.typ(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
+	b.relation = &catalog.Relation{Columns: []ColumnDescriptor{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.typ(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.quoteCaptures = c.quotes
 }
 
-func bindingRuleRelation(b binding) *relationDescriptor {
+func bindingRuleRelation(b binding) *catalog.Relation {
 	return b.physicalBinding().relation
 }
 

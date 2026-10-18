@@ -284,8 +284,8 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &relationDescriptor{
-		Partition: &partitionDefinition{Keys: []partitionKeyEntry{
+	source := &catalog.Relation{
+		Partition: &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{
 			{Attribute: 1, Usage: usage, Class: class, Comparison: comparison, Collation: uint32(provider.OID)},
 			{Attribute: 2, Usage: usage, Class: class, Comparison: comparison},
 		}},

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -15,8 +16,8 @@ func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...str
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	parent := roleTableRef(t, e, table)
-	stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address: base.MustRelation(parent.Address)}
-	stage.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(indexes))
+	stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address: base.MustRelation(parent.Address)}
+	stage.indexRebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(indexes))
 	for _, name := range indexes {
 		ref := roleTableRef(t, e, name)
 		stage.indexRebuilds[ref.Address] = base.MustRelation(ref.Address)

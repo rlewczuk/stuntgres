@@ -181,7 +181,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *relationDescriptor:
+		case *catalog.Relation:
 			n := *d
 			var err error
 			n.Owner, err = remap(d.Owner)
@@ -202,9 +202,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				}
 			}
 			if len(d.Policies) != 0 {
-				n.Policies = append([]policyDefinition(nil), d.Policies...)
+				n.Policies = append([]catalog.PolicyDefinition(nil), d.Policies...)
 				for i := range n.Policies {
-					n.Policies[i].Roles = append([]policyRole(nil), d.Policies[i].Roles...)
+					n.Policies[i].Roles = append([]catalog.PolicyRole(nil), d.Policies[i].Roles...)
 					for j := range n.Policies[i].Roles {
 						role := &n.Policies[i].Roles[j]
 						if role.Public {
