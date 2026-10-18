@@ -91,7 +91,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 			if i == 0 {
 				typ = text
 			}
-			args[i] = columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, slot: i}
+			args[i] = columnExpression{Info: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, slot: i}
 		}
 		node, err := b.stringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 		if err != nil {

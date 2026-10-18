@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -37,7 +38,7 @@ func (k transactionIdentityKind) name() string {
 }
 
 type transactionIdentityExpression struct {
-	expressionInfo
+	expr.Info
 	kind transactionIdentityKind
 	arg  BoundExpr
 }

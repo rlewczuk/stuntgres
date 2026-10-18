@@ -117,7 +117,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (BoundExpr, bool, e
 		frame = 2
 	}
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: ns.relation.revision})
-	return columnExpression{expressionInfo: b.info(ns.relation.columns[slot].Usage, raw.Pos, ExprProperties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
+	return columnExpression{Info: b.info(ns.relation.columns[slot].Usage, raw.Pos, ExprProperties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 
 func ruleResultCheck(d *relationDescriptor, schema []ColumnDescriptor, selectRule bool) error {

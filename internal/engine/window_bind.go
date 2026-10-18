@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 
 // Window occurrences reference immutable appended stage slots, never aggregate state.
 type windowExpression struct {
-	expressionInfo
+	expr.Info
 	slot     int
 	frame    uint32
 	call     int
@@ -196,7 +197,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		}
 		// Analysis-only occurrence: the completed parent must either reject its
 		// signature or report nesting. It cannot enter an executable window plan.
-		return &windowExpression{expressionInfo: b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true}), slot: -1, call: -1, frame: b.frameID()}, nil
+		return &windowExpression{Info: b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true}), slot: -1, call: -1, frame: b.frameID()}, nil
 	}
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
@@ -287,7 +288,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 	}
-	expr := &windowExpression{expressionInfo: info, slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
+	expr := &windowExpression{Info: info, slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
 	call.expression = expr
 	expr.nullable = call.operation == windowSum || call.operation == windowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.windowCalls = append(b.windowCalls, call)

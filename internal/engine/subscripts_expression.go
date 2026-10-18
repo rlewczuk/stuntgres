@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ import (
 // A subscripts call retains only its analyzed arguments. Each execution opens
 // fresh bounds-only state in the shared arithmetic function cursor.
 type subscriptsExpression struct {
-	expressionInfo
+	expr.Info
 	args []BoundExpr
 }
 
@@ -139,5 +140,5 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	return subscriptsExpression{expressionInfo: info, args: args}, nil
+	return subscriptsExpression{Info: info, args: args}, nil
 }

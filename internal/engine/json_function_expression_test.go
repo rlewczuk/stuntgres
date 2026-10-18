@@ -28,7 +28,7 @@ func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input s
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.JSONKeys{Info: expressionInfo{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: ExprProperties{StageDependent: true}}, Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
+	return functions.JSONKeys{Info: expressionInfo{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: ExprProperties{StageDependent: true}}, Plan: plan, Args: []BoundExpr{literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: v}}}
 }
 
 func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
@@ -208,7 +208,7 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 		t.Fatal(got, draws)
 	}
 	empty := jsonFunctionUnitMarker(t, json, text, `{}`, 30)
-	empty.Args = []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: json.Usage()}, value: sqltype.Null(json)}}
+	empty.Args = []BoundExpr{literalExpression{Info: expressionInfo{Usage: json.Usage()}, value: sqltype.Null(json)}}
 	n = regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: text.Usage()}}, child: &singletonNode{}, calls: []BoundExpr{empty}, frame: 1})
 	stage, err = openSetProjectNode(context.Background(), &queryState{source: &querySource{materialized: true}, frame: 1}, n)
 	if err != nil {

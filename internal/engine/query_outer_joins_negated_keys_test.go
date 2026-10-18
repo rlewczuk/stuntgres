@@ -14,8 +14,8 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	info := expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
 	columnInfo := expressionInfo{Usage: integer.Usage(), Property: info.Property}
-	left := columnExpression{expressionInfo: columnInfo, slot: 0}
-	right := columnExpression{expressionInfo: columnInfo, slot: 1}
+	left := columnExpression{Info: columnInfo, slot: 0}
+	right := columnExpression{Info: columnInfo, slot: 1}
 	comparison := func(op string, a, b BoundExpr) comparisonExpression {
 		t.Helper()
 		operator := map[string]sqltype.ComparisonOperator{
@@ -27,18 +27,18 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{expressionInfo: info, left: a, right: b, operator: op, predicate: provider}
+		return comparisonExpression{Info: info, left: a, right: b, operator: op, predicate: provider}
 	}
 	logical := func(op parser.LogicalOperator, a, b BoundExpr) logicalExpression {
-		return logicalExpression{expressionInfo: info, op: op, left: a, right: b}
+		return logicalExpression{Info: info, op: op, left: a, right: b}
 	}
 	not := func(a BoundExpr) BoundExpr { return logical(parser.LogicalNot, a, nil) }
 	equal := comparison("=", left, right)
 	unequal := comparison("<>", left, right)
-	unknown := literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Null(boolean)}
+	unknown := literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Null(boolean)}
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
-	constant := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: one}
+	constant := literalExpression{Info: expressionInfo{Usage: integer.Usage()}, value: one}
 	volatile := left
 	volatile.Property.Volatility = Volatile
 	stable := left

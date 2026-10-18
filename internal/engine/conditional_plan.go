@@ -147,7 +147,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			index, valid := shape.CompositeAttributeIndex(e.attribute)
 			if valid && index == e.index && shape.CompositeMember(index).Usage == e.ResultUsage() &&
 				row.fields[index].ResultUsage() == e.ResultUsage() {
-				return plannedConditionalResult(e.expressionInfo, row.fields[index]), true, nil
+				return plannedConditionalResult(e.Info, row.fields[index]), true, nil
 			}
 		}
 		expression = e
@@ -224,7 +224,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if known && match {
 				if arms == nil && i == 0 {
-					return plannedConditionalResult(e.expressionInfo, arm.result), true, nil
+					return plannedConditionalResult(e.Info, arm.result), true, nil
 				}
 				if arms == nil {
 					arms = append([]caseBranch{}, e.arms[:i]...)
@@ -248,7 +248,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			return nil, false, err
 		}
 		if len(e.arms) == 0 {
-			return plannedConditionalResult(e.expressionInfo, e.otherwise), true, nil
+			return plannedConditionalResult(e.Info, e.otherwise), true, nil
 		}
 		if changed {
 			return e, true, nil
@@ -274,7 +274,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 						continue
 					}
 					if args == nil && i == 0 {
-						return plannedConditionalResult(e.expressionInfo, literal), true, nil
+						return plannedConditionalResult(e.Info, literal), true, nil
 					}
 					if args == nil {
 						args = append([]BoundExpr{}, e.args[:i]...)
@@ -294,7 +294,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.args = args
 		}
 		if len(e.args) == 0 {
-			return literalExpression{e.expressionInfo, sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{e.Info, sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
 	case collationExpression:
@@ -312,7 +312,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		if err == nil && (bitwiseConstantNull(e.left) || bitwiseConstantNull(e.right)) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
+			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
 	case selectedOperatorExpression:
@@ -324,7 +324,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		if err == nil && arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
+			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
 	case likeExpression:
@@ -735,7 +735,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		if args != nil {
-			next, failure := e.reconstruct(e.expressionInfo, args)
+			next, failure := e.reconstruct(e.Info, args)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -780,10 +780,10 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 // existing CASE control node with no tests, not a second evaluator or a cast.
 func plannedConditionalResult(info expressionInfo, node BoundExpr) BoundExpr {
 	if literal, ok := node.(literalExpression); ok {
-		literal.expressionInfo = info
+		literal.Info = info
 		return literal
 	}
-	return caseExpression{expressionInfo: info, otherwise: node}
+	return caseExpression{Info: info, otherwise: node}
 }
 
 // Analysis properties retain dead-arm dependence; literal children after

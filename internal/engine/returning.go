@@ -479,5 +479,5 @@ func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos 
 		props = mergeExpressionProperties(props, fields[i].Properties())
 	}
 	typ, _ := b.bindingCatalog().LookupType(scope.relation.rowType)
-	return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: scope.returning.mode == returningDelete && newValues}, nil
+	return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: scope.returning.mode == returningDelete && newValues}, nil
 }

@@ -104,7 +104,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	root := &projectNode{querySchema: querySchema(d.columns), child: &sourceNode{querySchema: querySchema(d.columns), ref: ref}}
 	for i, c := range d.columns {
-		root.expressions = append(root.expressions, columnExpression{expressionInfo: expressionInfo{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
+		root.expressions = append(root.expressions, columnExpression{Info: expressionInfo{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
 	}
 	executable, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, d)
 	if err != nil {

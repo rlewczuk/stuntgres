@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -18,7 +19,7 @@ const (
 )
 
 type commentInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	kind commentInquiryKind
 	args []BoundExpr
 }

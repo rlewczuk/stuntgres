@@ -36,7 +36,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 		}
 		info := boundExpressionInfo(node)
 		info.Property = ExprProperties{}
-		return literalExpression{expressionInfo: info, value: value}, nil
+		return literalExpression{Info: info, value: value}, nil
 	}
 	switch n := node.(type) {
 	case logicalExpression:
@@ -85,7 +85,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 					return left, nil
 				}
 				if truth == False {
-					return negateConflictPredicate(logicalExpression{expressionInfo: n.expressionInfo, op: parser.LogicalNot, left: left}), nil
+					return negateConflictPredicate(logicalExpression{Info: n.Info, op: parser.LogicalNot, left: left}), nil
 				}
 			}
 			if truth, ok := conflictLiteralTruth(left); ok {
@@ -93,7 +93,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 					return right, nil
 				}
 				if truth == False {
-					return negateConflictPredicate(logicalExpression{expressionInfo: n.expressionInfo, op: parser.LogicalNot, left: right}), nil
+					return negateConflictPredicate(logicalExpression{Info: n.Info, op: parser.LogicalNot, left: right}), nil
 				}
 			}
 		}
@@ -148,7 +148,7 @@ func negateConflictPredicate(n logicalExpression) BoundExpr {
 			if child.op == parser.LogicalAnd {
 				op = parser.LogicalOr
 			}
-			return logicalExpression{expressionInfo: n.expressionInfo, op: op, left: negateConflictPredicate(logicalExpression{expressionInfo: n.expressionInfo, op: parser.LogicalNot, left: child.left}), right: negateConflictPredicate(logicalExpression{expressionInfo: n.expressionInfo, op: parser.LogicalNot, left: child.right})}
+			return logicalExpression{Info: n.Info, op: op, left: negateConflictPredicate(logicalExpression{Info: n.Info, op: parser.LogicalNot, left: child.left}), right: negateConflictPredicate(logicalExpression{Info: n.Info, op: parser.LogicalNot, left: child.right})}
 		}
 	case nullTestExpression:
 		child.not = !child.not

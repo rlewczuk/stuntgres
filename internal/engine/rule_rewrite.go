@@ -54,12 +54,12 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 	for i, column := range d.columns {
 		ref := b.ref
 		ref.Address.SubID = d.attributes[i]
-		p.old[i] = columnExpression{expressionInfo: ruleColumnInfo(column), origin: ref, scope: 1, frame: 1, slot: i}
+		p.old[i] = columnExpression{Info: ruleColumnInfo(column), origin: ref, scope: 1, frame: 1, slot: i}
 		p.new[i] = p.old[i]
 	}
 	if event == "INSERT" {
 		for i, column := range d.columns {
-			p.old[i] = literalExpression{expressionInfo: ruleColumnInfo(column), value: sqltype.Null(column.Usage.Type)}
+			p.old[i] = literalExpression{Info: ruleColumnInfo(column), value: sqltype.Null(column.Usage.Type)}
 			p.new[i] = p.old[i]
 			if len(b.defaults) > i && b.defaults[i] != nil {
 				p.new[i] = b.defaults[i]
@@ -68,7 +68,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		assign := func(output int, value BoundExpr) {
 			slot := b.targets[output]
 			if len(b.arrayTargets) > output && b.arrayTargets[output] != nil {
-				value = assignmentValueExpression{expressionInfo: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
+				value = assignmentValueExpression{Info: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
 			}
 			p.new[slot] = value
 		}
@@ -84,7 +84,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 				}
 				p.root = &derivedNode{querySchema: querySchema(project.Schema()), query: &BoundQuery{Root: project}}
 				for i := range b.targets {
-					assign(i, columnExpression{expressionInfo: ruleColumnInfo(project.Schema()[i]), scope: 1, frame: project.frame, slot: i})
+					assign(i, columnExpression{Info: ruleColumnInfo(project.Schema()[i]), scope: 1, frame: project.frame, slot: i})
 				}
 			} else {
 				p.root = project.child
@@ -106,7 +106,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 				if len(b.expressions) != 0 {
 					schema[i].Usage = b.expressions[0][i].ResultUsage()
 				}
-				assign(i, columnExpression{expressionInfo: ruleColumnInfo(schema[i]), scope: 1, frame: 1, slot: i})
+				assign(i, columnExpression{Info: ruleColumnInfo(schema[i]), scope: 1, frame: 1, slot: i})
 			}
 			if len(b.expressions) == 0 {
 				p.root = &singletonNode{}
@@ -125,7 +125,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 			for i, slot := range b.targets {
 				value := b.update.assignments[i]
 				if len(b.update.arrayTargets) > i && b.update.arrayTargets[i] != nil {
-					value = assignmentValueExpression{expressionInfo: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
+					value = assignmentValueExpression{Info: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
 				}
 				p.new[slot] = value
 			}
@@ -317,7 +317,7 @@ func normalizeRuleInsert(b binding) binding {
 	} else {
 		projection := make([]BoundExpr, len(schema))
 		for i, column := range schema {
-			projection[i] = columnExpression{expressionInfo: ruleColumnInfo(column), scope: 1, frame: 1, slot: i}
+			projection[i] = columnExpression{Info: ruleColumnInfo(column), scope: 1, frame: 1, slot: i}
 		}
 		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, child: &valuesNode{querySchema: schema, rows: b.expressions}, expressions: projection, frame: 1}}
 	}
@@ -607,7 +607,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			}
 			projection := make([]BoundExpr, len(right.Schema()))
 			for i, column := range right.Schema() {
-				projection[i] = columnExpression{expressionInfo: ruleColumnInfo(column), scope: 1, frame: innerFrame, slot: i}
+				projection[i] = columnExpression{Info: ruleColumnInfo(column), scope: 1, frame: innerFrame, slot: i}
 			}
 			right = &projectNode{querySchema: querySchema(right.Schema()), child: right, expressions: projection, frame: innerFrame, ruleInvocation: true}
 		} else {
@@ -946,7 +946,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		if err != nil {
 			return b, err
 		}
-		predicates = append(predicates, truthTestExpression{expressionInfo: expressionInfo{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, child: condition, truth: True, not: true})
+		predicates = append(predicates, truthTestExpression{Info: expressionInfo{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, child: condition, truth: True, not: true})
 	}
 	if len(predicates) == 0 {
 		return b, nil

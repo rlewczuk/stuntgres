@@ -129,7 +129,7 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 			slot := ordered.cacheWidth
 			ordered.outputs = append(ordered.outputs, bound)
 			ordered.cacheWidth++
-			projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(bound), slot: slot}
+			projection[i] = cachedOrderExpression{Info: boundExpressionInfo(bound), slot: slot}
 		} else if bounded {
 			late = append(late, bound)
 			lateSlots = append(lateSlots, i)
@@ -143,7 +143,7 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 	}
 	for j, i := range lateSlots {
 		bound := projection[i]
-		projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(bound), slot: base + j}
+		projection[i] = cachedOrderExpression{Info: boundExpressionInfo(bound), slot: base + j}
 	}
 	return &evaluationNode{querySchema: root.Schema(), child: root, expressions: late, base: base}
 }

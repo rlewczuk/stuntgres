@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -307,7 +308,7 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 // Arguments remain analyzed dependencies but are never evaluated by GROUPING.
 // The immutable masks address the execution-local occurrence suffix in its owner.
 type groupingExpression struct {
-	expressionInfo
+	expr.Info
 	args      []BoundExpr
 	positions []parser.Position
 	frame     uint32
@@ -414,7 +415,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 		b.groupingActive = true
 	}
 	usage := b.typ(sqltype.Int4).Usage()
-	return groupingExpression{expressionInfo: expressionInfo{Usage: usage, Pos: raw.Pos, Property: ExprProperties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
+	return groupingExpression{Info: expressionInfo{Usage: usage, Pos: raw.Pos, Property: ExprProperties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
 }
 
 func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []BoundExpr) (BoundExpr, error) {

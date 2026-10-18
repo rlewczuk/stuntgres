@@ -128,7 +128,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					return identityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-					b.expressions[rowIndex][j] = unknownOutput{expressionInfo: expressionInfo{Pos: v.SourcePosition()}, raw: v}
+					b.expressions[rowIndex][j] = unknownOutput{Info: expressionInfo{Pos: v.SourcePosition()}, raw: v}
 					continue
 				}
 				context := assignmentContext
@@ -267,7 +267,7 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 			b.defaults[i] = domainNullInputExpression(b.relation.columns[i].Usage)
 		}
 		if identity, ok := b.relation.identities[attribute]; ok {
-			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{Usage: b.relation.columns[i].Usage, Property: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
+			b.defaults[i] = sequenceCallExpression{Info: expressionInfo{Usage: b.relation.columns[i].Usage, Property: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

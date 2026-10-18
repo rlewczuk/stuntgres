@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ type caseBranch struct {
 	routine   *procedureDescriptor // Selected equality declaration, never captured permission.
 }
 type caseExpression struct {
-	expressionInfo
+	expr.Info
 	test      BoundExpr
 	arms      []caseBranch
 	otherwise BoundExpr
@@ -72,7 +73,7 @@ func (e caseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type conditionalExpression struct {
-	expressionInfo
+	expr.Info
 	kind            parser.ConditionalKind
 	missingOrdering bool
 	args            []BoundExpr

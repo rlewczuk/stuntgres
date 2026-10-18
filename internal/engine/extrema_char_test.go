@@ -27,7 +27,7 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 			if null {
 				v = sqltype.Null(char)
 			}
-			child := literalExpression{expressionInfo: expressionInfo{Usage: char.Usage()}, value: v}
+			child := literalExpression{Info: expressionInfo{Usage: char.Usage()}, value: v}
 			plan, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Implicit)
 			if err != nil {
 				t.Fatal(err)

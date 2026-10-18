@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 type rowOperandEffect struct {
-	expressionInfo
+	expr.Info
 	value   sqltype.Value
 	order   *[]int
 	id      int
@@ -58,9 +59,9 @@ func TestExprCollationRowOperandDemand(t *testing.T) {
 			probe := func(id int, value sqltype.Value, err error) BoundExpr {
 				return rowOperandEffect{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, value, &order, id, err}
 			}
-			row := rowComparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, operator: "<", ordering: []sqltype.Comparison{comparison, comparison}, comparisons: []comparisonExpression{
-				{expressionInfo: expressionInfo{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "<"},
-				{expressionInfo: expressionInfo{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, two, errors.New("later right operand")), predicate: predicate, operator: "<"},
+			row := rowComparisonExpression{Info: expressionInfo{Usage: boolean.Usage()}, operator: "<", ordering: []sqltype.Comparison{comparison, comparison}, comparisons: []comparisonExpression{
+				{Info: expressionInfo{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "<"},
+				{Info: expressionInfo{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, two, errors.New("later right operand")), predicate: predicate, operator: "<"},
 			}}
 			value, err := row.Eval(&EvalContext{Context: context.Background()})
 			if !reflect.DeepEqual(order, tc.want) {

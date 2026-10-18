@@ -65,7 +65,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				}
 			}
 			e.mu.Unlock()
-			getter := namespaceInquiryExpression{expressionInfo: expressionInfo{Usage: oidType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: myTempNamespace}
+			getter := namespaceInquiryExpression{Info: expressionInfo{Usage: oidType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: myTempNamespace}
 			value, err := getter.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 			if err != nil {
 				t.Fatal(err)
@@ -78,7 +78,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err != nil || toast == (ids.ObjectAddress{}) {
 				t.Fatal("TOAST pair", err)
 			}
-			classifier := namespaceInquiryExpression{expressionInfo: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: otherTempNamespace, arg: literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: input}}
+			classifier := namespaceInquiryExpression{Info: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: otherTempNamespace, arg: literalExpression{Info: expressionInfo{Usage: oidType.Usage()}, value: input}}
 			value, err = classifier.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 			if err != nil {
 				t.Fatal(err)
@@ -124,7 +124,7 @@ func TestNamespaceIdentityStoredValidation(t *testing.T) {
 	view := e.CatalogRead()
 	oidType, _ := view.LookupType(sqltype.Oid)
 	boolType, _ := view.LookupType(sqltype.Bool)
-	n := namespaceInquiryExpression{expressionInfo: expressionInfo{Usage: oidType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: myTempNamespace}
+	n := namespaceInquiryExpression{Info: expressionInfo{Usage: oidType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: myTempNamespace}
 	if err := n.validateStored(); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestNamespaceIdentityStoredValidation(t *testing.T) {
 	n.kind = otherTempNamespace
 	n.Usage = boolType.Usage()
 	value, _ := sqltype.OIDValue(oidType, 0)
-	n.arg = literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: value}
+	n.arg = literalExpression{Info: expressionInfo{Usage: oidType.Usage()}, value: value}
 	if err := n.validateStored(); err != nil {
 		t.Fatal(err)
 	}

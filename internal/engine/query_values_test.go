@@ -98,14 +98,14 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 			join := &joinNode{querySchema: schema, left: project.child, right: values, leftWidth: width, rightWidth: 1}
 			project.child = join
 			project.querySchema = querySchema{{Name: "n", Usage: usage}}
-			project.expressions = []BoundExpr{columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: width}}
+			project.expressions = []BoundExpr{columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: width}}
 			if mode == "limit0" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 				zero, err := sqltype.Integer(typ, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
-				project.child = &limitNode{querySchema: schema, child: join, count: literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: zero}}
+				project.child = &limitNode{querySchema: schema, child: join, count: literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: zero}}
 			}
 			rows, count, err := finalizeQuery(ctx, project, source, nil)
 			if mode == "cancel" || mode == "error" {

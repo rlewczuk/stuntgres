@@ -138,7 +138,7 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	// Stage dependence is preserved from each child without any row-time allocation.
 	typ := b.typ(sqltype.Bool)
 	child := literalExpression{expressionInfo{Usage: typ.Usage(), Property: ExprProperties{StageDependent: true}}, sqltype.Boolean(typ, true)}
-	invalid := logicalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, op: parser.LogicalOperator(99), left: child, right: child}
+	invalid := logicalExpression{Info: expressionInfo{Usage: typ.Usage()}, op: parser.LogicalOperator(99), left: child, right: child}
 	if _, err := invalid.Eval(&EvalContext{Context: context.Background()}); err == nil {
 		t.Fatal("invalid bound operator")
 	}

@@ -135,10 +135,10 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 			scan.demand[slot] = true
 			column := d.schema[slot]
 			info := b.info(column.Usage, d.position, ExprProperties{RowDependent: true})
-			right.expressions = append(right.expressions, columnExpression{expressionInfo: info, scope: 1, frame: right.frame, slot: offset + slot})
+			right.expressions = append(right.expressions, columnExpression{Info: info, scope: 1, frame: right.frame, slot: offset + slot})
 			right.querySchema = append(right.querySchema, column)
 			set.rightExpressions = append(set.rightExpressions, right.expressions[len(right.expressions)-1])
-			project.expressions = append(project.expressions, columnExpression{expressionInfo: info, scope: 1, frame: project.frame, slot: slot})
+			project.expressions = append(project.expressions, columnExpression{Info: info, scope: 1, frame: project.frame, slot: slot})
 		}
 		set.querySchema = d.schema
 		project.querySchema = d.schema

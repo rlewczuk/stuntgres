@@ -31,7 +31,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	column := func(slot int) BoundExpr {
 		ref := baseRef
 		ref.Address.SubID = base.attributes[slot]
-		return columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+		return columnExpression{Info: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 	}
 	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, owner: owner, relationKind: viewRelation, attributes: []int32{1, 2}, attributeHighWater: 2, columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
@@ -97,7 +97,7 @@ func TestViewWriteMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
-	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{Info: expressionInfo{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 	if err := f.e.bindViewWrite(&b, auth, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
-	f.base.defaults = map[int32]columnDefault{19: {expression: literalExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, value: constant}}}
+	f.base.defaults = map[int32]columnDefault{19: {expression: literalExpression{Info: expressionInfo{Usage: f.integer.Usage()}, value: constant}}}
 	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]BoundExpr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func TestViewWriteDemand(t *testing.T) {
 		calls++
 		return sqltype.Value{}, errors.New("hidden user work")
 	})
-	guard := literalExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
+	guard := literalExpression{Info: expressionInfo{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
 	expression := viewWritePredicate([]BoundExpr{guard}, unsafe)
 	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
 	matched, err := updateMatches(&eval, expression)
@@ -201,19 +201,19 @@ func TestViewWriteDemand(t *testing.T) {
 	// Same-type analyzed casts preserve direct origin; COLLATE never does.
 	ref := f.baseRef
 	ref.Address.SubID = 11
-	column := columnExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, origin: ref, slot: 1}
-	cast := coercionExpression{expressionInfo: column.expressionInfo, child: column}
+	column := columnExpression{Info: expressionInfo{Usage: f.integer.Usage()}, origin: ref, slot: 1}
+	cast := coercionExpression{Info: column.Info, child: column}
 	if _, ok := viewDirectColumn(cast); !ok {
 		t.Fatal("no-op cast lost origin")
 	}
-	if _, ok := viewDirectColumn(collationExpression{expressionInfo: column.expressionInfo, child: column}); ok {
+	if _, ok := viewDirectColumn(collationExpression{Info: column.Info, child: column}); ok {
 		t.Fatal("COLLATE gained write authority")
 	}
 	// Prepared/direct parameters are execution inputs, not stored-default
 	// literals. Rewriting must retain their number/type/dependence unchanged.
 	parameter := parameterExpression{
-		expressionInfo: expressionInfo{Usage: f.integer.Usage(), Property: ExprProperties{ParameterDependent: true}},
-		number:         1,
+		Info:   expressionInfo{Usage: f.integer.Usage(), Property: ExprProperties{ParameterDependent: true}},
+		number: 1,
 	}
 	rewritten, changed, err := rewriteViewExpression(f.e.CatalogRead(), parameter, nil, func(node BoundExpr) (BoundExpr, bool, error) {
 		return node, false, nil

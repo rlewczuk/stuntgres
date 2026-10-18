@@ -17,12 +17,12 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	operand := literalExpression{expressionInfo: b.info(array.Usage(), parser.Position{}, ExprProperties{}), value: value}
+	operand := literalExpression{Info: b.info(array.Usage(), parser.Position{}, ExprProperties{}), value: value}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, array, array, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := comparisonExpression{expressionInfo: b.info(boolean.Usage(), parser.Position{}, ExprProperties{}), left: operand, right: operand, predicate: predicate, operator: "="}
+	original := comparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, ExprProperties{}), left: operand, right: operand, predicate: predicate, operator: "="}
 	target := New()
 	fresh := map[sqltype.ID]*sqltype.Descriptor{
 		1007:         eType(t, target, 1007),

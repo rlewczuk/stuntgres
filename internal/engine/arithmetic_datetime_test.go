@@ -58,7 +58,7 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 			t.Fatal(node, err)
 		}
 		n := node.(arithmeticExpression)
-		child := parameterExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.Timestamptz).Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}}, number: 1}
+		child := parameterExpression{Info: expressionInfo{Usage: b.typ(sqltype.Timestamptz).Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}}, number: 1}
 		if n.left.ResultUsage().Type.ID() == sqltype.Timestamptz {
 			n.left = child
 		} else {

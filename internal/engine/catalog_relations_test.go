@@ -177,7 +177,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := catalogUserNameExpression{expressionInfo: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: input}}
+		node := catalogUserNameExpression{Info: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{Info: expressionInfo{Usage: oidType.Usage()}, value: input}}
 		value, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 		if err != nil {
 			t.Fatal(err)
@@ -215,7 +215,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	saved := current.commentRoles
 	current.commentRoles = foreign.roles.root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
-	node := catalogUserNameExpression{expressionInfo: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: input}}
+	node := catalogUserNameExpression{Info: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{Info: expressionInfo{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}

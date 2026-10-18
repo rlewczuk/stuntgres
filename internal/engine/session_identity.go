@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,7 +31,7 @@ type identitySnapshot struct {
 	currentPrincipal                   authorization.PrincipalRef
 }
 type identityExpression struct {
-	expressionInfo
+	expr.Info
 	kind         sessionIdentityKind
 	ordinaryCall bool
 }
@@ -168,7 +169,7 @@ func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (Bound
 			return nil, err
 		}
 	}
-	return identityExpression{expressionInfo: info, kind: kind}, nil
+	return identityExpression{Info: info, kind: kind}, nil
 }
 
 func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -198,7 +199,7 @@ func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundE
 	identity := node.(identityExpression)
 	identity.ordinaryCall = true
 	if identity.RoutineReference == nil {
-		identity.expressionInfo, err = b.builtinRoutineInfo(identity.expressionInfo, catalogRoutineProvider, name)
+		identity.Info, err = b.builtinRoutineInfo(identity.Info, catalogRoutineProvider, name)
 		if err != nil {
 			return nil, err
 		}

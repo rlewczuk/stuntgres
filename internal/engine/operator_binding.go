@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -14,7 +15,7 @@ import (
 // The provider is the sole executable child. Its lexical children retain the
 // selected call's ordered, already-coerced operands for SQL rendering.
 type selectedOperatorExpression struct {
-	expressionInfo
+	expr.Info
 	operator *operatorDescriptor
 	ref      ids.ObjectRef
 	provider BoundExpr
@@ -255,7 +256,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	info.Pos = raw.Pos
 	// Admission belongs to the actual provider only, not twice to the wrapper.
 	info.RoutineReference = nil
-	return selectedOperatorExpression{expressionInfo: info, operator: d, ref: ref, provider: provider}, nil
+	return selectedOperatorExpression{Info: info, operator: d, ref: ref, provider: provider}, nil
 }
 
 // Provider dispatch is constrained by the selected routine's exact declaration.

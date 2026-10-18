@@ -31,13 +31,13 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
 		ref := catalog.owner.domain.Ref(catalog.Epoch(), leaf.address)
 		ref.Address.SubID = leaf.attributes[slot]
-		column := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
-		literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: integer(n)}
+		column := columnExpression{Info: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+		literal := literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: integer(n)}
 		predicate, err := sqltype.BindComparisonPredicate(operator, typ, typ, boolean, sqltype.CollationRef{}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		expression := comparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{RowDependent: true}}, left: column, right: literal, predicate: predicate}
+		expression := comparisonExpression{Info: expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{RowDependent: true}}, left: column, right: literal, predicate: predicate}
 		return checkConstraint{OID: oid, Name: name, NotValid: true, expression: expression, dependencies: []expressionDependency{{ref: ref}}}
 	}
 	leaf.checkConstraints = []checkConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
@@ -156,9 +156,9 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: integer(0)}
-	oldCast := coercionExpression{expressionInfo: expressionInfo{Usage: oldDomain.Usage()}, child: literal, plan: oldPlan, mode: sqltype.Explicit}
-	newCast := coercionExpression{expressionInfo: expressionInfo{Usage: newDomain.Usage()}, child: literal, plan: newPlan, mode: sqltype.Explicit}
+	literal := literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: integer(0)}
+	oldCast := coercionExpression{Info: expressionInfo{Usage: oldDomain.Usage()}, child: literal, plan: oldPlan, mode: sqltype.Explicit}
+	newCast := coercionExpression{Info: expressionInfo{Usage: newDomain.Usage()}, child: literal, plan: newPlan, mode: sqltype.Explicit}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, oldCast, newCast, false); err != nil || affected {
 		t.Fatal("domain identity-only remap revalidated an old NOT VALID check", affected, err)
 	}
@@ -171,13 +171,13 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforeLiteral := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}, value: oldReference}
-	afterLiteral := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}, value: newReference}
+	beforeLiteral := literalExpression{Info: expressionInfo{Usage: regclass.Usage()}, value: oldReference}
+	afterLiteral := literalExpression{Info: expressionInfo{Usage: regclass.Usage()}, value: newReference}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, beforeLiteral, afterLiteral, false); err != nil || !affected {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := catalog.LookupType(sqltype.Oid)
-	ownerValue := tableOIDExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, owner: catalog.owner.domain.Ref(catalog.Epoch(), leaf.address)}
+	ownerValue := tableOIDExpression{Info: expressionInfo{Usage: oidType.Usage()}, owner: catalog.owner.domain.Ref(catalog.Epoch(), leaf.address)}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}

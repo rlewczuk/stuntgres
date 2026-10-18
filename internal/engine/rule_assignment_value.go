@@ -1,11 +1,12 @@
 package engine
 
 import "stuntgres/internal/sqltype"
+import "stuntgres/internal/engine/expr"
 
 // A query-macro NEW recipe uses the same typed path and assignment codec as the
 // ordinary mutation executor; it does not execute a physical row callback.
 type assignmentValueExpression struct {
-	expressionInfo
+	expr.Info
 	base, value BoundExpr
 	target      *arrayAssignmentTarget
 }

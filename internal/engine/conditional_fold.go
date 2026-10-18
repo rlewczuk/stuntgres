@@ -60,7 +60,7 @@ func anyRandomLiteralNull(children []BoundExpr) bool {
 func strictNullLiteral(node BoundExpr, strict expr.Strict) BoundExpr {
 	usage := node.ResultUsage()
 	if strict == expr.StrictAfterBare {
-		return literalExpression{expressionInfo: expressionInfo{Usage: usage, Pos: node.SourcePosition()}, value: sqltype.Null(usage.Type)}
+		return literalExpression{Info: expressionInfo{Usage: usage, Pos: node.SourcePosition()}, value: sqltype.Null(usage.Type)}
 	}
 	return literalExpression{foldedExpressionInfo(node), sqltype.Null(usage.Type)}
 }

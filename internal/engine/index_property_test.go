@@ -64,10 +64,10 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 	textType, _ := view.LookupType(sqltype.Text)
 	regType, _ := view.LookupType(sqltype.Regclass)
 	literal := func(v sqltype.Value) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: v.Type().Usage()}, value: v}
+		return literalExpression{Info: expressionInfo{Usage: v.Type().Usage()}, value: v}
 	}
 	oid, _ := sqltype.OIDValue(oidType, 403)
-	n := indexPropertyExpression{expressionInfo: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: accessMethodProperty, args: [3]BoundExpr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
+	n := indexPropertyExpression{Info: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: accessMethodProperty, args: [3]BoundExpr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
 	value, err := n.Eval(&EvalContext{Context: context.Background()})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 			t.Fatal("accepted corrupt index property node", broken)
 		}
 	}
-	index := indexPropertyExpression{expressionInfo: n.expressionInfo, kind: wholeIndexProperty, args: [3]BoundExpr{literal(sqltype.String(regType, "0")), literal(sqltype.String(textType, "index_scan"))}, oidUsage: oidType.Usage()}
+	index := indexPropertyExpression{Info: n.Info, kind: wholeIndexProperty, args: [3]BoundExpr{literal(sqltype.String(regType, "0")), literal(sqltype.String(textType, "index_scan"))}, oidUsage: oidType.Usage()}
 	index.oidPlan, err = sqltype.PlanCoercion(regType.Usage(), oidType.Usage(), sqltype.Implicit)
 	if err != nil {
 		t.Fatal(err)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func (k aclValueKind) types() []sqltype.ID {
 // Children are stored in written order, never signature/evaluation order aliases.
 // The fixed buffer is copied with the immutable recipe by every tree visitor.
 type aclValueExpression struct {
-	expressionInfo
+	expr.Info
 	kind      aclValueKind
 	args      [4]BoundExpr
 	named     bool
@@ -153,8 +154,8 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, err
 		}
 		result = shape.Usage()
 	}
-	n.expressionInfo = b.info(result, raw.Pos, p)
-	n.expressionInfo, err = b.builtinRoutineInfo(n.expressionInfo, catalogRoutineProvider, kind.name(), types...)
+	n.Info = b.info(result, raw.Pos, p)
+	n.Info, err = b.builtinRoutineInfo(n.Info, catalogRoutineProvider, kind.name(), types...)
 	if err != nil {
 		return nil, err
 	}

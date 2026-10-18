@@ -136,7 +136,7 @@ func logicalColumnValue(d *relationDescriptor, slot int, row []sqltype.Value, c 
 	if definition, ok := d.generations[d.attributes[slot]]; !ok || definition.kind != generationVirtual {
 		return row[slot], nil
 	}
-	column := columnExpression{expressionInfo: expressionInfo{Usage: d.columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
+	column := columnExpression{Info: expressionInfo{Usage: d.columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
 	local := *c
 	local.Scope, local.Frame, local.Row = 1, 1, row
 	return column.Eval(&local)

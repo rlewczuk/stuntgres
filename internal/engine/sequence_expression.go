@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -20,7 +21,7 @@ type sequenceConstant struct {
 	represented bool
 }
 type sequenceCallExpression struct {
-	expressionInfo
+	expr.Info
 	name      string
 	args      []BoundExpr
 	ref       ids.ObjectRef
@@ -150,7 +151,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 			return literalExpression{b.info(typ.Usage(), r.SourcePosition(), ExprProperties{}), sqltype.Null(typ)}, nil
 		}
 	}
-	return sequenceCallExpression{expressionInfo: info, name: name, args: args, ref: ref, temporary: temporary}, nil
+	return sequenceCallExpression{Info: info, name: name, args: args, ref: ref, temporary: temporary}, nil
 }
 func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectRef, error) {
 	if err := qualifiedCastChild(raw); err != nil {

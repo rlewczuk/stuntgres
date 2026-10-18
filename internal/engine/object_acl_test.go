@@ -156,9 +156,9 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	oid, _ := view.LookupType(sqltype.Oid)
 	integer, _ := view.LookupType(sqltype.Int4)
-	n := objectACLExpression{expressionInfo: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, slots: [3]uint8{0, 1, 2}}
+	n := objectACLExpression{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, slots: [3]uint8{0, 1, 2}}
 	for i, typ := range []*sqltype.Descriptor{oid, oid, integer} {
-		n.args[i] = literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}
+		n.args[i] = literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}
 	}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {

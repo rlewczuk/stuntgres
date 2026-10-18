@@ -52,7 +52,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 			t.Fatal(err)
 		}
 		literal := node.(literalExpression)
-		literal.expressionInfo.Property = properties
+		literal.Info.Property = properties
 		if _, err := defaultSQL(ctx, e.CatalogRead(), literal); err == nil {
 			t.Fatalf("accepted forbidden properties %+v", properties)
 		}

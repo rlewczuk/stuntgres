@@ -37,7 +37,7 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 			t.Fatal("descendant preflight", tc.query, folded, changed, err)
 		}
 		private, ok := folded.(arithmeticExpression)
-		if !ok || private.expressionInfo != original.expressionInfo || !private.Properties().ParameterDependent {
+		if !ok || private.Info != original.Info || !private.Properties().ParameterDependent {
 			t.Fatal("arithmetic root folded or metadata changed", folded)
 		}
 		child := private.left

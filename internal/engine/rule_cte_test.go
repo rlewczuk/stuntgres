@@ -113,12 +113,12 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	t.Run("top_owned_namespace_only", func(t *testing.T) {
 		position := parser.Position{Offset: 17}
 		raw := parser.CommonTableExpression{Name: parser.Identifier{Text: "q", Pos: position}}
-		newColumn := columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), scope: rulePseudoScope, frame: 2}
+		newColumn := columnExpression{Info: ruleColumnInfo(src.columns[0]), scope: rulePseudoScope, frame: 2}
 		oldColumn := newColumn
 		oldColumn.frame = 1
 		provider := &BoundQuery{Root: &projectNode{expressions: []BoundExpr{newColumn, oldColumn}}}
 		local := &cteDefinition{query: provider, position: position}
-		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{analysisExpressions: []BoundExpr{subqueryExpression{expressionInfo: expressionInfo{Pos: position}, queryPlan: provider, cteDefinition: true}}}}}
+		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{analysisExpressions: []BoundExpr{subqueryExpression{Info: expressionInfo{Pos: position}, queryPlan: provider, cteDefinition: true}}}}}
 		for _, action := range []parser.Statement{
 			&parser.Insert{With: []parser.CommonTableExpression{raw}},
 			&parser.Insert{Source: &parser.InsertSource{Select: &parser.Select{With: []parser.CommonTableExpression{raw}}}},
@@ -137,7 +137,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("semantic_provider_memo_and_finalization", func(t *testing.T) {
-		pseudo := columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), scope: rulePseudoScope, frame: 2}
+		pseudo := columnExpression{Info: ruleColumnInfo(src.columns[0]), scope: rulePseudoScope, frame: 2}
 		provider := &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.columns), frame: 2, child: &singletonNode{}, expressions: []BoundExpr{pseudo, ruleUnitInt(sink, 10)}}}
 		local := &cteDefinition{query: provider, owner: 1}
 		scan := &derivedNode{querySchema: querySchema(sink.columns), cte: local, query: provider, scanFrame: 1}

@@ -61,7 +61,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 				t.Fatal(private, err)
 			}
 			literal, ok := private.assignments[0].(literalExpression)
-			if !ok || literal.expressionInfo != cast.expressionInfo {
+			if !ok || literal.Info != cast.Info {
 				t.Fatal("fold lost conservative frame/source metadata", private.assignments[0])
 			}
 			actual, err := literal.Eval(&evaluation)

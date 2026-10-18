@@ -240,5 +240,5 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 func distinctOnCached(expression BoundExpr, slot int) cachedOrderExpression {
 	info := boundExpressionInfo(expression)
 	info.Property.StageDependent = true
-	return cachedOrderExpression{expressionInfo: info, slot: slot}
+	return cachedOrderExpression{Info: info, slot: slot}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ import (
 // A series is a retained typed target marker, never an executable generator.
 // Invocation-private arithmetic lives in the shared functionSetCursor.
 type seriesExpression struct {
-	expressionInfo
+	expr.Info
 	args []BoundExpr
 }
 
@@ -78,7 +79,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		if l, ok := r.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: r.SourcePosition()}}
+				args[i] = literalExpression{Info: expressionInfo{Pos: r.SourcePosition()}}
 			}
 			continue
 		}
@@ -255,7 +256,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 	if err != nil {
 		return nil, err
 	}
-	return seriesExpression{expressionInfo: info, args: args}, nil
+	return seriesExpression{Info: info, args: args}, nil
 }
 
 func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []BoundExpr, unknown []bool, ambiguous bool) error {

@@ -34,7 +34,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
 	ref.Address.SubID = 1
-	node := columnExpression{expressionInfo: expressionInfo{Usage: d.columns[0].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+	node := columnExpression{Info: expressionInfo{Usage: d.columns[0].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: node, planned: node}}
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}
-	pruned := caseExpression{expressionInfo: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, otherwise: leaf}
+	pruned := caseExpression{Info: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, otherwise: leaf}
 	if !generationImmutable(pruned) || !generationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
@@ -155,7 +155,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 			t.Fatal("distinct physical row authority or full Usage compared equal")
 		}
 	}
-	column := columnExpression{expressionInfo: mapped.expressionInfo, origin: mapped.owner}
+	column := columnExpression{Info: mapped.Info, origin: mapped.owner}
 	if sameGroupExpression(mapped, column) {
 		t.Fatal("different expression kind compared equal")
 	}

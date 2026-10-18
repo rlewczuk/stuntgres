@@ -1,11 +1,12 @@
 package engine
 
 import "stuntgres/internal/sqltype"
+import "stuntgres/internal/engine/expr"
 
 // View qualification is a relational guard, not a change to ordinary Boolean
 // expression evaluation. Unsafe user work never sees a row hidden by any layer.
 type viewQualificationExpression struct {
-	expressionInfo
+	expr.Info
 	predicates []BoundExpr // outer-to-inner storage; evaluated inner-to-outer
 	user       BoundExpr
 }

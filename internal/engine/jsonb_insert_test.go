@@ -110,7 +110,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	base := jsonbSetUnitBind(t, b, `SELECT jsonb_insert('[0]','{0}','9',false)`).(functions.JSONBSet)
 	for slot := range 4 {
 		e := base
-		column := columnExpression{expressionInfo: expressionInfo{Usage: e.Args[slot].ResultUsage(), Property: ExprProperties{RowDependent: true}}}
+		column := columnExpression{Info: expressionInfo{Usage: e.Args[slot].ResultUsage(), Property: ExprProperties{RowDependent: true}}}
 		e.Args[slot] = column
 		rewritten, err := b.rewriteGroup(e, []BoundExpr{column})
 		if err != nil {

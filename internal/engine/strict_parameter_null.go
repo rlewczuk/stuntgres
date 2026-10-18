@@ -50,7 +50,7 @@ func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, e
 		return node, false, nil
 	}
 	info := foldedExpressionInfo(node)
-	return literalExpression{expressionInfo: info, value: sqltype.ResultNull(info.Usage)}, true, nil
+	return literalExpression{Info: info, value: sqltype.ResultNull(info.Usage)}, true, nil
 }
 
 // Expanded variadic path elements form one non-NULL array argument. A NULL

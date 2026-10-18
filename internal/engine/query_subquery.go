@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -9,7 +10,7 @@ import (
 // Subquery expressions borrow captured sources and the existing execution owner.
 // Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
 type subqueryExpression struct {
-	expressionInfo
+	expr.Info
 	kind            parser.SubqueryKind
 	queryPlan       *BoundQuery
 	comparisons     []comparisonExpression
@@ -110,7 +111,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	}
 	properties := queryDemandProperties(project, presenceOnly)
 	properties.StageDependent = true
-	e := subqueryExpression{expressionInfo: b.info(usage, raw.Pos, properties), kind: raw.Kind, queryPlan: query, negate: raw.Negate, presenceOnly: presenceOnly}
+	e := subqueryExpression{Info: b.info(usage, raw.Pos, properties), kind: raw.Kind, queryPlan: query, negate: raw.Negate, presenceOnly: presenceOnly}
 	e.leftExpansions = leftExpansions
 	e.leftConstructor, e.erasedLeftType = leftConstructor, erasedLeftType
 	if raw.Kind == parser.SubqueryScalar || raw.Kind == parser.SubqueryExists {
@@ -138,7 +139,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 		e.ordering = make([]sqltype.Comparison, width)
 	}
 	for i, column := range project.Schema() {
-		right := columnExpression{expressionInfo: b.info(column.Usage, raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: i}
+		right := columnExpression{Info: b.info(column.Usage, raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: i}
 		bound, err := b.bindComparisonOperands(parser.OperatorExpr{Name: raw.Operator, Pos: raw.Pos}, operator, left[i], comparisonOperand{node: right})
 		if err != nil {
 			return nil, err

@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 
 // Spies exercise evaluator demand, not a substituted PostgreSQL oracle.
 type conditionalSpy struct {
-	expressionInfo
+	expr.Info
 	value   sqltype.Value
 	calls   *int
 	failure error
@@ -50,31 +51,31 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := expressionInfo{Usage: integer.Usage()}
-	searched := caseExpression{expressionInfo: info, arms: []caseBranch{{condition: spy(0, sqltype.Boolean(boolean, true)), result: spy(1, value)}, {condition: spy(2, sqltype.Boolean(boolean, true)), result: spy(3, other)}}, otherwise: spy(4, other)}
+	searched := caseExpression{Info: info, arms: []caseBranch{{condition: spy(0, sqltype.Boolean(boolean, true)), result: spy(1, value)}, {condition: spy(2, sqltype.Boolean(boolean, true)), result: spy(3, other)}}, otherwise: spy(4, other)}
 	got, err := searched.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	simple := caseExpression{expressionInfo: info, test: spy(0, value), arms: []caseBranch{{condition: spy(1, other), result: spy(2, other), testPlan: plan, testUsage: integer.Usage(), equality: comparison}, {condition: spy(3, value), result: spy(4, value), testPlan: plan, testUsage: integer.Usage(), equality: comparison}}, otherwise: literalExpression{info, other}}
+	simple := caseExpression{Info: info, test: spy(0, value), arms: []caseBranch{{condition: spy(1, other), result: spy(2, other), testPlan: plan, testUsage: integer.Usage(), equality: comparison}, {condition: spy(3, value), result: spy(4, value), testPlan: plan, testUsage: integer.Usage(), equality: comparison}}, otherwise: literalExpression{info, other}}
 	got, err = simple.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 1, 1} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	coalesce := conditionalExpression{expressionInfo: info, kind: parser.Coalesce, args: []BoundExpr{spy(0, sqltype.Null(integer)), spy(1, value), spy(2, other)}}
+	coalesce := conditionalExpression{Info: info, kind: parser.Coalesce, args: []BoundExpr{spy(0, sqltype.Null(integer)), spy(1, value), spy(2, other)}}
 	got, err = coalesce.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	nullif := conditionalExpression{expressionInfo: info, kind: parser.NullIf, args: []BoundExpr{spy(0, sqltype.Null(integer)), spy(1, value)}, comparison: comparison}
+	nullif := conditionalExpression{Info: info, kind: parser.NullIf, args: []BoundExpr{spy(0, sqltype.Null(integer)), spy(1, value)}, comparison: comparison}
 	got, err = nullif.Eval(ctx)
 	if err != nil || !got.IsNull() || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	extrema := conditionalExpression{expressionInfo: info, kind: parser.Greatest, args: []BoundExpr{spy(0, other), spy(1, sqltype.Null(integer)), spy(2, value), spy(3, other)}, comparison: comparison}
+	extrema := conditionalExpression{Info: info, kind: parser.Greatest, args: []BoundExpr{spy(0, other), spy(1, sqltype.Null(integer)), spy(2, value), spy(3, other)}, comparison: comparison}
 	got, err = extrema.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, other) || calls != [5]int{1, 1, 1, 1, 0} {
 		t.Fatal(got, calls, err)
@@ -282,7 +283,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []parser.ConditionalKind{parser.Greatest, parser.Least} {
-		node := conditionalExpression{expressionInfo: info, kind: kind, args: []BoundExpr{literalExpression{info, negative}, literalExpression{info, positive}}, comparison: comparison}
+		node := conditionalExpression{Info: info, kind: kind, args: []BoundExpr{literalExpression{info, negative}, literalExpression{info, positive}}, comparison: comparison}
 		got, err := node.Eval(&EvalContext{Context: context.Background()})
 		if err != nil {
 			t.Fatal(err)
@@ -497,7 +498,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			original, reminted := node.(conditionalExpression), next.(conditionalExpression)
 			expectedInfo := before
 			expectedInfo.Usage.Type = newDomain
-			if original.expressionInfo != before || reminted.expressionInfo != expectedInfo {
+			if original.Info != before || reminted.Info != expectedInfo {
 				t.Fatal("reownership changed Usage fields, properties or positions")
 			}
 			oldProvider, err := sqltype.BindOrdering(oldDomain.Usage())

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -25,7 +26,7 @@ type domainCheckConstraint struct {
 	dependencies []expressionDependency
 }
 
-type domainValueExpression struct{ expressionInfo }
+type domainValueExpression struct{ expr.Info }
 
 func (e domainValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	c := evalContext(ctx)
@@ -356,8 +357,8 @@ func domainNullInputExpression(target sqltype.Usage) BoundExpr {
 	if err != nil {
 		panic(err)
 	}
-	child := literalExpression{expressionInfo: expressionInfo{Usage: base}, value: sqltype.Null(base.Type)}
-	return coercionExpression{expressionInfo: expressionInfo{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
+	child := literalExpression{Info: expressionInfo{Usage: base}, value: sqltype.Null(base.Type)}
+	return coercionExpression{Info: expressionInfo{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) error {

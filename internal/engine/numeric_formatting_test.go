@@ -57,8 +57,8 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
 	// genuine STABLE/group/retag owner invariants with executable literals.
 	n := functions.NumericFormatting{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: [2]BoundExpr{
-		literalExpression{expressionInfo: expressionInfo{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
-		literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, mask)},
+		literalExpression{Info: expressionInfo{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
+		literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, mask)},
 	}}
 	simplified, _, err := simplifyConditional(&EvalContext{Context: ctx}, n, false)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n
-	other.Args[1] = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "FM99")}
+	other.Args[1] = literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "FM99")}
 	if b.sameGroupExpression(n, other) {
 		t.Fatal("mask omitted from group identity")
 	}

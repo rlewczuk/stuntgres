@@ -24,7 +24,7 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 		return s
 	}
 	literal := func(s string) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
+		return literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
 	}
 	info := expressionInfo{Usage: text.Usage()}
 	call, err := functions.NewSoundex(info, "soundex", []BoundExpr{literal("a")})
@@ -60,7 +60,7 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 		}
 	}
 	info := expressionInfo{Usage: text.Usage()}
-	leaf := literalExpression{expressionInfo: info, value: sqltype.String(text, "x")}
+	leaf := literalExpression{Info: info, value: sqltype.String(text, "x")}
 	inner, err := functions.NewSoundex(info, "soundex", []BoundExpr{leaf})
 	if err != nil {
 		t.Fatal(err)

@@ -38,7 +38,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		projection := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+		projection := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 		sorted := &sortNode{querySchema: schema, child: values, keys: []sortKey{{expression: projection, slot: 0, cache: -1, comparison: comparison}}}
 		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []BoundExpr{projection}}}
 		source := &querySource{}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -10,7 +11,7 @@ import (
 )
 
 type rowExpression struct {
-	expressionInfo
+	expr.Info
 	fields         []BoundExpr
 	raw            *parser.RowExpr
 	sources        []int
@@ -53,7 +54,7 @@ func (n rowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type fieldExpression struct {
-	expressionInfo
+	expr.Info
 	base      BoundExpr
 	attribute int32
 	index     int
@@ -166,7 +167,7 @@ func (b *expressionBinder) bindRow(raw parser.RowExpr, target sqltype.Usage, mod
 	for _, field := range fields {
 		props = mergeExpressionProperties(props, field.Properties())
 	}
-	return rowExpression{expressionInfo: b.info(target, pos, props), fields: fields, raw: &raw, sources: list.sources, expansions: list.expansions}, nil
+	return rowExpression{Info: b.info(target, pos, props), fields: fields, raw: &raw, sources: list.sources, expansions: list.expansions}, nil
 }
 func (b *expressionBinder) rowCoercionError(target sqltype.Usage, pos parser.Position, detail string) error {
 	d := expressionError("42846", "cannot cast type record to "+b.diagnosticTypeName(target.Type), pos).(*sqlstate.Error)
@@ -203,7 +204,7 @@ func (b *expressionBinder) assignCompositeMember(node BoundExpr, target sqltype.
 			}
 			props = mergeExpressionProperties(props, fields[i].Properties())
 		}
-		return rowExpression{expressionInfo: b.info(target, row.Pos, props), fields: fields}, nil
+		return rowExpression{Info: b.info(target, row.Pos, props), fields: fields}, nil
 	}
 	plan, err := sqltype.PlanCoercion(node.ResultUsage(), target, mode)
 	if err != nil {
@@ -398,7 +399,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 				props = mergeExpressionProperties(props, fields[i].Properties())
 			}
 			typ, _ := b.definitionType(b.relation.rowType)
-			return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.returningAliases.mode == returningDelete && newValues}, nil
+			return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.returningAliases.mode == returningDelete && newValues}, nil
 		}
 	}
 	if scope, newValues := b.outerReturningScope(name); scope != nil {
@@ -448,7 +449,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	// A mutation target has no FROM producer; actual source qualifiers retain
 	// their producer even with zero members or the same name in another schema.
 	mergeSource := b.mergeReturningFrame(frame) && q.sourceRoot != nil
-	return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, wholeNames: names, wholeName: q.name, wholeSource: source, presenceSlot: slot, presenceFrame: frame, mergeSource: mergeSource}, nil
+	return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, wholeNames: names, wholeName: q.name, wholeSource: source, presenceSlot: slot, presenceFrame: frame, mergeSource: mergeSource}, nil
 }
 
 func mapRow(row rowExpression, child func(BoundExpr) (BoundExpr, bool, error)) (rowExpression, bool, error) {

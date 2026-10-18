@@ -75,7 +75,7 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (BoundExpr, []expressionDependency, error) {
 	if action.Using == nil {
 		source := original.index[action.Column.Text]
-		return columnExpression{expressionInfo: expressionInfo{Usage: original.columns[source].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
+		return columnExpression{Info: expressionInfo{Usage: original.columns[source].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)

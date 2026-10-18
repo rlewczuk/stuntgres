@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -28,7 +29,7 @@ func (k blockingInquiryKind) name() string {
 }
 
 type blockingInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	kind blockingInquiryKind
 	arg  BoundExpr
 }

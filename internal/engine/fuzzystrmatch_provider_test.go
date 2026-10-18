@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -183,7 +184,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 }
 
 type daitchCountingArgument struct {
-	expressionInfo
+	expr.Info
 	calls *int
 	value sqltype.Value
 }
@@ -269,7 +270,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("foreign generation evaluated")
 	}
 	calls := 0
-	n.Arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.Arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
+	n.Arg = daitchCountingArgument{Info: expressionInfo{Usage: n.Arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
 	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || plannedVolatility(n) != Volatile || generationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)

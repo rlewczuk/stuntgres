@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -50,7 +51,7 @@ func (k indexPropertyKind) argument(i int) sqltype.ID {
 }
 
 type indexPropertyExpression struct {
-	expressionInfo
+	expr.Info
 	kind     indexPropertyKind
 	args     [3]BoundExpr
 	oidPlan  sqltype.CoercionPlan
@@ -148,7 +149,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 	for i := range raw.Args {
 		formal[i] = kind.argument(i)
 	}
-	n.expressionInfo, err = b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), formal[:kind.count()]...)
+	n.Info, err = b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), formal[:kind.count()]...)
 	if err != nil {
 		return nil, err
 	}

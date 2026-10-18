@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -12,7 +13,7 @@ import (
 // Scalar lists scan their typed children directly; array inputs scan the owner's
 // immutable flat payload. Neither route constructs an array per input row.
 type scalarArrayComparisonExpression struct {
-	expressionInfo
+	expr.Info
 	left, array         BoundExpr
 	items               []BoundExpr
 	predicate           sqltype.ComparisonPredicate
@@ -278,7 +279,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 			return nil, err
 		}
 	}
-	return scalarArrayComparisonExpression{expressionInfo: info, left: l, array: r, predicate: predicate, operator: name, namespace: namespace, all: raw.All}, nil
+	return scalarArrayComparisonExpression{Info: info, left: l, array: r, predicate: predicate, operator: name, namespace: namespace, all: raw.All}, nil
 }
 
 func (b *expressionBinder) inListHasVar(node BoundExpr) bool {
@@ -435,7 +436,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 					return nil, err
 				}
 			}
-			result = scalarArrayComparisonExpression{expressionInfo: info, left: l, items: children, predicate: predicate, operator: name, all: raw.Negate}
+			result = scalarArrayComparisonExpression{Info: info, left: l, items: children, predicate: predicate, operator: name, all: raw.Negate}
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.
@@ -506,7 +507,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			continue
 		}
 		properties := mergeExpressionProperties(result.Properties(), pair.Properties())
-		result = logicalExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), op: logical, left: result, right: pair}
+		result = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), op: logical, left: result, right: pair}
 		if capture {
 			syntax = parser.LogicalExpr{Op: logical, Left: syntax, Right: pairSyntax, Pos: raw.Pos}
 		}

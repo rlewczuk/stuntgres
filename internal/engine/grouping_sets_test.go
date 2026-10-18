@@ -72,8 +72,8 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	b.queryFrame = 1
 	b.groupSets = [][]int{{0}, {}}
 	usage := b.typ(sqltype.Int4).Usage()
-	key := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	operation := groupingExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{StageDependent: true}}, frame: 1, args: []BoundExpr{key, key}}
+	key := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	operation := groupingExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{StageDependent: true}}, frame: 1, args: []BoundExpr{key, key}}
 	expression, err := b.rewriteGrouping(operation, []BoundExpr{key})
 	if err != nil {
 		t.Fatal(err)

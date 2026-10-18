@@ -142,29 +142,29 @@ func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A nonconstant second pair makes a constant first addition fail inlining.
-	e.Args[2] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[2])}
-	e.Args[3] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[3])}
+	e.Args[2] = columnExpression{Info: boundExpressionInfo(e.Args[2])}
+	e.Args[3] = columnExpression{Info: boundExpressionInfo(e.Args[3])}
 	_, _, err = simplifyOverlapsRoute(c, e)
 	if !errors.As(err, &d) || d.Context != `SQL function "overlaps" during inlining` {
 		t.Fatal(err)
 	}
-	start := columnExpression{expressionInfo: boundExpressionInfo(e.Args[0])}
+	start := columnExpression{Info: boundExpressionInfo(e.Args[0])}
 	e.Args[0] = start
 	if !overlapsInlineSafe(e) {
 		t.Fatal("cheap variable cannot inline")
 	}
 	for i := range 11 {
-		e.Args[0] = arithmeticExpression{expressionInfo: boundExpressionInfo(start), left: e.Args[0], right: literalExpression{expressionInfo: boundExpressionInfo(e.Args[1])}}
+		e.Args[0] = arithmeticExpression{Info: boundExpressionInfo(start), left: e.Args[0], right: literalExpression{Info: boundExpressionInfo(e.Args[1])}}
 		if overlapsInlineSafe(e) != (i < 10) {
 			t.Fatal("function-cost threshold", i)
 		}
 	}
-	e.Args[0] = subqueryExpression{expressionInfo: boundExpressionInfo(start)}
+	e.Args[0] = subqueryExpression{Info: boundExpressionInfo(start)}
 	if overlapsInlineSafe(e) {
 		t.Fatal("duplicated subquery inlined")
 	}
 	order := []int{}
-	volatile := mathObservedArgument{expressionInfo: expressionInfo{Usage: start.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, order: &order}
+	volatile := mathObservedArgument{Info: expressionInfo{Usage: start.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, order: &order}
 	e.Args[0] = volatile
 	if overlapsInlineSafe(e) {
 		t.Fatal("duplicated volatile start inlined")
@@ -217,7 +217,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 		}
 	}
 	// Current imported values are constant candidates, not retained literal cache entries.
-	p := parameterExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.Timestamp).Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}
+	p := parameterExpression{Info: expressionInfo{Usage: b.typ(sqltype.Timestamp).Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}
 	if !overlapsExecutionConstant(p, c) || overlapsExecutionConstant(p, &EvalContext{Context: ctx}) {
 		t.Fatal("parameter availability classification")
 	}
@@ -235,7 +235,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	stored.Property = ExprProperties{RowDependent: true}
 	for i := range 2 {
 		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
-		stored.Args[i+2] = columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: i, origin: origin}
+		stored.Args[i+2] = columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: i, origin: origin}
 	}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, stored)
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
@@ -308,9 +308,9 @@ func TestDatetimeOverlapsTypedNullFoldedEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeOverlaps)
-	e.Args[1] = literalExpression{expressionInfo: boundExpressionInfo(e.Args[1]), value: sqltype.Null(b.typ(sqltype.Interval))}
-	e.Args[2] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[2])}
-	e.Args[3] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[3])}
+	e.Args[1] = literalExpression{Info: boundExpressionInfo(e.Args[1]), value: sqltype.Null(b.typ(sqltype.Interval))}
+	e.Args[2] = columnExpression{Info: boundExpressionInfo(e.Args[2])}
+	e.Args[3] = columnExpression{Info: boundExpressionInfo(e.Args[3])}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, e)
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || !folded.Folded[0].IsNull() {
 		t.Fatal("typed NULL is a valid cached endpoint", folded, changed, err)
@@ -359,8 +359,8 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	e := node.(functions.DatetimeOverlaps)
 	e.Property = ExprProperties{RowDependent: true}
 	info := b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true})
-	var start BoundExpr = columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 0}
-	sentinel := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}
+	var start BoundExpr = columnExpression{Info: info, scope: 1, frame: 1, slot: 0}
+	sentinel := columnExpression{Info: info, scope: 1, frame: 1, slot: 1}
 	e.Args[2], e.Args[3] = sentinel, sentinel
 	comparison, err := sqltype.BindComparison(b.typ(sqltype.Timestamp), b.typ(sqltype.Timestamp), sqltype.CollationRef{}, false)
 	if err != nil {
@@ -376,7 +376,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	}
 	c := &EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: []sqltype.Value{high, low}}
 	for count := 1; count <= 11; count++ {
-		start = conditionalExpression{expressionInfo: info, kind: parser.NullIf, args: []BoundExpr{start, sentinel}, comparison: comparison}
+		start = conditionalExpression{Info: info, kind: parser.NullIf, args: []BoundExpr{start, sentinel}, comparison: comparison}
 		e.Args[0] = start
 		if cost := overlapsTreeCost(start); cost != count || overlapsInlineSafe(e) != (count <= 10) {
 			t.Fatal("NULLIF operator cost", count, cost)
@@ -398,7 +398,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 			t.Fatal("NULLIF boundary evaluation", count, err)
 		}
 	}
-	if overlapsNodeCost(conditionalExpression{expressionInfo: info, kind: parser.Coalesce, args: []BoundExpr{sentinel, sentinel}}) != 0 || overlapsNodeCost(caseExpression{}) != 0 {
+	if overlapsNodeCost(conditionalExpression{Info: info, kind: parser.Coalesce, args: []BoundExpr{sentinel, sentinel}}) != 0 || overlapsNodeCost(caseExpression{}) != 0 {
 		t.Fatal("zero-overhead control cost changed")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -210,14 +211,14 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 			properties.StageDependent = true
 			info := boundExpressionInfo(output)
 			info.Property = properties
-			projection[j] = cachedOrderExpression{expressionInfo: info, slot: key.cache}
+			projection[j] = cachedOrderExpression{Info: info, slot: key.cache}
 		}
 	}
 	return &sortNode{querySchema: root.Schema(), child: root, keys: keys, cacheWidth: computed}, nil
 }
 
 type cachedOrderExpression struct {
-	expressionInfo
+	expr.Info
 	slot int
 }
 

@@ -212,7 +212,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	}
 	ref := e.catalog.domain.Ref(view.Epoch(), sequence.address)
 	typeRef := e.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
+	literal := literalExpression{Info: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
 	next := cloneCatalog(view.state)
 	next.epoch++
 	retained := e.catalog.read(next)

@@ -31,10 +31,10 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	// A restored fragment expression retains this character-to-container cast.
 	// Its consuming statement must supply input authority without rebinding it.
 	node := coercionExpression{
-		expressionInfo: expressionInfo{Usage: pair.Usage()},
-		child:          literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: value},
-		plan:           plan,
-		mode:           sqltype.Explicit,
+		Info:  expressionInfo{Usage: pair.Usage()},
+		child: literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: value},
+		plan:  plan,
+		mode:  sqltype.Explicit,
 	}
 	for _, route := range []string{"default", "generation", "check"} {
 		for _, named := range []bool{false, true} {

@@ -81,9 +81,9 @@ func TestPGDependConstructionBags(t *testing.T) {
 	column := tableAddress
 	column.SubID = 2
 	ref := e.catalog.domain.Ref(catalog.state.epoch, column)
-	variable := columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, origin: ref}
+	variable := columnExpression{Info: expressionInfo{Usage: integer.Usage()}, origin: ref}
 	repeated := functions.Binary{Info: expressionInfo{Usage: integer.Usage()}, Args: []BoundExpr{variable, variable}}
-	constant := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}}
+	constant := literalExpression{Info: expressionInfo{Usage: integer.Usage()}}
 	uq := uniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
 	table := &relationDescriptor{address: tableAddress, namespace: pgDependUnitAddress(2615, 2200, 0), relationKind: tableRelation, attributes: []int32{2, 3, 4, 5}, attributeHighWater: 5, columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, notNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, checkConstraints: []checkConstraint{{OID: 42002, expression: repeated}, {OID: 42004, expression: constant}}, uniqueConstraints: []uniqueConstraint{uq}, defaults: map[int32]columnDefault{3: {OID: 43001, expression: constant}}, generations: map[int32]columnGeneration{4: {kind: generationStored, OID: 43002, expression: repeated}}}
 	catalog.state.setDescriptor(tableAddress, table)

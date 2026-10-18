@@ -44,7 +44,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	b := ruleUnitInsert(e, sink, 1, 10).binding
 	ref := b.ref
 	ref.Address.SubID = sink.attributes[1]
-	target := columnExpression{expressionInfo: ruleColumnInfo(sink.columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
+	target := columnExpression{Info: ruleColumnInfo(sink.columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
 	excluded := target
 	excluded.slot = 3
 	b.conflict = &boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []BoundExpr{excluded}, predicate: target}}
@@ -98,7 +98,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			}
 			ref := original.ref
 			ref.Address.SubID = src.attributes[0]
-			action.binding.expressions = [][]BoundExpr{{columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
+			action.binding.expressions = [][]BoundExpr{{columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)

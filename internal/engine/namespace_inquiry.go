@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -27,7 +28,7 @@ func (k namespaceInquiryKind) name() string {
 }
 
 type namespaceInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	kind namespaceInquiryKind
 	arg  BoundExpr
 }

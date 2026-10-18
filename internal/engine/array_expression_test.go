@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -100,7 +101,7 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	}
 	node := original.(subscriptExpression)
 	saved := node.subscripts[0].upper
-	replacement := literalExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{}), value: sqltype.Null(b.typ(sqltype.Int4))}
+	replacement := literalExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{}), value: sqltype.Null(b.typ(sqltype.Int4))}
 	mapped, changed, err := mapSubscript(node, func(child BoundExpr) (BoundExpr, bool, error) {
 		if child == saved {
 			return replacement, true, nil
@@ -138,7 +139,7 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 }
 
 type arrayDemandExpression struct {
-	expressionInfo
+	expr.Info
 	evaluate func(*EvalContext) (sqltype.Value, error)
 }
 
@@ -161,7 +162,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	child := func(label string, value sqltype.Value) BoundExpr {
 		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, ExprProperties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, label); return value, nil }}
 	}
-	node := subscriptExpression{expressionInfo: b.info(arr.Usage(), parser.Position{}, ExprProperties{}), base: child("base", input), slice: true, subscripts: []boundArraySubscript{{lower: child("l1", one), upper: child("u1", one), slice: true}, {lower: child("l2", one), upper: child("u2", one), slice: true}}}
+	node := subscriptExpression{Info: b.info(arr.Usage(), parser.Position{}, ExprProperties{}), base: child("base", input), slice: true, subscripts: []boundArraySubscript{{lower: child("l1", one), upper: child("u1", one), slice: true}, {lower: child("l2", one), upper: child("u2", one), slice: true}}}
 	if _, err := node.Eval(ctx); err != nil {
 		t.Fatal(err)
 	}

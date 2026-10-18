@@ -33,7 +33,7 @@ func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 			t.Fatal(folded, changed, err)
 		}
 		literal, ok := folded.(literalExpression)
-		if !ok || literal.expressionInfo != outer.expressionInfo {
+		if !ok || literal.Info != outer.Info {
 			t.Fatal(folded)
 		}
 		value, err := literal.Eval(&evaluation)
@@ -45,8 +45,8 @@ func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 			t.Fatal("original tree mutated")
 		}
 	}
-	column := columnExpression{expressionInfo: expressionInfo{Usage: inner.ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	predicate := comparisonExpression{expressionInfo: expressionInfo{Property: ExprProperties{RowDependent: true}}, left: column, right: inner}
+	column := columnExpression{Info: expressionInfo{Usage: inner.ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	predicate := comparisonExpression{Info: expressionInfo{Property: ExprProperties{RowDependent: true}}, left: column, right: inner}
 	folded, changed, err := preflightCoercions(&evaluation, predicate)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
@@ -72,7 +72,7 @@ func TestCastCoercionPreflightDependenceAndCancellation(t *testing.T) {
 		expression := original
 		expression.Property = properties
 		folded, changed, err := preflightCoercions(&evaluation, expression)
-		if err != nil || changed || folded.(coercionExpression).expressionInfo != expression.expressionInfo {
+		if err != nil || changed || folded.(coercionExpression).Info != expression.Info {
 			t.Fatal(properties, folded, changed, err)
 		}
 	}
@@ -105,7 +105,7 @@ func TestCastCoercionPreflightDependentParent(t *testing.T) {
 			t.Fatal(folded, changed, err)
 		}
 		parent, ok := folded.(coercionExpression)
-		if !ok || parent.expressionInfo != original.expressionInfo || parent.mode != original.mode {
+		if !ok || parent.Info != original.Info || parent.mode != original.mode {
 			t.Fatal(folded)
 		}
 		if _, ok := parent.child.(literalExpression); !ok {
@@ -205,7 +205,7 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 							return
 						}
 						literal, ok := root.(literalExpression)
-						if !ok || literal.expressionInfo != original.expressionInfo || !literal.Properties().ParameterDependent {
+						if !ok || literal.Info != original.Info || !literal.Properties().ParameterDependent {
 							t.Error("replacement changed analyzed information", root)
 							return
 						}

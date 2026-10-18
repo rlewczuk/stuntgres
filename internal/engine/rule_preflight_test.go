@@ -129,8 +129,8 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		}
 		demanded := *outer
 		demanded.expressions = []BoundExpr{columnExpression{
-			expressionInfo: expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
-			frame:          1, slot: 0,
+			Info:  expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
+			frame: 1, slot: 0,
 		}}
 		_, err = preflightQuery(&evaluation, &demanded)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
@@ -142,16 +142,16 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if used {
 				// The mutation target owns slot zero; FROM starts at slot one.
 				expression = columnExpression{
-					expressionInfo: expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
-					frame:          1, slot: 1,
+					Info:  expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
+					frame: 1, slot: 1,
 				}
 			}
 			if shape == "dead_case" {
 				expression, _, err = rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
 					if parameter, ok := node.(parameterExpression); ok {
-						info := parameter.expressionInfo
+						info := parameter.Info
 						info.Property = ExprProperties{RowDependent: true}
-						return columnExpression{expressionInfo: info, frame: 1, slot: 1}, true, nil
+						return columnExpression{Info: info, frame: 1, slot: 1}, true, nil
 					}
 					return node, false, nil
 				})
@@ -285,9 +285,9 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		source := &derivedNode{querySchema: schema, query: &BoundQuery{Root: child}, scanFrame: 1}
 		predicate, _, err := rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
 			if parameter, ok := node.(parameterExpression); ok {
-				info := parameter.expressionInfo
+				info := parameter.Info
 				info.Property = ExprProperties{RowDependent: true}
-				return columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}, true, nil
+				return columnExpression{Info: info, scope: 1, frame: 1, slot: 1}, true, nil
 			}
 			return node, false, nil
 		})

@@ -2,13 +2,14 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // The owner is lexical, not whichever query is currently evaluating a child.
 type mergeActionExpression struct {
-	expressionInfo
+	expr.Info
 	scope, frame uint32
 }
 
@@ -50,7 +51,7 @@ func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (BoundExp
 	if frame == 0 {
 		return nil, expressionError("42601", "MERGE_ACTION() can only be used in the RETURNING list of a MERGE command", raw.Pos)
 	}
-	return mergeActionExpression{expressionInfo: b.info(b.typ(sqltype.Text).Usage(), raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: frame}, nil
+	return mergeActionExpression{Info: b.info(b.typ(sqltype.Text).Usage(), raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: frame}, nil
 }
 func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
 	if frame == b.frameID() && b.returningAliases != nil && b.returningAliases.mode == returningMerge {

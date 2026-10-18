@@ -87,7 +87,7 @@ func TestArrayRelationalRandomSlices(t *testing.T) {
 		t.Fatal(err)
 	}
 	call.Info.Usage = array.Usage()
-	call.Args[0] = literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: value}
+	call.Args[0] = literalExpression{Info: expressionInfo{Usage: array.Usage()}, value: value}
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 	for _, input := range []string{"{}", "{1}"} {
 		e := arrayRelationalUnitUnnest(t, input)
 		if input == "{1}" {
-			e.args[0] = literalExpression{expressionInfo: expressionInfo{Usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
+			e.args[0] = literalExpression{Info: expressionInfo{Usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
 		}
 		cursor, err := openFunctionCall(c, e)
 		if err != nil {
@@ -225,7 +225,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := unnestExpression{expressionInfo: expressionInfo{Usage: element.Usage(), Property: ExprProperties{StageDependent: true}}, args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: value}}}
+		e := unnestExpression{Info: expressionInfo{Usage: element.Usage(), Property: ExprProperties{StageDependent: true}}, args: []BoundExpr{literalExpression{Info: expressionInfo{Usage: array.Usage()}, value: value}}}
 		node := &functionFromNode{querySchema: querySchema{{Name: "id", Usage: integer.Usage()}, {Name: "label", Usage: text.Usage()}}, calls: []BoundExpr{e}}
 		if err := validateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
@@ -277,7 +277,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := unnestExpression{expressionInfo: expressionInfo{Usage: element.Usage(), Property: ExprProperties{StageDependent: true}}, args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: value}}}
+			call := unnestExpression{Info: expressionInfo{Usage: element.Usage(), Property: ExprProperties{StageDependent: true}}, args: []BoundExpr{literalExpression{Info: expressionInfo{Usage: array.Usage()}, value: value}}}
 			node := &functionFromNode{calls: []BoundExpr{call}}
 			if err := validateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-column layout", err)
@@ -341,7 +341,7 @@ func TestArrayRelationalTypedDefinitionClasses(t *testing.T) {
 		{domain, "a column definition list is redundant for a function returning a named composite type"},
 		{record, "a column definition list is redundant for a function with OUT parameters"},
 	} {
-		call := literalExpression{expressionInfo: expressionInfo{Usage: tc.typ.Usage()}, value: sqltype.Null(tc.typ)}
+		call := literalExpression{Info: expressionInfo{Usage: tc.typ.Usage()}, value: sqltype.Null(tc.typ)}
 		if got := functionColumnDefinitionMessage(call); got != tc.message {
 			t.Fatalf("type %d: got %q, want %q", tc.typ.ID(), got, tc.message)
 		}
@@ -544,7 +544,7 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call.Args[0] = literalExpression{expressionInfo: expressionInfo{Usage: call.Usage}, value: value}
+	call.Args[0] = literalExpression{Info: expressionInfo{Usage: call.Usage}, value: value}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &c.statementScope.op.session.arrayRandom}

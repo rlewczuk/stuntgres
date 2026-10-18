@@ -2,12 +2,13 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type nullTestExpression struct {
-	expressionInfo
+	expr.Info
 	child BoundExpr
 	not   bool
 	// DISTINCT FROM an undecorated NULL tests the whole value, even for rows.
@@ -36,7 +37,7 @@ func (e nullTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type truthTestExpression struct {
-	expressionInfo
+	expr.Info
 	child BoundExpr
 	truth Truth
 	not   bool
@@ -59,7 +60,7 @@ func (e truthTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type distinctExpression struct {
-	expressionInfo
+	expr.Info
 	left, right BoundExpr
 	equality    sqltype.ComparisonPredicate
 	not         bool
@@ -190,7 +191,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			return nil, err
 		}
 		equality := bound.(comparisonExpression)
-		return distinctExpression{equality.expressionInfo, equality.left, equality.right, equality.predicate, raw.Kind == parser.IsNotDistinct}, nil
+		return distinctExpression{equality.Info, equality.left, equality.right, equality.predicate, raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")
 	}

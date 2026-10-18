@@ -113,7 +113,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	view := inheritanceUnitView(e, parent, child)
 	ref := e.catalog.domain.Ref(view.Epoch(), child.address)
 	ref.Address.SubID = 1
-	key := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+	key := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	boolean := testUsage(e, sqltype.Bool)
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(usage.Type, n)
@@ -128,13 +128,13 @@ func TestPartitionAttachProof(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{expressionInfo: expressionInfo{Usage: boolean, Property: ExprProperties{RowDependent: true}}, left: key, right: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value(n)}, predicate: predicate, operator: operator}
+		return comparisonExpression{Info: expressionInfo{Usage: boolean, Property: ExprProperties{RowDependent: true}}, left: key, right: literalExpression{Info: expressionInfo{Usage: usage}, value: value(n)}, predicate: predicate, operator: operator}
 	}
 	and := func(a, b BoundExpr) BoundExpr {
-		return logicalExpression{expressionInfo: expressionInfo{Usage: boolean}, left: a, right: b, op: parser.LogicalAnd}
+		return logicalExpression{Info: expressionInfo{Usage: boolean}, left: a, right: b, op: parser.LogicalAnd}
 	}
 	or := func(a, b BoundExpr) BoundExpr {
-		return logicalExpression{expressionInfo: expressionInfo{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
+		return logicalExpression{Info: expressionInfo{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
 	bound := &partitionMembership{parent: parent.address, lower: []partitionDatum{{value: value(1)}}, upper: []partitionDatum{{value: value(3)}}}
@@ -153,7 +153,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	child.notNullConstraints[0].NotValid = true
 	check(false, false)
 	child.notNullConstraints = nil
-	child.checkConstraints[0].expression = and(nullTestExpression{expressionInfo: expressionInfo{Usage: boolean}, child: key, not: true}, bounds)
+	child.checkConstraints[0].expression = and(nullTestExpression{Info: expressionInfo{Usage: boolean}, child: key, not: true}, bounds)
 	check(false, true)
 	child.checkConstraints[0].NotValid = true
 	check(false, false)

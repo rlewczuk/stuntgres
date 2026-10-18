@@ -29,14 +29,14 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	integer, wide, text := b.typ(sqltype.Int4), b.typ(sqltype.Int8), b.typ(sqltype.Text)
 	array, wideArray, textArray := b.typ(integer.AssociatedArray()), b.typ(wide.AssociatedArray()), b.typ(text.AssociatedArray())
 	literal := func(value sqltype.Value) BoundExpr {
-		return literalExpression{expressionInfo: b.info(value.Type().Usage(), parser.Position{}, ExprProperties{}), value: value}
+		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, ExprProperties{}), value: value}
 	}
 	coerce := func(child BoundExpr, target *sqltype.Descriptor, mode sqltype.CoercionContext) BoundExpr {
 		plan, err := sqltype.PlanCoercion(child.ResultUsage(), target.Usage(), mode)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return coercionExpression{expressionInfo: b.info(target.Usage(), parser.Position{}, coercionProperties(child, plan)), child: child, plan: plan, mode: mode}
+		return coercionExpression{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, plan)), child: child, plan: plan, mode: mode}
 	}
 	one, err := sqltype.Integer(integer, 1)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	position := parser.Position{Character: 1}
 	info := b.info(usage, position, ExprProperties{})
 	info.CollationExplicit = position
-	collated := collationExpression{expressionInfo: info, child: literal(strings)}
+	collated := collationExpression{Info: info, child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
 	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []BoundExpr{collated, search, replacement})
 	if err != nil {

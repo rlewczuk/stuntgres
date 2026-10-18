@@ -7,13 +7,14 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type mathObservedArgument struct {
-	expressionInfo
+	expr.Info
 	value sqltype.Value
 	order *[]int
 	index int

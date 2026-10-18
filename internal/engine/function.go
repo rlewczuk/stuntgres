@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -208,7 +209,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 }
 
 type currentSchemasExpression struct {
-	expressionInfo
+	expr.Info
 	arg BoundExpr
 }
 

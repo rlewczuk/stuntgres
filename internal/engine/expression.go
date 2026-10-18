@@ -156,7 +156,7 @@ func evaluationContext(c *EvalContext) error {
 }
 
 type literalExpression struct {
-	expressionInfo
+	expr.Info
 	value sqltype.Value
 }
 
@@ -173,7 +173,7 @@ func (e literalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type columnExpression struct {
-	expressionInfo
+	expr.Info
 	origin             ids.ObjectRef
 	scope, frame       uint32
 	slot               int
@@ -261,7 +261,7 @@ func (e columnExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type parameterExpression struct {
-	expressionInfo
+	expr.Info
 	number int
 }
 
@@ -281,7 +281,7 @@ func (e parameterExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type coercionExpression struct {
-	expressionInfo
+	expr.Info
 	child BoundExpr
 	plan  sqltype.CoercionPlan
 	mode  sqltype.CoercionContext
@@ -292,7 +292,7 @@ type coercionExpression struct {
 
 // COLLATE changes analyzed usage only; values retain the same type and datum.
 type collationExpression struct {
-	expressionInfo
+	expr.Info
 	child BoundExpr
 }
 
@@ -342,7 +342,7 @@ func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperti
 }
 
 type comparisonExpression struct {
-	expressionInfo
+	expr.Info
 	left, right BoundExpr
 	predicate   sqltype.ComparisonPredicate
 	operator    string
@@ -758,7 +758,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := evaluatePlanningExpression(c, e)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, e.Info, value, err)
 		}
 		return e, elements != nil, nil
 	case subscriptExpression:
@@ -793,7 +793,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := evaluatePlanningExpression(c, e)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, e.Info, value, err)
 		}
 		if changed {
 			return e, true, nil
@@ -1001,12 +1001,12 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.left, e.right = left, right
 		if randomLiteralNull(left) || randomLiteralNull(right) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
+			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := evaluatePlanningExpression(c, e)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, e.Info, value, err)
 		}
 		return e, lc || rc, nil
 	case rowComparisonExpression:
@@ -1044,7 +1044,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		if decisiveDefaults && conditionalConstantInputs(next) {
 			value, err := evaluatePlanningExpression(c, next)
-			return preflightValue(c, next.expressionInfo, value, err)
+			return preflightValue(c, next.Info, value, err)
 		}
 		if changed {
 			return next, true, nil
@@ -1064,7 +1064,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			if leftConstant && rightConstant {
 				e.left, e.right = left, right
 				value, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, value, err)
+				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
@@ -1086,7 +1086,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.left, e.right = left, right
 		if bitwiseConstantNull(left) || bitwiseConstantNull(right) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
+			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		// Network operators follow the release's custom-plan Execute frontier:
 		// imported parameters are available now, but retain their provenance.
@@ -1095,7 +1095,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 				return folded, changed, err
 			}
 			value, err := evaluatePlanningExpression(c, e)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || e.Usage.Type.ID() == sqltype.Bit {
 			_, l := left.(literalExpression)
@@ -1103,7 +1103,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			p := e.Properties()
 			if l && (right == nil || r) && p == (ExprProperties{}) {
 				v, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, v, err)
+				return preflightValue(c, e.Info, v, err)
 			}
 		}
 		if lc || rc {
@@ -1133,14 +1133,14 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.left, e.right = left, right
 		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.Usage.Type), nil)
+			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		if (e.left.ResultUsage().Type.ID() == sqltype.Inet || e.right != nil && e.right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
 			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
 			value, err := evaluatePlanningExpression(c, e)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || c.planStaticOperators {
 			// Dependence belongs to the original analyzed recipe: an imported
@@ -1148,7 +1148,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			p := expression.Properties()
 			if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && conditionalConstantInputs(e) {
 				value, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, value, err)
+				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		// Other consumers keep arithmetic at their existing row-owned frontier.
@@ -1164,7 +1164,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			if _, constant := child.(literalExpression); constant {
 				e.child = child
 				value, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, value, err)
+				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if changed {
@@ -1180,7 +1180,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			if _, constant := child.(literalExpression); constant {
 				e.child = child
 				value, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, value, err)
+				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if changed {
@@ -1202,7 +1202,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			if leftConstant && rightConstant {
 				e.left, e.right = left, right
 				value, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, value, err)
+				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
@@ -1223,7 +1223,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 				return nil, false, err
 			}
 			if decisive {
-				return preflightValue(c, e.expressionInfo, value, nil)
+				return preflightValue(c, e.Info, value, nil)
 			}
 		}
 		var right BoundExpr
@@ -1239,7 +1239,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			if e.op == parser.LogicalNot || rightConstant {
 				e.left, e.right = left, right
 				value, err := evaluatePlanningExpression(c, e)
-				return preflightValue(c, e.expressionInfo, value, err)
+				return preflightValue(c, e.Info, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
@@ -1736,7 +1736,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.Arg = folded
 		if randomLiteralNull(e.Arg) {
-			return literalExpression{expressionInfo: expressionInfo{Usage: e.Usage, Pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{Info: expressionInfo{Usage: e.Usage, Pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		return e, changed, nil
 	case advisoryExpression:
@@ -1846,7 +1846,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			}
 		}
 		if args != nil {
-			next, err := e.reconstruct(e.expressionInfo, args)
+			next, err := e.reconstruct(e.Info, args)
 			return next, true, err
 		}
 	case jsonPredicateExpression:
@@ -1929,7 +1929,7 @@ func preflightValue(c *EvalContext, info expressionInfo, value sqltype.Value, er
 		return nil, false, err
 	}
 	info.RoutineReference = nil
-	return literalExpression{expressionInfo: info, value: value}, true, nil
+	return literalExpression{Info: info, value: value}, true, nil
 }
 
 type Truth uint8
@@ -2186,7 +2186,7 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 		if b.updateParameters {
 			// UPDATE uses occurrence-sensitive inference diagnostics; other
 			// assignment consumers retain their selected 0A000 boundary.
-			_, err := b.coerceParameter(parameterExpression{expressionInfo: expressionInfo{Pos: pos}, number: n}, u)
+			_, err := b.coerceParameter(parameterExpression{Info: expressionInfo{Pos: pos}, number: n}, u)
 			return err
 		}
 		return sqlError("0A000", "parameter reused with different destination types")
@@ -2347,7 +2347,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) BoundExpr {
 
 func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) BoundExpr {
 	ref := b.useColumnOf(relation, i)
-	column := columnExpression{expressionInfo: expressionInfo{Usage: relation.columns[i].Usage, Pos: pos, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	column := columnExpression{Info: expressionInfo{Usage: relation.columns[i].Usage, Pos: pos, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, i, 0)
 	}
@@ -3923,7 +3923,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 }
 
 type arithmeticExpression struct {
-	expressionInfo
+	expr.Info
 	left, right BoundExpr
 	provider    sqltype.Arithmetic
 	operator    sqltype.ArithmeticOperator

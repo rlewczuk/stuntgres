@@ -125,7 +125,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
+	literal := literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
 	for _, tc := range []struct {
 		off  bool
 		want string

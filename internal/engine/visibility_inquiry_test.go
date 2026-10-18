@@ -170,7 +170,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := visibilityInquiryExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{expressionInfo: expressionInfo{Usage: oid.Usage()}, value: value}}
+	n := visibilityInquiryExpression{Info: expressionInfo{Usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{Info: expressionInfo{Usage: oid.Usage()}, value: value}}
 	got, err := n.Eval(&EvalContext{Context: ctx, statementScope: scope})
 	if err != nil {
 		t.Fatal(err)

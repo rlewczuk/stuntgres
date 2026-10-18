@@ -56,7 +56,7 @@ func (b *expressionBinder) ArrayType(element *sqltype.Descriptor) (*sqltype.Desc
 // contribute their usages.
 func (b *expressionBinder) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
 	operand := func(i int) comparisonOperand {
-		return comparisonOperand{node: literalExpression{expressionInfo: expressionInfo{Usage: usages[i]}}}
+		return comparisonOperand{node: literalExpression{Info: expressionInfo{Usage: usages[i]}}}
 	}
 	common, _ := selectCommonUsage(len(usages), operand, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
 	return common
@@ -231,5 +231,5 @@ func (b *expressionBinder) CommonArgumentUsage(operands []functions.Argument, la
 }
 
 func (b *expressionBinder) CollationRelabel(child expr.Expr, info expr.Info) expr.Expr {
-	return collationExpression{expressionInfo: info, child: child}
+	return collationExpression{Info: info, child: child}
 }

@@ -56,7 +56,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			literal := literalExpression{expressionInfo: expressionInfo{Usage: regtype.Usage()}, value: tc.value}
+			literal := literalExpression{Info: expressionInfo{Usage: regtype.Usage()}, value: tc.value}
 			refs, err := pgDependExpressionRefs(context.Background(), catalog, literal)
 			if err != nil {
 				t.Fatal(err)
@@ -114,7 +114,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	payloadAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(payloadType.ID())}
 	catalog.state.setDescriptor(payloadAddress, &typeDescriptor{typ: payloadType})
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: payloadType.Usage()}, value: payload}
+	literal := literalExpression{Info: expressionInfo{Usage: payloadType.Usage()}, value: payload}
 	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}
 	refs, err := pgDependExpressionRefs(context.Background(), catalog, literal)
 	if err != nil {

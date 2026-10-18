@@ -126,7 +126,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		n.querySchema[i] = ColumnDescriptor{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
-		projection[i] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: i}
+		projection[i] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
 		if n.grouping != nil {
 			n.grouping[i], err = b.bindDistinctGrouping(projection[i])

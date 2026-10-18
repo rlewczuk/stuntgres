@@ -195,7 +195,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 	base := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'return_target')`).(functions.JSONBSet)
 	for slot := range 5 {
 		e := base
-		column := columnExpression{expressionInfo: expressionInfo{Usage: e.Args[slot].ResultUsage(), Property: ExprProperties{RowDependent: true}}}
+		column := columnExpression{Info: expressionInfo{Usage: e.Args[slot].ResultUsage(), Property: ExprProperties{RowDependent: true}}}
 		e.Args[slot] = column
 		rewritten, err := b.rewriteGroup(e, []BoundExpr{column})
 		if err != nil {

@@ -27,7 +27,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := parameterExpression{expressionInfo: expressionInfo{Usage: u, Property: ExprProperties{ParameterDependent: true}}, number: 1}
+			node := parameterExpression{Info: expressionInfo{Usage: u, Property: ExprProperties{ParameterDependent: true}}, number: 1}
 			bad := old.defaults[1]
 			bad.expression = node
 			d.defaults = map[int32]columnDefault{1: bad}
@@ -37,7 +37,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := literalExpression{expressionInfo: expressionInfo{Usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
+			node := literalExpression{Info: expressionInfo{Usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
 			bad := old.defaults[1]
 			bad.expression = node
 			d.defaults = map[int32]columnDefault{1: bad}
@@ -83,7 +83,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{expressionInfo: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{Info: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32

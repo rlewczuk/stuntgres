@@ -218,7 +218,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 	}
 	cteUnitNext(t, &first)
 	for _, value := range []int64{11, 22} {
-		correlated := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 7, slot: 0}
+		correlated := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 7, slot: 0}
 		localProject := &projectNode{querySchema: outerNode.Schema(), child: &singletonNode{}, expressions: []BoundExpr{correlated}, frame: 3}
 		localDefinition := &cteDefinition{query: &BoundQuery{Root: localProject}, owner: 2, hint: parser.CTEMaterialized}
 		localState := *state
@@ -266,7 +266,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 
 func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 	typ := cteUnitType(t)
-	volatile := queryProbeExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{Volatility: Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
+	volatile := queryProbeExpression{Info: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{Volatility: Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("analysis evaluated target")
 		return sqltype.Value{}, nil
 	}}
@@ -319,7 +319,7 @@ func TestQueryCTEStoredIndependentGraphMemo(t *testing.T) {
 	truth := sqltype.Boolean(boolean, true)
 	falsity := sqltype.Boolean(boolean, false)
 	literal := func(value sqltype.Value) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: value.Type().Usage()}, value: value}
+		return literalExpression{Info: expressionInfo{Usage: value.Type().Usage()}, value: value}
 	}
 	canonical := &projectNode{child: &singletonNode{}, frame: 2, expressions: []BoundExpr{literal(cteUnitValue(t, typ, 1))}, querySchema: querySchema{{Name: "n", Usage: typ.Usage()}}}
 	left, right := *canonical, *canonical
@@ -360,15 +360,15 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	inputSchema := querySchema{{Name: "keep", Usage: boolean.Usage()}}
 	literal := func(value bool) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, value)}
+		return literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, value)}
 	}
 	input := &valuesNode{querySchema: inputSchema, rows: [][]BoundExpr{{literal(false)}, {literal(true)}}}
-	local := columnExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, scope: 1, frame: 2, slot: 0}
+	local := columnExpression{Info: expressionInfo{Usage: boolean.Usage()}, scope: 1, frame: 2, slot: 0}
 	draws := 0
 	project := &projectNode{querySchema: querySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, child: input, expressions: []BoundExpr{local, queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, frame: 2}
 	definition := &cteDefinition{query: &BoundQuery{Root: project}, owner: 1, references: 2, hint: parser.CTENotMaterialized}
 	scan := &derivedNode{querySchema: project.Schema(), query: definition.query, cte: definition, scanFrame: 1, demand: []bool{false, true}}
-	parent := columnExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, scope: 1, frame: 1, slot: 0}
+	parent := columnExpression{Info: expressionInfo{Usage: boolean.Usage()}, scope: 1, frame: 1, slot: 0}
 	mapped, moved, err := pushCTEOccurrence(e.CatalogRead(), scan, parent, 0)
 	if err != nil || !moved {
 		t.Fatal(moved, err)
@@ -411,7 +411,7 @@ func TestQueryCTEProjectDispatcherOwnsInvocation(t *testing.T) {
 	original := node.query.Root
 	root := &projectNode{
 		querySchema: node.Schema(), child: node, frame: 1, cteOwner: true,
-		expressions: []BoundExpr{columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}},
+		expressions: []BoundExpr{columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}},
 	}
 	stage, err := openQueryNode(context.Background(), state, root)
 	if err != nil {
@@ -488,12 +488,12 @@ func TestQueryCTEFilterDemandGate(t *testing.T) {
 		parameters         []sqltype.Value
 		wantRow, wantError bool
 	}{
-		{"false", literalExpression{expressionInfo: info, value: sqltype.Boolean(boolean, false)}, nil, false, false},
-		{"null", literalExpression{expressionInfo: info, value: sqltype.Null(boolean)}, nil, false, false},
-		{"bound false", parameterExpression{expressionInfo: info, number: 1}, []sqltype.Value{sqltype.Boolean(boolean, false)}, false, false},
-		{"bound null", parameterExpression{expressionInfo: info, number: 1}, []sqltype.Value{sqltype.Null(boolean)}, false, false},
-		{"bound true", parameterExpression{expressionInfo: info, number: 1}, []sqltype.Value{sqltype.Boolean(boolean, true)}, true, false},
-		{"missing parameter", parameterExpression{expressionInfo: info, number: 1}, nil, false, true},
+		{"false", literalExpression{Info: info, value: sqltype.Boolean(boolean, false)}, nil, false, false},
+		{"null", literalExpression{Info: info, value: sqltype.Null(boolean)}, nil, false, false},
+		{"bound false", parameterExpression{Info: info, number: 1}, []sqltype.Value{sqltype.Boolean(boolean, false)}, false, false},
+		{"bound null", parameterExpression{Info: info, number: 1}, []sqltype.Value{sqltype.Null(boolean)}, false, false},
+		{"bound true", parameterExpression{Info: info, number: 1}, []sqltype.Value{sqltype.Boolean(boolean, true)}, true, false},
+		{"missing parameter", parameterExpression{Info: info, number: 1}, nil, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			draws := 0
@@ -629,7 +629,7 @@ func TestQueryCTEDeadZeroWidthOwner(t *testing.T) {
 	_, state, child := cteUnitScan(nil, querySchema{}, 2)
 	state.ctes = nil
 	state.source.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: rowUpdate}}}}
-	filter := &filterNode{querySchema: child.Schema(), child: child, predicate: literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}
+	filter := &filterNode{querySchema: child.Schema(), child: child, predicate: literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}
 	root := &projectNode{querySchema: child.Schema(), child: filter, frame: 1, cteOwner: true}
 	stage, err := openQueryNode(context.Background(), state, root)
 	if err != nil {

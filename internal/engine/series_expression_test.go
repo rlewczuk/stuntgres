@@ -16,13 +16,13 @@ import (
 
 func seriesUnit(t *testing.T, d *sqltype.Descriptor, values ...int64) seriesExpression {
 	t.Helper()
-	e := seriesExpression{expressionInfo: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}}
+	e := seriesExpression{Info: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}}
 	for _, n := range values {
 		v, err := sqltype.Integer(d, n)
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.args = append(e.args, literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v})
+		e.args = append(e.args, literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: v})
 	}
 	return e
 }
@@ -113,7 +113,7 @@ func TestSeriesCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	e.args[0] = literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: sqltype.Null(d)}
+	e.args[0] = literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: sqltype.Null(d)}
 	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(d, 3) })
 	if got := seriesUnitRead(t, e); len(got) != 0 || calls != 1 {
 		t.Fatal(got, calls)
@@ -153,8 +153,8 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		null := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: sqltype.Null(d)}
-		wrapper := arithmeticExpression{expressionInfo: original.expressionInfo, left: original, right: null, provider: plan, operator: sqltype.ArithmeticAdd}
+		null := literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: sqltype.Null(d)}
+		wrapper := arithmeticExpression{Info: original.Info, left: original, right: null, provider: plan, operator: sqltype.ArithmeticAdd}
 		ctx := &EvalContext{Context: context.Background(), catalog: view}
 		for _, fold := range []func() (BoundExpr, bool, error){
 			func() (BoundExpr, bool, error) { return preflightCoercions(ctx, wrapper) },

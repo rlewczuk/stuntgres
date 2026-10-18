@@ -247,7 +247,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		common = info.Usage
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: j}
+		projection[j] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: j}
 	}
 	if lists != nil {
 		for i, written := range source.Rows {
@@ -586,8 +586,8 @@ func identityUnusedOutput(expression BoundExpr) BoundExpr {
 	info := boundExpressionInfo(expression)
 	info.Property = ExprProperties{}
 	return literalExpression{
-		expressionInfo: info,
-		value:          sqltype.Null(expression.ResultUsage().Type),
+		Info:  info,
+		value: sqltype.Null(expression.ResultUsage().Type),
 	}
 }
 

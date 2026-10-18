@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 // Access inquiries retain only their typed recipe. All authority is borrowed
 // from the executing statement, never cached on the expression or statement.
 type accessInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	rowSecurity bool
 	args        [3]BoundExpr
 	count       int
@@ -127,7 +128,7 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 	if err != nil {
 		return nil, err
 	}
-	n.expressionInfo = info
+	n.Info = info
 	return n, nil
 }
 

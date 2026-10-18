@@ -49,7 +49,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					}
 				} else {
 					last := len(node.args) - 1
-					column := columnExpression{expressionInfo: expressionInfo{Usage: node.args[last].ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
+					column := columnExpression{Info: expressionInfo{Usage: node.args[last].ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
 					stored := node
 					stored.args = append([]BoundExpr(nil), node.args...)
 					stored.args[last] = column
@@ -112,9 +112,9 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := advisoryExpression{expressionInfo: expressionInfo{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: advisoryExclusive, action: advisoryTry, args: []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: value, order: &order, index: 1},
+	node := advisoryExpression{Info: expressionInfo{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: advisoryExclusive, action: advisoryTry, args: []BoundExpr{
+		mathObservedArgument{Info: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
+		mathObservedArgument{Info: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: value, order: &order, index: 1},
 	}}
 	got, err := node.Eval(&EvalContext{Context: ctx})
 	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
@@ -122,7 +122,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 	}
 	failure := errors.New("demanded xact sibling")
 	order = nil
-	node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
+	node.args[1] = mathObservedArgument{Info: expressionInfo{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
 	if _, err := node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal("suppressed runtime sibling", order, err)
 	}

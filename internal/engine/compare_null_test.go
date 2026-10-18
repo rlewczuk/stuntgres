@@ -69,7 +69,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	if err != nil || strict.Type() != boolType || !strict.IsNull() {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}
-	column := columnExpression{expressionInfo: b.info(intType.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: 0}
+	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: 0}
 	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), 1}
 	nodes := []BoundExpr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
 	invalid := []*EvalContext{nil, {Context: evalContext.Context, Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}, {Context: evalContext.Context, Scope: 1, Frame: 1, Row: []sqltype.Value{{}}, Parameters: []sqltype.Value{integer}}, {Context: evalContext.Context, Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}, Parameters: []sqltype.Value{integer}}}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -70,11 +71,11 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return logicalExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.nextQueryFrame != queryFrame}, nil
+	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.nextQueryFrame != queryFrame}, nil
 }
 
 type logicalExpression struct {
-	expressionInfo
+	expr.Info
 	op          parser.LogicalOperator
 	left, right BoundExpr
 	// A newly allocated child frame identifies a query-containing right operand.

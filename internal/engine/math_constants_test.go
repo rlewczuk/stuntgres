@@ -78,7 +78,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		t.Fatal("stored foreign provider accepted")
 	}
 	foreign = reminted
-	foreign.Args = []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: reminted.Usage}, value: sqltype.Null(reminted.Usage.Type)}}
+	foreign.Args = []BoundExpr{literalExpression{Info: expressionInfo{Usage: reminted.Usage}, value: sqltype.Null(reminted.Usage.Type)}}
 	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored pi argument accepted")
 	}

@@ -37,7 +37,7 @@ func (k generationKind) sql() string {
 }
 
 type tableOIDExpression struct {
-	expressionInfo
+	expr.Info
 	owner ids.ObjectRef
 }
 

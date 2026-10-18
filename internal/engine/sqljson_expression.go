@@ -5,13 +5,14 @@ import (
 	"strings"
 	"stuntgres/internal/engine/functions"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type sqlJSONExpression struct {
-	expressionInfo
+	expr.Info
 	raw  parser.SQLJSONExpr
 	args []BoundExpr
 	plan sqltype.SQLJSONPlan
@@ -64,7 +65,7 @@ func (e sqlJSONExpression) reconstruct(info expressionInfo, args []BoundExpr) (B
 	if err != nil {
 		return nil, err
 	}
-	e.expressionInfo, e.args, e.plan = info, args, plan
+	e.Info, e.args, e.plan = info, args, plan
 	return e, nil
 }
 func (b *expressionBinder) sqlJSONInput(arg BoundExpr, format *parser.JSONFormat, implicit, unique bool) (BoundExpr, error) {
@@ -232,7 +233,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 }
 
 type jsonPredicateExpression struct {
-	expressionInfo
+	expr.Info
 	child       BoundExpr
 	kind        string
 	unique, not bool
@@ -275,5 +276,5 @@ func (b *expressionBinder) bindJSONPredicate(raw parser.JSONPredicateExpr) (Boun
 	if typ.ID() != sqltype.JSON && typ.ID() != sqltype.JSONB && typ.ID() != sqltype.Bytea && !sqltype.StringCategory(typ.ID()) {
 		return nil, sqlError("42804", "cannot use type "+b.diagnosticTypeName(typ)+" in IS JSON predicate")
 	}
-	return jsonPredicateExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, child.Properties()), child: child, kind: raw.Kind, unique: raw.Unique, not: raw.Not}, nil
+	return jsonPredicateExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, child.Properties()), child: child, kind: raw.Kind, unique: raw.Unique, not: raw.Not}, nil
 }

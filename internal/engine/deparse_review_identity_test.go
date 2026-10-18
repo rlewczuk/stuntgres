@@ -112,7 +112,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 		e := New()
 		name, _ := e.CatalogRead().LookupType(sqltype.Name)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		valid := identityExpression{expressionInfo: expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: identityCurrentUser}
+		valid := identityExpression{Info: expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: identityCurrentUser}
 		for _, tc := range []struct {
 			name   string
 			mutate func(*identityExpression)

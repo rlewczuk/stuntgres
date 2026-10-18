@@ -41,7 +41,7 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	}
 	projection := make([]BoundExpr, len(schema))
 	for i := range schema {
-		projection[i] = columnExpression{expressionInfo: boundExpressionInfo(copy.expressions[i]), scope: 1, frame: copy.frame, slot: i}
+		projection[i] = columnExpression{Info: boundExpressionInfo(copy.expressions[i]), scope: 1, frame: copy.frame, slot: i}
 	}
 	return n, &projectNode{querySchema: schema, child: n, expressions: projection, frame: copy.frame}, source
 }
@@ -236,7 +236,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	n, project, source := querySetUnitFixture(t, "intersect", true, false)
 	defer source.close()
 	original := n.leftExpressions[0]
-	replacement := &queryProbeExpression{expressionInfo: boundExpressionInfo(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
+	replacement := &queryProbeExpression{Info: boundExpressionInfo(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
 	rewritten, err := rewriteQueryExpressions(project, func(e BoundExpr) (BoundExpr, bool, error) {
 		if e == original {
 			return replacement, true, nil
@@ -359,7 +359,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	})
 	project.child = n
 	for i, expression := range project.expressions {
-		project.expressions[i] = columnExpression{expressionInfo: boundExpressionInfo(expression), scope: 1, frame: project.frame, slot: i}
+		project.expressions[i] = columnExpression{Info: boundExpressionInfo(expression), scope: 1, frame: project.frame, slot: i}
 	}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {

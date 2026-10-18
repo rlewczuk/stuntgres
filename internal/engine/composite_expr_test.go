@@ -8,7 +8,7 @@ import (
 )
 
 func compositeExprUnitLiteral(value sqltype.Value) BoundExpr {
-	return literalExpression{expressionInfo: expressionInfo{Usage: value.Type().Usage()}, value: value}
+	return literalExpression{Info: expressionInfo{Usage: value.Type().Usage()}, value: value}
 }
 func compositeExprUnitInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value {
 	t.Helper()
@@ -27,13 +27,13 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := rowExpression{expressionInfo: expressionInfo{Usage: shape.Usage()}, fields: []BoundExpr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
+	row := rowExpression{Info: expressionInfo{Usage: shape.Usage()}, fields: []BoundExpr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
 	c := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
 	value, err := row.Eval(c)
 	if err != nil || value.IsNull() || !value.CompositeField(1).IsNull() {
 		t.Fatal("present partially NULL constructor", err)
 	}
-	selected := fieldExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, base: row, attribute: 1, index: 0}
+	selected := fieldExpression{Info: expressionInfo{Usage: integer.Usage()}, base: row, attribute: 1, index: 0}
 	value, err = selected.Eval(c)
 	number, nerr := value.Integer()
 	if err != nil || nerr != nil || number != 7 {
@@ -77,7 +77,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zero := rowExpression{expressionInfo: expressionInfo{Usage: empty.Usage()}, wholeNames: []string{}, presenceSlot: 1, presenceFrame: 1}
+	zero := rowExpression{Info: expressionInfo{Usage: empty.Usage()}, wholeNames: []string{}, presenceSlot: 1, presenceFrame: 1}
 	c.presenceSlots = []int{1}
 	c.presence = []bool{true}
 	if value, err := zero.Eval(c); err != nil || value.IsNull() || value.CompositeLen() != 0 {
@@ -150,7 +150,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	}
 	original := sqltype.Null(outer)
 	c := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{compositeExprUnitInteger(t, integer, 9)}}
-	rhs := columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: 1, slot: 0}
+	rhs := columnExpression{Info: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: 1, slot: 0}
 	first, err := target.applyExpression(c, original, rhs)
 	if err != nil {
 		t.Fatal(err)
@@ -249,7 +249,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := rowExpression{expressionInfo: expressionInfo{Usage: empty.Usage(), Property: ExprProperties{RowDependent: true}}, wholeNames: []string{}, wholeName: "a", presenceFrame: 1}
+	left := rowExpression{Info: expressionInfo{Usage: empty.Usage(), Property: ExprProperties{RowDependent: true}}, wholeNames: []string{}, wholeName: "a", presenceFrame: 1}
 	right := left
 	right.wholeName = "b"
 	if b.sameGroupExpression(left, right) {

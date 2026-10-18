@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 // both evaluation and stored rendering retain that order, including named calls.
 // No result, role read or catalog snapshot belongs to this immutable recipe.
 type objectACLExpression struct {
-	expressionInfo
+	expr.Info
 	args   [3]BoundExpr
 	slots  [3]uint8
 	labels [3]string
@@ -131,7 +132,7 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 	if err != nil {
 		return nil, err
 	}
-	n.expressionInfo = info
+	n.Info = info
 	return n, nil
 }
 

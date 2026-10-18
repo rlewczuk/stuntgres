@@ -189,7 +189,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 			}
 			child := &valuesNode{rows: [][]BoundExpr{{}}}
 			aggregate := &aggregateNode{querySchema: querySchema{{Usage: node.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: node.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{Info: expressionInfo{Usage: node.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("50-key private execution", count, err)
@@ -334,10 +334,10 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 			call := aggregateCall{provider: p, direct: direct, operation: p.Operation(), stageWidth: 4, includeNulls: true, order: []sortKey{{expression: key, comparison: in.order[0].comparison, slot: -1, cache: 2}, {expression: key, comparison: in.order[0].comparison, slot: -1, cache: 3}}}
 			child := &valuesNode{querySchema: querySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
-				child.rows = append(child.rows, []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: input.Usage()}, value: in.tuple(i)[2]}})
+				child.rows = append(child.rows, []BoundExpr{literalExpression{Info: expressionInfo{Usage: input.Usage()}, value: in.tuple(i)[2]}})
 			}
 			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: p.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{Info: expressionInfo{Usage: p.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 			if phase == "prepublication" {
 				result := root.expressions[0]
 				root.expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })

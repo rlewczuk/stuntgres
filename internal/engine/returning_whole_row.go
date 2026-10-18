@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 // Named transition rows retain their lexical target owner and actual presence.
 // This does not introduce generic ROW or composite field syntax.
 type returningWholeRowExpression struct {
-	expressionInfo
+	expr.Info
 	members      []BoundExpr
 	scope, frame uint32
 	old          bool
@@ -70,5 +71,5 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 		}
 	}
 	info := b.info(sqltype.Usage{Type: descriptor.typ, Typmod: -1}, pos, ExprProperties{RowDependent: true})
-	return returningWholeRowExpression{expressionInfo: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
+	return returningWholeRowExpression{Info: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
 }

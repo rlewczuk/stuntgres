@@ -30,7 +30,7 @@ func subqueryTestExpression(t *testing.T, e *Engine, q *BoundQuery, kind parser.
 	if kind == parser.SubqueryScalar {
 		usage = q.Root.Schema()[0].Usage
 	}
-	return subqueryExpression{expressionInfo: expressionInfo{Usage: usage}, kind: kind, queryPlan: q, presenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
+	return subqueryExpression{Info: expressionInfo{Usage: usage}, kind: kind, queryPlan: q, presenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
 }
 
 // Replace an actual scheduler-owned target rather than mocking a query result.
@@ -407,9 +407,9 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound := subqueryExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, operator: tc.text}
+			bound := subqueryExpression{Info: expressionInfo{Usage: boolean.Usage()}, operator: tc.text}
 			for i := range tc.right {
-				bound.comparisons = append(bound.comparisons, comparisonExpression{right: columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: 9, slot: i}, predicate: predicate})
+				bound.comparisons = append(bound.comparisons, comparisonExpression{right: columnExpression{Info: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: 9, slot: i}, predicate: predicate})
 				if tc.operator > sqltype.CompareNotEqual {
 					bound.ordering = append(bound.ordering, comparison)
 				}
@@ -435,7 +435,7 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 	}
 	leftCalls, targetCalls := 0, 0
 	project.expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
-	bound.comparisons = []comparisonExpression{{left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), right: columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+	bound.comparisons = []comparisonExpression{{left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), right: columnExpression{Info: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
 	parent := queryState{source: source}
 	c := parent.evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {

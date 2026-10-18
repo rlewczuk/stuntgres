@@ -36,7 +36,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 				t.Fatal(err)
 			}
 			usages[i] = types[1009].Usage()
-			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: usages[i]}, value: value}
+			args[i] = literalExpression{Info: expressionInfo{Usage: usages[i]}, value: value}
 		}
 		plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usages...)
 		if err != nil {
@@ -101,7 +101,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[1009].Usage()
-	column := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}}
+	column := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}}
 	plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usage, usage)
 	if err != nil {
 		t.Fatal(err)

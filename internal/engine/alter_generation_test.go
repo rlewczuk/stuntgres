@@ -111,14 +111,14 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	next.index = maps.Clone(old.index)
 	next.index["c"] = 3
 	calls := 0
-	generated := queryProbeExpression{expressionInfo: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	generated := queryProbeExpression{Info: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		calls++
 		if len(ec.Row) != 4 || ec.Row[0] != integer(31) || ec.Row[3] != integer(5) {
 			t.Fatal("generation evaluated before completed tuple", ec.Row)
 		}
 		return integer(36), nil
 	}}
-	untouched := queryProbeExpression{expressionInfo: expressionInfo{Usage: u}, eval: func(*EvalContext) (sqltype.Value, error) {
+	untouched := queryProbeExpression{Info: expressionInfo{Usage: u}, eval: func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("unaffected stored generation demanded")
 		return sqltype.Value{}, errors.New("unexpected evaluation")
 	}}
@@ -135,7 +135,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	insert.born = 0
 	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.address: {own, insert}}
 	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
-	transform := queryProbeExpression{expressionInfo: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	transform := queryProbeExpression{Info: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
 			t.Fatal("TYPE lost old row", ec.Row)
 		}
@@ -180,7 +180,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	calls := 0
-	expression := queryProbeExpression{expressionInfo: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	expression := queryProbeExpression{Info: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		calls++
 		if !e.mu.TryLock() {
 			t.Fatal("generation evaluation held Engine.mu")

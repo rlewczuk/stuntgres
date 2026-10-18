@@ -328,8 +328,8 @@ func TestCommitTimeExpression(t *testing.T) {
 		}
 		if n.arg != nil {
 			column := columnExpression{
-				expressionInfo: b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, ExprProperties{RowDependent: true}),
-				origin:         ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
+				Info:   b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, ExprProperties{RowDependent: true}),
+				origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
 			withColumn := n
 			withColumn.arg = column

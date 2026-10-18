@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -38,7 +39,7 @@ func (call aggregateCall) expressions(visit func(BoundExpr)) {
 }
 
 type aggregateExpression struct {
-	expressionInfo
+	expr.Info
 	slot  int
 	frame uint32
 }
@@ -50,7 +51,7 @@ func (e aggregateExpression) Eval(ExprContext) (sqltype.Value, error) {
 // Group slots have no table address. Proven output origin is retained separately
 // by bindSelect, never inferred from this private row layout.
 type groupExpression struct {
-	expressionInfo
+	expr.Info
 	slot  int
 	frame uint32
 }

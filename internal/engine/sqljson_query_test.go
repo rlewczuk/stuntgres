@@ -26,7 +26,7 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	base := inner.child.(*sourceNode)
 	outer := &projectNode{querySchema: inner.querySchema, frame: inner.frame + 1}
 	outer.child = &sourceNode{querySchema: inner.querySchema, ref: base.ref, occurrence: 0, presenceSlot: base.presenceSlot}
-	column := columnExpression{expressionInfo: expressionInfo{Usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
+	column := columnExpression{Info: expressionInfo{Usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
 	outer.expressions = []BoundExpr{column}
 	bound := *query
 	bound.Root = outer

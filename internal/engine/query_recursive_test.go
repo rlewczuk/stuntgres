@@ -18,11 +18,11 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	schema := querySchema{{Name: "n", Usage: typ.Usage()}}
 	d := &cteDefinition{owner: 1, recursive: true, name: "r", schema: schema}
 	column := func(frame uint32) columnExpression {
-		return columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: frame, slot: 0}
+		return columnExpression{Info: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: frame, slot: 0}
 	}
 	rows := make([][]BoundExpr, len(seeds))
 	for i, n := range seeds {
-		rows[i] = []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: cteUnitValue(t, typ, n)}}
+		rows[i] = []BoundExpr{literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: cteUnitValue(t, typ, n)}}
 	}
 	left := &projectNode{querySchema: schema, child: &valuesNode{querySchema: schema, rows: rows}, expressions: []BoundExpr{column(2)}, frame: 2}
 	self := &worktableScanNode{derivedNode: derivedNode{querySchema: schema, cte: d, scanFrame: 3}}
@@ -227,9 +227,9 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 			node.query.Root.(*projectNode).expressions = nil
 		} else {
 			typ := n.Schema()[0].Usage.Type
-			n.left.child.(*valuesNode).rows = [][]BoundExpr{{literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}, {literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
+			n.left.child.(*valuesNode).rows = [][]BoundExpr{{literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}, {literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
 			n.right.child = &worktableScanNode{derivedNode: derivedNode{cte: node.cte, querySchema: n.Schema()}}
-			n.right.expressions = []BoundExpr{columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 3, slot: 0}}
+			n.right.expressions = []BoundExpr{columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 3, slot: 0}}
 			n.rightExpressions = n.right.expressions
 		}
 		stage, err := openCTEScan(context.Background(), state, node)

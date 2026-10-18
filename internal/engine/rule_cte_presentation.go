@@ -32,7 +32,7 @@ func retainRuleCTEPresentation(view CatalogRead, b binding) binding {
 			analysis = slices.Clone(project.analysisExpressions)
 		}
 		typ, _ := view.LookupType(sqltype.Bool)
-		analysis = append(analysis, subqueryExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Pos: definition.position}, queryPlan: definition.query, cteDefinition: true})
+		analysis = append(analysis, subqueryExpression{Info: expressionInfo{Usage: typ.Usage(), Pos: definition.position}, queryPlan: definition.query, cteDefinition: true})
 	}
 	if analysis == nil {
 		return b

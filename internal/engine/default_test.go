@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 // A closed, bounded test-only producer witnesses actual stored row values;
 // there is no production callback, function registry or new SQL capability.
 type defaultOrdinal struct {
-	expressionInfo
+	expr.Info
 	ordinal int64
 	failAt  int64
 	cancel  context.CancelFunc
@@ -44,7 +45,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
-			probe.expressionInfo = expressionInfo{Usage: old.columns[1].Usage}
+			probe.Info = expressionInfo{Usage: old.columns[1].Usage}
 			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
@@ -231,7 +232,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 				t.Fatal(planned, changed, err)
 			}
 			literal, ok := planned.(literalExpression)
-			if !ok || literal.expressionInfo != original.expression.(logicalExpression).expressionInfo {
+			if !ok || literal.Info != original.expression.(logicalExpression).Info {
 				t.Fatal("whole result or conservative metadata was lost", planned)
 			}
 			value, err := literal.Eval(c)

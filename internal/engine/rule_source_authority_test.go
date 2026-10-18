@@ -61,11 +61,11 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
 					ref.Address.SubID = sink.attributes[0]
-					value := BoundExpr(columnExpression{expressionInfo: ruleColumnInfo(sink.columns[0]), origin: ref, scope: 1, frame: 1})
+					value := BoundExpr(columnExpression{Info: ruleColumnInfo(sink.columns[0]), origin: ref, scope: 1, frame: 1})
 					if dependent {
 						ref = original.ref
 						ref.Address.SubID = src.attributes[0]
-						value = columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}
+						value = columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}
 					}
 					action.binding.expressions = nil
 					action.binding.commandQuery = true

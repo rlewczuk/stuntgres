@@ -166,7 +166,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	for _, wholeNull := range []bool{false, true} {
 		empty := intaggUnitEnum(t, e, "{}")
 		if wholeNull {
-			empty.args = []BoundExpr{literalExpression{expressionInfo: boundExpressionInfo(empty.args[0]), value: sqltype.Null(empty.args[0].ResultUsage().Type)}}
+			empty.args = []BoundExpr{literalExpression{Info: boundExpressionInfo(empty.args[0]), value: sqltype.Null(empty.args[0].ResultUsage().Type)}}
 		}
 		cursor, err := openFunctionCall(c, empty)
 		if err != nil {
@@ -179,7 +179,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		}
 	}
 	mapped, changed, err := n.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
-		return literalExpression{expressionInfo: boundExpressionInfo(arg), value: input}, true, nil
+		return literalExpression{Info: boundExpressionInfo(arg), value: input}, true, nil
 	})
 	if err != nil || !changed || mapped.procedure != n.procedure || mapped.ref != n.ref {
 		t.Fatal("child rewrite lost installation", err)

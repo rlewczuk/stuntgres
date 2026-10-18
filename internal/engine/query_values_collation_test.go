@@ -16,13 +16,13 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	operand := func(id uint32, position int) BoundExpr {
 		u := usage
 		u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
-		return literalExpression{expressionInfo: b.info(u, parser.Position{Character: position}, ExprProperties{}), value: sqltype.Null(text)}
+		return literalExpression{Info: b.info(u, parser.Position{Character: position}, ExprProperties{}), value: sqltype.Null(text)}
 	}
 	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, ExprProperties{}), operand(950, 59), operand(951, 64))
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := literalExpression{expressionInfo: info, value: sqltype.Null(text)}
+	base := literalExpression{Info: info, value: sqltype.Null(text)}
 	assert := func(name string, expression BoundExpr) {
 		t.Helper()
 		left, right, position := expression.ImplicitCollationConflict()
@@ -80,7 +80,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(overridden, err)
 	}
 	b.queryNamespace = &queryNamespace{}
-	if _, err := b.bindOrder(order, []BoundExpr{literalExpression{expressionInfo: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
+	if _, err := b.bindOrder(order, []BoundExpr{literalExpression{Info: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}
 }

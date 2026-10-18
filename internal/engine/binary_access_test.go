@@ -100,7 +100,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			} else {
 				value, _ = sqltype.Integer(d, 0)
 			}
-			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
+			args[i] = literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: value}
 		}
 		p, err := sqltype.BindBinary(name, types[result].Usage(), usages...)
 		if err != nil {
@@ -190,12 +190,12 @@ func bitAccessBindingProperties(t *testing.T) {
 				t.Fatal(err)
 			}
 			props := ExprProperties{Volatility: Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
-			source := literalExpression{expressionInfo: expressionInfo{Usage: usage, Property: props}, value: value}
+			source := literalExpression{Info: expressionInfo{Usage: usage, Property: props}, value: value}
 			operands := []functions.Argument{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
 				u := b.typ(sqltype.Int4).Usage()
 				v, _ := sqltype.Integer(u.Type, 0)
-				operands = append(operands, functions.Argument{Expression: literalExpression{expressionInfo: expressionInfo{Usage: u}, value: v}, Usage: u})
+				operands = append(operands, functions.Argument{Expression: literalExpression{Info: expressionInfo{Usage: u}, value: v}, Usage: u})
 			}
 			var types functions.BinaryTypes
 			node, err := functions.FinishBinary(b, name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

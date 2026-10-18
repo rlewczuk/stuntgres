@@ -71,8 +71,8 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		if len(raw.Name.Parts) == 2 {
 			n.namespace = raw.Name.Parts[0].Text
 		}
-		n.expressionInfo = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
-		n.expressionInfo, err = b.builtinOperatorRoutineInfo(n.expressionInfo, "@>", sqltype.ACLItemArray, sqltype.ACLItem)
+		n.Info = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+		n.Info, err = b.builtinOperatorRoutineInfo(n.Info, "@>", sqltype.ACLItemArray, sqltype.ACLItem)
 		if err != nil {
 			return nil, err
 		}

@@ -34,7 +34,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := func(value sqltype.Value) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: value.Type().Usage()}, value: value}
+		return literalExpression{Info: expressionInfo{Usage: value.Type().Usage()}, value: value}
 	}
 	bound := functions.Enum{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := bound.Eval(&EvalContext{Context: ctx})
@@ -140,9 +140,9 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	}
 	var order []int
 	first, _ := sqltype.BindEnumSupport("enum_first", mood.Usage(), mood.Usage())
-	unary := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: first, Args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
+	unary := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: first, Args: []BoundExpr{mathObservedArgument{Info: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
 	volatile := unary
-	volatile.Args = []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{Usage: mood.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(mood), order: &order}}
+	volatile.Args = []BoundExpr{mathObservedArgument{Info: expressionInfo{Usage: mood.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(mood), order: &order}}
 	if plannedVolatility(volatile) != Volatile {
 		t.Fatal("child volatility lost")
 	}

@@ -168,7 +168,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 			}
 		}
 	}
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: dictionary.Usage()}, value: live}
+	literal := literalExpression{Info: expressionInfo{Usage: dictionary.Usage()}, value: live}
 	text, err := catalogLiteralSQL(ctx, view, literal)
 	if err != nil || !strings.Contains(text, `"Reg.TS".unaccent`) || strings.Contains(text, "91000") {
 		t.Fatal("qualified logical reference", text, err)

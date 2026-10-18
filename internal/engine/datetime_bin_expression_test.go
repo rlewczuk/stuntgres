@@ -108,7 +108,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 		for i := range e.Args {
 			null := e
-			null.Args[i] = literalExpression{expressionInfo: b.info(e.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(e.Args[i].ResultUsage().Type)}
+			null.Args[i] = literalExpression{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&EvalContext{Context: context.Background()}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
@@ -144,7 +144,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin)
-	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+	column := columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []BoundExpr
@@ -174,7 +174,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	}
 	// Preflight must traverse a child codec conversion rather than attempting
 	// date_bin on a mismatched descriptor or bypassing coercion failures.
-	text := literalExpression{expressionInfo: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
+	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
 	plan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)

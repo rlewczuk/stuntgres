@@ -105,5 +105,5 @@ func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.Intagg
 		return nil, err
 	}
 	call.RoutineReference = proc
-	return unnestExpression{expressionInfo: call.Info, args: []BoundExpr{call.Arg}, procedure: proc, ref: ref}, nil
+	return unnestExpression{Info: call.Info, args: []BoundExpr{call.Arg}, procedure: proc, ref: ref}, nil
 }

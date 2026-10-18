@@ -387,12 +387,12 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 	parent, _, _, types := indexClausesFixture(t)
 	typ := types[sqltype.Text]
 	usage := typ.Usage()
-	column := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 2}
+	column := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 2}
 	plan, err := sqltype.BindString("lower", usage, usage, []sqltype.Usage{usage}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := functions.String{Info: column.expressionInfo, Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
+	node := functions.String{Info: column.Info, Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
 	class, _ := sqltype.LookupIndexClass("bpchar_ops")
 	definition := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node, attributes: parent.attributes}, class: class, explicitClass: true, collation: 950}}, include: []int32{10}, ready: true, valid: true, live: true}
 	store := &relationStorage{}

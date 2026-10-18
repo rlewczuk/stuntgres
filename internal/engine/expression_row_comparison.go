@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -11,7 +12,7 @@ import (
 // Row predicates retain scalar pair providers, never a fabricated record datum.
 // The lexical evaluator is shared with existing row/subquery predicates.
 type rowComparisonExpression struct {
-	expressionInfo
+	expr.Info
 	comparisons []comparisonExpression
 	ordering    []sqltype.Comparison
 	operator    string
@@ -87,7 +88,7 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 // RECORD cannot enter the scalar-array branch, and residual pairs use fields.
 func (b *expressionBinder) inCommonOperand(operand inComparisonOperand) comparisonOperand {
 	if operand.constructor && operand.scalar.node == nil {
-		return comparisonOperand{node: rowExpression{expressionInfo: b.info(b.typ(2249).Usage(), operand.scalar.raw.SourcePosition(), ExprProperties{})}, raw: operand.scalar.raw}
+		return comparisonOperand{node: rowExpression{Info: b.info(b.typ(2249).Usage(), operand.scalar.raw.SourcePosition(), ExprProperties{})}, raw: operand.scalar.raw}
 	}
 	return operand.scalar
 }
@@ -117,7 +118,7 @@ func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (compar
 		return comparisonOperand{}, err
 	}
 	raw := operand.scalar.raw.(parser.RowExpr)
-	operand.scalar.node = rowExpression{expressionInfo: b.info(shape.Usage(), raw.Pos, properties), fields: fields, raw: &raw, expansions: operand.expansions}
+	operand.scalar.node = rowExpression{Info: b.info(shape.Usage(), raw.Pos, properties), fields: fields, raw: &raw, expansions: operand.expansions}
 	return operand.scalar, nil
 }
 
@@ -141,7 +142,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	if len(lhs) != len(rhs) {
 		return nil, expressionError("42601", "unequal number of entries in row expressions", raw.Pos)
 	}
-	e := rowComparisonExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, ExprProperties{}), operator: mode, expansions: [2]map[int]compositeExpansionBinding{le, re}}
+	e := rowComparisonExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, ExprProperties{}), operator: mode, expansions: [2]map[int]compositeExpansionBinding{le, re}}
 	if len(lhs) == 0 && !e.distinct() {
 		return nil, expressionError("0A000", "cannot compare rows of zero length", raw.Pos)
 	}
@@ -178,7 +179,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 }
 
 func (e subqueryExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
-	pairs := rowComparisonExpression{expressionInfo: e.expressionInfo, comparisons: e.comparisons, ordering: e.ordering, operator: e.operator}
+	pairs := rowComparisonExpression{Info: e.Info, comparisons: e.comparisons, ordering: e.ordering, operator: e.operator}
 	return pairs.compare(c, left)
 }
 

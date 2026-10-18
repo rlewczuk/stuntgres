@@ -288,7 +288,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 		parts := make([]string, n.value.CompositeLen())
 		for i := range parts {
 			member := n.value.CompositeField(i)
-			literal := literalExpression{expressionInfo: expressionInfo{Usage: u.Type.CompositeMember(i).Usage}, value: member}
+			literal := literalExpression{Info: expressionInfo{Usage: u.Type.CompositeMember(i).Usage}, value: member}
 			parts[i], err = catalogLiteralWithACLAt(ctx, view, reader, literal, aclOutput)
 			if err != nil {
 				return "", err

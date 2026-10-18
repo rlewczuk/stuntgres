@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -158,7 +159,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
+			node := literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: value}
 			for _, pretty := range []bool{false, true} {
 				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				want := tc.compact
@@ -181,7 +182,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 }
 
 type deparseTrap struct {
-	expressionInfo
+	expr.Info
 	calls *int
 }
 
@@ -214,7 +215,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 		t.Fatal(structural, err)
 	}
 	calls := 0
-	trap := deparseTrap{expressionInfo: expressionInfo{Usage: d.columns[0].Usage}, calls: &calls}
+	trap := deparseTrap{Info: expressionInfo{Usage: d.columns[0].Usage}, calls: &calls}
 	if _, err := (pgRenderer{view: view}).sql(context.Background(), trap, pgRenderParent{}); err == nil || calls != 0 {
 		t.Fatal(err, calls)
 	}
@@ -261,7 +262,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
 	boolType, _ := view.LookupType(sqltype.Bool)
 	literal := func(v sqltype.Value) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: v.Type().Usage()}, value: v}
+		return literalExpression{Info: expressionInfo{Usage: v.Type().Usage()}, value: v}
 	}
 	zero, _ := sqltype.OIDValue(oidType, 0)
 	tree, err := catalogTree(treeType, literal(zero))
@@ -280,7 +281,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 		for nullable := range args {
 			test := append([]BoundExpr(nil), args...)
 			test[nullable] = literal(sqltype.Null(test[nullable].ResultUsage().Type))
-			node := deparseExpression{expressionInfo: expressionInfo{Usage: textType.Usage(), Property: ExprProperties{Volatility: Stable}}, signature: signature, args: test}
+			node := deparseExpression{Info: expressionInfo{Usage: textType.Usage(), Property: ExprProperties{Volatility: Stable}}, signature: signature, args: test}
 			value, err := node.Eval(&EvalContext{Context: context.Background()})
 			if err != nil || !value.IsNull() || value.Type() != textType {
 				t.Fatal(constraint, nullable, value, err)
@@ -353,7 +354,7 @@ func TestDeparseConstraintsTypmodsAndLiteralVariants(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{expressionInfo: expressionInfo{Usage: u}, value: value}
+			node := literalExpression{Info: expressionInfo{Usage: u}, value: value}
 			for _, pretty := range []bool{false, true} {
 				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				if err != nil || got != tc.expected {

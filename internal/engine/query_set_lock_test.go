@@ -103,7 +103,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		t.Fatal(err)
 	}
 	limited := setRoot()
-	limited.child = &limitNode{child: limited.child, count: literalExpression{expressionInfo: boundExpressionInfo(query.Root.(*projectNode).expressions[0]), value: zero}}
+	limited.child = &limitNode{child: limited.child, count: literalExpression{Info: boundExpressionInfo(query.Root.(*projectNode).expressions[0]), value: zero}}
 	add("invoker_zero", true, limited, leaves)
 	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()

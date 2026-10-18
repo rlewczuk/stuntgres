@@ -48,7 +48,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				} else {
 					v = sqltype.String(d, tc.raw[i])
 				}
-				args[i] = mathObservedArgument{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v, order: &order, index: i}
+				args[i] = mathObservedArgument{Info: expressionInfo{Usage: d.Usage()}, value: v, order: &order, index: i}
 			}
 			usage := types[tc.result].Usage()
 			plan, err := sqltype.BindBinary(tc.name, usage, usages...)
@@ -96,7 +96,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			}
 			for i, arg := range args {
 				observed := arg.(mathObservedArgument)
-				args[i] = literalExpression{expressionInfo: observed.expressionInfo, value: observed.value}
+				args[i] = literalExpression{Info: observed.Info, value: observed.value}
 			}
 			if generationImmutable(bound) != (tc.volatility == Immutable) {
 				t.Fatal("generation intrinsic volatility lost")

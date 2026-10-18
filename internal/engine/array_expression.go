@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 // Constructors retain scalar children and their stored dependencies rather than
 // replacing the expression with opaque array input text.
 type arrayExpression struct {
-	expressionInfo
+	expr.Info
 	elements         []BoundExpr
 	multidimensional bool
 }
@@ -112,7 +113,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
 					if err == nil {
 						info.Property = coercionProperties(input, plan)
-						node = restoreDomainCastCollations(annotations, coercionExpression{expressionInfo: info, child: input, plan: plan, mode: sqltype.Explicit, syntheticConstructorElement: true})
+						node = restoreDomainCastCollations(annotations, coercionExpression{Info: info, child: input, plan: plan, mode: sqltype.Explicit, syntheticConstructorElement: true})
 					}
 				}
 			}
@@ -129,7 +130,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	if err != nil {
 		return nil, err
 	}
-	return arrayExpression{expressionInfo: info, elements: elements, multidimensional: multidimensional}, nil
+	return arrayExpression{Info: info, elements: elements, multidimensional: multidimensional}, nil
 }
 
 func (r scalarRenderer) arraySQL(ctx context.Context, view CatalogRead, n arrayExpression) (string, error) {
@@ -157,7 +158,7 @@ type boundArraySubscript struct {
 	slice        bool
 }
 type subscriptExpression struct {
-	expressionInfo
+	expr.Info
 	base       BoundExpr
 	subscripts []boundArraySubscript
 	slice      bool

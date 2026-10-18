@@ -191,7 +191,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 	if slot == len(b.aggregates) {
 		b.aggregates = append(b.aggregates, call)
 	}
-	return aggregateExpression{expressionInfo: info, slot: slot, frame: b.frameID()}, nil
+	return aggregateExpression{Info: info, slot: slot, frame: b.frameID()}, nil
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {

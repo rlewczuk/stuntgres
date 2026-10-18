@@ -131,7 +131,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	collision := quoteCaptureCandidate{}
 	for i, origin := range origins {
 		input := string(rune('a' + i))
-		source := literalExpression{expressionInfo: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, input)}
+		source := literalExpression{Info: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, input)}
 		occurrence := functions.StringVariadic{Info: expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 17}}, Name: "quote_ident", Frame: 1, Args: []BoundExpr{source}}
 		ambient := origin
 		if origin.owner != (ids.ObjectRef{}) && origin.attribute == 0 {
@@ -170,7 +170,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("view replacement retained prior defining revision")
 	}
 	sealed := quoteCaptureCandidate{entries: published, sealed: true}
-	missing := functions.StringVariadic{Info: expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, "local")}}}
+	missing := functions.StringVariadic{Info: expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []BoundExpr{literalExpression{Info: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, "local")}}}
 	_, _, err = foldStringVariadic(&EvalContext{Context: ctx, quoteCaptures: &sealed}, missing)
 	if err != nil || sealed.private || len(sealed.entries) != 4 {
 		t.Fatal("sealed executor group admitted row-time publication", err)
@@ -616,7 +616,7 @@ func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
 	types := formatUnitTypes()
 	for _, name := range []string{"concat", "quote_ident", "quote_literal"} {
 		text := strings.Repeat("'a", 8192)
-		arg := literalExpression{expressionInfo: expressionInfo{Usage: types[sqltype.Text].Usage()}, value: sqltype.String(types[sqltype.Text], text)}
+		arg := literalExpression{Info: expressionInfo{Usage: types[sqltype.Text].Usage()}, value: sqltype.String(types[sqltype.Text], text)}
 		node := functions.StringVariadic{Info: expressionInfo{Usage: types[sqltype.Text].Usage()}, Name: name, Args: []BoundExpr{arg}}
 		group := quoteCaptureCandidate{}
 		ctx := &formatWorkContext{Context: context.Background(), checks: 4}

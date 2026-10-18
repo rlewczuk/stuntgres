@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -82,7 +83,7 @@ func (x advisoryExpression) validStored() bool {
 }
 
 type advisoryExpression struct {
-	expressionInfo
+	expr.Info
 	name     string
 	args     []BoundExpr
 	mode     relationLockMode
@@ -168,7 +169,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	for i, child := range raw.Args {
 		if l, ok := child.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
-				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: child.SourcePosition()}}
+				args[i] = literalExpression{Info: expressionInfo{Pos: child.SourcePosition()}}
 				if i < len(unknown) {
 					unknown[i] = true
 				}
@@ -243,13 +244,13 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	if err != nil {
 		return nil, err
 	}
-	return advisoryExpression{expressionInfo: info, name: name, args: args, mode: mode, action: action, lifetime: lifetime}, nil
+	return advisoryExpression{Info: info, name: name, args: args, mode: mode, action: action, lifetime: lifetime}, nil
 }
 
 func foldAdvisoryNull(x advisoryExpression) (BoundExpr, bool) {
 	for _, arg := range x.args {
 		if randomLiteralNull(arg) {
-			return literalExpression{expressionInfo: expressionInfo{Usage: x.Usage, Pos: x.Pos}, value: sqltype.Null(x.Usage.Type)}, true
+			return literalExpression{Info: expressionInfo{Usage: x.Usage, Pos: x.Pos}, value: sqltype.Null(x.Usage.Type)}, true
 		}
 	}
 	return x, false

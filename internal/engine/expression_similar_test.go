@@ -24,7 +24,7 @@ func similarUnitTypes() (*sqltype.Descriptor, *sqltype.Descriptor) {
 func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	text, boolean := similarUnitTypes()
 	literal := func(s string) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
+		return literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
 	}
 	ep, err := sqltype.BindSimilarEscape(text.Usage(), text.Usage(), text.Usage())
 	if err != nil {
@@ -35,7 +35,7 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	null := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}
+	null := literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}
 	node := functions.Similar{Info: expressionInfo{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, node)
 	state(t, err, "22025")
@@ -53,9 +53,9 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 
 func TestSimilarDependencyChildren(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	source := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 0}
-	pattern := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 1}
-	escape := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 2}
+	source := columnExpression{Info: expressionInfo{Usage: text.Usage()}, slot: 0}
+	pattern := columnExpression{Info: expressionInfo{Usage: text.Usage()}, slot: 1}
+	escape := columnExpression{Info: expressionInfo{Usage: text.Usage()}, slot: 2}
 	helper := functions.SimilarEscape{Info: expressionInfo{Usage: text.Usage()}, Pattern: pattern, Escape: escape}
 	predicate := functions.Similar{Info: expressionInfo{Usage: boolean.Usage()}, Left: source, Right: helper}
 	extraction := functions.SimilarSubstring{Info: expressionInfo{Usage: text.Usage()}, Args: [3]BoundExpr{source, pattern, escape}}

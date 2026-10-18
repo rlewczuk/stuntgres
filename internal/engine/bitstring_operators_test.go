@@ -182,7 +182,7 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 			calls = append(calls, "error")
 			return sqltype.Value{}, &sqlstate.Error{Code: "22026", Message: "cannot AND bit strings of different sizes"}
 		})
-		root := bitwiseExpression{expressionInfo: expressionInfo{Usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
+		root := bitwiseExpression{Info: expressionInfo{Usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
 		if reverse {
 			root.left, root.right = root.right, root.left
 		}
@@ -206,7 +206,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value}
+		source := literalExpression{Info: expressionInfo{Usage: usage}, value: value}
 		operands := []functions.Argument{{Expression: source, Usage: usage}, {Expression: source, Usage: usage}}
 		var types functions.BinaryTypes
 		node, err := functions.FinishBinary(b, "||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

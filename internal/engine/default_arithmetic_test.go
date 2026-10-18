@@ -24,7 +24,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{expressionInfo: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{Info: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32

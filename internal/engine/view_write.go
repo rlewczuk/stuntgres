@@ -176,7 +176,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]BoundExpr, len(d.columns))
 	for i, c := range d.columns {
-		outputs[i] = columnExpression{expressionInfo: expressionInfo{Usage: c.Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, slot: i}
+		outputs[i] = columnExpression{Info: expressionInfo{Usage: c.Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, slot: i}
 	}
 	cascaded := false
 	for d.relationKind == viewRelation {
@@ -639,5 +639,5 @@ func viewWritePredicate(predicates []BoundExpr, user BoundExpr) BoundExpr {
 	if len(predicates) == 0 {
 		return user
 	}
-	return viewQualificationExpression{expressionInfo: boundExpressionInfo(predicates[0]), predicates: predicates, user: user}
+	return viewQualificationExpression{Info: boundExpressionInfo(predicates[0]), predicates: predicates, user: user}
 }

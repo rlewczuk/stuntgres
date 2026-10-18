@@ -154,7 +154,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		typ := testUsage(e, sqltype.Int4).Type
 		value, _ := sqltype.Integer(typ, 1)
 		calls := 0
-		expr := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 0, mergeSource: true, virtual: queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil })}
+		expr := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 0, mergeSource: true, virtual: queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil })}
 		parent := EvalContext{Context: context.Background(), Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ)}, mergeReturning: true}
 		child := EvalContext{Context: context.Background(), Scope: 1, Frame: 8, Outer: &parent, mergeSourcePresent: true}
 		v, err := expr.Eval(&child)

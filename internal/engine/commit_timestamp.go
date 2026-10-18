@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -28,7 +29,7 @@ func (k commitTimestampKind) name() string {
 }
 
 type commitTimestampExpression struct {
-	expressionInfo
+	expr.Info
 	kind commitTimestampKind
 	arg  BoundExpr
 }

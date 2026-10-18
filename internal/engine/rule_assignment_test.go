@@ -16,7 +16,7 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := literalExpression{expressionInfo: binder.info(integer.Usage(), parser.Position{}, ExprProperties{}), value: value}
+	index := literalExpression{Info: binder.info(integer.Usage(), parser.Position{}, ExprProperties{}), value: value}
 	plan, err := sqltype.PlanCoercion(array.Usage(), array.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatalf("identity mapping allocated %g times", allocations)
 	}
-	replacement := parameterExpression{expressionInfo: binder.info(integer.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), number: 1}
+	replacement := parameterExpression{Info: binder.info(integer.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), number: 1}
 	changed, err := mapRuleAssignmentTargets(targets, func(expr BoundExpr) (BoundExpr, bool, error) {
 		if expr == nil {
 			return nil, false, nil

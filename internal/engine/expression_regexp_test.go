@@ -85,7 +85,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := bound.(functions.Regexp)
-	node.Args[1] = columnExpression{expressionInfo: expressionInfo{Usage: node.Args[1].ResultUsage(), Property: ExprProperties{Volatility: Immutable, RowDependent: true}}, slot: 0}
+	node.Args[1] = columnExpression{Info: expressionInfo{Usage: node.Args[1].ResultUsage(), Property: ExprProperties{Volatility: Immutable, RowDependent: true}}, slot: 0}
 	node.Property.RowDependent = true
 	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, node, true)
 	if err != nil {

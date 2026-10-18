@@ -197,10 +197,10 @@ func TestQuerySearchRemap(t *testing.T) {
 		if sameRecordUsage(d.search.result.Usage(), copy.search.result.Usage()) {
 			t.Fatal("same-OID shapes merged")
 		}
-		bound := literalExpression{expressionInfo: expressionInfo{Usage: small.Usage()}, value: sqltype.Null(small)}
+		bound := literalExpression{Info: expressionInfo{Usage: small.Usage()}, value: sqltype.Null(small)}
 		left := &projectNode{querySchema: d.schema[:1]}
 		right := &projectNode{querySchema: d.schema}
-		seq := columnExpression{expressionInfo: expressionInfo{Usage: d.search.result.Usage()}}
+		seq := columnExpression{Info: expressionInfo{Usage: d.search.result.Usage()}}
 		n := setNode{querySchema: d.schema, left: left, right: right, operation: "union", leftExpressions: []BoundExpr{bound}, rightExpressions: []BoundExpr{bound, seq}, grouping: make([]queryGrouping, 1)}
 		if err := validateStoredSetNode(&n, nil, d.search); err != nil {
 			t.Fatal(err)

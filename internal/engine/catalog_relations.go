@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,12 +12,12 @@ import (
 )
 
 type catalogUserNameExpression struct {
-	expressionInfo
+	expr.Info
 	arg BoundExpr
 }
 
 type catalogForeignKeysExpression struct {
-	expressionInfo
+	expr.Info
 	metadata *catalogForeignKeyValues
 }
 

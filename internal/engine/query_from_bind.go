@@ -92,7 +92,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) Bou
 			leaf.uses = append(leaf.uses, c.physical)
 		}
 	}
-	column := columnExpression{expressionInfo: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
+	column := columnExpression{Info: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
 	column.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(b.frameID())
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, c.physical, c.slot-c.physical)
@@ -620,7 +620,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				if join.predicate == nil {
 					join.predicate = eq
 				} else {
-					join.predicate = logicalExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), op: parser.LogicalAnd, left: join.predicate, right: eq}
+					join.predicate = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), op: parser.LogicalAnd, left: join.predicate, right: eq}
 				}
 				operands := []comparisonOperand{{node: le}, {node: re}}
 				usage, err := commonExpressionUsage(operands, b.typ(sqltype.Text).Usage(), "JOIN/USING")
@@ -646,7 +646,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						value = conditionalExpression{expressionInfo: b.info(usage, pos, ExprProperties{RowDependent: true}), kind: parser.Coalesce, args: []BoundExpr{lv, rv}}
+						value = conditionalExpression{Info: b.info(usage, pos, ExprProperties{RowDependent: true}), kind: parser.Coalesce, args: []BoundExpr{lv, rv}}
 					} else {
 						value, err = b.coerceConditional(comparisonOperand{node: chosen}, usage, "JOIN/USING")
 						if err != nil {

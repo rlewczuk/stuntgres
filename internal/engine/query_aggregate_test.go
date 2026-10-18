@@ -281,7 +281,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if binder.sameGroupExpression(key, reversed) {
 		t.Fatal("algebraic identity admitted")
 	}
-	first := parameterExpression{expressionInfo: expressionInfo{Usage: key.ResultUsage()}, number: 1}
+	first := parameterExpression{Info: expressionInfo{Usage: key.ResultUsage()}, number: 1}
 	second := first
 	second.number = 2
 	if binder.sameGroupExpression(first, second) {

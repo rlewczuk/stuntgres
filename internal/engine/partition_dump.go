@@ -40,7 +40,7 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 					if datum.kind != 0 {
 						continue
 					}
-					literal := literalExpression{expressionInfo: expressionInfo{Usage: datum.value.Type().Usage()}, value: datum.value}
+					literal := literalExpression{Info: expressionInfo{Usage: datum.value.Type().Usage()}, value: datum.value}
 					if err := regclassReplayReferences(catalog, literal, add); err != nil {
 						return nil, err
 					}
@@ -325,7 +325,7 @@ func partitionTupleDumpSQL(ctx context.Context, catalog CatalogRead, keys []part
 		case 1:
 			text.WriteString("MAXVALUE")
 		default:
-			literal := literalExpression{expressionInfo: expressionInfo{Usage: keys[i].usage}, value: datum.value}
+			literal := literalExpression{Info: expressionInfo{Usage: keys[i].usage}, value: datum.value}
 			value, err := catalogLiteralSQL(ctx, catalog, literal)
 			if err != nil {
 				return "", err

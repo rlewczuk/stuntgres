@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -62,7 +63,7 @@ func (op objectAddressOperation) fields() ([]string, []sqltype.ID) {
 // Arguments, labels and coercions retain written order independently of slots.
 // The immutable recipe never retains a mutable catalog or a computed result.
 type objectAddressExpression struct {
-	expressionInfo
+	expr.Info
 	op     objectAddressOperation
 	args   [3]BoundExpr
 	slots  [3]uint8
@@ -171,7 +172,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 		}
 		usage = shape.Usage()
 	}
-	n.expressionInfo, err = b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), catalogRoutineProvider, op.name(), ids[:]...)
+	n.Info, err = b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), catalogRoutineProvider, op.name(), ids[:]...)
 	if err != nil {
 		return nil, err
 	}

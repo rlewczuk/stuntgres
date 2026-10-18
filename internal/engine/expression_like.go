@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type likeExpression struct {
-	expressionInfo
+	expr.Info
 	left, right         BoundExpr
 	provider            sqltype.LikePlan
 	operator, namespace string

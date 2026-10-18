@@ -72,8 +72,8 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 			t.Fatal(err)
 		}
 		args := []BoundExpr{
-			literalExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
-			literalExpression{expressionInfo: expressionInfo{Usage: right.Usage()}, value: key},
+			literalExpression{Info: expressionInfo{Usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
+			literalExpression{Info: expressionInfo{Usage: right.Usage()}, value: key},
 		}
 		expr, err := functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, ExprProperties{}), name, args, parser.OrdinaryFunctionSyntax)
 		if err != nil {

@@ -47,7 +47,7 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					bound.comparisons = []comparisonExpression{{left: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+					bound.comparisons = []comparisonExpression{{left: literalExpression{Info: expressionInfo{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{Info: expressionInfo{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
 				}
 				parent := queryState{source: source}
 				c := parent.evaluation(ctx)
@@ -274,10 +274,10 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 	child := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
 	typ := child.Usage.Type
 	info := expressionInfo{Usage: typ.Usage()}
-	falseLiteral := literalExpression{expressionInfo: info, value: sqltype.Boolean(typ, false)}
-	trueLiteral := literalExpression{expressionInfo: info, value: sqltype.Boolean(typ, true)}
-	nullLiteral := literalExpression{expressionInfo: info, value: sqltype.Null(typ)}
-	parameter := parameterExpression{expressionInfo: info, number: 1}
+	falseLiteral := literalExpression{Info: info, value: sqltype.Boolean(typ, false)}
+	trueLiteral := literalExpression{Info: info, value: sqltype.Boolean(typ, true)}
+	nullLiteral := literalExpression{Info: info, value: sqltype.Null(typ)}
+	parameter := parameterExpression{Info: info, number: 1}
 	for _, tc := range []struct {
 		name        string
 		op          parser.LogicalOperator
@@ -296,7 +296,7 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 			parent := queryState{source: source}
 			c := parent.evaluation(context.Background())
 			c.Parameters = []sqltype.Value{sqltype.Boolean(typ, false)}
-			expression := logicalExpression{expressionInfo: info, op: tc.op, left: tc.left, right: tc.right, queryRight: tc.right != nil}
+			expression := logicalExpression{Info: info, op: tc.op, left: tc.left, right: tc.right, queryRight: tc.right != nil}
 			value, err := expression.Eval(&c)
 			if tc.state != "" {
 				var diagnostic *sqlstate.Error

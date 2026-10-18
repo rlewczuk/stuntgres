@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -82,7 +83,7 @@ func (k visibilityInquiryKind) volatility() Volatility {
 }
 
 type visibilityInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	kind visibilityInquiryKind
 	arg  BoundExpr
 }

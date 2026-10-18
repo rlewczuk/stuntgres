@@ -45,8 +45,8 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		})
 	}
 	for _, node := range []BoundExpr{
-		parameterExpression{expressionInfo: expressionInfo{Usage: predicate.Usage}, number: 1},
-		aggregateExpression{expressionInfo: expressionInfo{Usage: predicate.Usage}, slot: 0},
+		parameterExpression{Info: expressionInfo{Usage: predicate.Usage}, number: 1},
+		aggregateExpression{Info: expressionInfo{Usage: predicate.Usage}, slot: 0},
 	} {
 		copy := *original
 		copy.checkConstraints = append([]checkConstraint(nil), original.checkConstraints...)

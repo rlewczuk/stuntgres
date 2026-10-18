@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -10,7 +11,7 @@ import (
 )
 
 type bitwiseExpression struct {
-	expressionInfo
+	expr.Info
 	left, right BoundExpr
 	provider    sqltype.Bitwise
 	bits        sqltype.BitStringBitwise
@@ -289,8 +290,8 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 		return nil, err
 	}
 	return bitwiseExpression{
-		expressionInfo: selectedInfo,
-		left:           l, right: r, provider: provider, bits: bits, network: network,
+		Info: selectedInfo,
+		left: l, right: r, provider: provider, bits: bits, network: network,
 		operator: op, namespace: namespace,
 	}, nil
 }

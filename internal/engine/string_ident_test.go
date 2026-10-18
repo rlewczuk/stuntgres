@@ -42,7 +42,7 @@ func TestStringIdentBinding(t *testing.T) {
 				if i == failing {
 					childError = failure
 				}
-				copy.Args[i] = mathObservedArgument{expressionInfo: boundExpressionInfo(arg), value: v, order: &observed, index: i, err: childError}
+				copy.Args[i] = mathObservedArgument{Info: boundExpressionInfo(arg), value: v, order: &observed, index: i, err: childError}
 			}
 			v, err := copy.Eval(&EvalContext{Context: context.Background()})
 			want := []int{0, 1}

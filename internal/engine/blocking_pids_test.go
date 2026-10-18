@@ -93,7 +93,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	defer scope.Finish(context.Canceled)
 	inquiry := expressions[0].(blockingInquiryExpression)
 	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.ID()))
-	inquiry.arg = literalExpression{expressionInfo: expressionInfo{Usage: input.Type().Usage()}, value: input}
+	inquiry.arg = literalExpression{Info: expressionInfo{Usage: input.Type().Usage()}, value: input}
 	inquiry.Property = ExprProperties{Volatility: Volatile}
 	evaluation := &EvalContext{Context: context.Background(), statementScope: scope}
 	before, err := inquiry.Eval(evaluation)

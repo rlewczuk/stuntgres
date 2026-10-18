@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -46,7 +47,7 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 }
 
 type deparseExpression struct {
-	expressionInfo
+	expr.Info
 	signature deparseSignature
 	args      []BoundExpr
 }
@@ -62,7 +63,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 		if literal, ok := child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: child.SourcePosition()}}
+				args[i] = literalExpression{Info: expressionInfo{Pos: child.SourcePosition()}}
 			}
 			continue
 		}

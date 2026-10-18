@@ -289,7 +289,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 		if !ok || column.slot != 2 {
 			return bound, false, nil
 		}
-		return literalExpression{expressionInfo: expressionInfo{Usage: column.ResultUsage()}, value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
+		return literalExpression{Info: expressionInfo{Usage: column.ResultUsage()}, value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
 	})
 	if err != nil || rewritten == node {
 		t.Fatal("FILTER rewrite not copied", rewritten, err)

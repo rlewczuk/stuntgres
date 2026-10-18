@@ -99,7 +99,7 @@ func TestArrayCompareCommonType(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	integer := func(id sqltype.ID) comparisonOperand {
-		return comparisonOperand{node: parameterExpression{expressionInfo: b.info(b.typ(id).Usage(), parser.Position{}, ExprProperties{}), number: 1}}
+		return comparisonOperand{node: parameterExpression{Info: b.info(b.typ(id).Usage(), parser.Position{}, ExprProperties{}), number: 1}}
 	}
 	unknown := comparisonOperand{node: parameterExpression{number: 1}}
 	common, err := commonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.typ(sqltype.Text).Usage(), "")
@@ -113,10 +113,10 @@ func TestArrayCompareCommonType(t *testing.T) {
 	_, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
-	local := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), frame: b.frameID()}
+	local := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), frame: b.frameID()}
 	other := local
 	other.frame++
-	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{expressionInfo: expressionInfo{Property: ExprProperties{RowDependent: true}}}) {
+	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{Info: expressionInfo{Property: ExprProperties{RowDependent: true}}}) {
 		t.Fatal("IN Var classification lost lexical identity")
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -10,7 +11,7 @@ import (
 )
 
 type unnestExpression struct {
-	expressionInfo
+	expr.Info
 	args      []BoundExpr
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
@@ -127,5 +128,5 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 	if err != nil {
 		return nil, err
 	}
-	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}}, nil
+	return unnestExpression{Info: info, args: []BoundExpr{arg}}, nil
 }
