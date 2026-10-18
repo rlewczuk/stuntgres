@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -14,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func orderedSetUnitProvider(t *testing.T, operation aggregateOperation, id sqltype.ID, array bool) orderedSetProvider {
+func orderedSetUnitProvider(t *testing.T, operation functions.AggregateOperation, id sqltype.ID, array bool) *functions.OrderedSet {
 	t.Helper()
 	catalog := New().CatalogRead()
 	input, ok := catalog.LookupType(id)
@@ -34,69 +35,69 @@ func orderedSetUnitProvider(t *testing.T, operation aggregateOperation, id sqlty
 		}
 		usage.Type = result
 	}
-	p := orderedSetProvider{usage: usage, input: input, fraction: fraction, operation: operation, array: array, comparison: comparison}
-	if operation == aggregatePercentileCont && id == sqltype.Interval {
-		p.subtract, err = sqltype.BindArithmetic(sqltype.ArithmeticSubtract, input, input, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		p.multiply, err = sqltype.BindArithmetic(sqltype.ArithmeticMultiply, input, fraction, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		p.add, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, input, input, input)
-		if err != nil {
-			t.Fatal(err)
-		}
+	p, err := functions.NewOrderedSet(usage, input, fraction, operation, array, comparison)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return p
 }
 
-func orderedSetUnitInput(t *testing.T, p orderedSetProvider, texts ...string) orderedAggregateInput {
+// orderedSetVariant rebuilds a unit provider with another operation, array
+// shape or result usage over the same input, fraction and comparison.
+func orderedSetVariant(t *testing.T, p *functions.OrderedSet, operation functions.AggregateOperation, array bool, usage sqltype.Usage) *functions.OrderedSet {
 	t.Helper()
-	in := orderedAggregateInput{width: 2, indices: make([]int, len(texts)), values: make([]sqltype.Value, len(texts)*2)}
+	variant, err := functions.NewOrderedSet(usage, p.InputType(), p.FractionType(), operation, array, p.Comparison())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return variant
+}
+
+func orderedSetUnitInput(t *testing.T, p *functions.OrderedSet, texts ...string) functions.OrderedInput {
+	t.Helper()
+	in := functions.OrderedInput{Width: 2, Indices: make([]int, len(texts)), Values: make([]sqltype.Value, len(texts)*2)}
 	for i, text := range texts {
-		value, err := p.input.Input(context.Background(), text, -1)
+		value, err := p.InputType().Input(context.Background(), text, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		in.indices[i] = i
-		in.values[i*2] = value
+		in.Indices[i] = i
+		in.Values[i*2] = value
 	}
 	return in
 }
 
-func orderedSetUnitFractionArray(t *testing.T, p orderedSetProvider) *sqltype.Descriptor {
+func orderedSetUnitFractionArray(t *testing.T, p *functions.OrderedSet) *sqltype.Descriptor {
 	t.Helper()
 	// Pair the executable codec with this provider's exact leaf generation.
-	array, err := sqltype.Array(p.fraction.AssociatedArray(), "_float8", p.fraction)
+	array, err := sqltype.Array(p.FractionType().AssociatedArray(), "_float8", p.FractionType())
 	if err != nil {
 		t.Fatal(err)
 	}
 	return array
 }
 
-func orderedSetUnitFinalize(ctx context.Context, p *orderedSetProvider, direct sqltype.Value, in orderedAggregateInput, env sqltype.InputEnvironment) (sqltype.Value, error) {
-	prepared, err := p.PrepareOrdered(ctx, []sqltype.Value{direct}, in.len())
+func orderedSetUnitFinalize(ctx context.Context, p *functions.OrderedSet, direct sqltype.Value, in functions.OrderedInput, env sqltype.InputEnvironment) (sqltype.Value, error) {
+	prepared, err := p.PrepareOrdered(ctx, []sqltype.Value{direct}, in.Len())
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if prepared.terminal {
-		return prepared.value, ctx.Err()
+	if prepared.Terminal {
+		return prepared.Value, ctx.Err()
 	}
 	return p.FinalizeOrdered(ctx, prepared, in, env)
 }
 
 func TestOrderedSetAggregateSevenProviders(t *testing.T) {
 	for _, tc := range []struct {
-		operation aggregateOperation
+		operation functions.AggregateOperation
 		id        sqltype.ID
 		array     bool
 		want      string
 	}{
-		{aggregatePercentileCont, sqltype.Float8, false, "25"}, {aggregatePercentileCont, sqltype.Interval, false, "25 days"},
-		{aggregatePercentileCont, sqltype.Float8, true, "{25}"}, {aggregatePercentileCont, sqltype.Interval, true, "{\"25 days\"}"},
-		{aggregatePercentileDisc, sqltype.Int4, false, "20"}, {aggregatePercentileDisc, sqltype.Int4, true, "{20}"}, {aggregateMode, sqltype.Int4, false, "10"},
+		{functions.AggregatePercentileCont, sqltype.Float8, false, "25"}, {functions.AggregatePercentileCont, sqltype.Interval, false, "25 days"},
+		{functions.AggregatePercentileCont, sqltype.Float8, true, "{25}"}, {functions.AggregatePercentileCont, sqltype.Interval, true, "{\"25 days\"}"},
+		{functions.AggregatePercentileDisc, sqltype.Int4, false, "20"}, {functions.AggregatePercentileDisc, sqltype.Int4, true, "{20}"}, {functions.AggregateMode, sqltype.Int4, false, "10"},
 	} {
 		p := orderedSetUnitProvider(t, tc.operation, tc.id, tc.array)
 		texts := []string{"10", "20", "30", "40"}
@@ -104,8 +105,8 @@ func TestOrderedSetAggregateSevenProviders(t *testing.T) {
 			texts = []string{"10 days", "20 days", "30 days", "40 days"}
 		}
 		in := orderedSetUnitInput(t, p, texts...)
-		before := append([]sqltype.Value(nil), in.values...)
-		direct, _ := sqltype.Float(p.fraction, .5)
+		before := append([]sqltype.Value(nil), in.Values...)
+		direct, _ := sqltype.Float(p.FractionType(), .5)
 		if tc.array {
 			var err error
 			direct, err = orderedSetUnitFractionArray(t, p).Input(context.Background(), "{.5}", -1)
@@ -113,29 +114,29 @@ func TestOrderedSetAggregateSevenProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		value, err := orderedSetUnitFinalize(context.Background(), &p, direct, in, sqltype.InputEnvironment{})
+		value, err := orderedSetUnitFinalize(context.Background(), p, direct, in, sqltype.InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := p.usage.Type.Output(context.Background(), value)
+		text, err := p.ResultUsage().Type.Output(context.Background(), value)
 		if err != nil || text != tc.want {
 			t.Fatalf("%v %q want %q: %v", tc, text, tc.want, err)
 		}
-		if !reflect.DeepEqual(before, in.values) {
+		if !reflect.DeepEqual(before, in.Values) {
 			t.Fatal("borrowed payload mutated")
 		}
 	}
 }
 
 func TestOrderedSetAggregateShapeAndEmptyPrecedence(t *testing.T) {
-	p := orderedSetUnitProvider(t, aggregatePercentileCont, sqltype.Float8, true)
+	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, true)
 	fractionArray := orderedSetUnitFractionArray(t, p)
 	direct, err := fractionArray.Input(context.Background(), "[-1:0][3:5]={{1,NULL,0},{.5,.25,.5}}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	in := orderedSetUnitInput(t, p, "10", "20", "30", "40")
-	out, err := orderedSetUnitFinalize(context.Background(), &p, direct, in, sqltype.InputEnvironment{})
+	out, err := orderedSetUnitFinalize(context.Background(), p, direct, in, sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,30 +156,29 @@ func TestOrderedSetAggregateShapeAndEmptyPrecedence(t *testing.T) {
 		}
 	}
 	invalid, _ := fractionArray.Input(context.Background(), "{1.1,-.1}", -1)
-	empty, err := orderedSetUnitFinalize(context.Background(), &p, invalid, orderedAggregateInput{}, sqltype.InputEnvironment{})
+	empty, err := orderedSetUnitFinalize(context.Background(), p, invalid, functions.OrderedInput{}, sqltype.InputEnvironment{})
 	if err != nil || !empty.IsNull() {
 		t.Fatal("array validated empty state", err)
 	}
-	_, err = orderedSetUnitFinalize(context.Background(), &p, invalid, in, sqltype.InputEnvironment{})
+	_, err = orderedSetUnitFinalize(context.Background(), p, invalid, in, sqltype.InputEnvironment{})
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22003" || d.Message != "percentile value 1.1 is not between 0 and 1" || d.Position != "" {
 		t.Fatal(err)
 	}
-	p.array = false
-	p.usage = p.input.Usage()
-	bad, _ := sqltype.Float(p.fraction, 1.1)
-	_, err = orderedSetUnitFinalize(context.Background(), &p, bad, orderedAggregateInput{}, sqltype.InputEnvironment{})
+	p = orderedSetVariant(t, p, p.Operation(), false, p.InputType().Usage())
+	bad, _ := sqltype.Float(p.FractionType(), 1.1)
+	_, err = orderedSetUnitFinalize(context.Background(), p, bad, functions.OrderedInput{}, sqltype.InputEnvironment{})
 	if !errors.As(err, &d) || d.Code != "22003" {
 		t.Fatal("scalar skipped validation", err)
 	}
 }
 
 func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
-	p := orderedSetUnitProvider(t, aggregatePercentileCont, sqltype.Float8, false)
+	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, false)
 	in := orderedSetUnitInput(t, p, "Infinity", "Infinity")
 	for _, fraction := range []float64{0, .5, 1} {
-		direct, _ := sqltype.Float(p.fraction, fraction)
-		out, err := orderedSetUnitFinalize(context.Background(), &p, direct, in, sqltype.InputEnvironment{})
+		direct, _ := sqltype.Float(p.FractionType(), fraction)
+		out, err := orderedSetUnitFinalize(context.Background(), p, direct, in, sqltype.InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -196,16 +196,16 @@ func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
 		{sqltype.Float8, []string{"1", "NaN", "NaN"}, "NaN"},
 		{sqltype.Inet, []string{"10.0.0.1", "10.0.0.1", "10.0.0.2"}, "10.0.0.1"},
 	} {
-		mode := orderedSetUnitProvider(t, aggregateMode, tc.id, false)
-		out, err := orderedSetUnitFinalize(context.Background(), &mode, sqltype.Value{}, orderedSetUnitInput(t, mode, tc.values...), sqltype.InputEnvironment{})
+		mode := orderedSetUnitProvider(t, functions.AggregateMode, tc.id, false)
+		out, err := orderedSetUnitFinalize(context.Background(), mode, sqltype.Value{}, orderedSetUnitInput(t, mode, tc.values...), sqltype.InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := mode.input.Input(context.Background(), tc.want, -1)
+		want, err := mode.InputType().Input(context.Background(), tc.want, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		cmp, err := mode.comparison.Compare(context.Background(), out, want, sqltype.InputEnvironment{})
+		cmp, err := mode.Comparison().Compare(context.Background(), out, want, sqltype.InputEnvironment{})
 		if err != nil || cmp != 0 {
 			t.Fatal(tc, cmp, err)
 		}
@@ -213,23 +213,23 @@ func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
 }
 
 func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
-	for _, phase := range []string{".sortOrderedAggregate.func1", ".(*orderedSetProvider).mode", ".(*orderedSetProvider).PrepareOrdered", ".(*orderedSetProvider).FinalizeOrdered", ".(*orderedSetProvider).percentile"} {
+	for _, phase := range []string{".sortOrderedAggregate.func1", ".(*OrderedSet).mode", ".(*OrderedSet).PrepareOrdered", ".(*OrderedSet).FinalizeOrdered", ".(*OrderedSet).percentile"} {
 		t.Run(phase, func(t *testing.T) {
-			operation := aggregatePercentileCont
-			if phase == ".(*orderedSetProvider).mode" {
-				operation = aggregateMode
+			operation := functions.AggregatePercentileCont
+			if phase == ".(*OrderedSet).mode" {
+				operation = functions.AggregateMode
 			}
 			p := orderedSetUnitProvider(t, operation, sqltype.Float8, false)
 			in := orderedSetUnitInput(t, p, "10", "20", "30", "40")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: phase}
-			direct, _ := sqltype.Float(p.fraction, .5)
+			direct, _ := sqltype.Float(p.FractionType(), .5)
 			var err error
 			if phase == ".sortOrderedAggregate.func1" {
-				_, err = sortOrderedAggregate(probe, &queryState{}, aggregateCall{stageWidth: 2, order: []sortKey{{comparison: p.comparison, cache: 0}}}, in.values)
+				_, err = sortOrderedAggregate(probe, &queryState{}, aggregateCall{stageWidth: 2, order: []sortKey{{comparison: p.Comparison(), cache: 0}}}, in.Values)
 			} else {
-				_, err = orderedSetUnitFinalize(probe, &p, direct, in, sqltype.InputEnvironment{})
+				_, err = orderedSetUnitFinalize(probe, p, direct, in, sqltype.InputEnvironment{})
 			}
 			if !probe.entered || !errors.Is(err, context.Canceled) {
 				t.Fatal(phase, probe.entered, err)
@@ -239,8 +239,8 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 }
 
 func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
-	p := orderedSetUnitProvider(t, aggregatePercentileCont, sqltype.Float8, false)
-	info := expressionInfo{Usage: p.input.Usage(), Property: ExprProperties{RowDependent: true}}
+	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, false)
+	info := expressionInfo{Usage: p.InputType().Usage(), Property: ExprProperties{RowDependent: true}}
 	key := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 0}
 	arg := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}
 	grouping, err := sqltype.BindGrouping(key.ResultUsage())
@@ -248,18 +248,19 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := func(n float64) BoundExpr {
-		value, _ := sqltype.Float(p.input, n)
-		return literalExpression{expressionInfo: expressionInfo{Usage: p.input.Usage()}, value: value}
+		value, _ := sqltype.Float(p.InputType(), n)
+		return literalExpression{expressionInfo: expressionInfo{Usage: p.InputType().Usage()}, value: value}
 	}
 	for _, phase := range []string{"success", "having", "direct", "prepare", "sort", "scan", "array", "percentile"} {
 		t.Run(phase, func(t *testing.T) {
 			provider := p
 			if phase == "scan" {
-				provider.operation = aggregateMode
+				provider = orderedSetVariant(t, provider, functions.AggregateMode, provider.Array(), provider.ResultUsage())
 			}
 			if phase == "array" || phase == "prepare" {
-				provider.usage.Type = orderedSetUnitFractionArray(t, provider)
-				provider.array = true
+				usage := provider.ResultUsage()
+				usage.Type = orderedSetUnitFractionArray(t, provider)
+				provider = orderedSetVariant(t, provider, provider.Operation(), true, usage)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -267,15 +268,15 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 			target := ""
 			switch phase {
 			case "prepare":
-				target = ".(*orderedSetProvider).PrepareOrdered"
+				target = ".(*OrderedSet).PrepareOrdered"
 			case "sort":
 				target = ".sortOrderedAggregate.func1"
 			case "scan":
-				target = ".(*orderedSetProvider).mode"
+				target = ".(*OrderedSet).mode"
 			case "array":
-				target = ".(*orderedSetProvider).arrayPercentiles"
+				target = ".(*OrderedSet).arrayPercentiles"
 			case "percentile":
-				target = ".(*orderedSetProvider).percentile"
+				target = ".(*OrderedSet).percentile"
 			}
 			var probe *aggregateModifierFamilyCancelContext
 			if target != "" {
@@ -283,25 +284,25 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				execution = probe
 			}
 			calls := 0
-			direct := queryProbe(provider.fraction.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+			direct := queryProbe(provider.FractionType().Usage(), func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				if phase == "direct" {
 					cancel()
 				}
-				if provider.array {
+				if provider.Array() {
 					return orderedSetUnitFractionArray(t, provider).Input(c.Context, "{.25,.75}", -1)
 				}
-				return groupExpression{expressionInfo: expressionInfo{Usage: provider.fraction.Usage()}, slot: 0, frame: 1}.Eval(c)
+				return groupExpression{expressionInfo: expressionInfo{Usage: provider.FractionType().Usage()}, slot: 0, frame: 1}.Eval(c)
 			})
-			child := &valuesNode{querySchema: querySchema{{Usage: p.input.Usage()}, {Usage: p.input.Usage()}}, rows: [][]BoundExpr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
-			call := aggregateCall{provider: &provider, argument: arg, direct: []BoundExpr{direct}, operation: provider.operation, stageWidth: 2, order: []sortKey{{expression: arg, comparison: provider.comparison, slot: 0, cache: 0}}}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.input.Usage()}, {Usage: provider.usage}}, child: child, keys: []BoundExpr{key}, grouping: []queryGrouping{{Grouping: grouping}}, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: querySchema{{Usage: provider.usage}}, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: provider.usage}, slot: 1, frame: 1}}, frame: 1}
+			child := &valuesNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, rows: [][]BoundExpr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
+			call := aggregateCall{provider: provider, argument: arg, direct: []BoundExpr{direct}, operation: provider.Operation(), stageWidth: 2, order: []sortKey{{expression: arg, comparison: provider.Comparison(), slot: 0, cache: 0}}}
+			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, child: child, keys: []BoundExpr{key}, grouping: []queryGrouping{{Grouping: grouping}}, calls: []aggregateCall{call}}
+			root := &projectNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: provider.ResultUsage()}, slot: 1, frame: 1}}, frame: 1}
 			if phase == "having" {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 				root.child = &filterNode{querySchema: aggregate.querySchema, child: aggregate, predicate: literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}
 			}
-			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(p.input)}}, flat: []sqltype.Value{sqltype.Null(p.input)}}
+			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, flat: []sqltype.Value{sqltype.Null(p.InputType())}}
 			source := &querySource{sources: []*querySource{owned}}
 			rows, count, err := finalizeQuery(execution, root, source, nil)
 			if phase == "having" {
@@ -370,7 +371,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 			}
 		}
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name, Pos: position}}}
-		node, err := b.bindOrderedSet(raw, name)
+		node, _, err := b.bindRegisteredAggregate(raw, name, orderedSetDefinition())
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -386,7 +387,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 	var slots []int
 	for _, fraction := range []string{".25", ".75", ".25"} {
 		raw := parser.AggregateExpr{Name: "percentile_cont", Within: true, Pos: position, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NumericValue, Text: fraction, Pos: position}}}, Order: []parser.OrderKey{{Expr: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: position}}, Pos: position}}}
-		node, err := b.bindOrderedSet(raw, name)
+		node, _, err := b.bindRegisteredAggregate(raw, name, orderedSetDefinition())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -398,15 +399,15 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 }
 
 func TestOrderedSetAggregateInternalCharCarrier(t *testing.T) {
-	for _, operation := range []aggregateOperation{aggregateMode, aggregatePercentileDisc} {
+	for _, operation := range []functions.AggregateOperation{functions.AggregateMode, functions.AggregatePercentileDisc} {
 		p := orderedSetUnitProvider(t, operation, sqltype.Char, false)
 		in := orderedSetUnitInput(t, p, "b", "b", "c")
-		direct, _ := sqltype.Float(p.fraction, .5)
-		out, err := orderedSetUnitFinalize(context.Background(), &p, direct, in, sqltype.InputEnvironment{})
-		if err != nil || out.Type() != p.input {
+		direct, _ := sqltype.Float(p.FractionType(), .5)
+		out, err := orderedSetUnitFinalize(context.Background(), p, direct, in, sqltype.InputEnvironment{})
+		if err != nil || out.Type() != p.InputType() {
 			t.Fatal("internal CHAR descriptor", out.Type(), err)
 		}
-		text, err := p.input.Output(context.Background(), out)
+		text, err := p.InputType().Output(context.Background(), out)
 		if err != nil || text != "b" {
 			t.Fatal(text, err)
 		}
@@ -418,12 +419,12 @@ func TestOrderedSetAggregateInternalCharCarrier(t *testing.T) {
 func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 	for _, family := range []struct {
 		name      string
-		operation aggregateOperation
+		operation functions.AggregateOperation
 		id        sqltype.ID
 	}{
-		{"cont_float", aggregatePercentileCont, sqltype.Float8},
-		{"cont_interval", aggregatePercentileCont, sqltype.Interval},
-		{"disc", aggregatePercentileDisc, sqltype.Int4},
+		{"cont_float", functions.AggregatePercentileCont, sqltype.Float8},
+		{"cont_interval", functions.AggregatePercentileCont, sqltype.Interval},
+		{"disc", functions.AggregatePercentileDisc, sqltype.Int4},
 	} {
 		for _, tc := range []struct {
 			name, fraction, want                  string
@@ -444,7 +445,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 		} {
 			t.Run(family.name+"/"+tc.name, func(t *testing.T) {
 				provider := orderedSetUnitProvider(t, family.operation, family.id, tc.array)
-				fractionType := provider.fraction
+				fractionType := provider.FractionType()
 				if tc.array {
 					fractionType = orderedSetUnitFractionArray(t, provider)
 				}
@@ -458,7 +459,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				}
 				inputCalls, directCalls := 0, 0
 				inputError := errors.New("ordered-set input must be evaluated before direct finalization")
-				argument := queryProbe(provider.input.Usage(), func(c *EvalContext) (sqltype.Value, error) {
+				argument := queryProbe(provider.InputType().Usage(), func(c *EvalContext) (sqltype.Value, error) {
 					inputCalls++
 					if tc.inputError && inputCalls == 2 {
 						return sqltype.Value{}, inputError
@@ -470,19 +471,19 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				if family.id == sqltype.Interval {
 					values = []string{"30 days", "10 days", "20 days"}
 				}
-				child := &valuesNode{querySchema: querySchema{{Usage: provider.input.Usage()}}}
+				child := &valuesNode{querySchema: querySchema{{Usage: provider.InputType().Usage()}}}
 				if !tc.empty {
 					for _, text := range values {
-						value, err := provider.input.Input(context.Background(), text, -1)
+						value, err := provider.InputType().Input(context.Background(), text, -1)
 						if err != nil {
 							t.Fatal(err)
 						}
-						child.rows = append(child.rows, []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: provider.input.Usage()}, value: value}})
+						child.rows = append(child.rows, []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: provider.InputType().Usage()}, value: value}})
 					}
 				}
-				call := aggregateCall{provider: &provider, argument: argument, direct: []BoundExpr{direct}, operation: family.operation, stageWidth: 2, order: []sortKey{{expression: argument, comparison: provider.comparison, slot: 0, cache: 0}}}
-				node := &aggregateNode{querySchema: querySchema{{Usage: provider.usage}}, child: child, calls: []aggregateCall{call}}
-				root := &projectNode{querySchema: node.querySchema, child: node, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: provider.usage}, slot: 0, frame: 1}}, frame: 1}
+				call := aggregateCall{provider: provider, argument: argument, direct: []BoundExpr{direct}, operation: family.operation, stageWidth: 2, order: []sortKey{{expression: argument, comparison: provider.Comparison(), slot: 0, cache: 0}}}
+				node := &aggregateNode{querySchema: querySchema{{Usage: provider.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
+				root := &projectNode{querySchema: node.querySchema, child: node, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: provider.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
@@ -531,7 +532,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				}
 				out := make([]sqltype.Value, 1)
 				present, err := rows.Next(context.Background(), out)
-				if !present || err != nil || out[0].Type() != provider.usage.Type {
+				if !present || err != nil || out[0].Type() != provider.ResultUsage().Type {
 					t.Fatal("result authority", present, out, err)
 				}
 				if tc.want == "" {
@@ -539,7 +540,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 						t.Fatal("expected SQL NULL", out[0])
 					}
 				} else {
-					text, err := provider.usage.Type.Output(context.Background(), out[0])
+					text, err := provider.ResultUsage().Type.Output(context.Background(), out[0])
 					if err != nil || text != tc.want {
 						t.Fatal(text, tc.want, err)
 					}
@@ -560,24 +561,24 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	domain := domainUnitType(t, view, "os_unit_domain").typ
 	for _, tc := range []struct {
 		name            string
-		operation       aggregateOperation
+		operation       functions.AggregateOperation
 		id              sqltype.ID
 		custom          *sqltype.Descriptor
 		array, explicit bool
 	}{
-		{"cont_float", aggregatePercentileCont, sqltype.Float8, nil, false, false},
-		{"cont_interval", aggregatePercentileCont, sqltype.Interval, nil, false, false},
-		{"cont_float_array", aggregatePercentileCont, sqltype.Float8, nil, true, false},
-		{"cont_interval_array", aggregatePercentileCont, sqltype.Interval, nil, true, false},
-		{"disc_sized", aggregatePercentileDisc, sqltype.VarChar, nil, false, false},
-		{"disc_sized_array", aggregatePercentileDisc, sqltype.VarChar, nil, true, false},
-		{"mode_explicit", aggregateMode, sqltype.VarChar, nil, false, true},
-		{"disc_enum", aggregatePercentileDisc, 0, enum, false, false},
-		{"disc_enum_array", aggregatePercentileDisc, 0, enum, true, false},
-		{"mode_enum", aggregateMode, 0, enum, false, false},
-		{"disc_domain", aggregatePercentileDisc, 0, domain, false, false},
-		{"disc_domain_array", aggregatePercentileDisc, 0, domain, true, false},
-		{"mode_domain", aggregateMode, 0, domain, false, false},
+		{"cont_float", functions.AggregatePercentileCont, sqltype.Float8, nil, false, false},
+		{"cont_interval", functions.AggregatePercentileCont, sqltype.Interval, nil, false, false},
+		{"cont_float_array", functions.AggregatePercentileCont, sqltype.Float8, nil, true, false},
+		{"cont_interval_array", functions.AggregatePercentileCont, sqltype.Interval, nil, true, false},
+		{"disc_sized", functions.AggregatePercentileDisc, sqltype.VarChar, nil, false, false},
+		{"disc_sized_array", functions.AggregatePercentileDisc, sqltype.VarChar, nil, true, false},
+		{"mode_explicit", functions.AggregateMode, sqltype.VarChar, nil, false, true},
+		{"disc_enum", functions.AggregatePercentileDisc, 0, enum, false, false},
+		{"disc_enum_array", functions.AggregatePercentileDisc, 0, enum, true, false},
+		{"mode_enum", functions.AggregateMode, 0, enum, false, false},
+		{"disc_domain", functions.AggregatePercentileDisc, 0, domain, false, false},
+		{"disc_domain_array", functions.AggregatePercentileDisc, 0, domain, true, false},
+		{"mode_domain", functions.AggregateMode, 0, domain, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -631,14 +632,14 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				key = parser.CollateExpr{Child: key, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "POSIX", Pos: position}}}, Pos: position}
 			}
 			name := "percentile_cont"
-			if tc.operation == aggregatePercentileDisc {
+			if tc.operation == functions.AggregatePercentileDisc {
 				name = "percentile_disc"
 			}
-			if tc.operation == aggregateMode {
+			if tc.operation == functions.AggregateMode {
 				name = "mode"
 			}
 			raw := parser.AggregateExpr{Name: name, Within: true, Pos: position, Order: []parser.OrderKey{{Expr: key, Pos: position}}}
-			if tc.operation != aggregateMode {
+			if tc.operation != functions.AggregateMode {
 				direct := parser.TypeName{Name: "float8"}
 				text := ".5"
 				if tc.array {
@@ -669,9 +670,9 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				}
 				want.Type = array
 			}
-			provider := call.provider.(*orderedSetProvider)
+			provider := call.provider.(*functions.OrderedSet)
 			actual := result.ResultUsage()
-			if actual != want || provider.ResultUsage() != want || provider.input != input {
+			if actual != want || provider.ResultUsage() != want || provider.InputType() != input {
 				t.Fatal("complete exact Usage/provider authority", actual, want, provider)
 			}
 			descriptor, ok = catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(actual.Type.ID())})
@@ -682,10 +683,10 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if actual.Type != resultOwner.typ || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.owner != inputOwner.owner {
 				t.Fatal("result generation/namespace/principal authority", actual, resultOwner, inputOwner)
 			}
-			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.input || resultOwner.typ.Element() != input || inputOwner.array != actual.Type.ID()) {
+			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.InputType() || resultOwner.typ.Element() != input || inputOwner.array != actual.Type.ID()) {
 				t.Fatal("actual result/leaf/owner relationship", actual, input, inputOwner)
 			}
-			for _, comparison := range []sqltype.Comparison{provider.comparison, call.order[0].comparison} {
+			for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {
 				collation, indeterminate := comparison.InputCollation()
 				if collation != argument.ResultUsage().Collation || indeterminate != argument.CollationIndeterminate() {
 					t.Fatal("actual comparison collation authority", collation, indeterminate, argument.ResultUsage(), argument.CollationIndeterminate())
@@ -745,8 +746,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		if strings.Contains(expression, "ORDER BY v)") && column.Usage.Collation != table.columns[0].Usage.Collation {
 			t.Fatal("lost source-column collation authority", expression, column.Usage, table.columns[0].Usage)
 		}
-		provider := call.provider.(*orderedSetProvider)
-		for _, comparison := range []sqltype.Comparison{provider.comparison, call.order[0].comparison} {
+		provider := call.provider.(*functions.OrderedSet)
+		for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {
 			collation, indeterminate := comparison.InputCollation()
 			if collation != call.argument.ResultUsage().Collation || indeterminate != call.argument.CollationIndeterminate() {
 				t.Fatal("declared-column comparison authority", expression, collation, indeterminate, call.argument.ResultUsage())
@@ -772,4 +773,11 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	if q.Root.Schema()[0].Usage.Collation.ID != 950 {
 		t.Fatal("explicit conflict resolution authority", q.Root.Schema())
 	}
+}
+
+// orderedSetDefinition is the registry entry shared by the WITHIN GROUP
+// aggregates.
+func orderedSetDefinition() functions.AggregateDefinition {
+	definition, _ := functions.LookupAggregate("percentile_cont")
+	return definition
 }

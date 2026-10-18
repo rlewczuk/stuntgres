@@ -1,85 +1,14 @@
 package engine
 
 import (
-	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-// Providers are immutable; states belong exclusively to one execution's group.
-// Later aggregate builtins can implement this contract without scalar shortcuts.
-type aggregateProvider interface {
-	ResultUsage() sqltype.Usage
-	Init(context.Context) (any, error)
-	Advance(context.Context, any, sqltype.Value, sqltype.Value) error
-	Finalize(context.Context, any) (sqltype.Value, error)
-}
-
-// Only providers with environment-sensitive output opt into execution-local
-// initialization. Ordinary providers retain their existing Init contract.
-type contextualAggregateProvider interface {
-	InitWithEnvironment(context.Context, sqltype.OutputEnvironment) (any, error)
-}
-
-type aggregateOperation uint8
-
-const (
-	aggregateCount aggregateOperation = iota
-	aggregateAnd
-	aggregateOr
-	aggregateIntervalAvg
-	aggregateNumericAvg
-	aggregateFloatAvg
-	aggregateAnyValue
-	aggregateString
-	aggregateMin
-	aggregateMax
-	aggregateIntegralSum
-	aggregateNumericSum
-	aggregateFloatSum
-	aggregateMoneySum
-	aggregateIntervalSum
-	aggregateArrayScalar
-	aggregateArrayArray
-	aggregateRangeUnion
-	aggregateRangeIntersection
-	aggregateBitAnd
-	aggregateBitOr
-	aggregateBitXor
-	aggregateJSON
-	aggregateJSONStrict
-	aggregateJSONArray
-	aggregateJSONArrayAbsent
-	aggregateJSONObject
-	aggregateJSONObjectStrict
-	aggregatePercentileCont
-	aggregatePercentileDisc
-	aggregateMode
-	aggregateVarPop
-	aggregateVarSamp
-	aggregateStddevPop
-	aggregateStddevSamp
-	aggregateRegrSlope
-	aggregateRegrSxx
-	aggregateRegrSxy
-	aggregateRegrSyy
-	aggregateCorr
-	aggregateCovarPop
-	aggregateCovarSamp
-	aggregateRegrAvgx
-	aggregateRegrAvgy
-	aggregateRegrIntercept
-	aggregateRegrR2
-	aggregateRegrCount
-	aggregateHypotheticalRank
-	aggregateHypotheticalDenseRank
-	aggregateHypotheticalPercentRank
-	aggregateHypotheticalCumeDist
-)
-
 type aggregateCall struct {
-	provider     aggregateProvider
+	provider     functions.AggregateProvider
 	routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
 	argument     BoundExpr
 	separator    BoundExpr
@@ -88,7 +17,7 @@ type aggregateCall struct {
 	filter       BoundExpr
 	distinct     []queryGrouping // Multi-key tuple equality is caller checked; single-key support is not.
 	stageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
-	operation    aggregateOperation
+	operation    functions.AggregateOperation
 	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
 	procedure    *procedureDescriptor
 	ref          ids.ObjectRef

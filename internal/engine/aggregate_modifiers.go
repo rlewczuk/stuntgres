@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,31 +19,6 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (BoundE
 	return b.bindBoolean(raw.Filter, projectionContext, "FILTER")
 }
 
-func aggregateOrdering(usage sqltype.Usage, pos parser.Position, distinct bool) (sqltype.Comparison, error) {
-	base := usage.Type.BaseType()
-	if base.IsArray() || base.IsComposite() || base.ID() == sqltype.PgNodeTree ||
-		base.ID() == sqltype.Bit || base.ID() == sqltype.VarBit ||
-		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange || base.ID() == sqltype.TimestampRange || base.ID() == sqltype.TimestamptzRange ||
-		base.ID() == sqltype.Int4Multirange || base.ID() == sqltype.Int8Multirange || base.ID() == sqltype.NumMultirange {
-		kind := "ordering"
-		if distinct {
-			kind = "DISTINCT"
-		}
-		return sqltype.Comparison{}, expressionError("0A000", "aggregate "+kind+" is unsupported for type "+base.DiagnosticName(), pos)
-	}
-	comparison, err := sqltype.BindOrdering(usage)
-	if d, ok := err.(*sqlstate.Error); ok {
-		copy := *d
-		copy.Position = fmt.Sprint(pos.Character)
-		if distinct {
-			copy.Hint = ""
-			copy.Detail = "Aggregates with DISTINCT must be able to sort their inputs."
-		}
-		return sqltype.Comparison{}, &copy
-	}
-	return comparison, err
-}
-
 // SQL99 ignores implicit coercion of an existing target, not explicit casts.
 func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) bool {
 	for {
@@ -57,7 +33,7 @@ func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) boo
 
 func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter BoundExpr, info expressionInfo) (BoundExpr, error) {
 	call.filter = filter
-	objectProvider, object := call.provider.(jsonObjectAggregateProvider)
+	objectProvider, object := call.provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
 		var err error
 		call.argument, err = b.finalizeProjection(call.argument)
@@ -65,14 +41,14 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, err
 		}
 	}
-	if _, ordered := call.provider.(orderedSetFinalizer); !ordered {
+	if _, ordered := call.provider.(functions.OrderedAggregate); !ordered {
 		call.order = make([]sortKey, len(raw.Order))
 	}
 	if len(raw.Order) > 0 && call.stageWidth == 0 {
 		call.stageWidth = 2
 	}
 	for i, key := range raw.Order {
-		if _, ordered := call.provider.(orderedSetFinalizer); ordered {
+		if _, ordered := call.provider.(functions.OrderedAggregate); ordered {
 			break
 		}
 		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
@@ -113,7 +89,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, d
 		}
 		// Positions in the order list always belong to the original occurrence.
-		comparison, err := aggregateOrdering(expression.ResultUsage(), key.Pos, false)
+		comparison, err := functions.AggregateOrdering(expression.ResultUsage(), key.Pos, false)
 		if err != nil {
 			return nil, err
 		}
@@ -125,9 +101,9 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			}
 		}
 		if slot == 0 {
-			comparison, err = aggregateOrdering(call.argument.ResultUsage(), key.Pos, false)
+			comparison, err = functions.AggregateOrdering(call.argument.ResultUsage(), key.Pos, false)
 		} else if slot == 1 {
-			comparison, err = aggregateOrdering(call.separator.ResultUsage(), key.Pos, false)
+			comparison, err = functions.AggregateOrdering(call.separator.ResultUsage(), key.Pos, false)
 		}
 		if err != nil {
 			return nil, err
@@ -180,7 +156,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			if err != nil {
 				return nil, err
 			}
-			if _, err := aggregateOrdering(arg.ResultUsage(), pos, true); err != nil {
+			if _, err := functions.AggregateOrdering(arg.ResultUsage(), pos, true); err != nil {
 				return nil, err
 			}
 			call.distinct[i] = grouping
@@ -190,7 +166,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		return nil, err
 	}
 	if object {
-		provider, err := objectProvider.complete(call.argument.ResultUsage(), call.separator.ResultUsage())
+		provider, err := objectProvider.Complete(call.argument.ResultUsage(), call.separator.ResultUsage())
 		if err != nil {
 			return nil, err
 		}
@@ -222,9 +198,9 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 	if !sameIntaggIdentity(a.procedure, a.ref, other.procedure, other.ref) {
 		return false
 	}
-	if p, ok := a.provider.(jsonObjectAggregateProvider); ok {
-		q, same := other.provider.(jsonObjectAggregateProvider)
-		if !same || p.unique != q.unique {
+	if p, ok := a.provider.(functions.JSONObjectAggregate); ok {
+		q, same := other.provider.(functions.JSONObjectAggregate)
+		if !same || p.Unique() != q.Unique() {
 			return false
 		}
 	}
@@ -243,4 +219,28 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 		}
 	}
 	return true
+}
+
+// A modifier resolves one particular ANY input occurrence, not every use of its
+// parameter number. Keep earlier occurrences for finish's 42P08 validation.
+func (b *expressionBinder) completeJSONObjectAggregateInput(node BoundExpr) (BoundExpr, error) {
+	p, unknown := node.(parameterExpression)
+	if !unknown || p.Usage.Type != nil {
+		return node, nil
+	}
+	resolved, err := b.finalizeProjection(node)
+	if err != nil {
+		return nil, err
+	}
+	for i, prior := range b.anyParameters {
+		if prior.number != p.number || prior.Pos != p.Pos {
+			continue
+		}
+		copy(b.anyParameters[i:], b.anyParameters[i+1:])
+		last := len(b.anyParameters) - 1
+		b.anyParameters[last] = parameterExpression{}
+		b.anyParameters = b.anyParameters[:last]
+		break
+	}
+	return resolved, nil
 }

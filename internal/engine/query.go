@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -1089,7 +1090,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		finalizesOrderedSet := false
 		if aggregate, ok := n.child.(*aggregateNode); ok {
 			for _, call := range aggregate.calls {
-				if _, ordered := call.provider.(orderedSetFinalizer); ordered {
+				if _, ordered := call.provider.(functions.OrderedAggregate); ordered {
 					finalizesOrderedSet = true
 					break
 				}

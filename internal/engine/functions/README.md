@@ -165,6 +165,34 @@ values their engine branches passed in:
   placement policy (CASE/COALESCE hint, clause tracking), which
   `AdmitSetReturning` does not cover; unify the two when query analysis gets
   an owner.
+- `JSONReturningType`: resolves a SQL/JSON `RETURNING` type name with the
+  statement's type input (RETURNING-forbidden forms rejected). The JSON
+  aggregates use it; the SQL/JSON constructors will.
+
+`AggregateBinder` extends `Binder` with what is valid only while an aggregate
+call (`parser.AggregateExpr`) binds, where the engine owns grouping state.
+Aggregate and window bind code takes it:
+
+- `AnalyzeAggregateFilter`: the aggregate's bound FILTER (nil without one).
+  `AnalyzeFilter` discards the node; aggregates keep it for the call.
+- `FinishAggregate`: the engine's grouping finish of an `AggregateCall`:
+  ORDER BY and DISTINCT binding (unless the call carries WITHIN GROUP keys),
+  the window-nesting check, merging of equal calls, registration, and the
+  occurrence node. Ownership checks and SQL/JSON RETURNING stay in dispatch.
+- `DomainTypeName`: an aggregate operand's diagnostic spelling as min, max,
+  range_agg and the ordered-set family report it: domains are qualified by
+  the type search path and lookup errors propagate. It differs from
+  `DiagnosticTypeName` (which never fails and qualifies every user type).
+- `CollationName`: catalog collation spelling for the 42P21 messages of the
+  WITHIN GROUP families.
+- `CommonArgumentUsage`: the labeled common-type selection (a CASE-style
+  42804 naming the label), which the nonthrowing `CommonUsage` cannot report.
+  Hypothetical-set argument pairs use it.
+- `CollationRelabel`: the engine's metadata-only collation/typmod node, which
+  hypothetical-set pairs wrap their coerced inputs in.
+
+The INSERT ... VALUES namespace that `sum` and `bit_*` bind in is not a
+method: `AggregateDefinition.ValuesNamespace` asks the engine to apply it.
 
 Argument analysis intents are values, not methods: `ThresholdArrayArgument`
 is the comparison operand whose unknown-NULL annotation may name an enum
@@ -174,7 +202,13 @@ zone family's temporal targets. `RecordBaseArgument` is a
 populate-record base: named casts to user-defined composites keep their
 occurrence identity. The coercion intent `RecordFormalArgument` finalizes a
 fixed RECORD formal: a parameter keeps its inferred record type, other
-operands get an anonymous record.
+operands get an anonymous record. `BareProjectionArgument` binds an
+aggregate or window argument in projection context without the unknown-NULL
+annotation (which changes deparse and grouping identity, for example of
+`count(NULL)`). `AssignmentFormalArgument` binds an unanalyzed argument in
+assignment context to its formal, as the statement-level `current_setting`
+and `set_config` calls do (`BindSettingCall`). `JSONFormattedArgument`
+applies a planned explicit FORMAT JSON input conversion.
 
 Engine state that bind code needs at a single point is passed as a value
 instead of a method: `age(xid)` receives the engine's transaction-identity
@@ -263,7 +297,7 @@ entry point, because they need engine state the registry cannot express:
   held description is being re-analyzed.
 - `int_array_aggregate` as an aggregate: the engine's aggregate and window
   binders call `AnalyzeIntaggArguments` and `ResolveIntagg`, then keep FILTER,
-  grouping and the aggregate call.
+  grouping and the aggregate call (its procedure identity is engine state).
 - Not name dispatch: AT TIME ZONE (`BindTimeZone`), the POSIX and SIMILAR TO
   operators (`BindPosix`, `BindSimilar`) and `||`/`^@` (`StringNode`).
 
@@ -307,6 +341,59 @@ unqualified argument spelling, `unknown` for deferred literals).
 `operator_error.go`'s `OperatorError` is the operator form of both
 diagnostics. Pure supply helpers serve bind code in and out of the engine:
 `TemporalTypesFor` and `SupplyBinaryTypes`.
+
+### Aggregate and window registries
+
+Aggregates are not name-chain calls: they arrive as `parser.AggregateExpr`,
+whose name the parser has folded. `aggregate_registry.go` holds the static
+`aggregateDefinitions` table, matched exactly by `LookupAggregate`. The
+engine's aggregate dispatch (`expression.go`, `aggregate_dispatch.go`)
+consults it after the shared placement gates (recursive term, EXECUTE
+parameters, generated, index, CHECK and VALUES consumers), owns the result
+(`ownAggregate`) and applies any SQL/JSON RETURNING coercion. An unregistered
+name binds as `count`, for its missing-function diagnostics; only
+`int_array_aggregate` keeps an engine branch (installed-procedure identity).
+
+- `Bind` analyzes arguments, then FILTER, resolves the signature, selects the
+  provider and calls `FinishAggregate` with an `AggregateCall`: provider,
+  `AggregateOperation` identity, routine, coerced argument, separator, direct
+  arguments, stage width, `IncludeNulls`, `RetainUntypedArgument` (count's
+  ANY formal) and WITHIN GROUP `Order` keys.
+- `BindReturning` replaces `Bind` for the JSON aggregates and also returns the
+  RETURNING usage.
+- `Window` resolves the signature of the aggregate called with OVER, with the
+  same analysis and no provider or group state; `ResolveWindowAggregate` is
+  the engine's entry point (unregistered names get the 42883). The WITHIN
+  GROUP aggregates have none: they reject OVER while binding.
+- `ValuesNamespace` applies the INSERT ... VALUES diagnostic namespace.
+
+| Family | File | Names |
+|---|---|---|
+| count | `count_aggregate_bind.go` | `count` |
+| sum, avg | `sum_aggregate_bind.go`, `avg_aggregate_bind.go` | `sum` (`ValuesNamespace`), `avg` |
+| min/max, any_value | `extrema_aggregate_bind.go`, `any_value_aggregate_bind.go` | `min`, `max`, `any_value` |
+| boolean, bitwise | `boolean_aggregate_bind.go`, `bitwise_aggregate_bind.go` | `bool_and`, `bool_or`, `every`, `bit_*` (`ValuesNamespace`) |
+| statistical | `statistical_aggregate_bind.go` | `statisticalNames` |
+| string_agg, array_agg, range | `string_aggregate_bind.go`, `array_aggregate_bind.go`, `range_aggregate_bind.go` | `string_agg`, `array_agg`, `range_agg`, `range_intersect_agg` |
+| JSON | `json_aggregate_bind.go`, `json_object_aggregate_bind.go` | `jsonArrayAggregateNames`, `jsonObjectAggregateNames`, `json_objectagg` (`BindReturning`) |
+| WITHIN GROUP | `ordered_set_bind.go` | `percentile_cont`, `percentile_disc`, `mode`, the rank family |
+
+`window_function_bind.go` holds the `windowFunctions` table
+(`LookupWindowFunction`): `row_number`, `ntile`, `first_value`/`last_value`/
+`nth_value`, `lead`/`lag` and the rank family. `Signature` analyzes the
+arguments and FILTER and returns a `WindowSignature` (argument, ordinal,
+default, result usage); the engine uses it in window binding and, for calls
+without OVER, before its "requires an OVER clause" error. The rank family is
+in both tables: window function with OVER, hypothetical-set aggregate with
+WITHIN GROUP.
+
+Providers live here too: the money/interval SUM providers, the JSON object
+provider (`JSONObjectAggregate`, completed by `FinishAggregate` once ORDER BY
+matching settles its input usages) and the WITHIN GROUP providers
+(`OrderedSet`, `HypotheticalSet`) behind `OrderedAggregate`. The executor
+sorts the staged input and lends it as an `OrderedInput` whose `Compare` is
+the call's tuple ordering. `AggregateOrdering` (sort comparison for ORDER BY,
+WITHIN GROUP and DISTINCT inputs) is shared with the engine's finish.
 
 To add or port a builtin family:
 
@@ -372,8 +459,8 @@ provider, rebuild on change) does not describe it.
 ## What stays in the engine
 
 The engine owns the analyzer behind `Binder`, the bind code of families not
-yet registered (for JSON: the operators, SQL/JSON constructors, `IS JSON`
-and JSON aggregates), function column definition lists and JSONB record star
+yet registered (for JSON: the operators, SQL/JSON constructors and `IS
+JSON`), function column definition lists and JSONB record star
 expansion, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context. Installed
@@ -393,7 +480,13 @@ calls (`closedTransactionTimeDefault`). `TransactionTimeSQL` and
 switches until F2. Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate
 providers own execution-local state; the engine owns FILTER/DISTINCT/ORDER,
-grouping, windows and state lifetime. Query/set expansion and physical regex
+grouping, windows and state lifetime: `finishAggregate`, `ownAggregate`, the
+grouping switches of `aggregate_bind.go`, window specs, frames, planning and
+execution (`window_bind.go`, `window_query.go`), ordered aggregate sorting and
+replay (`aggregate_query.go`), `pg_aggregate` and intagg's procedure
+identity. Statement-level `current_setting`/`set_config` bind through
+`BindSettingCall`; their execution and session-settings locking stay in
+`setting_calls.go`. Query/set expansion and physical regex
 executor ownership remain engine responsibilities. There is no alternate binder,
 dynamic plugin registration, compatibility forwarding carrier or duplicated
 type algorithm.
@@ -519,6 +612,17 @@ cohesive selections. Registry shape and claims:
 
 ```sh
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed)$'
+```
+
+Aggregate and window registries, settings calls (the engine's aggregate,
+window and setting tests bind through the analyzer and cover grouping and
+execution; reference tests in both modes):
+
+```sh
+make check RUN='^Test(AggregateDefinitionsAreWellFormed|LookupAggregateClaimsRegisteredNames|LookupWindowFunctionClaimsRegisteredNames|MoneySumProvider|IntervalSumProvider)'
+make check RUN='^Test(Sum|Avg|Count|Extrema|AnyValue|Boolean|Bitwise|Statistical|StringAggregate|ArrayAggregate|RangeAggregate|JSONObject|SQLJSONObject|OrderedSet|Hypothetical|AggregateModifiers|QueryAggregate|QueryWindow|Setting)'
+make check RUN='^TestReference(CountExpression|NumericSum|NumericAvg|Extrema|AnyValue|BooleanAggregate|BitwiseAggregate|StatisticalAggregate|StringAgg|ArrayAgg|RangeAggregate|JSONArrayAggregate|JSONObjectAggregate|SQLJSON|OrderedSet|HypotheticalAggregate|AggregateModifiers|QueryAggregate|QueryWindow|GroupingSets|Settings)'
+make check REFERENCE=1 RUN='^TestReference(CountExpression|NumericSum|NumericAvg|Extrema|AnyValue|BooleanAggregate|BitwiseAggregate|StatisticalAggregate|StringAgg|ArrayAgg|RangeAggregate|JSONArrayAggregate|JSONObjectAggregate|SQLJSON|OrderedSet|HypotheticalAggregate|AggregateModifiers|QueryAggregate|QueryWindow|GroupingSets|Settings)'
 ```
 
 Node protocol on function nodes:

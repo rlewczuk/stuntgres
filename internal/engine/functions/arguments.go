@@ -42,6 +42,9 @@ const (
 	// ZoneArgument is a comparison operand of timezone/date_add/date_subtract,
 	// whose explicit casts admit the zone family's temporal targets.
 	ZoneArgument
+	// BareProjectionArgument binds the operand in projection context without
+	// the unknown-NULL annotation, as aggregate arguments are bound.
+	BareProjectionArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }
@@ -133,6 +136,14 @@ const (
 	// RecordFormalArgument finalizes an operand of a fixed RECORD formal: a
 	// parameter keeps its inferred record type, others get an anonymous record.
 	RecordFormalArgument
+	// AssignmentFormalArgument binds the unanalyzed Raw argument in
+	// assignment context to Target with implicit coercion, as the
+	// statement-level setting calls bind their literal and parameter inputs.
+	AssignmentFormalArgument
+	// JSONFormattedArgument applies the planned explicit FORMAT JSON input
+	// conversion (Plan, Planned) to the bound Expression, as an explicit cast
+	// to Target.
+	JSONFormattedArgument
 )
 
 type CoercionRequest struct {

@@ -247,11 +247,11 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	// VALUES rejection; this includes the installed scalar-array wrapper.
 	if clause == "INSERT VALUES" {
 		switch call.operation {
-		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum, aggregateMoneySum, aggregateIntervalSum,
-			aggregateBitAnd, aggregateBitOr, aggregateBitXor, aggregateArrayScalar,
-			aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict,
-			aggregatePercentileCont, aggregatePercentileDisc, aggregateMode,
-			aggregateHypotheticalRank, aggregateHypotheticalDenseRank, aggregateHypotheticalPercentRank, aggregateHypotheticalCumeDist:
+		case functions.AggregateIntegralSum, functions.AggregateNumericSum, functions.AggregateFloatSum, functions.AggregateMoneySum, functions.AggregateIntervalSum,
+			functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor, functions.AggregateArrayScalar,
+			functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict,
+			functions.AggregatePercentileCont, functions.AggregatePercentileDisc, functions.AggregateMode,
+			functions.AggregateHypotheticalRank, functions.AggregateHypotheticalDenseRank, functions.AggregateHypotheticalPercentRank, functions.AggregateHypotheticalCumeDist:
 			clause = "VALUES"
 		}
 	}

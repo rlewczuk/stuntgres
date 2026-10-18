@@ -45,7 +45,7 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 					return sqltype.Integer(usage.Type, want)
 				})
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, value, separator sqltype.Value) error {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, value, separator sqltype.Value) error {
 					advances++
 					if value.IsNull() {
 						t.Fatal("strict runner delivered NULL")
@@ -128,7 +128,7 @@ func TestBitwiseAggregateEagerCancellation(t *testing.T) {
 }
 
 func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
-	for _, op := range []aggregateOperation{aggregateBitAnd, aggregateBitOr, aggregateBitXor} {
+	for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 		e, q, source := queryCoreFixture(t, "SELECT bit_xor(v) FROM t")
 		d, _ := e.CatalogRead().LookupType(sqltype.Bit)
 		node := q.Root.(*projectNode).child.(*aggregateNode)
@@ -140,7 +140,7 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 		// Three polling blocks suffice; the witness is the actual fold frame,
 		// not elapsed time, a giant query, or an Err-call count across the pipeline.
 		digit := "1"
-		if op == aggregateBitAnd {
+		if op == functions.AggregateBitAnd {
 			digit = "0"
 		}
 		input, _ := sqltype.BitString(d, strings.Repeat(digit, 8193))
@@ -159,7 +159,7 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 }
 
 func TestBitwiseAggregateEagerWidthFailure(t *testing.T) {
-	for _, op := range []aggregateOperation{aggregateBitAnd, aggregateBitOr, aggregateBitXor} {
+	for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 		e, q, source := queryCoreFixture(t, "SELECT bit_xor(v) FROM t")
 		d, _ := e.CatalogRead().LookupType(sqltype.Bit)
 		node := q.Root.(*projectNode).child.(*aggregateNode)

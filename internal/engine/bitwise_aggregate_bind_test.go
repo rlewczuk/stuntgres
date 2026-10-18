@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func bitwiseAggregateUnitProvider(t *testing.T, d *sqltype.Descriptor, operation aggregateOperation) aggregateProvider {
+func bitwiseAggregateUnitProvider(t *testing.T, d *sqltype.Descriptor, operation functions.AggregateOperation) functions.AggregateProvider {
 	t.Helper()
 	if d.ID() == sqltype.Bit {
 		operator, err := bitwiseAggregateOperator(operation)
@@ -59,7 +60,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 		if len(b.aggregates) != 3 {
 			t.Fatal("operation dedup identity", len(b.aggregates))
 		}
-		for i, op := range []aggregateOperation{aggregateBitAnd, aggregateBitOr, aggregateBitXor} {
+		for i, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 			if b.aggregates[i].operation != op || b.aggregates[i].includeNulls {
 				t.Fatal("operation/strict identity", b.aggregates[i])
 			}
@@ -86,14 +87,14 @@ func TestBitwiseAggregateOrderingBoundary(t *testing.T) {
 	e := New()
 	for _, id := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {
 		d, _ := e.CatalogRead().LookupType(id)
-		_, err := aggregateOrdering(d.Usage(), parser.Position{Character: 27}, false)
+		_, err := functions.AggregateOrdering(d.Usage(), parser.Position{Character: 27}, false)
 		diagnostic, ok := err.(*sqlstate.Error)
 		if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "aggregate ordering is unsupported for type "+d.DiagnosticName() || diagnostic.Position != "27" {
 			t.Fatal("structured bit ordering boundary", err)
 		}
 	}
 	d, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	if _, err := aggregateOrdering(d.Usage(), parser.Position{Character: 27}, false); err != nil {
+	if _, err := functions.AggregateOrdering(d.Usage(), parser.Position{Character: 27}, false); err != nil {
 		t.Fatal("independent integer-key ordering changed", err)
 	}
 }
@@ -104,7 +105,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Bit} {
 		oldType, _ := source.CatalogRead().LookupType(id)
 		newType, _ := destination.CatalogRead().LookupType(id)
-		for _, op := range []aggregateOperation{aggregateBitAnd, aggregateBitOr, aggregateBitXor} {
+		for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 			provider := bitwiseAggregateUnitProvider(t, oldType, op)
 			root := &aggregateNode{querySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: provider, operation: op}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -150,10 +151,10 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 			}
 			if id == sqltype.Bit {
 				want := "10000"
-				if op == aggregateBitOr {
+				if op == functions.AggregateBitOr {
 					want = "11101"
 				}
-				if op == aggregateBitXor {
+				if op == functions.AggregateBitXor {
 					want = "01101"
 				}
 				if got, _ := v.Bits(); got != want {
@@ -161,10 +162,10 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 				}
 			} else {
 				want := int64(8)
-				if op == aggregateBitOr {
+				if op == functions.AggregateBitOr {
 					want = 14
 				}
-				if op == aggregateBitXor {
+				if op == functions.AggregateBitXor {
 					want = 6
 				}
 				if got, _ := v.Integer(); got != want {
@@ -205,4 +206,17 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 			}
 		}
 	}
+}
+
+// bitwiseAggregateOperator maps a bit_* identity to its operator.
+func bitwiseAggregateOperator(operation functions.AggregateOperation) (sqltype.BitwiseOperator, error) {
+	switch operation {
+	case functions.AggregateBitAnd:
+		return sqltype.BitwiseAnd, nil
+	case functions.AggregateBitOr:
+		return sqltype.BitwiseOr, nil
+	case functions.AggregateBitXor:
+		return sqltype.BitwiseXor, nil
+	}
+	return 0, fmt.Errorf("invalid bitwise aggregate operation %d", operation)
 }

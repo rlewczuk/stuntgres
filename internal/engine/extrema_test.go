@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func TestExtremaActualComparatorCancellationOwnership(t *testing.T) {
 func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT min(v),min(v),max(v) FROM t")
 	node := query.Root.(*projectNode).child.(*aggregateNode)
-	if len(node.calls) != 2 || node.calls[0].operation != aggregateMin || node.calls[1].operation != aggregateMax {
+	if len(node.calls) != 2 || node.calls[0].operation != functions.AggregateMin || node.calls[1].operation != functions.AggregateMax {
 		t.Fatal(node.calls)
 	}
 	for _, c := range query.Root.Schema() {

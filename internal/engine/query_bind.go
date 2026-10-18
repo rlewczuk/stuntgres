@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -398,13 +399,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if aggregate, ok := expr.(aggregateExpression); ok && aggregate.frame == b.frameID() {
 			operation := b.aggregates[aggregate.slot].operation
 			switch operation {
-			case aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict:
+			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
 				// JSON aggregate projections expose computed nullability, including
 				// empty/grouped/filter output, rather than a source-column claim.
 				result.Nullable, result.NullabilityKnown = false, false
 			default:
 				result.NullabilityKnown = true
-				result.Nullable = operation != aggregateCount && operation != aggregateRegrCount && !hypotheticalOperation(operation)
+				result.Nullable = operation != functions.AggregateCount && operation != functions.AggregateRegrCount && !operation.Hypothetical()
 			}
 		}
 		if window, ok := expr.(*windowExpression); ok {
@@ -711,4 +712,16 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 	info.Property = coercionProperties(input, plan)
 	expr = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	return storageDestination(expr, target.Usage, info.Pos)
+}
+
+// rewriteOrderedSetDirect rewrites an ordered-set aggregate's direct
+// arguments over the group keys.
+func (b *expressionBinder) rewriteOrderedSetDirect(expr BoundExpr, keys []BoundExpr) (BoundExpr, error) {
+	direct, err := b.rewriteGroup(expr, keys)
+	if d, ok := err.(*sqlstate.Error); ok && d.Code == "42803" {
+		copy := *d
+		copy.Detail = "Direct arguments of an ordered-set aggregate must use only grouped columns."
+		return nil, &copy
+	}
+	return direct, err
 }

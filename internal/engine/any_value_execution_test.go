@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -10,12 +11,12 @@ import (
 )
 
 type anyValueInitProbeProvider struct {
-	aggregateProvider
+	functions.AggregateProvider
 	cancel context.CancelFunc
 }
 
 func (p anyValueInitProbeProvider) Init(ctx context.Context) (any, error) {
-	state, err := p.aggregateProvider.Init(ctx)
+	state, err := p.AggregateProvider.Init(ctx)
 	p.cancel()
 	return state, err
 }
@@ -52,7 +53,7 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				return sqltype.Integer(usage.Type, 73)
 			})
 			original := node.calls[0].provider
-			node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
+			node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
 				advances++
 				if v.IsNull() || v.Type() != usage.Type {
 					t.Fatal("transition datum contract", v)

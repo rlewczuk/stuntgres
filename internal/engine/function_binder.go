@@ -13,7 +13,7 @@ import (
 // The expression binder is the analyzer that builtin bind code reaches
 // through functions.Binder. These methods map the interface onto the
 // binder's existing private services; they add no state of their own.
-var _ functions.Binder = (*expressionBinder)(nil)
+var _ functions.AggregateBinder = (*expressionBinder)(nil)
 
 func (b *expressionBinder) Type(id sqltype.ID) *sqltype.Descriptor { return b.typ(id) }
 
@@ -145,4 +145,91 @@ func (b *expressionBinder) TargetSet() {
 
 func (b *expressionBinder) RegexpSetPlacement(call functions.RegexpCall) error {
 	return b.regexpPlacement(call)
+}
+
+func (b *expressionBinder) AnalyzeAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error) {
+	return b.bindAggregateFilter(raw)
+}
+
+func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functions.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
+	result, err := b.finishAggregate(raw, aggregateCall{
+		provider:     call.Provider,
+		routine:      call.Routine,
+		argument:     call.Argument,
+		separator:    call.Separator,
+		direct:       call.Direct,
+		stageWidth:   call.StageWidth,
+		operation:    call.Operation,
+		includeNulls: call.IncludeNulls,
+		order:        withinGroupOrder(call.Order),
+	}, filter, info)
+	if err != nil || !call.RetainUntypedArgument {
+		return result, err
+	}
+	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
+	// remaining ANY occurrence joins the unresolved-parameter guard.
+	b.RetainUntypedParameter(b.aggregates[result.(aggregateExpression).slot].argument)
+	return result, nil
+}
+
+func (b *expressionBinder) DomainTypeName(typ *sqltype.Descriptor) (string, error) {
+	return b.domainTypeName(typ)
+}
+
+// extremaArgumentTypeName spells an aggregate operand as DomainTypeName does.
+func (b *expressionBinder) extremaArgumentTypeName(operand comparisonOperand) (string, error) {
+	return b.domainTypeName(operand.descriptor())
+}
+
+func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, error) {
+	if typ == nil {
+		return "unknown", nil
+	}
+	if !typ.IsDomain() {
+		return typ.DiagnosticName(), nil
+	}
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return "", err
+	}
+	path, err := b.engine.lookupPath(auth, typeLookup)
+	if err != nil {
+		return "", err
+	}
+	d := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	return typeDiagnosticNameAt(auth.catalog, d, path), nil
+}
+
+func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {
+	return b.engine.resolveAnnotationTypeInput(raw, b.op, false, false, true, true, false)
+}
+
+// withinGroupOrder converts a family's WITHIN GROUP keys: an argument key
+// reads stage slot 0; other keys own the stage slots after value and
+// separator, in key order.
+func withinGroupOrder(keys []functions.AggregateSortKey) []sortKey {
+	if keys == nil {
+		return nil
+	}
+	order := make([]sortKey, len(keys))
+	for i, key := range keys {
+		slot, cache := -1, 2+i
+		if key.Argument {
+			slot, cache = 0, 0
+		}
+		order[i] = sortKey{expression: key.Expression, comparison: key.Comparison, position: key.Key.Pos.Character, desc: key.Key.Desc, nullsFirst: key.Key.Nulls == parser.NullsFirst || key.Key.Nulls == parser.NullsDefault && key.Key.Desc, slot: slot, cache: cache}
+	}
+	return order
+}
+
+func (b *expressionBinder) CollationName(id uint32) string { return b.collationName(id) }
+
+func (b *expressionBinder) CommonArgumentUsage(operands []functions.Argument, label string) (sqltype.Usage, error) {
+	return selectCommonUsage(len(operands), func(i int) comparisonOperand {
+		return comparisonOperand{node: operands[i].Expression, raw: operands[i].Raw}
+	}, b.typ(sqltype.Text).Usage(), label, (*sqltype.Descriptor).DiagnosticName)
+}
+
+func (b *expressionBinder) CollationRelabel(child expr.Expr, info expr.Info) expr.Expr {
+	return collationExpression{expressionInfo: info, child: child}
 }

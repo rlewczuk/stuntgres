@@ -181,7 +181,7 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 			}
 			provider := node.calls[0].provider
 			advances := 0
-			node.calls[0].provider = aggregateProbeProvider{aggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
+			node.calls[0].provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 				advances++
 				err := provider.Advance(ctx, s, v, d)
 				if phase == "fanout" && advances == 2 {
@@ -250,7 +250,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("late grouped INSERT finalize")
 			advances, finalizations := 0, 0
-			node.calls[0].provider = aggregateProbeProvider{aggregateProvider: provider,
+			node.calls[0].provider = aggregateProbeProvider{AggregateProvider: provider,
 				advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 					advances++
 					err := provider.Advance(ctx, s, v, d)

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ func TestTimestamptzRangeAggregateAdmission(t *testing.T) {
 		t.Fatal("missing range descriptor")
 	}
 	for _, distinct := range []bool{false, true} {
-		_, err := aggregateOrdering(d.Usage(), parser.Position{Character: 27}, distinct)
+		_, err := functions.AggregateOrdering(d.Usage(), parser.Position{Character: 27}, distinct)
 		diagnostic, ok := err.(*sqlstate.Error)
 		kind := "ordering"
 		if distinct {

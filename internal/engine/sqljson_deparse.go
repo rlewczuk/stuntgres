@@ -117,3 +117,14 @@ func (r scalarRenderer) sqlJSON(ctx context.Context, view CatalogRead, n sqlJSON
 	}
 	return sqlJSONRecipe(n.raw, parts, "", declaration), nil
 }
+
+func jsonAggregateFormatSQL(format *parser.JSONFormat) string {
+	if format == nil {
+		return ""
+	}
+	text := " FORMAT JSON"
+	if format.Encoding != "" {
+		text += " ENCODING " + format.Encoding
+	}
+	return text
+}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -34,32 +35,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	if s.Schema != nil {
 		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.Pos}}
 	}
-	visible, err := binder.builtinVisible(name, functionLookup)
-	if err != nil {
-		return settingCallBinding{}, err
-	}
-	if !visible {
-		return settingCallBinding{}, binder.functionSignatureError(parser.FunctionExpr{Name: name, Args: s.Args, Pos: name.Parts[0].Pos})
-	}
-	bound := make([]BoundExpr, len(s.Args))
-	view := e.catalog.read(e.catalog.state)
-	for i, v := range s.Args {
-		id := sqltype.Text
-		if i == 2 {
-			id = sqltype.Bool
-		}
-		typ, ok := view.LookupType(id)
-		if !ok {
-			return settingCallBinding{}, fmt.Errorf("stuntgres: missing setting argument type")
-		}
-		var err error
-		bound[i], err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: typ.Usage(), mode: sqltype.Implicit})
-		if err != nil {
-			return settingCallBinding{}, err
-		}
-	}
-	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
-	routine, err := binder.builtinRoutineReference(settingRoutineProvider, s.Name, formals[:len(bound)]...)
+	bound, routine, err := functions.BindSettingCall(binder, s.Name, name, s.Args)
 	if err != nil {
 		return settingCallBinding{}, err
 	}

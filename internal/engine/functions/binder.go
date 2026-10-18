@@ -117,4 +117,36 @@ type Binder interface {
 	// current clause or consumer does not admit one (the regexp family's own
 	// placement policy).
 	RegexpSetPlacement(RegexpCall) error
+	// JSONReturningType resolves a SQL/JSON RETURNING type name as the
+	// statement's type input does, rejecting the RETURNING-forbidden forms.
+	JSONReturningType(parser.TypeName) (sqltype.Usage, error)
+}
+
+// AggregateBinder is the analyzer as aggregate bind code sees it: the scalar
+// Binder plus the capabilities that are valid only while an aggregate call
+// (parser.AggregateExpr) is bound, where the engine owns grouping state.
+type AggregateBinder interface {
+	Binder
+	// AnalyzeAggregateFilter analyzes an aggregate's FILTER clause as a
+	// boolean in the FILTER context and returns it, or nil without FILTER.
+	// Aggregates analyze it after their arguments, before resolution.
+	AnalyzeAggregateFilter(parser.AggregateExpr) (expr.Expr, error)
+	// FinishAggregate completes an analyzed aggregate call with the engine's
+	// grouping state: it binds ORDER BY and DISTINCT, checks window nesting,
+	// registers (or merges) the call and returns the occurrence node.
+	FinishAggregate(raw parser.AggregateExpr, call AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error)
+	// DomainTypeName spells an aggregate input type as min, max, range_agg
+	// and the ordered-set family report it: a domain is named through the
+	// type search path, propagating lookup errors; other types use their
+	// diagnostic name, and nil is "unknown".
+	DomainTypeName(*sqltype.Descriptor) (string, error)
+	// CollationName spells a collation for diagnostics through the binding
+	// catalog.
+	CollationName(uint32) string
+	// CommonArgumentUsage is PostgreSQL's labeled common-type selection over
+	// analyzed operands (select_common_type), reporting the label's 42804.
+	CommonArgumentUsage(operands []Argument, label string) (sqltype.Usage, error)
+	// CollationRelabel wraps child in the engine's metadata-only node that
+	// presents info's usage and collation without converting values.
+	CollationRelabel(child expr.Expr, info expr.Info) expr.Expr
 }

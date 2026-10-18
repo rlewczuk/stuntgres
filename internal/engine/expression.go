@@ -2395,7 +2395,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		case parser.SubqueryExpr:
 			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
 		case parser.AggregateExpr:
-			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !windowValueName(r.Name) && !windowOffsetName(r.Name) {
+			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !functions.WindowValueName(r.Name) && !functions.WindowOffsetName(r.Name) {
 				for _, arg := range r.Args {
 					if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
 						return nil, err
@@ -2495,31 +2495,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					b.aggregates, b.windowCalls = parentAggregates, parentWindows
 				}
 			}()
-			if hypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 {
-				if r.Window != nil {
-					var err error
-					node, err = b.bindWindow(r, name)
-					if err != nil {
-						return nil, err
-					}
-					break
-				}
-				if _, err := b.bindAggregateFilter(r); err != nil {
-					return nil, err
-				}
-				visible, err := b.builtinVisible(name, functionLookup)
-				if err != nil {
-					return nil, err
-				}
-				if !visible {
-					return nil, functionSignatureErrorForTypes(name, r.Pos, nil)
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-			}
-			if r.Within && !orderedSetName(r.Name) {
-				return b.rejectOrdinaryWithin(r)
-			}
-			if r.Window != nil && !orderedSetName(r.Name) {
+			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 && r.Window != nil {
 				var err error
 				node, err = b.bindWindow(r, name)
 				if err != nil {
@@ -2527,37 +2503,20 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				break
 			}
-			if windowValueName(r.Name) {
-				if _, _, _, err := b.resolveWindowValueSignature(r, name); err != nil {
-					return nil, err
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+			if r.Within && !functions.OrderedSetName(r.Name) {
+				return b.rejectOrdinaryWithin(r)
 			}
-			if windowOffsetName(r.Name) {
-				if _, _, _, _, err := b.resolveWindowOffsetSignature(r, name); err != nil {
+			if r.Window != nil && !functions.OrderedSetName(r.Name) {
+				var err error
+				node, err = b.bindWindow(r, name)
+				if err != nil {
 					return nil, err
 				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+				break
 			}
-			if r.Name == "ntile" {
-				if _, err := b.resolveNtileSignature(r, name); err != nil {
-					return nil, err
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-			}
-			if r.Name == "row_number" {
-				types := make([]string, len(r.Args))
-				for i, arg := range r.Args {
-					child, err := b.bind(arg, expressionPolicy{context: projectionContext})
-					if err != nil {
-						return nil, err
-					}
-					types[i] = functionArgumentTypeName(arg, child)
-				}
-				if _, err := b.bindAggregateFilter(r); err != nil {
-					return nil, err
-				}
-				if err := b.resolveRowNumberSignature(r, name, types); err != nil {
+			// A window function without OVER resolves its signature first.
+			if function, ok := functions.LookupWindowFunction(r.Name); ok && (!functions.HypotheticalSetName(r.Name) || !r.Within && len(r.Args) == 0) {
+				if _, err := function.Signature(b, r, name); err != nil {
 					return nil, err
 				}
 				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
@@ -2581,44 +2540,24 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
-			if hypotheticalSetName(r.Name) {
-				node, err = b.bindHypotheticalSet(r, name)
-			} else if orderedSetName(r.Name) {
-				node, err = b.bindOrderedSet(r, name)
-			} else if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
-				node, err = b.bindBooleanAggregate(r, name)
-			} else if r.Name == "avg" {
-				node, err = b.bindAvg(r, name)
-			} else if statisticalAggregateName(r.Name) {
-				node, err = b.bindStatisticalAggregate(r, name)
-			} else if r.Name == "sum" {
-				node, err = b.bindSum(r, name)
-			} else if r.Name == "any_value" {
-				node, err = b.bindAnyValue(r, name)
-			} else if jsonArrayAggregateName(r.Name) {
-				node, err = b.bindJSONArrayAggregate(r, name)
-			} else if jsonObjectAggregateName(r.Name) {
-				node, err = b.bindJSONObjectAggregate(r, name)
-			} else if r.Name == "min" || r.Name == "max" {
-				node, err = b.bindExtrema(r, name)
-			} else if r.Name == "string_agg" {
-				node, err = b.bindStringAggregate(r, name)
-			} else if r.Name == "array_agg" {
-				node, err = b.bindArrayAggregate(r, name)
+			var returning sqltype.Usage
+			if definition, ok := functions.LookupAggregate(r.Name); ok {
+				node, returning, err = b.bindRegisteredAggregate(r, name, definition)
 			} else if r.Name == "int_array_aggregate" {
 				node, err = b.bindIntaggAggregate(r, name)
-			} else if r.Name == "range_agg" || r.Name == "range_intersect_agg" {
-				node, err = b.bindRangeAggregate(r, name)
-			} else if r.Name == "bit_and" || r.Name == "bit_or" || r.Name == "bit_xor" {
-				node, err = b.bindBitwiseAggregate(r, name)
 			} else {
-				node, err = b.bindCount(r, name)
+				// Every other name binds as count, for its 42883 diagnostics.
+				node, err = functions.BindCount(b, r, name)
 			}
 			if err != nil {
 				return nil, err
 			}
-			if !jsonArrayAggregateName(r.Name) && !(r.Name == "json_objectagg" && r.JSON != nil) {
-				node, err = b.ownAggregate(node)
+			node, err = b.ownAggregate(node)
+			if err != nil {
+				return nil, err
+			}
+			if returning.Type != nil {
+				node, err = b.aggregateReturning(r, node, returning)
 				if err != nil {
 					return nil, err
 				}
@@ -3695,6 +3634,9 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 				operand.node = literal
 			}
 		}
+	case functions.BareProjectionArgument:
+		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+		operand.raw = raw
 	case functions.DirectDeferredArgument:
 		if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			operand.raw = raw
@@ -3759,6 +3701,15 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 	case functions.ConditionalArgument:
 		return b.coerceConditional(operand, request.Target, request.Label)
+	case functions.JSONFormattedArgument:
+		node := argument.Expression
+		info, err := b.coercionInfo(b.info(request.Target, node.SourcePosition(), coercionProperties(node, request.Plan)), node)
+		if err != nil {
+			return nil, err
+		}
+		return coercionExpression{info, node, request.Plan, sqltype.Explicit, false}, nil
+	case functions.AssignmentFormalArgument:
+		return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
 	case functions.DirectFormalArgument:
 		if argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: functionArgumentContext, expected: request.Target, mode: sqltype.Implicit})

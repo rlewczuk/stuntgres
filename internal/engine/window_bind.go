@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -76,7 +77,7 @@ type windowCall struct {
 	argument     BoundExpr
 	ordinal      BoundExpr
 	defaultValue BoundExpr
-	provider     aggregateProvider
+	provider     functions.AggregateProvider
 	raw          *parser.WindowSpec
 	analysisOnly bool // Retained binding/slot ownership without executable demand.
 }
@@ -144,66 +145,17 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	}()
 	b.argumentOwner = argumentWindowOwner{active: true, window: true}
 	defer func() { b.argumentOwner = parentOwner }()
-	resultUsage := b.typ(sqltype.Int8).Usage()
+	var resultUsage sqltype.Usage
 	var argument, ordinal, defaultValue BoundExpr
-	if windowOffsetName(raw.Name) {
-		var err error
-		argument, ordinal, defaultValue, resultUsage, err = b.resolveWindowOffsetSignature(raw, name)
+	// Window functions resolve their own signature; aggregates resolve as
+	// they would without OVER, minus provider and group state.
+	function, windowFunction := functions.LookupWindowFunction(raw.Name)
+	if windowFunction {
+		signature, err := function.Signature(b, raw, name)
 		if err != nil {
 			return nil, err
 		}
-	} else if windowValueName(raw.Name) {
-		var err error
-		argument, ordinal, resultUsage, err = b.resolveWindowValueSignature(raw, name)
-		if err != nil {
-			return nil, err
-		}
-	} else if raw.Name == "ntile" {
-		var err error
-		argument, err = b.resolveNtileSignature(raw, name)
-		if err != nil {
-			return nil, err
-		}
-		resultUsage = b.typ(sqltype.Int4).Usage()
-	} else if hypotheticalSetName(raw.Name) {
-		if _, err := b.bindAggregateFilter(raw); err != nil {
-			return nil, err
-		}
-		visible, err := b.builtinVisible(name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		if !visible {
-			return nil, functionSignatureErrorForTypes(name, raw.Pos, nil)
-		}
-		if raw.Name == "percent_rank" || raw.Name == "cume_dist" {
-			resultUsage = b.typ(sqltype.Float8).Usage()
-		}
-	} else if raw.Name == "count" || raw.Name == "row_number" {
-		args := make([]BoundExpr, len(raw.Args))
-		for i, arg := range raw.Args {
-			var err error
-			args[i], err = b.bind(arg, expressionPolicy{context: projectionContext})
-			if err != nil {
-				return nil, err
-			}
-		}
-		if _, err := b.bindAggregateFilter(raw); err != nil {
-			return nil, err
-		}
-		if raw.Name == "count" {
-			if err := b.resolveCountSignature(raw, name, args); err != nil {
-				return nil, err
-			}
-		} else {
-			types := make([]string, len(args))
-			for i, arg := range args {
-				types[i] = functionArgumentTypeName(raw.Args[i], arg)
-			}
-			if err := b.resolveRowNumberSignature(raw, name, types); err != nil {
-				return nil, err
-			}
-		}
+		argument, ordinal, defaultValue, resultUsage = signature.Argument, signature.Ordinal, signature.Default, signature.Usage
 	} else {
 		var err error
 		resultUsage, err = b.resolveWindowAggregateSignature(raw, name, &argument)
@@ -217,7 +169,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if len(raw.Order) > 0 {
 		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
 	}
-	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || hypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
+	if raw.Filter != nil && windowFunction {
 		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
 	}
 	if err := b.windowAllowed(raw.Pos); err != nil {
@@ -226,7 +178,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || hypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
+	if raw.Window.Name != nil && raw.Filter == nil && (windowFunction || raw.Name == "sum" || (raw.Name == "count" && raw.Star)) {
 		found := false
 		for _, definition := range b.windowRaw {
 			if definition.Name.Text == raw.Window.Name.Text {
@@ -249,7 +201,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !hypotheticalSetName(raw.Name) && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
+	if !windowFunction && raw.Name != "sum" && (raw.Name != "count" || !raw.Star) {
 		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 	}
 	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal, defaultValue: defaultValue}
@@ -285,7 +237,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 		}
 		var err error
-		call.provider, _, err = b.sumProvider(argument.ResultUsage().Type)
+		call.provider, _, err = functions.SumProvider(b, argument.ResultUsage().Type)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +248,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		formal[0], formalCount = argument.ResultUsage().Type.ID(), 1
 	} else if raw.Name == "ntile" {
 		formal[0], formalCount = sqltype.Int4, 1
-	} else if windowOffsetName(raw.Name) {
+	} else if functions.WindowOffsetName(raw.Name) {
 		formal[0], formalCount = 2283, 1 // Released ANYELEMENT for arity one/two.
 		if len(raw.Args) >= 2 {
 			formal[1], formalCount = sqltype.Int4, 2
@@ -304,7 +256,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		if len(raw.Args) == 3 {
 			formal[0], formal[2], formalCount = 5077, 5077, 3 // ANYCOMPATIBLE value/default.
 		}
-	} else if windowValueName(raw.Name) {
+	} else if functions.WindowValueName(raw.Name) {
 		formal[0], formalCount = 2283, 1 // Released ANYELEMENT, not the physical selected value type.
 		if raw.Name == "nth_value" {
 			formal[1], formalCount = sqltype.Int4, 2
@@ -319,7 +271,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Name == "ntile" {
 		info.Property = mergeExpressionProperties(info.Property, argument.Properties())
 	}
-	if windowValueName(raw.Name) || windowOffsetName(raw.Name) {
+	if functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name) {
 		info.Property = mergeExpressionProperties(info.Property, argument.Properties())
 		if ordinal != nil {
 			info.Property = mergeExpressionProperties(info.Property, ordinal.Properties())
@@ -337,23 +289,9 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	}
 	expr := &windowExpression{expressionInfo: info, slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
 	call.expression = expr
-	expr.nullable = call.operation == windowSum || call.operation == windowNtile || windowValueName(raw.Name) || windowOffsetName(raw.Name)
+	expr.nullable = call.operation == windowSum || call.operation == windowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.windowCalls = append(b.windowCalls, call)
 	return expr, nil
-}
-
-func (b *expressionBinder) resolveRowNumberSignature(raw parser.AggregateExpr, name parser.ObjectName, types []string) error {
-	if len(raw.Args) > 100 {
-		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	visible, err := b.builtinVisible(name, functionLookup)
-	if err != nil {
-		return err
-	}
-	if !visible || len(raw.Args) != 0 || raw.Star {
-		return functionSignatureErrorForTypes(name, raw.Pos, types)
-	}
-	return nil
 }
 
 // The excluded-provider path performs the same signature/coercion analysis as
@@ -373,152 +311,7 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		}
 		return array.Usage(), nil
 	}
-	if raw.Name == "json_objectagg" && raw.JSON != nil {
-		_, usage, returning, err := b.resolveSQLJSONObjectAggregate(raw, name)
-		if err != nil {
-			return sqltype.Usage{}, err
-		}
-		if _, err = b.bindAggregateFilter(raw); err != nil {
-			return sqltype.Usage{}, err
-		}
-		if returning.Type != nil {
-			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
-			usage = returning
-		}
-		return usage, err
-	}
-	var small [2]comparisonOperand
-	var names [2]string
-	var operands []comparisonOperand
-	var types []string
-	if len(raw.Args) <= 2 {
-		operands, types = small[:len(raw.Args)], names[:len(raw.Args)]
-	} else if len(raw.Args) <= 100 {
-		operands = make([]comparisonOperand, len(raw.Args))
-		types = make([]string, len(raw.Args))
-	}
-	for i, child := range raw.Args {
-		operand, err := b.comparisonOperand(child)
-		if err != nil {
-			return sqltype.Usage{}, err
-		}
-		if operands != nil {
-			operands[i] = operand
-			types[i] = "unknown"
-			if raw.Name == "sum" || raw.Name == "array_agg" || raw.Name == "bit_and" || raw.Name == "bit_or" || raw.Name == "bit_xor" {
-				types[i] = b.diagnosticTypeName(operand.descriptor())
-			} else if typ := operand.descriptor(); typ != nil {
-				types[i] = typ.DiagnosticName()
-			}
-			if raw.Name == "min" || raw.Name == "max" || raw.Name == "range_agg" || raw.Name == "range_intersect_agg" {
-				types[i], err = b.extremaArgumentTypeName(operand)
-				if err != nil {
-					return sqltype.Usage{}, err
-				}
-			}
-		}
-	}
-	if _, err := b.bindAggregateFilter(raw); err != nil {
-		return sqltype.Usage{}, err
-	}
-	if len(raw.Args) > 100 {
-		return sqltype.Usage{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	var operand comparisonOperand
-	if len(operands) > 0 {
-		operand = operands[0]
-	}
-	var arg BoundExpr
-	var err error
-	var usage sqltype.Usage
-	switch raw.Name {
-	case "bool_and", "bool_or", "every":
-		arg, err = b.resolveBooleanAggregateSignature(raw, name, operands, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-		}
-	case "avg":
-		var operation aggregateOperation
-		arg, operation, err = b.resolveAvgSignature(raw, name, operand, types)
-		if err == nil {
-			switch operation {
-			case aggregateIntervalAvg:
-				usage = arg.ResultUsage()
-			case aggregateNumericAvg:
-				usage = b.typ(sqltype.Numeric).Usage()
-			case aggregateFloatAvg:
-				usage = b.typ(sqltype.Float8).Usage()
-			}
-		}
-	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
-		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
-		var args [2]BoundExpr
-		args, usage, err = b.resolveStatisticalSignature(raw, name, operands, types)
-		arg = args[0]
-	case "any_value":
-		arg, err = b.resolveAnyValueSignature(raw, name, operand.node, sqltype.Usage{Type: operand.descriptor()}, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-			usage.Typmod = -1
-		}
-	case "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg":
-		var returning sqltype.Usage
-		arg, usage, returning, err = b.resolveJSONArrayAggregateSignature(raw, name, operand, types)
-		if err == nil && returning.Type != nil {
-			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
-			usage = returning
-		}
-	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict",
-		"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
-		var args [2]BoundExpr
-		args, usage, err = b.resolveJSONObjectAggregateSignature(raw, name, operands, types)
-		arg = args[0]
-	case "min", "max":
-		arg, err = b.resolveExtremaSignature(raw, name, operand, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-			usage.Typmod = -1
-		}
-	case "string_agg":
-		arg, _, err = b.resolveStringAggregateSignature(raw, name, operands, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-		}
-	case "array_agg":
-		arg, usage, _, err = b.resolveArrayAggregateSignature(raw, name, operand, types)
-	case "range_agg", "range_intersect_agg":
-		arg, err = b.resolveRangeAggregateSignature(raw, name, operand, types)
-		if err == nil {
-			operation := sqltype.RangeAggregateUnion
-			if raw.Name == "range_intersect_agg" {
-				operation = sqltype.RangeAggregateIntersection
-			}
-			var bound sqltype.RangeAggregate
-			bound, err = sqltype.BindRangeAggregate(arg.ResultUsage().Type, operation)
-			if err == nil {
-				usage = bound.ResultUsage()
-			}
-		}
-	case "bit_and", "bit_or", "bit_xor":
-		arg, err = b.resolveBitwiseAggregateSignature(raw, name, operand, types)
-		if err == nil {
-			usage = arg.ResultUsage().Type.Usage()
-		}
-	case "sum":
-		arg, err = b.resolveSumSignature(raw, name, operand, types)
-		if err == nil {
-			switch arg.ResultUsage().Type.ID() {
-			case sqltype.Int2, sqltype.Int4:
-				usage = b.typ(sqltype.Int8).Usage()
-			case sqltype.Int8, sqltype.Numeric:
-				usage = b.typ(sqltype.Numeric).Usage()
-			default:
-				usage = arg.ResultUsage()
-			}
-		}
-	default:
-		err = functionSignatureErrorForTypes(name, raw.Pos, types)
-	}
+	arg, usage, err := functions.ResolveWindowAggregate(b, raw, name)
 	*argument = arg
 	return usage, err
 }

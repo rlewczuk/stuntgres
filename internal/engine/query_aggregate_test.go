@@ -6,13 +6,14 @@ import (
 	"math"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 type aggregateProbeProvider struct {
-	aggregateProvider
+	functions.AggregateProvider
 	advance  func(context.Context, any, sqltype.Value, sqltype.Value) error
 	finalize func(context.Context, any) (sqltype.Value, error)
 }
@@ -21,13 +22,13 @@ func (p aggregateProbeProvider) Advance(ctx context.Context, s any, value, separ
 	if p.advance != nil {
 		return p.advance(ctx, s, value, separator)
 	}
-	return p.aggregateProvider.Advance(ctx, s, value, separator)
+	return p.AggregateProvider.Advance(ctx, s, value, separator)
 }
 func (p aggregateProbeProvider) Finalize(ctx context.Context, s any) (sqltype.Value, error) {
 	if p.finalize != nil {
 		return p.finalize(ctx, s)
 	}
-	return p.aggregateProvider.Finalize(ctx, s)
+	return p.AggregateProvider.Finalize(ctx, s)
 }
 
 func TestQueryAggregateCountProvider(t *testing.T) {
@@ -94,14 +95,14 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 				})
 			case "advance":
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, value, separator sqltype.Value) error {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, value, separator sqltype.Value) error {
 					err := original.Advance(ctx, s, value, separator)
 					cancel()
 					return err
 				}}
 			case "finalize":
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err
@@ -137,7 +138,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 			case "late_finalize":
 				original := node.calls[0].provider
 				calls := 0
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						return sqltype.Value{}, sentinel
@@ -182,7 +183,7 @@ func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 	original := node.calls[0].provider
 	sentinel := errors.New("late INSERT aggregate provider")
 	calls := 0
-	node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+	node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel

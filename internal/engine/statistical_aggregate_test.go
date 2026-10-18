@@ -45,7 +45,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 		int(sqltype.RegressionAvgy), int(sqltype.RegressionIntercept), int(sqltype.RegressionR2), -2} {
 		input, _ := source.CatalogRead().LookupType(sqltype.Numeric)
 		result := input
-		var provider aggregateProvider = functions.NewStatisticalAggregate(input, result.Usage(), true, true)
+		var provider functions.AggregateProvider = functions.NewStatisticalAggregate(input, result.Usage(), true, true)
 		if final >= 0 {
 			input, _ = source.CatalogRead().LookupType(sqltype.Float8)
 			result = input
@@ -113,13 +113,13 @@ func TestStatisticalAggregateEagerCancellation(t *testing.T) {
 			original := node.calls[0].provider
 			switch phase {
 			case "advance":
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, v, x sqltype.Value) error {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, x sqltype.Value) error {
 					err := original.Advance(ctx, s, v, x)
 					cancel()
 					return err
 				}}
 			case "finalize":
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err

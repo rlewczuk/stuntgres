@@ -100,7 +100,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				call.order[0].comparison, _ = sqltype.BindOrdering(usage)
 			}
 			original := call.provider
-			call.provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v, d sqltype.Value) error {
+			call.provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, d sqltype.Value) error {
 				advances++
 				err := original.Advance(ctx, state, v, d)
 				if phase == "replay" {
