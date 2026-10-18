@@ -124,7 +124,7 @@ evaluation regression. 2d completes the step.
 - [x] 2a — Evaluation through an interface; `routineRecipe` cut (`52d15cad4`
   seam, `a7bc48424` port, `d0fb3f388` recipe cut)
 - [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`
-  field export, `9e1ba1dae` move)
+  field export, `9e1ba1dae` move, docs `8f542f797`)
 - [ ] 2c — Node protocol landed with the walk switch as first adopter
 - [ ] 2d — Aliases removed
 

@@ -35,7 +35,7 @@ alongside another broad rewrite (§8).
     (`52d15cad4`, `a7bc48424`, `d0fb3f388`, docs `19466ff87`; merged in
     `e884b9126`)
   - [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`,
-    `9e1ba1dae`, docs DOCSHASH)
+    `9e1ba1dae`, docs `8f542f797`)
   - [ ] 2c — Node protocol landed with the walk switch as first adopter
   - [ ] 2d — Aliases removed *(broad rewrite)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
