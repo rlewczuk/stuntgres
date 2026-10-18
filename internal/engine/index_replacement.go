@@ -35,7 +35,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
 	for address, descriptor := range next.descriptors {
 		namespace, temporary := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor)
-		if temporary && namespace.temporary != (SessionToken{}) && descriptor == e.state.descriptors[address] {
+		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.state.descriptors[address] {
 			retained.descriptors[address] = descriptor
 			continue
 		}
@@ -54,7 +54,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
 		if descriptor := next.descriptors[address]; descriptor != nil && e.storage[address] == relation {
-			if namespace, ok := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+			if namespace, ok := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 				continue
 			}
 		}

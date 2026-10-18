@@ -38,7 +38,7 @@ func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func(
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login})
+	session, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
 	if err != nil {
 		t.Fatal(err)
 	}

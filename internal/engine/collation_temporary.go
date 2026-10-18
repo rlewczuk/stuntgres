@@ -28,7 +28,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 		}
 	}
 	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
-	if ns.temporary != (SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
+	if ns.temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
 			return ids.ObjectRef{}, err
@@ -100,7 +100,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	}
 }
 
-func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ids.ObjectAddress, token SessionToken) (stale bool, err error) {
+func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
 	var stage *CatalogStage
 	// Registered first, so classification runs after Finish, stage discard and
 	// Operation.Done have fully unwound the failed attempt.

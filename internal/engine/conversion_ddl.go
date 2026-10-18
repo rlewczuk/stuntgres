@@ -147,7 +147,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		}
 		sourceNamespace := auth.catalog.state.descriptors[d.Namespace()].(*namespaceDescriptor)
 		targetNamespace := auth.catalog.state.descriptors[destination.Address].(*namespaceDescriptor)
-		if sourceNamespace.temporary != (SessionToken{}) || targetNamespace.temporary != (SessionToken{}) {
+		if sourceNamespace.temporary != (ids.SessionToken{}) || targetNamespace.temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}

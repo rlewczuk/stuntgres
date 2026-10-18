@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -15,7 +16,7 @@ import (
 // These are package mechanics, not SQL text/response tests. Real canonical
 // scopes and queued requests run with long timers; explicit observed instants
 // exercise callback decisions without sleeps or callback scheduling assumptions.
-func timeoutPendingSession(t *testing.T, e *Engine, id SessionID) *Session {
+func timeoutPendingSession(t *testing.T, e *Engine, id ids.SessionID) *Session {
 	t.Helper()
 	s, err := e.StartSession(context.Background(), SessionStart{ID: id})
 	if err != nil {

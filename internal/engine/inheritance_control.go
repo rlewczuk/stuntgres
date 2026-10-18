@@ -18,7 +18,7 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 			continue
 		}
 		namespace := e.state.descriptors[table.namespace].(*namespaceDescriptor)
-		if namespace.temporary == (SessionToken{}) {
+		if namespace.temporary == (ids.SessionToken{}) {
 			continue
 		}
 		for _, parent := range table.inheritance.parents {
@@ -26,7 +26,7 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")
 			}
-			if e.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (SessionToken{}) {
+			if e.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (ids.SessionToken{}) {
 				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
 			}
 		}
@@ -86,7 +86,7 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 		if !ok || table.inheritance == nil {
 			continue
 		}
-		if namespace, ok := next.descriptors[table.namespace].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+		if namespace, ok := next.descriptors[table.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		var remapErr error

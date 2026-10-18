@@ -9,16 +9,16 @@ func withTxID(ref TxRef, id TxID) TxRef {
 	return ref.Domain().Tx(ref.Session(), id, ref.Epoch(), ref.Attachment(), ref.Diagnostic())
 }
 
-func withTxSession(ref TxRef, session SessionToken) TxRef {
+func withTxSession(ref TxRef, session ids.SessionToken) TxRef {
 	return ref.Domain().Tx(session, ref.ID(), ref.Epoch(), ref.Attachment(), ref.Diagnostic())
 }
 
 // withSessionID rebuilds a public token with another ID.
-func withSessionID(token SessionToken, id SessionID) SessionToken {
+func withSessionID(token ids.SessionToken, id ids.SessionID) ids.SessionToken {
 	return token.Domain().Session(id)
 }
 
-func withSessionDomain(token SessionToken, domain *ids.Domain) SessionToken {
+func withSessionDomain(token ids.SessionToken, domain *ids.Domain) ids.SessionToken {
 	if private := token.Private(); private != nil {
 		return domain.PrivateSession(private)
 	}

@@ -87,7 +87,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.e.DiscardCatalogStage(setup)
-			session, err := f.e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: f.owner})
+			session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.owner})
 			if err != nil {
 				t.Fatal(err)
 			}

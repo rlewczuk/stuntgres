@@ -5,9 +5,11 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
-func blockingUnitSafeWant(t *testing.T, e *Engine, pid SessionID, want ...int64) {
+func blockingUnitSafeWant(t *testing.T, e *Engine, pid ids.SessionID, want ...int64) {
 	t.Helper()
 	typ := blockingUnitType(e)
 	e.mu.Lock()
@@ -89,7 +91,7 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	// Full-width session identity must not alias an int4 target on lookup.
 	e.mu.Lock()
 	delete(e.serializable.nodes, r.ref)
-	r.ref = withTxSession(r.ref, withSessionID(r.ref.Session(), r.ref.Session().ID()+SessionID(uint64(1)<<32)))
+	r.ref = withTxSession(r.ref, withSessionID(r.ref.Session(), r.ref.Session().ID()+ids.SessionID(uint64(1)<<32)))
 	e.serializable.nodes[r.ref] = r
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())

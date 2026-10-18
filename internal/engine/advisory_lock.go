@@ -3,13 +3,15 @@ package engine
 import (
 	"context"
 	"errors"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // This delegate owns only the physical lifetime handle. Counts, granted modes,
 // queues and terminal decisions belong exclusively to relationLockManager.
 type sessionAdvisory struct{ ticket *relationTicket }
 
-func (a *sessionAdvisory) EndSession(token SessionToken, _ EndReason) error {
+func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error {
 	if a.ticket.session != token {
 		return errors.New("stuntgres: foreign advisory session")
 	}
@@ -17,7 +19,7 @@ func (a *sessionAdvisory) EndSession(token SessionToken, _ EndReason) error {
 	return nil
 }
 
-func (m *relationLockManager) registerSession(token SessionToken) (*relationTicket, error) {
+func (m *relationLockManager) registerSession(token ids.SessionToken) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	private := privateSessionOf(token)
@@ -30,7 +32,7 @@ func (m *relationLockManager) registerSession(token SessionToken) (*relationTick
 		return nil, errors.New("stuntgres: duplicate advisory session")
 	}
 	if m.sessions == nil {
-		m.sessions = make(map[SessionToken]*relationTicket)
+		m.sessions = make(map[ids.SessionToken]*relationTicket)
 	}
 	t := &relationTicket{manager: m, session: token, persistent: true}
 	m.sessions[token] = t
@@ -38,7 +40,7 @@ func (m *relationLockManager) registerSession(token SessionToken) (*relationTick
 }
 
 type lockParticipant struct {
-	session  SessionToken
+	session  ids.SessionToken
 	prepared TxRef
 }
 

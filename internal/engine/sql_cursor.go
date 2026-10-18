@@ -15,7 +15,7 @@ import (
 type cursorRegistry struct {
 	entries map[string]*sqlCursor
 	ordinal uint64
-	token   SessionToken
+	token   ids.SessionToken
 }
 type cursorPosition uint8
 
@@ -155,7 +155,7 @@ func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
 	}
 	return failure
 }
-func (r *cursorRegistry) EndSession(token SessionToken, _ EndReason) error {
+func (r *cursorRegistry) EndSession(token ids.SessionToken, _ EndReason) error {
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign cursor attachment")
 	}

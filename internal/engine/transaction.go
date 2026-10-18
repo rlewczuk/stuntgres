@@ -130,7 +130,7 @@ func (t *transactionOwner) clear() {
 	t.exclusionModes = exclusionModes{}
 }
 
-func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
+func (t *transactionOwner) EndSession(token ids.SessionToken, _ EndReason) error {
 	if err := t.acquireAdmission(context.Background(), nil); err != nil {
 		return err
 	}

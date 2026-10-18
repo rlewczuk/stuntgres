@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -59,7 +60,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 					cancel()
 				}
 			}}
-			id := SessionID(testSessionID.Add(1))
+			id := ids.SessionID(testSessionID.Add(1))
 			s, err := e.StartSession(ctx, SessionStart{ID: id, Authenticated: login, Defaults: provider})
 			if s != nil {
 				s.RequestEnd(CleanClose)
@@ -102,7 +103,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 
 func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	e, login := databaseAdmissionFixture()
-	live, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login})
+	live, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	if !live.IsLive() || live.countedAuthenticated != login || e.roleSessionCountLocked(login) != 1 {
 		t.Fatal("revocation changed physical lifetime or authenticated count")
 	}
-	fresh, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login})
+	fresh, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
 	if fresh != nil {
 		fresh.RequestEnd(CleanClose)
 		_ = fresh.WaitEnd(context.Background())
@@ -153,7 +154,7 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 			grantee = login
 		}
 		databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ConnectPrivilege}}})
-		start := SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login, Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
+		start := SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login, Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
 		s, err := e.StartSession(context.Background(), start)
 		if !allowLogin {
 			if s != nil {

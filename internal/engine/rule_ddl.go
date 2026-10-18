@@ -99,7 +99,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := old.view.temporary != (SessionToken{})
+			temporary := old.view.temporary != (ids.SessionToken{})
 			definition, err := e.freezeViewDefinitionLocked(auth, query, b, old.view.barrier, old.view.invoker, old.view.rule, viewRelation, temporary)
 			if err != nil {
 				return fail(err)

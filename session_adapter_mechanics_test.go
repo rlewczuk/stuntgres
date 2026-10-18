@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/ids"
 	"testing"
 	"time"
 )
@@ -153,7 +154,7 @@ func TestSessionAdapterMechanics(t *testing.T) {
 	}
 	d.mu.Lock()
 	allocated := d.lastSession
-	d.lastSession = ^engine.SessionID(0)
+	d.lastSession = ^ids.SessionID(0)
 	d.mu.Unlock()
 	if allocated != 1 {
 		t.Fatal("pre-canceled connection allocated an identity")
@@ -169,7 +170,7 @@ func TestSessionAdapterMechanics(t *testing.T) {
 	d.mu.Lock()
 	allocated = d.lastSession
 	d.mu.Unlock()
-	if allocated != ^engine.SessionID(0) {
+	if allocated != ^ids.SessionID(0) {
 		t.Fatal("exhausted allocation changed counter")
 	}
 }

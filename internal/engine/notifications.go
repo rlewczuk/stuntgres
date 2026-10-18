@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"sync/atomic"
 )
@@ -73,7 +74,7 @@ type sessionNotifications struct {
 	// Monotonic fast path only; queue authority remains under Engine.mu.
 	used        atomic.Bool
 	engine      *Engine // Owns the registry; set with token before attachment.
-	token       SessionToken
+	token       ids.SessionToken
 	state       *notificationState
 	busy, ended bool
 	wake        chan struct{}
@@ -85,7 +86,7 @@ func (n *sessionNotifications) signalLocked() {
 		n.wake = nil
 	}
 }
-func (n *sessionNotifications) EndSession(token SessionToken, _ EndReason) error {
+func (n *sessionNotifications) EndSession(token ids.SessionToken, _ EndReason) error {
 	if token != n.token {
 		return errors.New("stuntgres: foreign notification session")
 	}

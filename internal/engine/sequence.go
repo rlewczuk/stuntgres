@@ -438,7 +438,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			oldNamespace := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
 			newNamespace := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor)
-			if oldNamespace.temporary != (SessionToken{}) || newNamespace.temporary != (SessionToken{}) {
+			if oldNamespace.temporary != (ids.SessionToken{}) || newNamespace.temporary != (ids.SessionToken{}) {
 				return Result{}, sqlError("0A000", "cannot move objects into or out of temporary schemas")
 			}
 			d.namespace = ns.Address

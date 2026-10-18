@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -137,7 +138,7 @@ func (d *database) startSession(ctx context.Context, id uint32, user string, def
 	if err != nil {
 		return nil, err
 	}
-	return d.engine.StartSession(ctx, engine.SessionStart{ID: engine.SessionID(id), Authenticated: principal, Defaults: defaults})
+	return d.engine.StartSession(ctx, engine.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: defaults})
 }
 func databaseNames(databases map[string]*database) []string {
 	names := make([]string, 0, len(databases))

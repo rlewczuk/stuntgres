@@ -17,14 +17,14 @@ func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 			continue
 		}
 		namespace := e.state.descriptors[table.namespace].(*namespaceDescriptor)
-		if namespace.temporary == (SessionToken{}) {
+		if namespace.temporary == (ids.SessionToken{}) {
 			continue
 		}
 		source, ok := e.state.descriptors[table.ofType].(*typeDescriptor)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing typed source")
 		}
-		if e.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (SessionToken{}) {
+		if e.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (ids.SessionToken{}) {
 			return fmt.Errorf("%s", temporaryTypedReplacementError)
 		}
 	}

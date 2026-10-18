@@ -91,7 +91,7 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view Catalo
 		if _, ok := d.(*collationDescriptor); !ok {
 			continue
 		}
-		if ns, ok := view.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := view.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			roots = append(roots, a)
 		}
 	}
@@ -113,7 +113,7 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view Catalo
 			return fmt.Errorf("stuntgres: missing temporary collation dependent")
 		}
 		ns, ok := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
-		if !ok || ns.temporary == (SessionToken{}) {
+		if !ok || ns.temporary == (ids.SessionToken{}) {
 			return fmt.Errorf("stuntgres: dump cannot serialize persistent temporary collation dependency")
 		}
 	}

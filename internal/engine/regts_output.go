@@ -27,7 +27,7 @@ func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias 
 	visible := false
 	if !qualified {
 		for _, ns := range path {
-			if namespace, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+			if namespace, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 				continue
 			}
 			address := view.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}]

@@ -3,6 +3,8 @@ package engine
 import (
 	"math"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSettingsLocalActions(t *testing.T) {
@@ -54,7 +56,7 @@ func TestSettingsLocalActions(t *testing.T) {
 func TestSettingsLocalEndedCleanup(t *testing.T) {
 	s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settingValue{}}
 	s.touch("x", true)
-	s.EndSession(SessionToken{}, 0)
+	s.EndSession(ids.SessionToken{}, 0)
 	s.finishTransaction(false)
 	if s.values != nil || s.typed != nil || s.actions != nil {
 		t.Fatal("ended owner recreated")

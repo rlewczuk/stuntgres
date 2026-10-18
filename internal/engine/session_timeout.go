@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -66,7 +67,7 @@ func (s *Session) armTimeoutLocked(slot *sessionTimeout, deadline time.Time, cod
 
 // Explicit timestamps/generations make stale-callback transitions testable
 // without a scheduler abstraction or timing-dependent unit tests.
-func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, token SessionToken, code string, now time.Time) {
+func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, token ids.SessionToken, code string, now time.Time) {
 	if s.state != live || token != s.token || slot.generation != generation || slot.deadline.IsZero() || now.Before(slot.deadline) {
 		return
 	}

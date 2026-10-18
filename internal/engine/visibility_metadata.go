@@ -148,9 +148,9 @@ func (conversionProvider) Validate(view CatalogRead, descriptor Descriptor) erro
 		return err
 	}
 	namespace := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
-	if namespace.temporary == (SessionToken{}) {
+	if namespace.temporary == (ids.SessionToken{}) {
 		handlerNamespace := view.state.descriptors[procedure.Namespace()].(*namespaceDescriptor)
-		if handlerNamespace.temporary != (SessionToken{}) {
+		if handlerNamespace.temporary != (ids.SessionToken{}) {
 			return fmt.Errorf("stuntgres: durable conversion has temporary routine")
 		}
 	}

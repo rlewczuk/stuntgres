@@ -260,7 +260,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 }
 
 func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
-	if ns, ok := view.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+	if ns, ok := view.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
 			if old == (ids.ObjectRef{}) {
@@ -405,7 +405,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 			continue
 		}
 		ns, ok := e.state.descriptors[d.namespace].(*namespaceDescriptor)
-		if !ok || ns.temporary == (SessionToken{}) {
+		if !ok || ns.temporary == (ids.SessionToken{}) {
 			continue
 		}
 		for _, rule := range d.rules {

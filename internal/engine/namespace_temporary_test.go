@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func assertTemporaryNamespacePair(t *testing.T, e *Engine, token SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
+func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
 	ns, ok := e.state.descriptors[table].(*namespaceDescriptor)
 	if !ok || ns.temporary != token || ns.temporaryToast || ns.owner.ID() != 10 || ns.acl.Explicit || len(ns.acl.Entries) != 0 {

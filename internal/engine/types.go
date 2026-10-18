@@ -35,7 +35,7 @@ type StatementDescription struct {
 	analysis         *preparedAnalysis
 	quotes           []quoteConstant
 	quoteGeneration  uint64 // Published separately after successful quote preflight.
-	planOwner        SessionToken
+	planOwner        ids.SessionToken
 	planGeneration   uint64
 	refreshTemporals bool // Candidate-only request; never published in a description.
 }

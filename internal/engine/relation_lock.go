@@ -89,7 +89,7 @@ type lockResource struct {
 type relationTicket struct {
 	manager            *relationLockManager
 	ref                TxRef
-	session            SessionToken
+	session            ids.SessionToken
 	persistent         bool
 	detached           bool // prepared transaction: independent of its former physical session
 	resources          map[lockResource]struct{}
@@ -153,7 +153,7 @@ type relationLockManager struct {
 	domain       *ids.Domain // Owning engine's identity domain; provenance checks only.
 	epoch        ids.CatalogEpoch
 	owners       map[TxRef]*relationTicket
-	sessions     map[SessionToken]*relationTicket
+	sessions     map[ids.SessionToken]*relationTicket
 	entries      map[lockResource]*relationEntry
 	keyBuckets   map[uniqueLockBucket]*uniqueLockBucketState
 	multiNext    uint32

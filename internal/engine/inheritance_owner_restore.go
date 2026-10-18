@@ -40,7 +40,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	namespace, ok := auth.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
-	if !ok || namespace.temporary != (SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
+	if !ok || namespace.temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -99,7 +99,7 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 		return reject()
 	}
 	namespace, ok := auth.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
-	if !ok || namespace.temporary != (SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
+	if !ok || namespace.temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
 		return reject()
 	}
 	return nil

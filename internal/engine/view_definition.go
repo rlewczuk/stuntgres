@@ -44,7 +44,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.namespaces = b.viewNamespaces
 	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.sequenceConstants))
 	for _, constant := range b.sequenceConstants {
-		if constant.temporary != (SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.temporary != auth.session.token) {
+		if constant.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 		definition.sequenceRefs[constant.offset] = constant.ref
@@ -82,7 +82,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
 		}
-		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
+		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}

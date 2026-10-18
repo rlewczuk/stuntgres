@@ -136,14 +136,14 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	_, err = scope.writeAuthorizationLocked(e)
 	var elements []sqltype.Value
 	if err == nil && pid > 0 && n.kind == safeSnapshotBlockingInquiry {
-		elements, err = e.safeSnapshotBlockingPidsLocked(SessionID(pid), n.usage.Type.Element())
+		elements, err = e.safeSnapshotBlockingPidsLocked(ids.SessionID(pid), n.usage.Type.Element())
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if pid > 0 && n.kind == ordinaryBlockingInquiry {
-		elements, err = e.locks.blockingPids(SessionID(pid), n.usage.Type.Element())
+		elements, err = e.locks.blockingPids(ids.SessionID(pid), n.usage.Type.Element())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -158,7 +158,7 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return sqltype.OwnedArrayValue(n.usage.Type, dimensions, elements)
 }
 
-func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {
+func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token ids.SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {
 	if !prepared && (token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0) {
 		return values, nil
 	}
@@ -178,7 +178,7 @@ func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token Se
 
 // Caller holds Engine.mu. These flags describe an unresolved acquisition,
 // unlike possible/ready alone, which also exist for nondeferrable readers.
-func (e *Engine) safeSnapshotBlockingPidsLocked(pid SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
+func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	for ref, node := range e.serializable.nodes {
 		if ref.Domain() != e.domain || ref.Epoch() != e.state.epoch || ref.Session() != (e.domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
@@ -233,7 +233,7 @@ func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relation
 
 // Only manager metadata is held. Inspect the authoritative journal and resource
 // queue without granting, settling, copying the graph, or invoking callbacks.
-func (m *relationLockManager) blockingPids(pid SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
+func (m *relationLockManager) blockingPids(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	token := m.domain.Session(pid)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -12,7 +13,7 @@ import (
 // Statement admission serializes this physical-session owner. Definitions never
 // retain adapter handles, snapshots or execution-private parameter frames.
 type sqlPreparedRegistry struct {
-	token   SessionToken
+	token   ids.SessionToken
 	entries map[string]*sqlPreparedStatement
 	portals map[string]*protocolPortal
 }
@@ -23,7 +24,7 @@ type sqlPreparedStatement struct {
 	parameterOIDs []uint32 // Empty protocol statements preserve unvalidated hints.
 }
 
-func (r *sqlPreparedRegistry) EndSession(token SessionToken, _ EndReason) error {
+func (r *sqlPreparedRegistry) EndSession(token ids.SessionToken, _ EndReason) error {
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign SQL prepared attachment")
 	}

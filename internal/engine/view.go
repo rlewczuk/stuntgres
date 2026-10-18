@@ -36,7 +36,7 @@ type viewDefinition struct {
 	options           []string // Immutable ordered installed name=value facts, including explicit false.
 	rule              ids.OID
 	consumer          ids.ObjectAddress
-	temporary         SessionToken
+	temporary         ids.SessionToken
 	references        map[ids.ObjectRef]Descriptor
 	collations        map[viewLiteralPath]uint32
 	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
@@ -201,7 +201,7 @@ func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sour
 		return "temporary"
 	}
 	for _, source := range sources {
-		if namespace, ok := catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+		if namespace, ok := catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 			return "temporary"
 		}
 	}

@@ -140,7 +140,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 			continue
 		}
 		namespace, ok := next.descriptors[table.namespace].(*namespaceDescriptor)
-		if !ok || namespace.temporary != (SessionToken{}) {
+		if !ok || namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		has := false

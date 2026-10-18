@@ -57,7 +57,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	case *foreignDescriptor:
 		return t.address.ClassID != ids.ForeignMappingClassID || t.mappedRole != (authorization.PrincipalRef{})
 	case *namespaceDescriptor:
-		return t.temporary == (SessionToken{}) && t.address.ObjectID != ids.PGCatalogNamespaceOID && t.address.ObjectID != ids.PGToastNamespaceOID && t.address.ObjectID != 13229
+		return t.temporary == (ids.SessionToken{}) && t.address.ObjectID != ids.PGCatalogNamespaceOID && t.address.ObjectID != ids.PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
 		return t.relationKind != catalogRelation && t.relationKind != indexRelation && t.relationKind != compositeRelation && (t.sequence == nil || t.sequence.owned == (ids.ObjectAddress{}))
 	case *typeDescriptor:

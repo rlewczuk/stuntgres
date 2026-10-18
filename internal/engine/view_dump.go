@@ -24,7 +24,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	}
 	if extension, ok := object.(*extensionDescriptor); ok {
 		namespace, ok := view.state.descriptors[extension.targetNamespace].(*namespaceDescriptor)
-		if !ok || namespace.temporary != (SessionToken{}) {
+		if !ok || namespace.temporary != (ids.SessionToken{}) {
 			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
 		}
 		return extension.address.ObjectID, nil
@@ -108,7 +108,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		source = table
 	}
 	namespace, exists := view.state.descriptors[source.namespace].(*namespaceDescriptor)
-	if !exists || namespace.temporary != (SessionToken{}) {
+	if !exists || namespace.temporary != (ids.SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}
 	if source.address == consumer && source.relationKind != viewRelation {

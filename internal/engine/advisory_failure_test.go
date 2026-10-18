@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
@@ -14,13 +16,13 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		key := lockResource{kind: advisoryBigintResource, low: 18}
 		advisoryUnitGrant(t, s, ref, key, advisoryExclusive)
 		injected := errors.New("advisory initialization default failed")
-		_, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
+		_, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
 		if !errors.Is(err, injected) {
 			t.Fatal("actual initialization failure", err)
 		}
 		op := transactionOperation(t, s)
 		called := false
-		callerOwned := &sessionOwner{fn: func(_ SessionToken, _ EndReason) error { called = true; return nil }}
+		callerOwned := &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error { called = true; return nil }}
 		transferred, err := op.Attach(AdvisorySession, callerOwned)
 		op.Done()
 		if err == nil || transferred != (ResourceHandle{}) || advisoryUnitHold(s, key).exclusive != 1 {

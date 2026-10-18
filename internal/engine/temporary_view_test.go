@@ -108,7 +108,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
-	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, changes)
+	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
 	}

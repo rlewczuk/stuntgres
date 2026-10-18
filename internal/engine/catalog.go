@@ -52,7 +52,7 @@ type namespaceDescriptor struct {
 	owner          authorization.PrincipalRef
 	acl            authorization.ACLValue
 	comment        string
-	temporary      SessionToken
+	temporary      ids.SessionToken
 	temporaryToast bool
 }
 
@@ -188,10 +188,10 @@ type namespaceProvider struct{}
 func (namespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := d.(*namespaceDescriptor)
-	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
+	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (ids.SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.temporary != (SessionToken{}) && (ns.temporary.Domain() != domainOf(v.owner) || ns.temporary.ID() == 0 || privateSessionOf(ns.temporary) != nil) {
+	if ns.temporary != (ids.SessionToken{}) && (ns.temporary.Domain() != domainOf(v.owner) || ns.temporary.ID() == 0 || privateSessionOf(ns.temporary) != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()
@@ -215,7 +215,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
 	}
-	if r.onCommit > parser.OnCommitDrop || r.onCommit != parser.OnCommitUnspecified && (r.relationKind != tableRelation || ns.(*namespaceDescriptor).temporary == (SessionToken{})) {
+	if r.onCommit > parser.OnCommitDrop || r.onCommit != parser.OnCommitUnspecified && (r.relationKind != tableRelation || ns.(*namespaceDescriptor).temporary == (ids.SessionToken{})) {
 		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
 	found := v.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: r.namespace, Name: r.name})
@@ -1083,7 +1083,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
-			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.temporary != (SessionToken{}) {
+			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.temporary != (ids.SessionToken{}) {
 				for address, d := range current.descriptors {
 					if _, removed := s.removals[address]; d.Namespace() == ns.address && (!removed || d != s.base.state.descriptors[address]) {
 						e.mu.Unlock()

@@ -324,7 +324,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if d.view != nil {
 			claimed[d.view.rule] = true
 		}
-		if ns, ok := next.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := next.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			for _, r := range d.rules {
 				claimed[r.OID] = true
 			}
@@ -406,7 +406,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: old}] = ids.ObjectAddress{ClassID: 2606, ObjectID: next}
 	}
 	for _, old := range relations {
-		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies)+len(old.rules) == 0 {
@@ -626,7 +626,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			if !ok || len(parent.rules) == 0 {
 				continue
 			}
-			if namespace, ok := next.descriptors[parent.namespace].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+			if namespace, ok := next.descriptors[parent.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 				continue
 			}
 			remapped, err := remapRuleConstraintIdentities(view, parent, constraintMapping)

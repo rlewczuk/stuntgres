@@ -17,7 +17,7 @@ import (
 type Engine struct {
 	mu            sync.Mutex
 	locks         *relationLockManager
-	notifications map[SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
+	notifications map[ids.SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
 	domain               *ids.Domain
@@ -33,7 +33,7 @@ type Engine struct {
 	nextRevision         ids.DefinitionRevision
 	nextEnumMember       int64
 	sessionMu            sync.Mutex
-	sessions             map[SessionToken]*Session
+	sessions             map[ids.SessionToken]*Session
 	settingsDefinitions  map[string]SettingDefinition
 	nextRow              uint64
 	nextVersion          uint64
@@ -826,7 +826,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (SessionToken{}) {
+			if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}

@@ -17,7 +17,7 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 			for _, at := range []int{1, 2} {
 				t.Run(fmt.Sprintf("explicit=%t/restore=%t/validation=%d", explicit, restore, at), func(t *testing.T) {
 					e := New()
-					s, startErr := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1))})
+					s, startErr := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 					if startErr != nil {
 						t.Fatal(startErr)
 					}

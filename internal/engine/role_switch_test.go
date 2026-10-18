@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -32,7 +33,7 @@ func roleSwitchUnitSession(t *testing.T) (*Engine, *Session) {
 		run(t, e, q)
 	}
 	login, _ := e.Roles().Lookup("switch_login")
-	s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
+	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +157,7 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 		}
 		e.mu.Unlock()
 	}}
-	s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
+	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +208,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 					cancel()
 				}
 			}}
-			s, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
+			s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
 			if s != nil || err == nil || len(e.sessions) != before {
 				t.Fatal("failed startup published", s, err)
 			}
@@ -225,7 +226,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 	for _, value := range []string{"none"} {
 		e, _ := roleSwitchUnitSession(t)
 		login, _ := e.Roles().Lookup("switch_login")
-		s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: roleSwitchDefaultProvider{value: value}})
+		s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: roleSwitchDefaultProvider{value: value}})
 		if err != nil {
 			t.Fatal(err)
 		}

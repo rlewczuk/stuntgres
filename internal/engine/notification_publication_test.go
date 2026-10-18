@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -239,7 +240,7 @@ func TestNotificationSavepointRoots(t *testing.T) {
 
 func TestNotificationIdentityAndAssignment(t *testing.T) {
 	e := New()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(1)<<48 | 17})
+	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(1)<<48 | 17})
 	if err != nil {
 		t.Fatal(err)
 	}

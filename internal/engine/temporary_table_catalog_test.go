@@ -80,7 +80,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
 		mark := cloneCatalogChanges(c)
-		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, c)
+		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)
 		}
@@ -263,7 +263,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	sessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
-	lookup := func(view CatalogRead, name string, namespace SessionToken) *relationDescriptor {
+	lookup := func(view CatalogRead, name string, namespace ids.SessionToken) *relationDescriptor {
 		t.Helper()
 		for _, descriptor := range view.state.descriptors {
 			d, ok := descriptor.(*relationDescriptor)
@@ -282,7 +282,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	provider := lookup(before, "live_provider", owner.token)
 	providerIndex := lookup(before, "live_provider_index", owner.token)
 	consumer := lookup(before, "live_consumer", owner.token)
-	persistent := lookup(before, "persistent_consumer", SessionToken{})
+	persistent := lookup(before, "persistent_consumer", ids.SessionToken{})
 	foreign := lookup(before, "live_provider", peer.token)
 	store := e.storage[consumer.address]
 	indexRoot := e.indexRoots[providerIndex.address]

@@ -53,7 +53,7 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 				return fmt.Errorf("stuntgres: invalid default relation provider")
 			}
 			namespace := view.state.descriptors[relation.namespace].(*namespaceDescriptor)
-			if namespace.temporary != (SessionToken{}) {
+			if namespace.temporary != (ids.SessionToken{}) {
 				owner := view.state.descriptors[d.namespace].(*namespaceDescriptor)
 				if owner.temporary != namespace.temporary {
 					return fmt.Errorf("stuntgres: foreign temporary default provider")

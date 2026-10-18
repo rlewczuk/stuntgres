@@ -129,7 +129,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	roleExecute(t, e, admin, `CREATE TABLE coll_bootstrap_survivor(id INT,v TEXT COLLATE pg_temp.coll_bootstrap_temporary DEFAULT ('a' COLLATE pg_temp.coll_bootstrap_temporary))`)
 	roleExecute(t, e, admin, `INSERT INTO coll_bootstrap_survivor VALUES(7,'é')`)
 	done()
-	inspection, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: bootstrap})
+	inspection, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: bootstrap})
 	if err != nil {
 		t.Fatal(err)
 	}

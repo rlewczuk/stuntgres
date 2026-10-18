@@ -123,7 +123,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 
 func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	e := New()
-	owner, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1))})
+	owner, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}

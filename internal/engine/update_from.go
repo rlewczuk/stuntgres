@@ -22,7 +22,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 
 // Namespace lookup and role privileges precede physical storage admission.
 // Identity/metadata providers do not acquire another session's stored TEMP data.
-func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescriptor, token SessionToken) error {
+func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) error {
 	if relation == nil {
 		return ErrCatalogReplaced
 	}
@@ -33,7 +33,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if !ok {
 		return ErrCatalogReplaced
 	}
-	if namespace.temporary != (SessionToken{}) && namespace.temporary != token {
+	if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token {
 		return sqlError("0A000", "cannot access temporary tables of other sessions")
 	}
 	return nil
@@ -41,7 +41,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
-func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
+func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
 	catalog := auth.catalog
 	if auth.engine != e || catalog.owner != e || catalog.state == nil {
 		return nil, ErrCatalogReplaced

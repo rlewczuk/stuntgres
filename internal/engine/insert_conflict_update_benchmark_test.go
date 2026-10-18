@@ -17,7 +17,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/rows=%d", mode, size), func(b *testing.B) {
 				b.StopTimer()
 				e := New()
-				s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1))})
+				s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 				if err != nil {
 					b.Fatal(err)
 				}

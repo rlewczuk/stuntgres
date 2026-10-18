@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"unsafe"
@@ -88,7 +89,7 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 			b.Run(name, func(b *testing.B) {
 				e := New()
 				ctx := context.Background()
-				s, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1))})
+				s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 				if err != nil {
 					b.Fatal(err)
 				}

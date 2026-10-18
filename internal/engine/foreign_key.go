@@ -194,10 +194,10 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	}
 	childTemp := view.state.descriptors[child.namespace].(*namespaceDescriptor).temporary
 	parentTemp := view.state.descriptors[parent.namespace].(*namespaceDescriptor).temporary
-	if childTemp != (SessionToken{}) && parentTemp == (SessionToken{}) {
+	if childTemp != (ids.SessionToken{}) && parentTemp == (ids.SessionToken{}) {
 		return sqlError("42P16", "constraints on temporary tables may reference only temporary tables")
 	}
-	if childTemp == (SessionToken{}) && parentTemp != (SessionToken{}) {
+	if childTemp == (ids.SessionToken{}) && parentTemp != (ids.SessionToken{}) {
 		return sqlError("42P16", "constraints on permanent tables may reference only permanent tables")
 	}
 	if childTemp != parentTemp {

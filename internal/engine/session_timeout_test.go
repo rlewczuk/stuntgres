@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -412,7 +413,7 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 	}
 	defer op.Done()
 	calls := 0
-	if _, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(token SessionToken, reason EndReason) error {
+	if _, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(token ids.SessionToken, reason EndReason) error {
 		calls++
 		if token != s.token || reason != Terminated {
 			t.Error("wrong cleanup authority", token, reason)

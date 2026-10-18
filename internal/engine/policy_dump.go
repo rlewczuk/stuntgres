@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 type dumpPolicyGroup struct{ owner, table, sql string }
@@ -41,7 +42,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 			continue
 		}
 		ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
-		if ns.temporary != (SessionToken{}) {
+		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		owner, err := roles.Descriptor(d.owner)
@@ -85,7 +86,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if view.state.descriptors[relation.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+					if view.state.descriptors[relation.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
@@ -96,7 +97,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					if provider == nil {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if namespace, ok := view.state.descriptors[provider.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+					if namespace, ok := view.state.descriptors[provider.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}

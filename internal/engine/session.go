@@ -38,7 +38,7 @@ const (
 )
 
 type ResourceHandle struct {
-	session SessionToken
+	session ids.SessionToken
 	kind    ResourceKind
 	serial  uint64
 }
@@ -46,10 +46,10 @@ type ResourceHandle struct {
 // SessionResource callbacks release in-process resources outside lifecycle locks.
 // They must not synchronously reenter lifecycle operations or perform external I/O.
 type SessionResource interface {
-	EndSession(SessionToken, EndReason) error
+	EndSession(ids.SessionToken, EndReason) error
 }
 type SessionStart struct {
-	ID            SessionID
+	ID            ids.SessionID
 	Defaults      SessionDefaultProvider
 	Authenticated authorization.PrincipalRef
 }
@@ -67,11 +67,11 @@ type resourceEntry struct {
 	owner  SessionResource
 }
 type Session struct {
-	SessionOwnerMarker
+	ids.SessionOwnerMarker
 	mu     sync.Mutex
 	cond   *sync.Cond
 	engine *Engine // Immutable after construction.
-	token  SessionToken
+	token  ids.SessionToken
 	// Written before registry publication, never changed by identity switches.
 	countedAuthenticated   authorization.PrincipalRef
 	state                  sessionState
@@ -271,7 +271,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		e.sessionMu.Lock()
 		if e.sessions == nil {
-			e.sessions = make(map[SessionToken]*Session)
+			e.sessions = make(map[ids.SessionToken]*Session)
 		}
 		if e.sessions[s.token] != nil {
 			err = errors.New("stuntgres: duplicate session identity")
@@ -297,8 +297,8 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	return s, nil
 }
-func (s *Session) Engine() *Engine     { return s.engine }
-func (s *Session) Token() SessionToken { return s.token }
+func (s *Session) Engine() *Engine         { return s.engine }
+func (s *Session) Token() ids.SessionToken { return s.token }
 func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.

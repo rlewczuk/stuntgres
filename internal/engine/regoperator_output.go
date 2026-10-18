@@ -20,10 +20,10 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 	// Temporary namespaces never participate in unqualified operator visibility.
 	operatorPath := path
 	for i, ns := range path {
-		if d, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && d.temporary != (SessionToken{}) {
+		if d, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && d.temporary != (ids.SessionToken{}) {
 			operatorPath = append([]ids.ObjectAddress(nil), path[:i]...)
 			for _, remaining := range path[i+1:] {
-				if d, ok := view.state.descriptors[remaining].(*namespaceDescriptor); !ok || d.temporary == (SessionToken{}) {
+				if d, ok := view.state.descriptors[remaining].(*namespaceDescriptor); !ok || d.temporary == (ids.SessionToken{}) {
 					operatorPath = append(operatorPath, remaining)
 				}
 			}

@@ -25,7 +25,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		return false
 	}
 	namespace, ok := view.state.descriptors[consumer.namespace].(*namespaceDescriptor)
-	if !ok || namespace.temporary == (SessionToken{}) {
+	if !ok || namespace.temporary == (ids.SessionToken{}) {
 		return false
 	}
 	switch target := target.(type) {
@@ -86,7 +86,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return false
 	}
 	namespace, ok := catalog.state.descriptors[consumer.namespace].(*namespaceDescriptor)
-	if !ok || namespace.temporary == (SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.Domain() != domainOf(catalog.owner) {
+	if !ok || namespace.temporary == (ids.SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.Domain() != domainOf(catalog.owner) {
 		return false
 	}
 	captured, exists := consumer.view.references[ref]
@@ -137,7 +137,7 @@ func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, r
 	return ref, nil
 }
 
-func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, token SessionToken) bool {
+func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, token ids.SessionToken) bool {
 	if ref.Epoch == view.Epoch() {
 		return ref.Domain() == view.owner.domain
 	}
@@ -147,8 +147,8 @@ func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, re
 	return temporarySequenceEpochValid(view, ref, token)
 }
 
-func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token SessionToken) bool {
-	if token == (SessionToken{}) || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
+func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.SessionToken) bool {
+	if token == (ids.SessionToken{}) || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
 		return false
 	}
 	sequence, ok := view.state.descriptors[ref.Address].(*relationDescriptor)

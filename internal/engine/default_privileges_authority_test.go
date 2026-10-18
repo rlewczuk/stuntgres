@@ -111,7 +111,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal("physical authority invented namespace delegation", rights, err)
 	}
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.name)
-	for _, token := range []SessionToken{
+	for _, token := range []ids.SessionToken{
 		{},
 		f.e.domain.Session(f.op.session.token.ID() + 1),
 		New().domain.Session(f.op.session.token.ID()),
@@ -123,7 +123,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	}
 	// Even an exact namespace token cannot elevate zero/foreign/private
 	// maintenance identities into a physical backend.
-	for _, token := range []SessionToken{{}, New().domain.Session(1), f.e.domain.PrivateSession(f.op.session)} {
+	for _, token := range []ids.SessionToken{{}, New().domain.Session(1), f.e.domain.PrivateSession(f.op.session)} {
 		candidate := cloneCatalog(state)
 		invalidNamespace := namespace
 		invalidNamespace.temporary = token
@@ -139,7 +139,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	defaultUnitDiagnostic(t, withoutSession.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	ordinary := cloneCatalog(state)
 	permanent := namespace
-	permanent.temporary = SessionToken{}
+	permanent.temporary = ids.SessionToken{}
 	ordinary.descriptors[f.schema] = &permanent
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = CatalogRead{f.e, ordinary}

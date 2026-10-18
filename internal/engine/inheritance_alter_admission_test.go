@@ -34,7 +34,7 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: principal})
+	session, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
 	if err != nil {
 		t.Fatal(err)
 	}

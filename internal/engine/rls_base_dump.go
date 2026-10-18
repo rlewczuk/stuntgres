@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // Replay rows before these groups: an ordinary forced owner otherwise cannot
@@ -20,7 +21,7 @@ func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authoriz
 			return nil, err
 		}
 		ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
-		if ns.temporary != (SessionToken{}) {
+		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		owner, err := roles.Descriptor(d.owner)

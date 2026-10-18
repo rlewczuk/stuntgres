@@ -179,7 +179,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	scope := &StatementScope{op: op, txRef: (*ids.Domain)(nil).Tx(SessionToken{}, 0, f.e.state.epoch, nil, 0)}
+	scope := &StatementScope{op: op, txRef: (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, f.e.state.epoch, nil, 0)}
 	calls := 0
 	failure := errors.New("qualifying key")
 	key := partialEvaluationWitness{expressionInfo: expressionInfo{usage: f.parent.columns[0].Usage}, calls: &calls, failure: failure}

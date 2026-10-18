@@ -6,16 +6,17 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
 )
 
 type sessionOwner struct {
-	fn func(SessionToken, EndReason) error
+	fn func(ids.SessionToken, EndReason) error
 }
 
-func (o *sessionOwner) EndSession(t SessionToken, r EndReason) error { return o.fn(t, r) }
+func (o *sessionOwner) EndSession(t ids.SessionToken, r EndReason) error { return o.fn(t, r) }
 
 type defaultProvider struct {
 	value string
@@ -30,7 +31,7 @@ func (p *defaultProvider) SessionDefault(_ context.Context, d SettingDefinition)
 }
 func sessionStart(t *testing.T, e *Engine, p SessionDefaultProvider) *Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Defaults: p})
+	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 		t.Fatal("snapshot lost")
 	}
 	failure := errors.New("provider failed")
-	if s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
+	if s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
 		t.Fatalf("init %v %v", s, err)
 	}
 	e.sessionMu.Lock()
@@ -156,7 +157,7 @@ func TestSessionDetachEndInterleaving(t *testing.T) {
 	failure := errors.New("detach failure")
 	calls := 0
 	op, _ := s.Acquire(context.Background())
-	h, err := op.Attach(Temporary, &sessionOwner{fn: func(token SessionToken, r EndReason) error {
+	h, err := op.Attach(Temporary, &sessionOwner{fn: func(token ids.SessionToken, r EndReason) error {
 		calls++
 		if token != s.Token() {
 			t.Error("token")
@@ -222,7 +223,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	var mu sync.Mutex
 	for _, kind := range []ResourceKind{Temporary, PreparedSQL} {
 		k := kind
-		owner := &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
+		owner := &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error {
 			if s.TransactionState() != TxIdle {
 				t.Error("transaction cleanup did not precede resources")
 			}
@@ -247,7 +248,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 			t.Fatal("invalid owner")
 		}
 	}
-	if _, err = op.Attach(resourceKinds, &sessionOwner{fn: func(SessionToken, EndReason) error { return nil }}); err == nil {
+	if _, err = op.Attach(resourceKinds, &sessionOwner{fn: func(ids.SessionToken, EndReason) error { return nil }}); err == nil {
 		t.Fatal("unknown kind")
 	}
 	copyOp := *op
@@ -264,7 +265,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal("cleanup before drain")
 	}
 	op.Done()
-	if _, err = op.Attach(Settings, &sessionOwner{fn: func(SessionToken, EndReason) error { t.Error("rejected attachment transferred"); return nil }}); err == nil {
+	if _, err = op.Attach(Settings, &sessionOwner{fn: func(ids.SessionToken, EndReason) error { t.Error("rejected attachment transferred"); return nil }}); err == nil {
 		t.Fatal("ending attach")
 	}
 	if err = s.WaitEnd(context.Background()); err != nil {
@@ -294,7 +295,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	op, _ := s.Acquire(context.Background())
 	count := 0
-	owner := &sessionOwner{fn: func(SessionToken, EndReason) error { count++; return nil }}
+	owner := &sessionOwner{fn: func(ids.SessionToken, EndReason) error { count++; return nil }}
 	h, err := op.Attach(Temporary, owner)
 	if err != nil {
 		t.Fatal(err)
@@ -363,7 +364,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 		if kind == PreparedSQL {
 			failure = second
 		}
-		if _, err = op.Attach(kind, &sessionOwner{fn: func(token SessionToken, reason EndReason) error {
+		if _, err = op.Attach(kind, &sessionOwner{fn: func(token ids.SessionToken, reason EndReason) error {
 			calls++
 			if token != s.Token() || reason != s.reason {
 				t.Error("terminal ownership/reason")
@@ -400,7 +401,7 @@ func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	op := s.operation(context.Background(), true)
 	calls := 0
 	for _, kind := range []ResourceKind{Settings, Authorization} {
-		if _, err := op.Attach(kind, &sessionOwner{fn: func(_ SessionToken, reason EndReason) error {
+		if _, err := op.Attach(kind, &sessionOwner{fn: func(_ ids.SessionToken, reason EndReason) error {
 			calls++
 			if reason != InitFailure {
 				t.Error(reason)

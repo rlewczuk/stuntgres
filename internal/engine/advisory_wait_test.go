@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -189,7 +190,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		participant := old.participant()
 		same := sameLockSession(old, a.transactions.ticket)
 		e.locks.mu.Unlock()
-		if !detached || participant.prepared != ra || participant.session != (SessionToken{}) || same || advisoryUnitHold(a, key).exclusive != 1 {
+		if !detached || participant.prepared != ra || participant.session != (ids.SessionToken{}) || same || advisoryUnitHold(a, key).exclusive != 1 {
 			t.Fatal("prepared identity/counts", detached, participant, same)
 		}
 		if _, err := e.locks.startAcquire(context.Background(), a.transactions.ticket, ordinary, accessExclusive, relationLockPolicy{nowait: true}); !errors.Is(err, errRelationUnavailable) {

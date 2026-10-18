@@ -109,7 +109,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			options.persistence = persistence
 			read := e.stageRead(stage)
 			tableNamespace := read.state.descriptors[table.namespace].(*namespaceDescriptor)
-			if tableNamespace.temporary != (SessionToken{}) {
+			if tableNamespace.temporary != (ids.SessionToken{}) {
 				if !tableNamespace.temporaryToast && auth.session != nil && tableNamespace.temporary == auth.session.token {
 					auth.stagedTemporary = table.namespace
 				}
@@ -155,7 +155,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	if staged, ok := stage.descriptors[table.namespace]; ok {
 		namespace = staged
 	}
-	if namespace.(*namespaceDescriptor).temporary != (SessionToken{}) {
+	if namespace.(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
 		options.persistence = "temporary"
 	}
 	oid, err := e.allocateOIDLocked()

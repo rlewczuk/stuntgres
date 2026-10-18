@@ -9,6 +9,7 @@ import (
 	"errors"
 	"runtime"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"sync"
 )
@@ -27,7 +28,7 @@ type DriverConfig struct {
 type Driver struct {
 	mu                sync.Mutex
 	engines           map[string]*engine.Engine
-	lastSession       engine.SessionID
+	lastSession       ids.SessionID
 	settings          []engine.SettingDefinition
 	settingsFrozen    bool
 	config            DriverConfig
@@ -96,7 +97,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		return nil, err
 	}
 	c.owner.mu.Lock()
-	if c.owner.lastSession == ^engine.SessionID(0) {
+	if c.owner.lastSession == ^ids.SessionID(0) {
 		c.owner.mu.Unlock()
 		return nil, errors.New("stuntgres: session identity exhausted")
 	}

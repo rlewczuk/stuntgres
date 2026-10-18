@@ -12,7 +12,7 @@ type sequenceAnalysis struct {
 	constants []sequenceConstant
 	path      sequenceEnvironment
 	private   *catalogChanges
-	session   SessionToken
+	session   ids.SessionToken
 	// Namespace callbacks invalidate analysis even when the effective path is equal.
 	namespace uint64
 }
@@ -89,7 +89,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 		if ref.Domain() != e.domain {
 			return false, ErrCatalogReplaced
 		}
-		if constant.temporary != (SessionToken{}) && constant.temporary != auth.session.token {
+		if constant.temporary != (ids.SessionToken{}) && constant.temporary != auth.session.token {
 			return false, ErrCatalogReplaced
 		}
 		if ref.Epoch != auth.catalog.Epoch() {

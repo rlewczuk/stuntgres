@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id SessionID, p SessionDefaultProvider) (*Session, error) {
+func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id ids.SessionID, p SessionDefaultProvider) (*Session, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return e.StartSession(ctx, SessionStart{ID: id, Authenticated: ref, Defaults: p})
@@ -31,7 +32,7 @@ func roleLimitClose(t *testing.T, s *Session) {
 }
 func roleLimitDenied(t *testing.T, e *Engine, ref authorization.PrincipalRef, name string) {
 	t.Helper()
-	s, err := roleLimitStart(e, ref, SessionID(testSessionID.Add(1)), nil)
+	s, err := roleLimitStart(e, ref, ids.SessionID(testSessionID.Add(1)), nil)
 	var d *sqlstate.Error
 	want := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "53300", Message: "too many connections for role \"" + name + "\""}
 	if s != nil || !errors.As(err, &d) || !reflect.DeepEqual(d, want) {
@@ -43,7 +44,7 @@ func roleLimitDenied(t *testing.T, e *Engine, ref authorization.PrincipalRef, na
 }
 func roleLimitOpen(t *testing.T, e *Engine, ref authorization.PrincipalRef) *Session {
 	t.Helper()
-	s, err := roleLimitStart(e, ref, SessionID(testSessionID.Add(1)), nil)
+	s, err := roleLimitStart(e, ref, ids.SessionID(testSessionID.Add(1)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 			return nil, err
 		},
 		func() (*Session, error) {
-			return roleLimitStart(e, super.Ref, SessionID(testSessionID.Add(1)), nil)
+			return roleLimitStart(e, super.Ref, ids.SessionID(testSessionID.Add(1)), nil)
 		},
 	} {
 		s, err := admission()
@@ -182,7 +183,7 @@ type roleLimitEndGate struct {
 	entered, release chan struct{}
 }
 
-func (g *roleLimitEndGate) EndSession(token SessionToken, reason EndReason) error {
+func (g *roleLimitEndGate) EndSession(token ids.SessionToken, reason EndReason) error {
 	err := g.owner.EndSession(token, reason)
 	close(g.entered)
 	<-g.release
@@ -215,7 +216,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		fence := &roleLimitFenceContext{Context: ctx, e: e, cancel: cancel}
-		s, err := e.StartSession(fence, SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: d.Ref})
+		s, err := e.StartSession(fence, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: d.Ref})
 		if s != nil || !errors.Is(err, context.Canceled) || !fence.observed {
 			t.Fatal("registry cancellation consumed slot", s, err)
 		}
@@ -231,7 +232,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		for range 2 {
 			go func() {
 				<-ready
-				s, err := roleLimitStart(e, d.Ref, SessionID(testSessionID.Add(1)), nil)
+				s, err := roleLimitStart(e, d.Ref, ids.SessionID(testSessionID.Add(1)), nil)
 				results <- roleLimitStartResult{s, err}
 			}()
 		}
@@ -262,7 +263,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 			gate := &roleLimitGate{entered: make(chan struct{}), release: make(chan struct{})}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			id := SessionID(testSessionID.Add(1))
+			id := ids.SessionID(testSessionID.Add(1))
 			results := make(chan roleLimitStartResult, 1)
 			go func() {
 				s, err := e.StartSession(ctx, SessionStart{ID: id, Authenticated: d.Ref, Defaults: gate})
@@ -335,7 +336,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		first.mu.Lock()
 		results := make(chan roleLimitStartResult, 1)
 		go func() {
-			s, err := roleLimitStart(e, d.Ref, SessionID(testSessionID.Add(1)), nil)
+			s, err := roleLimitStart(e, d.Ref, ids.SessionID(testSessionID.Add(1)), nil)
 			results <- roleLimitStartResult{s, err}
 		}()
 		select {

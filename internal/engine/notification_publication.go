@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"maps"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type notificationCapture struct {
@@ -13,7 +15,7 @@ type notificationCapture struct {
 }
 type notificationPublication struct {
 	captured []notificationCapture
-	registry map[SessionToken]*sessionNotifications
+	registry map[ids.SessionToken]*sessionNotifications
 	count    int
 }
 
@@ -100,7 +102,7 @@ func (e *Engine) prepareNotificationPublication(sender *Session, actions []notif
 				next.pending = nil
 			}
 			if wasRegistered != (len(next.channels) != 0) {
-				p.registry = make(map[SessionToken]*sessionNotifications, p.count+1)
+				p.registry = make(map[ids.SessionToken]*sessionNotifications, p.count+1)
 				for _, entry := range p.captured {
 					if entry.resource != own && !entry.ended && entry.original != nil && len(entry.original.channels) != 0 {
 						p.registry[entry.resource.token] = entry.resource

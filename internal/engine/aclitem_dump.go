@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -67,7 +68,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 		if !ok {
 			continue
 		}
-		if ns, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if relation.relationKind == catalogRelation {

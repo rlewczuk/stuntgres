@@ -23,7 +23,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 			if !ok {
 				return CatalogRead{}, fmt.Errorf("stuntgres: extension namespace is missing")
 			}
-			if namespace.temporary != (SessionToken{}) {
+			if namespace.temporary != (ids.SessionToken{}) {
 				return CatalogRead{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
 			}
 		}
@@ -33,14 +33,14 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 	for a, d := range view.state.descriptors {
 		ns, isNamespace := d.(*namespaceDescriptor)
 		parent, hasParent := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
-		if isNamespace && ns.temporary != (SessionToken{}) || hasParent && parent.temporary != (SessionToken{}) {
+		if isNamespace && ns.temporary != (ids.SessionToken{}) || hasParent && parent.temporary != (ids.SessionToken{}) {
 			operators.replace(d, nil)
 			delete(next.descriptors, a)
 		}
 	}
 	for key, a := range view.state.names {
 		parent, hasParent := view.state.descriptors[key.Namespace].(*namespaceDescriptor)
-		if view.state.descriptors[a] != nil && next.descriptors[a] == nil || hasParent && parent.temporary != (SessionToken{}) {
+		if view.state.descriptors[a] != nil && next.descriptors[a] == nil || hasParent && parent.temporary != (ids.SessionToken{}) {
 			delete(next.names, key)
 		}
 	}
@@ -80,7 +80,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	temporary := make(map[ids.ObjectAddress]Descriptor)
 	for a, d := range e.state.descriptors {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			temporary[a] = d
 		}
 	}

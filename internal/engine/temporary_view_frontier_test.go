@@ -68,7 +68,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			auth.recaptureCatalog(current)
 			e.mu.Lock()
 			refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: use, relation: original}}, nil, owner.token, queryRowMark{})
-			_, staleErr := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.state.descriptors[baseAddress].(*relationDescriptor)}}, nil, SessionToken{}, queryRowMark{})
+			_, staleErr := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.state.descriptors[baseAddress].(*relationDescriptor)}}, nil, ids.SessionToken{}, queryRowMark{})
 			e.mu.Unlock()
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {
 				t.Fatal("retained frontier", refs, err)

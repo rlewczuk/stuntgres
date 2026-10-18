@@ -61,7 +61,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			refs = append(refs, ref)
 		}
 		if d.relationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.relationKind == materializedViewRelation {
-			if d.view.temporary != (SessionToken{}) {
+			if d.view.temporary != (ids.SessionToken{}) {
 				for old := range d.view.references {
 					if old.Epoch != e.state.epoch {
 						retainedViews = append(retainedViews, d)

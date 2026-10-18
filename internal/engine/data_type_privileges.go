@@ -99,7 +99,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 				if !allowed {
 					continue
 				}
-			} else if ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
+			} else if ns.temporary != (ids.SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
 				continue
 			}
 			ownerVisible := kind == "c"

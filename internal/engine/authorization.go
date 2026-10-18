@@ -64,7 +64,7 @@ type sessionAuthorization struct {
 	revision uint64
 }
 
-func (a *sessionAuthorization) EndSession(token SessionToken, reason EndReason) error {
+func (a *sessionAuthorization) EndSession(token ids.SessionToken, reason EndReason) error {
 	if a.session == nil || a.session.token != token {
 		return fmt.Errorf("stuntgres: foreign authorization attachment")
 	}

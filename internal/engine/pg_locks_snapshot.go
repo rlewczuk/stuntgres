@@ -23,7 +23,7 @@ const (
 // key, queue, map, provider value or session pointer escapes manager metadata.
 // The public view joins this manager capture with a separate SSI capture.
 type pgLockOwner struct {
-	session  SessionID
+	session  ids.SessionID
 	local    TxID
 	prepared bool
 }
@@ -81,7 +81,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 	// association. Build this lookup once rather than scanning every owner for
 	// each advisory resource. Prospective CHAIN registrations use their newest
 	// registered incarnation, whose VXID is already genuinely owned.
-	var active map[SessionID]pgLockOwner
+	var active map[ids.SessionID]pgLockOwner
 	for _, ticket := range m.owners {
 		if ticket.ref.Epoch() != epoch {
 			continue
@@ -99,7 +99,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 			records = append(records, pgLockRecord{kind: pgVirtualLock, owner: owner, target: owner})
 			if session := m.sessions[ticket.session]; session != nil && len(session.resources) != 0 {
 				if active == nil {
-					active = make(map[SessionID]pgLockOwner)
+					active = make(map[ids.SessionID]pgLockOwner)
 				}
 				if active[owner.session].local < owner.local {
 					active[owner.session] = owner

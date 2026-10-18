@@ -304,7 +304,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 		return reject()
 	}
 	namespace, namespaceOK := auth.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
-	if !namespaceOK || namespace.temporary != (SessionToken{}) {
+	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	slot, exists := table.index[raw.Actions[0].Column.Text]
@@ -387,7 +387,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		return reject()
 	}
 	namespace, namespaceOK := auth.catalog.state.descriptors[target.namespace].(*namespaceDescriptor)
-	if !namespaceOK || namespace.temporary != (SessionToken{}) {
+	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if validateInheritance(auth.catalog, target) != nil {
@@ -459,7 +459,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.state.descriptors {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.inheritance != nil && len(table.generations) != 0 {
-			if namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor); ok && namespace.temporary == (SessionToken{}) {
+			if namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor); ok && namespace.temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
 			}
@@ -474,7 +474,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 		if !ok || table.relationKind != tableRelation || table.partition != nil || table.membership != nil {
 			continue
 		}
-		if namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor); !ok || namespace.temporary != (SessionToken{}) {
+		if namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor); !ok || namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if !inheritanceParticipant(view, table) {

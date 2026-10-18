@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -51,7 +52,7 @@ func roleOperation(t *testing.T, e *Engine, name string) (*Operation, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,11 +176,11 @@ func TestRoleSessionAuthorizationAndStaleIdentity(t *testing.T) {
 	if _, err := e.Execute(a, statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("stale session adopted recreated role")
 	}
-	if _, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: New().authorizationDomain.Principal(10)}); err == nil {
+	if _, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: New().authorizationDomain.Principal(10)}); err == nil {
 		t.Fatal("foreign initialization")
 	}
 	nolog, _ := e.Roles().Lookup("nolog")
-	if _, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: nolog.Ref}); err == nil {
+	if _, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: nolog.Ref}); err == nil {
 		t.Fatal("NOLOGIN admission")
 	}
 }

@@ -41,12 +41,12 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 
 // Descendant admission and its final graph fence share the inherited-query
 // consumer's namespace/session-token authority, not child ACL or USAGE checks.
-func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token SessionToken) (bool, error) {
+func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) (bool, error) {
 	namespace, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor)
 	if !ok {
 		return false, ErrCatalogReplaced
 	}
-	return namespace.temporary != (SessionToken{}) && namespace.temporary != token, nil
+	return namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token, nil
 }
 
 // Explicit targets are opened in user order. Named occurrences always check

@@ -119,7 +119,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 		return reject()
 	}
 	namespace, ok := auth.catalog.state.descriptors[domain.namespace].(*namespaceDescriptor)
-	if !ok || namespace.temporary != (SessionToken{}) {
+	if !ok || namespace.temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)

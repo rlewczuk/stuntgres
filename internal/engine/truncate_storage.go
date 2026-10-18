@@ -24,7 +24,7 @@ type truncateName struct {
 type truncateGraphFence struct {
 	base      *catalogState
 	targets   map[ids.ObjectAddress]int // Immutable after acquisition; savepoints share it.
-	token     SessionToken              // Descendant TEMP exclusion matches grant-time admission.
+	token     ids.SessionToken          // Descendant TEMP exclusion matches grant-time admission.
 	restart   bool
 	sequences map[ids.ObjectAddress]*sequenceGenerator // Immutable committed bindings; not counter undo.
 }

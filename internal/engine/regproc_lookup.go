@@ -48,7 +48,7 @@ func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) 
 
 func routineNamespaceVisible(view CatalogRead, namespace ids.ObjectAddress) bool {
 	ns, ok := view.state.descriptors[namespace].(*namespaceDescriptor)
-	return ok && ns.temporary == (SessionToken{})
+	return ok && ns.temporary == (ids.SessionToken{})
 }
 
 // Exact signatures use both existing catalog NameKeys and the immutable release

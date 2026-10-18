@@ -10,7 +10,7 @@ import (
 )
 
 func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
-	if auth.session == nil || auth.catalog.state == nil || auth.session.token == (SessionToken{}) || auth.session.token.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.token) != nil {
+	if auth.session == nil || auth.catalog.state == nil || auth.session.token == (ids.SessionToken{}) || auth.session.token.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.token) != nil {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {
@@ -34,7 +34,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 }
 
 func ownTemporaryNamespace(auth AuthorizationView, ns *namespaceDescriptor) bool {
-	return ns != nil && !ns.temporaryToast && ns.temporary != (SessionToken{}) && temporaryNamespace(auth) == ns.address
+	return ns != nil && !ns.temporaryToast && ns.temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.address
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
@@ -108,7 +108,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 // Callers supply the coherent catalog containing any privately staged namespace.
 func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef, requested string) (string, error) {
 	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
-	temporary := ns.temporary != (SessionToken{})
+	temporary := ns.temporary != (ids.SessionToken{})
 	own := ownTemporaryNamespace(auth, ns)
 	switch requested {
 	case "temporary":

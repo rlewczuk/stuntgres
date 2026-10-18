@@ -108,7 +108,7 @@ func objectAddressClassKind(class ids.OID) (string, bool) {
 func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, canonical string) {
 	if ns, ok := view.state.descriptors[namespace].(*namespaceDescriptor); ok {
 		actual, canonical = ns.name, ns.name
-		if ns.temporary != (SessionToken{}) {
+		if ns.temporary != (ids.SessionToken{}) {
 			canonical = "pg_temp"
 		}
 	}

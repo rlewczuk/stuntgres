@@ -213,7 +213,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 			t.Fatal("foreign/future reference admitted", bad)
 		}
 	}
-	if storedSequenceEpochValid(view, destination, call.ref, SessionToken{}) {
+	if storedSequenceEpochValid(view, destination, call.ref, ids.SessionToken{}) {
 		t.Fatal("zero token admitted stale temporary sequence")
 	}
 	var rendered []ids.ObjectRef

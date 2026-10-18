@@ -158,7 +158,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		name := dependencyIdentifier(d.name)
 		visible := path == nil
 		for _, namespace := range path {
-			if n, ok := catalog.state.descriptors[namespace].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
+			if n, ok := catalog.state.descriptors[namespace].(*namespaceDescriptor); ok && n.temporary != (ids.SessionToken{}) {
 				continue
 			}
 			if address, ok := catalog.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}]; ok {
@@ -198,7 +198,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		name := dependencyIdentifier(d.name)
 		visible := path == nil
 		for _, ns := range path {
-			if n, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
+			if n, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && n.temporary != (ids.SessionToken{}) {
 				continue
 			}
 			if address, ok := catalog.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}]; ok {
@@ -219,7 +219,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 					continue
 				}
 				if a, ok := catalog.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}]; ok {
@@ -238,7 +238,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 					continue
 				}
 				if a, ok := catalog.state.names[ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.name}]; ok {
@@ -504,7 +504,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 		}
 		namespace, ok := v.state.descriptors[source.namespace].(*namespaceDescriptor)
 		consumerNamespace, consumerOK := v.state.descriptors[d.namespace].(*namespaceDescriptor)
-		if !ok || namespace.temporary != (SessionToken{}) && (!consumerOK || consumerNamespace.temporary != namespace.temporary) {
+		if !ok || namespace.temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.temporary != namespace.temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
 		for _, attribute := range leaf.reads {

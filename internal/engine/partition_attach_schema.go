@@ -53,7 +53,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	}
 	parentNamespace := catalog.state.descriptors[parent.namespace].(*namespaceDescriptor)
 	childNamespace := catalog.state.descriptors[child.namespace].(*namespaceDescriptor)
-	if parentNamespace.temporary == (SessionToken{}) && childNamespace.temporary != (SessionToken{}) {
+	if parentNamespace.temporary == (ids.SessionToken{}) && childNamespace.temporary != (ids.SessionToken{}) {
 		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.name))
 	}
 	for _, attribute := range child.attributes {

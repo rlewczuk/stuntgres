@@ -27,7 +27,7 @@ func blockingUnitType(e *Engine) *sqltype.Descriptor {
 	return typ
 }
 
-func blockingUnitWant(t *testing.T, e *Engine, target SessionID, want ...int64) []sqltype.Value {
+func blockingUnitWant(t *testing.T, e *Engine, target ids.SessionID, want ...int64) []sqltype.Value {
 	t.Helper()
 	values, err := e.locks.blockingPids(target, blockingUnitType(e))
 	if err != nil {
@@ -226,7 +226,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 	t.Run("full_width_target_and_blocker_identity", func(t *testing.T) {
 		e := New()
 		low, lt := blockingUnitOwner(t, e)
-		high, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(uint64(1)<<32) + math.MaxInt32})
+		high, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(uint64(1)<<32) + math.MaxInt32})
 		if err != nil {
 			t.Fatal(err)
 		}

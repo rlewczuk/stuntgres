@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/ids"
 )
 
 type transactionTerminalObserver struct {
-	end func(engine.SessionToken, engine.EndReason) error
+	end func(ids.SessionToken, engine.EndReason) error
 }
 
-func (o *transactionTerminalObserver) EndSession(token engine.SessionToken, reason engine.EndReason) error {
+func (o *transactionTerminalObserver) EndSession(token ids.SessionToken, reason engine.EndReason) error {
 	return o.end(token, reason)
 }
 
@@ -57,7 +58,7 @@ func TestTransactionTerminalReasons(t *testing.T) {
 			// PreparedSQL is now a production-owned attachment. The adapter's
 			// terminal-error witness uses the still-unoccupied Temporary slot;
 			// complete resource ordering is independently checked by engine units.
-			_, err = op.Attach(engine.Temporary, &transactionTerminalObserver{end: func(got engine.SessionToken, r engine.EndReason) error {
+			_, err = op.Attach(engine.Temporary, &transactionTerminalObserver{end: func(got ids.SessionToken, r engine.EndReason) error {
 				if got != token || r != reason {
 					t.Error("terminal identity/reason", got, r, token, reason)
 				}

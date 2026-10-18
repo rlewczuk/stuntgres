@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ import (
 var testSessionID atomic.Uint64
 
 func testOperation(e *Engine, ctx context.Context) (*Operation, func(), error) {
-	s, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1))})
+	s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		return nil, nil, err
 	}

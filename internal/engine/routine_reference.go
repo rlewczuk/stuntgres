@@ -66,7 +66,7 @@ func expressionRecipeDescriptor(node BoundExpr) (*relationDescriptor, error) {
 	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
 	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 ||
 		recipe.view.consumer != (ids.ObjectAddress{}) && recipe.view.consumer != recipe.address ||
-		recipe.view.temporary != (SessionToken{}) && recipe.view.consumer != recipe.address {
+		recipe.view.temporary != (ids.SessionToken{}) && recipe.view.consumer != recipe.address {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
 	return recipe, nil

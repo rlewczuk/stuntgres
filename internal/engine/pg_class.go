@@ -65,7 +65,7 @@ func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) strin
 			return "u"
 		}
 	}
-	if namespace, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+	if namespace, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
 		return "t"
 	}
 	return "p"

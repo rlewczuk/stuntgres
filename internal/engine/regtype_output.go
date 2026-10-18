@@ -68,7 +68,7 @@ func regtypeSpellingMode(view CatalogRead, path []ids.ObjectAddress, id ids.OID,
 	}
 	namespace := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
 	schema := namespace.name
-	if qualified && namespace.temporary != (SessionToken{}) {
+	if qualified && namespace.temporary != (ids.SessionToken{}) {
 		schema = "pg_temp"
 	}
 	return regclassIdentifier(schema) + "." + name

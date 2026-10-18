@@ -63,7 +63,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				t.Helper()
 				e.mu.Lock()
 				defer e.mu.Unlock()
-				return e.queryTableRefsLocked(view, invoker, leaves, nil, SessionToken{}, queryRowMark{})
+				return e.queryTableRefsLocked(view, invoker, leaves, nil, ids.SessionToken{}, queryRowMark{})
 			}
 			assertCollected := func(invoker authorization.PrincipalRef, leaves ...queryLeaf) {
 				t.Helper()

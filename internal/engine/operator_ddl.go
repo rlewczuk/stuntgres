@@ -762,7 +762,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		}
 		source := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
 		target := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor)
-		if source.temporary != (SessionToken{}) || target.temporary != (SessionToken{}) {
+		if source.temporary != (ids.SessionToken{}) || target.temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 		next.namespace = ns.Address

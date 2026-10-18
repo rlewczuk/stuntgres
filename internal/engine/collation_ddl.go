@@ -298,7 +298,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if d.Namespace() == dest.Address {
 			return nil
 		}
-		if sourceNamespace.temporary != (SessionToken{}) || targetNamespace.temporary != (SessionToken{}) {
+		if sourceNamespace.temporary != (ids.SessionToken{}) || targetNamespace.temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 		next.namespace = dest.Address

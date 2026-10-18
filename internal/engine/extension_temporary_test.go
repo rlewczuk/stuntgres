@@ -22,7 +22,7 @@ func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*Operati
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
 	if err != nil {
 		t.Fatal(err)
 	}

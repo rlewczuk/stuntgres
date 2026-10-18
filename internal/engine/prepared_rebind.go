@@ -13,7 +13,7 @@ import (
 type preparedAnalysis struct {
 	domain          *ids.Domain
 	epoch           ids.CatalogEpoch
-	session         SessionToken
+	session         ids.SessionToken
 	private         *catalogChanges
 	path            sequenceEnvironment
 	namespace       uint64

@@ -131,7 +131,7 @@ func (n namespaceInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) 
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid namespace inquiry")
 	}
 	ns, _ := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)}].(*namespaceDescriptor)
-	other := ns != nil && ns.temporary != (SessionToken{}) && ns.temporary != auth.session.token
+	other := ns != nil && ns.temporary != (ids.SessionToken{}) && ns.temporary != auth.session.token
 	return sqltype.Boolean(n.usage.Type, other), nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/big"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -250,7 +251,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 			value = "on"
 		}
 		bad := &settingsDefaultProviderForTest{values: map[string]string{name: value}, calls: map[string]int{}}
-		if s, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
+		if s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
 			t.Fatal("intrinsic default changed", s, err)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -216,7 +217,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 	}
 	return nil
 }
-func (s *sessionSettings) EndSession(_ SessionToken, _ EndReason) error {
+func (s *sessionSettings) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ended = true

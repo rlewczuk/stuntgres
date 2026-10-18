@@ -335,7 +335,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 				}
 			}
 			const waiterCount = 8
-			waiters := make(map[SessionID]TxID, waiterCount)
+			waiters := make(map[ids.SessionID]TxID, waiterCount)
 			for range waiterCount {
 				_, waiter := blockingUnitOwner(t, e)
 				request, _ := pgLocksUnitRequest(t, e, waiter, resource, uniqueClaim, completionTransaction)
@@ -406,7 +406,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 				t.Fatal(captured.err)
 			}
 			var identity pgLockRecord
-			seen := make(map[SessionID]bool, waiterCount)
+			seen := make(map[ids.SessionID]bool, waiterCount)
 			for _, record := range captured.records {
 				local, wanted := waiters[record.owner.session]
 				if !record.waiting || !wanted {

@@ -96,7 +96,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		namespace := e.state.descriptors[index.namespace].(*namespaceDescriptor)
-		if namespace.temporary != (SessionToken{}) || index.sqlIndex.ready && index.sqlIndex.valid && index.sqlIndex.live {
+		if namespace.temporary != (ids.SessionToken{}) || index.sqlIndex.ready && index.sqlIndex.valid && index.sqlIndex.live {
 			continue
 		}
 		parent, ok := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
@@ -254,7 +254,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for a, d := range e.state.descriptors {
-		if ns, ok := e.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := e.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		r, ok := d.(*relationDescriptor)
@@ -339,7 +339,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 				ns := catalog.state.descriptors[t.targetNamespace].(*namespaceDescriptor)
-				if ns.temporary != (SessionToken{}) {
+				if ns.temporary != (ids.SessionToken{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: temporary extension installation is not portable")
 				}
@@ -411,7 +411,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if d.Kind() == ids.NamespaceObject {
 				ns, valid := d.(*namespaceDescriptor)
-				if valid && ns.temporary != (SessionToken{}) {
+				if valid && ns.temporary != (ids.SessionToken{}) {
 					continue
 				}
 				if valid && ns.comment != namespaceCommentBaseline(a.ObjectID) {
@@ -448,7 +448,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation namespace is missing")
 		}
-		if ns.temporary != (SessionToken{}) {
+		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if r.acl.Explicit || len(r.columnACL) != 0 {

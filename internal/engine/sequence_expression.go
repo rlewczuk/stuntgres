@@ -15,7 +15,7 @@ import (
 type sequenceConstant struct {
 	offset      int
 	ref         ids.ObjectRef
-	temporary   SessionToken
+	temporary   ids.SessionToken
 	stamp       ids.DefinitionRevision
 	represented bool
 }
@@ -24,7 +24,7 @@ type sequenceCallExpression struct {
 	name      string
 	args      []BoundExpr
 	ref       ids.ObjectRef
-	temporary SessionToken
+	temporary ids.SessionToken
 	identity  bool
 }
 
@@ -123,7 +123,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 			properties.Volatility = node.Properties().Volatility
 		}
 	}
-	var temporary SessionToken
+	var temporary ids.SessionToken
 	for _, constant := range b.sequenceConstants {
 		if constant.ref == ref {
 			temporary = constant.temporary
@@ -163,7 +163,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectR
 	if literal, ok := raw.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue {
 		ref := ids.ObjectRef{}
 		found := false
-		var temporary SessionToken
+		var temporary ids.SessionToken
 		auth, err := b.bindingAuthorization()
 		if err != nil {
 			return nil, ref, err
@@ -331,7 +331,7 @@ type capturedRegclassInput struct {
 	auth      AuthorizationView
 	path      []ids.ObjectAddress
 	temporary ids.ObjectAddress
-	token     SessionToken
+	token     ids.SessionToken
 	database  string
 }
 
@@ -375,7 +375,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			path = nil
 		} else {
 			namespace, _ := r.auth.definitionNamespace(ns)
-			if namespace.temporary != (SessionToken{}) && namespace.temporary != r.token {
+			if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
 			}
 			if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {

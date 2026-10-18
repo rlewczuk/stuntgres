@@ -201,7 +201,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		op := transactionOperation(t, b)
-		_, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
+		_, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error {
 			observed <- b.TransactionState() == TxIdle && advisoryUnitHold(b, key).shared == 1
 			return nil
 		}})

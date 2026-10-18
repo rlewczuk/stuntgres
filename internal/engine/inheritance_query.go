@@ -36,7 +36,7 @@ func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
 	return layout, nil
 }
 
-func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, leaf queryLeaf, token SessionToken) (*querySource, error) {
+func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
 	if leaf.only || !inheritanceHasChildren(catalog, leaf.ref.Address) {
 		return captureQueryPrefix(view, leaf.ref)
 	}

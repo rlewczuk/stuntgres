@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -142,7 +143,7 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	ctx := context.Background()
 	e := NewWithSettings(nil, "unit identity", false)
-	session, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1))})
+	session, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}

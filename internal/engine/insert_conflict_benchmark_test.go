@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -25,7 +26,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				f.e.indexRoots[f.index.address] = root
-				session, err := f.e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: f.parent.owner})
+				session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.owner})
 				if err != nil {
 					b.Fatal(err)
 				}

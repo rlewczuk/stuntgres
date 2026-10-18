@@ -15,7 +15,7 @@ type capturedRegObjectInput struct {
 	path      []ids.ObjectAddress
 	database  string
 	temporary ids.ObjectAddress
-	token     SessionToken
+	token     ids.SessionToken
 }
 
 func (e *Engine) captureRegObjectInput(auth AuthorizationView) (capturedRegObjectInput, error) {
@@ -95,7 +95,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		if !exists {
 			return missing()
 		}
-		if ns.temporary != (SessionToken{}) && ns.temporary != r.token {
+		if ns.temporary != (ids.SessionToken{}) && ns.temporary != r.token {
 			actor, exists := r.auth.roles.Find(r.auth.state.CurrentUser)
 			if !exists || !actor.Superuser {
 				return 0, sqlError("42501", "permission denied for schema "+ns.name)

@@ -85,7 +85,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		private := false
 		for _, address := range tables {
 			table := catalog.state.descriptors[address].(*relationDescriptor)
-			if catalog.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+			if catalog.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
 				private = true
 				break
 			}

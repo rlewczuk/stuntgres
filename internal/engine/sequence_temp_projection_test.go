@@ -204,7 +204,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("foreign replacement changed destination toast identity")
 	}
 	for _, d := range dest.state.descriptors {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			tempNamespaces++
 			if ns.temporary != b.token || (ns.address != namespace && ns.address != toast) || d != destBefore.view.state.descriptors[ns.address] {
 				t.Fatal("imported foreign SessionToken", ns.temporary)
@@ -374,7 +374,7 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 				t.Fatal("excluded retired TEMP required a deleted generator", err)
 			}
 			for _, d := range dest.state.descriptors {
-				if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+				if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 					if !self || (ns.address != namespace && ns.address != toast) {
 						t.Fatal("imported foreign TEMP namespace")
 					}
