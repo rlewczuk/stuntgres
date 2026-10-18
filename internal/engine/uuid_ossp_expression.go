@@ -32,7 +32,7 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 			if o.Usage.Type != nil {
 				name = b.diagnosticTypeName(o.Usage.Type)
 			}
-			names[i] = functionNamedType(raw, i, name)
+			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
 	}
 	if len(raw.Args) > 100 {

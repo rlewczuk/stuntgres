@@ -24,7 +24,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 			operands[i] = arg
 		}
 	}
-	if err := validateCallSyntax(b, raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -48,11 +48,11 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 			if arg.Usage.Type != nil {
 				names[i] = b.diagnosticTypeName(arg.Usage.Type)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, false)
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	formal := sqltype.Inet

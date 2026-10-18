@@ -16,6 +16,10 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	// Registered families are name-disjoint from the chain below.
+	if definition, ok := functions.Lookup(name); ok {
+		return definition.Bind(b, raw)
+	}
 	if parser.CatalogRelationFunctionName(name) {
 		return b.bindCatalogRelation(raw)
 	}
@@ -175,9 +179,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	}
 	if parser.RangeInspectFunctionName(name) {
 		return b.bindRangeInspect(raw)
-	}
-	if parser.UUIDExtractFunctionName(name) {
-		return bindUUIDExtract(b, raw)
 	}
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)
@@ -489,7 +490,7 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 			names[i] = b.diagnosticTypeName(typ)
 			composite = composite || typ.BaseType().IsComposite()
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	return names, composite, nil
 }

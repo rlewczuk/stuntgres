@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -54,7 +55,7 @@ func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (BoundEx
 			if typ := arg.descriptor(); typ != nil {
 				name = typ.DiagnosticName()
 			}
-			names[i] = functionNamedType(raw, i, name)
+			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
 	}
 	if len(raw.Args) > 100 {

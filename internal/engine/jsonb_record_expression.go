@@ -88,7 +88,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		if o.Usage.Type != nil {
 			names[i] = b.diagnosticTypeName(o.Usage.Type)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
 		return nil, err

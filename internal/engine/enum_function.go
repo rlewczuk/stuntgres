@@ -22,7 +22,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		if typ := operand.Usage.Type; typ != nil {
 			names[i] = b.diagnosticTypeName(typ)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	selection, resolution := functions.ResolveEnum(name, visible, operands)
 	if resolution != functions.Resolved {

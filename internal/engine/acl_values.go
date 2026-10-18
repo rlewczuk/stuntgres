@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -94,10 +95,10 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, err
 			if d := o.descriptor(); d != nil {
 				names[i] = b.diagnosticTypeName(d)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 	}
-	if err := validateCallSyntax(b, raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -124,7 +125,7 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, err
 	if !valid {
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, false)
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	if raw.Star {

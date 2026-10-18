@@ -126,7 +126,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		}
 	}
 	if name == "parse_ident" || strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
-		if err := validateCallSyntax(b, raw); err != nil {
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}
 		return b.finishStringFunction(raw, visible, operands)
@@ -208,12 +208,12 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 			}
 		}
 		for i := range names {
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	if name == "parse_ident" || textInspection {
-		if err := rangeInspectDecorationError(raw); err != nil {
+		if err := functions.CallDecorationError(raw); err != nil {
 			return nil, err
 		}
 	}

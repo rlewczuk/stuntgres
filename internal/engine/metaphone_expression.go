@@ -48,7 +48,7 @@ func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (Boun
 		if o.Usage.Type != nil {
 			names[i] = b.diagnosticTypeName(o.Usage.Type)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	failure := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	auth, err := b.bindingAuthorization()

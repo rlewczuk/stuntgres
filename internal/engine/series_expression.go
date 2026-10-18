@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -264,7 +265,7 @@ func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []
 		if !unknown[i] && arg.ResultUsage().Type != nil {
 			name = b.diagnosticTypeName(arg.ResultUsage().Type)
 		}
-		names[i] = functionNamedType(raw, i, name)
+		names[i] = functions.NamedArgumentType(raw, i, name)
 	}
 	return b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
 }
