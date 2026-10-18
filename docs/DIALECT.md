@@ -2063,11 +2063,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   and collation selection, FILTER, grouping and stored views. NULL tuples are
   retained; all four results are nonNULL even for empty global groups.
   Direct expressions use final grouped keys, once per executed call/group.
-  The function argument cap is 100 across both lists, without a smaller tuple
-  limit. These aggregate overloads remain distinct from ranking windows.
-  Custom aggregates and expanded ordering families remain outside this feature.
-  See the selected proof's PostgreSQL
-  18.0 execution-boundary caveat for 50 pairs.
+  The aggregate argument cap is 99 across both lists (PostgreSQL 18.6), without
+  a smaller tuple limit. These aggregate overloads remain distinct from ranking
+  windows. Custom aggregates and expanded ordering families remain outside this
+  feature.
 - Temporal providers retain exclusions for timezone age/finite inquiries and
   epoch `to_timestamp`.
   General named-function resolution and custom/generic optimizer-plan switching

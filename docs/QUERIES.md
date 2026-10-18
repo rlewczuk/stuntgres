@@ -711,7 +711,7 @@ accept `WITHIN GROUP (ORDER BY sorted_args)` with matching positive-length
 argument lists. Each pair independently selects a common type (sorted argument
 first), then a collation (direct argument first). Different keys may have
 unrelated types or collations. The aggregate result never inherits a key's
-collation. There is a total 100-operand function cap, not a two-key tuple limit.
+collation. There is a total 99-argument aggregate cap, not a two-key tuple limit.
 Analysis completes common-type selection and coercion for every pair before
 resolving any ordering operator, then resolves every ordering capability before
 assigning pair collations. Consequently a later pair's type/coercion error
@@ -745,8 +745,7 @@ Cancellation/errors precede row or INSERT batch publication.
 
 These aggregate overloads remain distinct from zero-argument ranking windows.
 Existing ordering, collation and unsupported-carrier boundaries remain unchanged.
-See [selected tests and smoke](../reference/aggregates/README.md#hypothetical-set-aggregates),
-including the pinned PostgreSQL 18.0 50-pair execution defect.
+See [selected tests and smoke](../reference/aggregates/README.md#hypothetical-set-aggregates).
 
 
 
