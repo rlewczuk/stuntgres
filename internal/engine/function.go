@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"stuntgres/internal/engine/functions"
@@ -19,7 +20,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	// Registered families are name-disjoint from the chain below.
 	if definition, ok := functions.Lookup(name); ok {
 		if definition.SharedGates {
-			if err := b.sharedCallGates(raw); err != nil {
+			if err := b.sharedCallGates(raw, definition); err != nil {
 				return nil, err
 			}
 		}
@@ -422,11 +423,12 @@ func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 
 // sharedCallGates applies, for a registered family, the label and
 // ResolutionOnly gates that the name chain applies before its final switch.
-func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr) error {
-	if len(raw.ArgNames) != 0 {
+// Other spellings of a case-insensitively claimed name resolve only.
+func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr, definition functions.Definition) error {
+	if len(raw.ArgNames) != 0 && !definition.OwnsLabels {
 		return b.functionSignatureError(raw)
 	}
-	if raw.ResolutionOnly {
+	if raw.ResolutionOnly || !slices.Contains(definition.Names, raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 		return b.formatDiagnosticSignatureError(raw)
 	}
 	return nil

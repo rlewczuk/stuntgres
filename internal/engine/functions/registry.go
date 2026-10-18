@@ -17,9 +17,13 @@ type Definition struct {
 	// spellings keep the engine's existing missing-function path.
 	ExactSpelling bool
 	// SharedGates asks the engine to apply its shared call gates before Bind:
-	// argument labels are rejected and ResolutionOnly calls get the
-	// missing-signature diagnostics, in that order.
+	// argument labels are rejected, then ResolutionOnly calls get the
+	// missing-signature diagnostics. On a case-insensitive definition, other
+	// spellings of a claimed name are treated as ResolutionOnly.
 	SharedGates bool
+	// OwnsLabels exempts the definition from the shared label gate; Bind then
+	// owns every argument-label diagnostic. It requires SharedGates.
+	OwnsLabels bool
 	Bind        func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
 }
 

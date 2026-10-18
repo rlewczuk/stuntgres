@@ -33,6 +33,9 @@ func TestDefinitionsAreWellFormed(t *testing.T) {
 		if len(definition.Names) == 0 || definition.Bind == nil {
 			t.Fatalf("incomplete definition %v", definition.Names)
 		}
+		if definition.OwnsLabels && !definition.SharedGates {
+			t.Fatalf("definition %v owns labels without shared gates", definition.Names)
+		}
 		for _, name := range definition.Names {
 			key := strings.ToLower(name)
 			if name == "" || seen[key] {
