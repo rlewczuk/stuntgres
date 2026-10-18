@@ -60,5 +60,5 @@ func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name 
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
+	return functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
 }

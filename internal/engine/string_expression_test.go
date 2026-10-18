@@ -51,7 +51,7 @@ func TestStringCoreBinding(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}
-	if _, ok := original.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Args[0].(functions.String[BoundExpr, *EvalContext, ExprProperties]); !ok {
+	if _, ok := original.(functions.String[BoundExpr, ExprContext, ExprProperties]).Args[0].(functions.String[BoundExpr, ExprContext, ExprProperties]); !ok {
 		t.Fatal("preflight mutated analyzed children")
 	}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, bind("SELECT btrim(NULL,pg_catalog.normalize('x','bad'))"))
@@ -74,7 +74,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
-	node := functions.String[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
+	node := functions.String[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
 		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "a")},
 		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "b")},
 	}}
@@ -170,7 +170,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
 	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
-	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String[BoundExpr, ExprContext, ExprProperties])
 	args := append([]BoundExpr(nil), node.Args...)
 	plan := node.Plan
 	for _, pretty := range []bool{false, true} {
@@ -201,7 +201,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
 	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
-	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")
 	}
@@ -212,12 +212,12 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 		t.Fatal("presentation syntax changed binary semantic identity")
 	}
 	grouped, err := binder.rewriteGroup(node, node.Args)
-	if err != nil || grouped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
+	if err != nil || grouped.(functions.Binary[BoundExpr, ExprContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("aggregate rewrite lost syntax", grouped, err)
 	}
 	remapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
-	if err != nil || remapped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax ||
-		remapped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Args[0].(columnExpression).slot != 1 || node.Args[0].(columnExpression).slot != 0 {
+	if err != nil || remapped.(functions.Binary[BoundExpr, ExprContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax ||
+		remapped.(functions.Binary[BoundExpr, ExprContext, ExprProperties]).Args[0].(columnExpression).slot != 1 || node.Args[0].(columnExpression).slot != 0 {
 		t.Fatal("remap lost syntax or mutated original children", remapped, err)
 	}
 	var replacement *sqltype.Descriptor
@@ -232,11 +232,11 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 		}
 		return d
 	})
-	if err != nil || !changed || rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax || rebound.ResultUsage().Type != replacement {
+	if err != nil || !changed || rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax || rebound.ResultUsage().Type != replacement {
 		t.Fatal("retag lost syntax or provider ownership", rebound, changed, err)
 	}
 	folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, node)
-	if err != nil || folded.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
+	if err != nil || folded.(functions.Binary[BoundExpr, ExprContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("preflight lost syntax", folded, err)
 	}
 	got, err := (scalarRenderer{owner: relation}).sql(context.Background(), e.CatalogRead(), node)

@@ -34,7 +34,7 @@ func TestJSONStripNullsJoinDependencies(t *testing.T) {
 				if reordered {
 					q = `SELECT json_strip_nulls(strip_in_arrays => false,target => '{}')`
 				}
-				e := jsonStripUnitBind(t, b, q).(functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties])
+				e := jsonStripUnitBind(t, b, q).(functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties])
 				if tc.nullTarget {
 					e.Args[0] = literalExpression{expressionInfo: expressionInfo{usage: e.Args[0].ResultUsage()}, value: sqltype.Null(e.Args[0].ResultUsage().Type)}
 				}

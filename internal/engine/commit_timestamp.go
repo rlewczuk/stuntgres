@@ -162,7 +162,8 @@ func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (BoundEx
 	return commitTimestampExpression{info, kind, arg}, nil
 }
 
-func (n commitTimestampExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n commitTimestampExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	var xid uint32
 	if n.arg != nil {
 		value, err := n.arg.Eval(c)

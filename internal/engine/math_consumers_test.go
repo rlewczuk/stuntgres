@@ -20,7 +20,7 @@ type mathObservedArgument struct {
 	err   error
 }
 
-func (e mathObservedArgument) Eval(*EvalContext) (sqltype.Value, error) {
+func (e mathObservedArgument) Eval(ExprContext) (sqltype.Value, error) {
 	*e.order = append(*e.order, e.index)
 	return e.value, e.err
 }
@@ -47,11 +47,11 @@ func TestMathTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	zero, _ := sqltype.Integer(int4, 0)
-	mod := functions.Math[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: int4.Usage()}), Plan: modPlan, Args: []BoundExpr{
+	mod := functions.Math[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: int4.Usage()}), Plan: modPlan, Args: []BoundExpr{
 		literalExpression{expressionInfo{usage: int4.Usage()}, one},
 		literalExpression{expressionInfo{usage: int4.Usage()}, zero},
 	}}
-	expr := functions.Math[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: numeric.Usage()}), Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo{usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
+	expr := functions.Math[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: numeric.Usage()}), Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo{usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
 	_, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {

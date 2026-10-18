@@ -47,8 +47,8 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
-		old := node.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties])
-		render := func(call functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties], view CatalogRead) string {
+		old := node.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
+		render := func(call functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], view CatalogRead) string {
 			s, err := defaultSQL(ctx, view, call)
 			if err != nil {
 				t.Fatal(err)
@@ -65,11 +65,11 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(tc.name, changed, err)
 		}
-		next := mapped.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties])
+		next := mapped.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
 		if old.ResultUsage().Type == next.ResultUsage().Type || old.Args[0].ResultUsage().Type == next.Args[0].ResultUsage().Type {
 			t.Fatal("retained source generations")
 		}
-		for _, call := range []functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]{old, next} {
+		for _, call := range []functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]{old, next} {
 			if err := call.Validate(); err != nil {
 				t.Fatal(err)
 			}
@@ -126,7 +126,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := node.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties])
+	call := node.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
 	if call.Slots != ([3]uint8{1, 0, 2}) || !sameGroupExpression(call.Formal(0), call.Args[1]) {
 		t.Fatal(call.Slots)
 	}
@@ -155,7 +155,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cat := node.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties])
+	cat := node.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
 	if !cat.Operator || cat.Kind != functions.ArrayConcatenate {
 		t.Fatal(cat)
 	}
@@ -196,7 +196,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]{
+	old := functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]{
 		Info: functionInfo(b.info(usage, parser.Position{}, ExprProperties{})),
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: plan,
 		Args: []BoundExpr{literalExpression{expressionInfo: b.info(usage, parser.Position{}, ExprProperties{}), value: value}},
@@ -220,12 +220,12 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	next := mapped.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties])
+	next := mapped.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
 	ref, conflict := next.Sort.InputCollation()
 	if ref != to || conflict || next.Args[0].ResultUsage().Type == array || next.Args[0].ResultUsage().Collation != to {
 		t.Fatal("stale remapped comparison authority", ref, conflict)
 	}
-	for _, call := range []functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]{old, next} {
+	for _, call := range []functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]{old, next} {
 		if err := call.Validate(); err != nil {
 			t.Fatal(err)
 		}

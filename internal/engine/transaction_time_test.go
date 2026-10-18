@@ -14,14 +14,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime[*EvalContext, ExprProperties] {
+func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime[ExprContext, ExprProperties] {
 	t.Helper()
 	name := kind.Name()
 	bound, err := b.bindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Offset: 7, Character: 8}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, ok := bound.(functions.TransactionTime[*EvalContext, ExprProperties])
+	leaf, ok := bound.(functions.TransactionTime[ExprContext, ExprProperties])
 	if !ok {
 		t.Fatalf("producer=%T", bound)
 	}
@@ -70,7 +70,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != functionIntrinsicProperties(kind.IntrinsicRule()) || plannedVolatility(leaf) != leaf.Property.Volatility || generationImmutable(leaf) {
 			t.Fatal("type/volatility", leaf)
 		}
-		if _, err := leaf.Eval(nil); err == nil {
+		if _, err := leaf.Eval((*EvalContext)(nil)); err == nil {
 			t.Error("missing context accepted")
 		}
 		if kind <= functions.TransactionTimeStatement {
@@ -118,7 +118,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy := remapped.(functions.TransactionTime[*EvalContext, ExprProperties])
+		copy := remapped.(functions.TransactionTime[ExprContext, ExprProperties])
 		if copy.Kind != kind || copy.Usage.Type == leaf.Usage.Type || copy.Pos != leaf.Pos || copy.Validate(functionPropertiesMatch(copy.Property, copy.Kind.IntrinsicRule())) != nil {
 			t.Fatal(leaf, copy)
 		}
@@ -160,7 +160,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
-	random := functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	random := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if closedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}

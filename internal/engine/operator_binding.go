@@ -20,8 +20,8 @@ type selectedOperatorExpression struct {
 	provider BoundExpr
 }
 
-func (e selectedOperatorExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	return e.provider.Eval(c)
+func (e selectedOperatorExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	return e.provider.Eval(ctx)
 }
 
 func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy expressionPolicy) (BoundExpr, error) {

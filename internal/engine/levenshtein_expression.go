@@ -10,7 +10,7 @@ import (
 )
 
 type installedLevenshteinFunctionExpression struct {
-	functions.Levenshtein[BoundExpr, *EvalContext, ExprProperties]
+	functions.Levenshtein[BoundExpr, ExprContext, ExprProperties]
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
@@ -96,7 +96,7 @@ func (b *expressionBinder) bindInstalledLevenshtein(raw parser.FunctionExpr) (Bo
 	}
 	info := b.info(integer, raw.Pos, properties)
 	info.routineReference = proc
-	call, err := functions.NewLevenshtein[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
+	call, err := functions.NewLevenshtein[BoundExpr, ExprContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}

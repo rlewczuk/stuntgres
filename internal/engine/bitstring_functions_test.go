@@ -44,7 +44,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if err != nil {
 				t.Fatal(tc.name, defaults, err)
 			}
-			binary, ok := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			binary, ok := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 			if !ok || node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) || node.Properties().Volatility != Immutable {
 				t.Fatal(tc.name, node)
 			}
@@ -74,7 +74,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(tc.name, changed, err)
 			}
-			next := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 			if err := next.Validate(); err != nil {
 				t.Fatal(err)
 			}
@@ -145,7 +145,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		binary := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 		if err := binary.Validate(); err != nil {
 			t.Fatal(name, err)
 		}

@@ -59,7 +59,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	if selection.Resolution != functions.Resolved {
 		return signature()
 	}
-	e := functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]{Count: selection.Count, WrittenCount: selection.WrittenCount, WrittenSlots: selection.WrittenSlots, Labels: selection.Labels}
+	e := functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]{Count: selection.Count, WrittenCount: selection.WrittenCount, WrittenSlots: selection.WrittenSlots, Labels: selection.Labels}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeMakeIntrinsicStable(name) {
 		properties.Volatility = Stable
@@ -117,7 +117,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 
 // Definition/presentation paths retain written labels/order and omitted defaults;
 // execution and dependency walkers use declared slots, never this display order.
-func datetimeMakeSQL(e functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func datetimeMakeSQL(e functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.Count < 1 || e.Count > 7 || e.WrittenCount < 0 || e.WrittenCount > e.Count {
 		return "", fmt.Errorf("invalid stored datetime constructor")
 	}

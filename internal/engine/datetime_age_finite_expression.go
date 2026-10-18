@@ -76,7 +76,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		}
 		return b.identityExpression(raw, identityAge, arg)
 	}
-	e := functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]{Count: len(operands)}
+	e := functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]{Count: len(operands)}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeAgeFiniteIntrinsicStable(name, e.Count) {
 		properties.Volatility = Stable

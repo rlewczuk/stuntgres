@@ -21,7 +21,8 @@ type rowComparisonExpression struct {
 	memberCasts [2]bool
 }
 
-func (e rowComparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e rowComparisonExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

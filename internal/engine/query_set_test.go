@@ -236,7 +236,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	n, project, source := querySetUnitFixture(t, "intersect", true, false)
 	defer source.close()
 	original := n.leftExpressions[0]
-	replacement := &queryProbeExpression{expressionInfo: boundExpressionInfo(original), eval: original.Eval}
+	replacement := &queryProbeExpression{expressionInfo: boundExpressionInfo(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
 	rewritten, err := rewriteQueryExpressions(project, func(e BoundExpr) (BoundExpr, bool, error) {
 		if e == original {
 			return replacement, true, nil

@@ -15,7 +15,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	node := jsonbSetUnitBind(t, b, "SELECT jsonb_insert($1,$2,$3,$4)")
-	e := node.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	typeIDs := [4]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool}
 	for i, id := range typeIDs {
 		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id || e.Args[i].ResultUsage().Typmod != -1 {
@@ -40,7 +40,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		{`SELECT jsonb_set('[0]','{0}','9')`, "[9]", true},
 		{`SELECT jsonb_set_lax('[0]','{0}','9')`, "[9]", true},
 	} {
-		n := jsonbSetUnitBind(t, b, tc.query).(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+		n := jsonbSetUnitBind(t, b, tc.query).(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 		flag, err := n.Args[3].Eval(&EvalContext{Context: ctx})
 		if err != nil {
 			t.Fatal(err)
@@ -65,13 +65,13 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		`SELECT jsonb_insert('[0]','{0}','9',VARIADIC true)`,
 	} {
 		t.Run(query, func(t *testing.T) {
-			n := jsonbSetUnitBind(t, b, query).(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+			n := jsonbSetUnitBind(t, b, query).(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 			fresh := jsonObjectUnitTypes()
 			next, changed, err := retagBoundTypes(engine.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(next, changed, err)
 			}
-			r := next.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+			r := next.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 			if r.WrittenSlots != n.WrittenSlots || r.Labels != n.Labels || r.WrittenCount != n.WrittenCount || r.Variadic != n.Variadic || r.Plan.Name() != "jsonb_insert" {
 				t.Fatal("presentation lost", r)
 			}
@@ -107,7 +107,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	base := jsonbSetUnitBind(t, b, `SELECT jsonb_insert('[0]','{0}','9',false)`).(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	base := jsonbSetUnitBind(t, b, `SELECT jsonb_insert('[0]','{0}','9',false)`).(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	for slot := range 4 {
 		e := base
 		column := columnExpression{expressionInfo: expressionInfo{usage: e.Args[slot].ResultUsage(), properties: ExprProperties{RowDependent: true}}}
@@ -116,7 +116,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(slot, err)
 		}
-		n := rewritten.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+		n := rewritten.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 		if _, ok := n.Args[slot].(groupExpression); !ok {
 			t.Fatal("slot not grouped", slot)
 		}

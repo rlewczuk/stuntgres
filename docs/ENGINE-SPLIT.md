@@ -100,7 +100,7 @@ through one of these fields:
 | 4 | `TxRef.attachment *transactionOwner` | Pointer-identity check, owner lookup | Sealed `ids.TxOwner` interface; `transactionOwner` embeds `ids.TxOwnerMarker` (done in step 1) |
 | 5 | `SessionToken.owner *Engine` | Provenance check; also backed `Session.Engine()` and session and notification teardown | `ids.Domain` token; `Session` and `sessionNotifications` hold their engine (done in step 1) |
 | 6 | `SessionToken.private *Session` | Identity of private maintenance sessions | Sealed `ids.SessionOwner` interface; `Session` embeds `ids.SessionOwnerMarker` (done in step 1) |
-| 7 | `BoundExpr.Eval(*EvalContext)` | Expression evaluation | `Eval(expr.Context)`, an interface `*EvalContext` implements |
+| 7 | `BoundExpr.Eval(*EvalContext)` | Expression evaluation | `Eval(expr.Context)`, an interface `*EvalContext` implements (engine-local `ExprContext` since 2a) |
 | 8 | `ruleDefinition.conditionBinding *binding` | Stored rule condition analysis | Rule payload that is opaque to the catalog |
 | 9 | `ruleAction.binding binding` | Stored rule action analysis | Same rule payload |
 | 10 | `relationLockManager.engine *Engine` | Identity check only | `ids.Domain` token (done in step 1) |
@@ -164,7 +164,8 @@ combine several subsystems stay in the engine as orchestration.
   The engine instantiates them as
   `functions.Math[BoundExpr, *EvalContext, ExprProperties]`: 1,257 references
   to 56 distinct instantiations, and 2,128 `functions.` references in 116
-  files.
+  files. Re-measured for 2a: 1,323 production and 313 test references in 169
+  files, now with `ExprContext` as the context argument.
 - **Binding stays in the engine.** About 123 engine files (~19k lines) are
   function glue, compared with ~11.6k lines in `functions`. Bind code calls
   private binder methods directly. There is no binder interface.
@@ -179,10 +180,11 @@ combine several subsystems stay in the engine as orchestration.
   `query_expression_walk.go` (52) and `expression_volatility.go` (49). Moving
   one function means touching all of them.
 
-The runtime capabilities that functions need already exist: about 20
-`Function*` methods on `EvalContext` (RNG, clocks, UUID entropy, regex cache,
-output environments, literal-NULL checks). Today they are encoded as generic
-constraints instead of an interface.
+The runtime capabilities that functions need already exist: 25 methods on
+`EvalContext` (24 `Function*` plus `WholeRowNullPresence`: RNG, clocks, UUID
+entropy, regex cache, output environments, literal-NULL checks). Since 2a they
+form the engine's `ExprContext` interface; `functions` still states them as
+generic constraints until F1.
 
 Engine-side authorization (~6k lines) is blocked the same way. Its main
 dependency is the catalog (381 references to `catalog.go` alone), so it cannot
@@ -371,7 +373,8 @@ type Context interface {
 
 - The 60 engine `Eval` methods change from `Eval(c *EvalContext)` to
   `Eval(ctx expr.Context)`. One helper recovers the engine context
-  (`c := evalContext(ctx)`).
+  (`c := evalContext(ctx)`). Nodes that only forward the context to children
+  skip the recovery (done in 2a, against the engine-local `ExprContext`).
 - Value copies of `EvalContext` (about 50 sites) and its private fields stay
   unchanged. That is why this design keeps the concrete struct in the engine
   instead of splitting it now.
@@ -445,8 +448,8 @@ analysis, which keeps an engine-side seam.
 
 - **F1 — Remove generics.** Mechanical; needs step 2. Each `X[E, C, P]`
   becomes `X`. Context constraints fold into `expr.Context`. In the engine,
-  `[BoundExpr, *EvalContext, ExprProperties]` suffixes are deleted (1,257
-  references) and `functionInfo` conversions disappear.
+  `[BoundExpr, ExprContext, ExprProperties]` suffixes are deleted (1,636
+  references, 313 of them in tests) and `functionInfo` conversions disappear.
 - **F2 — Adopt the node protocol, one switch at a time.** Walk, retag, remap,
   volatility, deparse, node tree, generated admission, join legality. Each
   switch gains one protocol branch and loses its per-function cases. Verify
@@ -656,9 +659,12 @@ protocols.
 1. **Package names.** `ids`, `expr`, `catalog`, `lock`, `storage`,
    `visibility`. Settled for step 1: `ids` keeps today's type names and holds
    runtime identities as well as catalog ones.
-2. **Shape of `expr.Context`.** One documented interface with grouped
-   capabilities (proposed), or a small core with optional capability
-   interfaces checked at use.
+2. **Shape of `expr.Context`.** Settled in 2a: one documented interface with
+   grouped capabilities (core context, presentation environments, argument
+   inspection, RNG and entropy, clocks, regex cache, conversion handlers). It
+   satisfies every context constraint in `functions`. Because it names
+   `functions.RandomOwner` and `functions.IntrinsicPropertyRule`, both move to
+   `expr` in 2b.
 3. **Descriptor representation after the move.** Exported fields (proposed)
    or accessors, and whether to regroup `relationDescriptor` fields in 5e or
    later.
@@ -676,7 +682,7 @@ package-specific scope. This section holds the rules every session follows.
 | Step | Prompt file | Needs | Status |
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
-| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | not started |
+| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a done; 2b next |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a done; 4b next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |

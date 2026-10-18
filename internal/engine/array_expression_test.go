@@ -142,7 +142,9 @@ type arrayDemandExpression struct {
 	evaluate func(*EvalContext) (sqltype.Value, error)
 }
 
-func (n arrayDemandExpression) Eval(c *EvalContext) (sqltype.Value, error) { return n.evaluate(c) }
+func (n arrayDemandExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	return n.evaluate(evalContext(ctx))
+}
 
 func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	e := New()

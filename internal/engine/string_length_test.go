@@ -26,7 +26,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		n := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
 		if n.ResultUsage() != integer.Usage() || n.CollationIndeterminate() || n.ExplicitCollation().Character != 0 || !n.Plan.CollationIndeterminate() {
 			t.Fatal("input conflict leaked onto INT4 result", n)
 		}
@@ -38,7 +38,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		explicit := append([]BoundExpr(nil), args...)
 		explicit[0] = literalExpression{expressionInfo{usage: left, collationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
 		resolved, err := b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
-		if err != nil || resolved.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
+		if err != nil || resolved.(functions.String[BoundExpr, ExprContext, ExprProperties]).Plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
 			t.Fatal(resolved, err)
 		}
 		value, err := resolved.Eval(&EvalContext{Context: context.Background()})
@@ -70,7 +70,7 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	node := bound.(functions.String[BoundExpr, ExprContext, ExprProperties])
 	// Pure child demand/error order is local; retain genuine owner property merge.
 	if node.Properties().Volatility != Volatile || !node.Properties().RowDependent || !node.Properties().ParameterDependent {
 		t.Fatal("child properties", node.Properties())
@@ -90,8 +90,8 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	retained := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
-	if retained.Plan.ArgumentUsage(0).Type != replacements[sqltype.BPChar] || retained.Plan.TextUsage().Type != replacements[sqltype.Text] || retained.ResultUsage().Type != replacements[sqltype.Int4] || count.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Plan.ArgumentUsage(0).Type != bpchar {
+	retained := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	if retained.Plan.ArgumentUsage(0).Type != replacements[sqltype.BPChar] || retained.Plan.TextUsage().Type != replacements[sqltype.Text] || retained.ResultUsage().Type != replacements[sqltype.Int4] || count.(functions.String[BoundExpr, ExprContext, ExprProperties]).Plan.ArgumentUsage(0).Type != bpchar {
 		t.Fatal("retag mutated source or lost formal ownership", retained)
 	}
 	got, err := retained.Eval(&EvalContext{Context: context.Background()})

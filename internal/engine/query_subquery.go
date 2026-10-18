@@ -170,7 +170,8 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	return e, nil
 }
 
-func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error) {
+func (e subqueryExpression) Eval(ctx ExprContext) (value sqltype.Value, err error) {
+	c := evalContext(ctx)
 	if err = evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

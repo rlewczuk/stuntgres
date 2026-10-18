@@ -30,7 +30,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: result.Usage(), properties: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+		node := functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: result.Usage(), properties: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
 			literalExpression{expressionInfo{usage: source.Usage()}, sqltype.Null(source)},
 			literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, template)},
 		}}
@@ -57,7 +57,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("provider rebind", rebound, changed, err)
 		}
-		retained := rebound.(functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties])
+		retained := rebound.(functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties])
 		value, err = retained.Eval(&EvalContext{Context: ctx})
 		if err != nil || value.Type() != replacements[signature.result] || node.ResultUsage().Type != result {
 			t.Fatal("rebind changed source authority or retained obsolete result", value, err)
@@ -97,7 +97,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(signature, err)
 		}
-		node, ok := bound.(functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties])
+		node, ok := bound.(functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties])
 		if !ok || node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable {
 			t.Fatal("signature authority", signature, bound)
 		}
@@ -107,7 +107,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := bound.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]); !ok {
+	if _, ok := bound.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]); !ok {
 		t.Fatal("numeric overload did not route to its owner", bound)
 	}
 	for _, c := range []struct {

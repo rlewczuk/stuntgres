@@ -120,7 +120,8 @@ func descriptorComment(d Descriptor, sub int32) string {
 	return ""
 }
 
-func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

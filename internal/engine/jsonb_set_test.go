@@ -26,7 +26,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	node := jsonbSetUnitBind(t, b, "SELECT jsonb_set_lax($1,$2,$3,$4,$5)")
-	e := node.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
 	for i, id := range ids {
 		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
@@ -80,13 +80,13 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	view := engine.CatalogRead()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	node := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set_lax(replacement => NULL,jsonb_in => '{"a":1}',path => '{a}',null_value_treatment => 'delete_key')`)
-	e := node.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	fresh := jsonObjectUnitTypes()
 	next, changed, err := retagBoundTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(next, changed, err)
 	}
-	n := next.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	n := next.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	for i, arg := range n.Arguments() {
 		if arg.ResultUsage().Type != fresh[e.Args[i].ResultUsage().Type.ID()] || arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 			t.Fatal("retag lost child authority", i)
@@ -116,7 +116,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := reminted.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	v := reminted.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	if !v.Variadic {
 		t.Fatal("VARIADIC lost")
 	}
@@ -192,7 +192,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	base := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'return_target')`).(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	base := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'return_target')`).(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 	for slot := range 5 {
 		e := base
 		column := columnExpression{expressionInfo: expressionInfo{usage: e.Args[slot].ResultUsage(), properties: ExprProperties{RowDependent: true}}}
@@ -201,7 +201,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(slot, err)
 		}
-		n := rewritten.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+		n := rewritten.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
 		if _, ok := n.Args[slot].(groupExpression); !ok {
 			t.Fatal("slot not grouped", slot, n.Args[slot])
 		}

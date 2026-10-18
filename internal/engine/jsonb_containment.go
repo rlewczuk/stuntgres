@@ -31,7 +31,7 @@ func (b *expressionBinder) bindJSONBContainment(raw parser.OperatorExpr, operand
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
 	info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
-	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
+	node, err := functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
 	if err != nil {
 		return nil, err
 	}

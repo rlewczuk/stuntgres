@@ -30,7 +30,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		e := node.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties])
+		e := node.(functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties])
 		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == Immutable) {
 			t.Fatal(tc, e.Properties(), e.ResultUsage())
 		}
@@ -53,7 +53,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties])
+		rebound := next.(functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties])
 		if rebound.ResultUsage().Type != replacements[tc.result] {
 			t.Fatal("retained result authority")
 		}
@@ -74,7 +74,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	if b.parameters[1].Type.ID() != sqltype.Text || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != Immutable {
 		t.Fatal(node.Properties(), b.parameters)
 	}
-	e := node.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties])
 	for _, i := range []int{0, 1, 2} {
 		n := e
 		n.Args[i] = literalExpression{expressionInfo: b.info(n.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(n.Args[i].ResultUsage().Type)}

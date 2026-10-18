@@ -79,7 +79,7 @@ func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, op
 		}
 		constant = &text
 	}
-	node, err := functions.NewNumericFormatting[BoundExpr, *EvalContext](b.ctx, functionInfo(info), name, args, constant)
+	node, err := functions.NewNumericFormatting[BoundExpr, ExprContext](b.ctx, functionInfo(info), name, args, constant)
 	if err != nil {
 		return nil, err
 	}

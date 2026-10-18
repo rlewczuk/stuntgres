@@ -167,7 +167,7 @@ type partialEvaluationWitness struct {
 	value   sqltype.Value
 }
 
-func (w partialEvaluationWitness) Eval(c *EvalContext) (sqltype.Value, error) {
+func (w partialEvaluationWitness) Eval(ExprContext) (sqltype.Value, error) {
 	*w.calls++
 	return w.value, w.failure
 }

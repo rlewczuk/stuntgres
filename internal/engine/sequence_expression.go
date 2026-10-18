@@ -395,7 +395,8 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	}
 	return 0, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 }
-func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

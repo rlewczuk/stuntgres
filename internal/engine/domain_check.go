@@ -27,7 +27,8 @@ type domainCheckConstraint struct {
 
 type domainValueExpression struct{ expressionInfo }
 
-func (e domainValueExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e domainValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

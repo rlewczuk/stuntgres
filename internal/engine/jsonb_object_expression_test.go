@@ -34,12 +34,12 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: args}
+		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: args}
 		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		next := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 		if next.Plan.ResultUsage().Type != replacement[sqltype.JSONB] || next.Args[0].ResultUsage().Type != replacement[1009] {
 			t.Fatal(next)
 		}
@@ -98,13 +98,13 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
+	expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := rewritten.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+	next := rewritten.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 	for _, arg := range next.Args {
 		if _, ok := arg.(groupExpression); !ok {
 			t.Fatal(arg)
@@ -147,7 +147,7 @@ func TestJSONBObjectBinderSignatureBoundaries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call, ok := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		call, ok := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 		if !ok || len(call.Args) != 1 || call.Args[0].ResultUsage().Type.ID() != 1009 || node.ResultUsage().Type.ID() != sqltype.JSONB || node.SourcePosition() != pos {
 			t.Fatal(node)
 		}
@@ -162,7 +162,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		call := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		call := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 		if call.Plan.Name() != "jsonb_object" || node.ResultUsage().Type.ID() != sqltype.JSONB || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable {
 			t.Fatal(query, node.Properties())
 		}

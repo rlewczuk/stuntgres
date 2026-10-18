@@ -460,12 +460,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	switch n := node.(type) {
 	case literalExpression:
 		return r.literal(ctx, n)
-	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
+	case functions.CurrentDateTime[ExprContext, ExprProperties]:
 		text, err := currentDateTimeSQL(n)
 		return strings.ToUpper(text), err
-	case functions.VersionInformation[*EvalContext, ExprProperties]:
+	case functions.VersionInformation[ExprContext, ExprProperties]:
 		return versionInformationSQL(n)
-	case functions.TransactionTime[*EvalContext, ExprProperties]:
+	case functions.TransactionTime[ExprContext, ExprProperties]:
 		return transactionTimeSQL(n)
 	case identityExpression:
 		if err := validateDeparseIdentity(n); err != nil {
@@ -613,15 +613,15 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		_, castChild := n.child.(coercionExpression)
 		simpleFunctionCall := false
 		switch call := n.child.(type) {
-		case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
 			simpleFunctionCall = true
-		case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
 			simpleFunctionCall = true
-		case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
 			simpleFunctionCall = !call.Operator
-		case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
 			simpleFunctionCall = true
-		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
 			simpleFunctionCall = !call.Plan.Membership()
 		}
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
@@ -684,11 +684,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, err
 		}
 		return binary(n.left, n.right, op, 5, parent)
-	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
 		return binary(n.Left, n.Right, operator(n.Namespace, n.Operator), 5, parent)
 	case likeExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
-	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
 		pattern, err := child(n.Pattern)
 		if err != nil {
 			return "", err
@@ -698,9 +698,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
-	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
 		return binary(n.Left, n.Right, n.Operator, 5, parent)
-	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
 		pattern, err := child(n.Pattern)
 		if err != nil {
 			return "", err
@@ -713,7 +713,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return "similar_to_escape(" + pattern + ", " + escape + ")", nil
-	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
 		source, err := child(n.Args[0])
 		if err != nil {
 			return "", err
@@ -723,7 +723,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return `"substring"(` + source + ", " + pattern + ")", nil
-	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
 		source, err := child(n.Args[0])
 		if err != nil {
 			return "", err
@@ -749,13 +749,13 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			spelling = operator(n.comparisons[0].namespace, n.operator)
 		}
 		return renderRowComparison(n, child, spelling)
-	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
 		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
@@ -806,7 +806,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			name = pgIdentifier(namespace.name) + "." + pgIdentifier(n.procedure.name)
 		}
 		return name + "(" + arg + ")", nil
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
@@ -814,7 +814,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
-	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		args := make([]string, len(n.Args))
@@ -826,7 +826,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			}
 		}
 		return pgIdentifier(n.Name) + "(" + strings.Join(args, ", ") + ")", nil
-	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
@@ -834,7 +834,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
-	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		parts := make([]string, len(n.Args))
@@ -849,7 +849,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			parts[0], parts[1] = "from_json => "+parts[0], "base => "+parts[1]
 		}
 		return pgIdentifier(n.Plan.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
@@ -857,7 +857,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
-	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
@@ -947,17 +947,17 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
-	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Kind.Name(), n.Args, true)
-	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
 		inputRenderer := r
 		inputRenderer.showImplicit = true
 		return arrayTransformSQL(n, func(child BoundExpr) (string, error) {
 			return inputRenderer.sql(ctx, child, pgRenderParent{functionArgument: true})
 		}, operator)
-	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Kind.Name(), n.Args, true)
-	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
 		if n.Plan.Membership() {
 			inputRenderer := r
 			inputRenderer.showImplicit = true
@@ -994,19 +994,19 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		args := [1]BoundExpr{n.arg}
 		return function(n.kind.name(), args[:], true)
-	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
 		args := [1]BoundExpr{n.Arg}
 		return function(n.Kind.Name(), args[:], true)
-	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Kind.Name(), n.Args[:n.Kind.Arity()], true)
-	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
 		r.showImplicit = true
 		return binary(n.Args[0], n.Args[1], operator(n.Namespace, n.Plan.Name()), 5, parent)
-	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Args, true)
-	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Args, true)
-	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
 		if n.Plan.Name() == "pg_size_pretty" {
 			text, err := child(n.Args[0])
 			if err != nil {
@@ -1019,9 +1019,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "pg_size_pretty(" + text + ")", nil
 		}
 		return function(n.Plan.Name(), n.Args, true)
-	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Arguments(), true)
-	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
 		if n.Syntax != parser.SQLFunctionSyntax {
 			return function(n.Plan.Name(), n.Arguments(), true)
 		}
@@ -1030,75 +1030,75 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return "EXTRACT(" + n.Field + " FROM " + source + ")", nil
-	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
 		return datetimeOverlapsPublicSQL(n, ctx, r, child)
-	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
 		return function("date_bin", n.Arguments(), true)
-	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
 		return function("date_trunc", n.Arguments(), true)
-	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Name, n.Arguments(), true)
-	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Arguments(), true)
-	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
 		return jsonStripNullsSQL(n, "json_strip_nulls", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
 		return jsonExtractSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
 		return jsonbPathQueryArraySQL(n, "jsonb_path_query_array", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
 		return jsonbPathExistsSQL(n, "jsonb_path_exists", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
 		return jsonbPathMatchSQL(n, "jsonb_path_match", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
 		return jsonbPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
 		return jsonbPathQuerySQL(n, "jsonb_path_query", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
 		return jsonbSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
 		return datetimeMakeSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Args[:], true)
-	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Args[:], true)
-	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.String[BoundExpr, ExprContext, ExprProperties]:
 		if n.Plan.Name() == "||" {
 			return binary(n.Args[0], n.Args[1], "||", 5, parent)
 		}
@@ -1164,7 +1164,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			parts[i] = text
 		}
 		return stringSpecialSQL(n, parts)
-	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
 		if err := n.ValidateSyntax(); err != nil {
 			return "", err
 		}
@@ -1181,18 +1181,18 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, n.Plan.Name(), child)
 		}
 		return function(r.identifier(n.Plan.Name()), n.Args, true)
-	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Name, n.Args, true)
-	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
 		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
 		}
 		return function(n.Kind.Name(), []BoundExpr{n.Arg}, true)
 	case advisoryExpression:
 		return function(n.name, n.args, true)
-	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Name, n.Args, true)
-	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
 		name := "num_nulls"
 		if n.Kind == functions.CountNonnulls {
 			name = "num_nonnulls"
@@ -1245,7 +1245,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return jsonPredicateRecipe(text, n.kind, n.unique, n.not), nil
-	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
 		parts := make([]string, len(n.Args))
 		for i, arg := range n.Args {
 			argRenderer := r
@@ -1261,7 +1261,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			parts[i] = text
 		}
 		return r.identifier(n.Kind.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
 		parts := make([]string, len(n.Args))
 		for i, arg := range n.Args {
 			argRenderer := r
@@ -1276,7 +1276,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			parts[i] = text
 		}
 		return r.identifier(n.Name) + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
 		parts := make([]string, len(n.Args))
 		for i, arg := range n.Args {
 			argRenderer := r
@@ -1353,7 +1353,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function(n.kind.name(), n.arguments(), true)
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
-	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
 		if n.Function {
 			return function("timezone", n.Arguments(), true)
 		}

@@ -315,7 +315,8 @@ type groupingExpression struct {
 	masks     []int32
 }
 
-func (e groupingExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e groupingExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

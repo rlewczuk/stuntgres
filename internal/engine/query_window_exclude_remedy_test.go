@@ -20,8 +20,8 @@ type windowSumArgumentProbe struct {
 	occurrence int
 }
 
-func (p windowSumArgumentProbe) Eval(c *EvalContext) (sqltype.Value, error) {
-	if _, err := p.BoundExpr.Eval(c); err != nil {
+func (p windowSumArgumentProbe) Eval(ctx ExprContext) (sqltype.Value, error) {
+	if _, err := p.BoundExpr.Eval(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	*p.sequence++

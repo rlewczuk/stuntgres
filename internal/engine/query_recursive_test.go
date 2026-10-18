@@ -331,7 +331,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	}
 	project := n.definition.query.Root.(*projectNode)
 	original := n.leftExpressions[0]
-	replacement := queryProbe(original.ResultUsage(), original.Eval)
+	replacement := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) })
 	rewritten, err := rewriteQueryExpressions(project, func(e BoundExpr) (BoundExpr, bool, error) {
 		if e == original {
 			return replacement, true, nil

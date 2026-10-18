@@ -14,7 +14,8 @@ type seriesExpression struct {
 	args []BoundExpr
 }
 
-func (e seriesExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e seriesExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

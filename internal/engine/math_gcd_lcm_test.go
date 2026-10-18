@@ -36,7 +36,7 @@ func TestMathGcdLcmBinding(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				mathNode, ok := node.(functions.Math[BoundExpr, *EvalContext, ExprProperties])
+				mathNode, ok := node.(functions.Math[BoundExpr, ExprContext, ExprProperties])
 				if !ok || mathNode.Plan.Name() != name || len(mathNode.Args) != 2 {
 					t.Fatal("shared math plan", node)
 				}

@@ -74,7 +74,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 		result = b.typ(sqltype.Text).Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args[:], parser.OrdinaryFunctionSyntax)
+	node, err := functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args[:], parser.OrdinaryFunctionSyntax)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 			}
 		}
 	}
-	e := functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]{Args: make([]BoundExpr, len(operands)), Variadic: raw.Variadic}
+	e := functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]{Args: make([]BoundExpr, len(operands)), Variadic: raw.Variadic}
 	if len(raw.ArgNames) > 0 {
 		e.Labels = make([]string, len(operands))
 		for i, n := range raw.ArgNames {
@@ -208,7 +208,7 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 	e.Plan = plan
 	return e, nil
 }
-func jsonExtractSQL(e functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonExtractSQL(e functions.JSONExtract[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if err := e.Validate(); err != nil {
 		return "", err
 	}
@@ -231,7 +231,7 @@ func jsonExtractSQL(e functions.JSONExtract[BoundExpr, *EvalContext, ExprPropert
 
 // mapJSONExtractChildren leaves the original immutable child slice untouched and
 // only allocates when a child actually changes.
-func mapJSONExtractChildren(e functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties], mapChild func(BoundExpr) (BoundExpr, bool, error)) (functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+func mapJSONExtractChildren(e functions.JSONExtract[BoundExpr, ExprContext, ExprProperties], mapChild func(BoundExpr) (BoundExpr, bool, error)) (functions.JSONExtract[BoundExpr, ExprContext, ExprProperties], bool, error) {
 	var args []BoundExpr
 	for i, old := range e.Args {
 		next, changed, err := mapChild(old)

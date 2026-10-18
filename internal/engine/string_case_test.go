@@ -30,7 +30,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.String[BoundExpr, *EvalContext, ExprProperties]{
+		node := functions.String[BoundExpr, ExprContext, ExprProperties]{
 			Info: functionInfo(expressionInfo{usage: usage, collationConflict: conflict}),
 			Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 			Args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "ß")}},
@@ -44,7 +44,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("retag", changed, err)
 		}
-		retained := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		retained := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
 		if retained.Plan.CollationIndeterminate() != conflict || retained.CollationIndeterminate() != conflict || retained.ResultUsage().Collation.ID != 6411 || retained.Plan.TextUsage().Type != replacement {
 			t.Fatal("retag lost authority", retained)
 		}
@@ -81,7 +81,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	}
 	// Runtime once-only/Unicode assertions live in functions.TestStringCaseRuntimeDemand;
 	// this fixture retains the generic owner's nested collation authority.
-	node := functions.String[BoundExpr, *EvalContext, ExprProperties]{
+	node := functions.String[BoundExpr, ExprContext, ExprProperties]{
 		Info: functionInfo(expressionInfo{usage: usage, properties: ExprProperties{Volatility: Immutable, RowDependent: true}}),
 		Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 		Args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "İ")}},
@@ -116,7 +116,7 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				bound := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+				bound := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
 				input := bound.Args[0].(collationExpression)
 				if b.parameters[1] != text.Usage() || input.child.ResultUsage() != text.Usage() ||
 					input.ResultUsage().Collation.ID != collation.id || bound.ResultUsage().Collation.ID != collation.id ||

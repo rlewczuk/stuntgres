@@ -98,7 +98,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	ref := e.domain.Ref(view.Epoch(), d.address)
 	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
-	volatile := functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: oid.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	volatile := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: oid.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}

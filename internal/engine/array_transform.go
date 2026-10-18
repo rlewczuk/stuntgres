@@ -280,7 +280,7 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	e := functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]{
+	e := functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]{
 		Info: functionInfo(info), Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
 	}
 	if kind == functions.ArraySort && !targets[0].CatalogNullUsage() {
@@ -348,7 +348,7 @@ func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [
 	return e, true, err
 }
 
-func mapArrayTransformChildren(e functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+func mapArrayTransformChildren(e functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], bool, error) {
 	var args []BoundExpr
 	// Simplification/preflight may evaluate immutable children and fail. Preserve
 	// formal evaluation precedence there too, without changing written slots.
@@ -376,7 +376,7 @@ func mapArrayTransformChildren(e functions.ArrayTransform[BoundExpr, *EvalContex
 	return e, true, nil
 }
 
-func arrayTransformSQL(e functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+func arrayTransformSQL(e functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
 	if err := e.Validate(); err != nil {
 		return "", err
 	}

@@ -21,7 +21,8 @@ type conditionalSpy struct {
 	failure error
 }
 
-func (e conditionalSpy) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e conditionalSpy) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -23,7 +23,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v}
 	result := b.typ(sqltype.Numeric)
-	original, err := functions.NewRangeInspect[BoundExpr, *EvalContext](functionInfo(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeLower, []BoundExpr{arg})
+	original, err := functions.NewRangeInspect[BoundExpr, ExprContext](functionInfo(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeLower, []BoundExpr{arg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
-	next := mapped.(functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties])
+	next := mapped.(functions.RangeInspect[BoundExpr, ExprContext, ExprProperties])
 	value, err := next.Eval(&EvalContext{Context: ctx})
 	if err != nil || value.Type() != fresh.typ(sqltype.Numeric) {
 		t.Fatal(value, err)

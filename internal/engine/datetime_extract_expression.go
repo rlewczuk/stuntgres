@@ -58,7 +58,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
-	e := functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]{Syntax: raw.Syntax}
+	e := functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]{Syntax: raw.Syntax}
 	if raw.Syntax == parser.SQLFunctionSyntax {
 		literal, ok := raw.Args[0].(parser.LiteralExpr)
 		if !ok {

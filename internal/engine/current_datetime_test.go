@@ -26,7 +26,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(raw, err)
 		}
-		node, ok := bound.(functions.CurrentDateTime[*EvalContext, ExprProperties])
+		node, ok := bound.(functions.CurrentDateTime[ExprContext, ExprProperties])
 		if !ok || node.Properties() != (ExprProperties{Volatility: Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || plannedVolatility(node) != Stable || generationImmutable(node) {
 			t.Fatal(raw, node)
 		}
@@ -61,7 +61,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy := remapped.(functions.CurrentDateTime[*EvalContext, ExprProperties])
+		copy := remapped.(functions.CurrentDateTime[ExprContext, ExprProperties])
 		if copy.Kind != node.Kind || copy.Precision != node.Precision || copy.HasPrecision != node.HasPrecision || copy.Pos != node.Pos || copy.Usage.Type == node.Usage.Type || copy.Validate(functionPropertiesMatch(copy.Property, functions.CurrentDateTimeIntrinsicRule())) != nil {
 			t.Fatal(node, copy)
 		}

@@ -194,7 +194,8 @@ func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ids.
 	}
 	return false
 }
-func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

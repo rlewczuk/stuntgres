@@ -24,7 +24,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := node.(functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties])
+	call := node.(functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties])
 	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != Immutable || isQuerySet(call) {
 		t.Fatal("scalar immutable JSONB contract", call)
 	}

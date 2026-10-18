@@ -90,7 +90,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 				t.Fatal("structural equality ignored bit provider")
 			}
 		} else {
-			binary := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			binary := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 			if err := binary.Validate(); err != nil {
 				t.Fatal(err)
 			}
@@ -213,7 +213,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(id, err)
 		}
-		binary := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 		if err := binary.Validate(); err != nil {
 			t.Fatal(err)
 		}

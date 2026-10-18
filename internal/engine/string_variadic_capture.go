@@ -30,7 +30,7 @@ type quoteCaptureCandidate struct {
 	sealed  bool
 }
 
-func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]) (BoundExpr, bool, error) {
+func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]) (BoundExpr, bool, error) {
 	p := e.Properties()
 	if e.IntrinsicStable() || p.Volatility != Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil

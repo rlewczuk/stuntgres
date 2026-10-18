@@ -62,7 +62,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 		{"absent_regclass", literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}}, nil},
 		{"regclass_array", literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}}, nil},
 		{"runtime_numeric_cast", coercionExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}, child: literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}}, nil},
-		{"repeated_var", functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: domain.Usage()}), Args: []BoundExpr{variable, variable}}, []ids.ObjectAddress{column}},
+		{"repeated_var", functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: domain.Usage()}), Args: []BoundExpr{variable, variable}}, []ids.ObjectAddress{column}},
 		{"dead_case", caseExpression{arms: []caseBranch{{condition: literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}, result: variable}}, otherwise: scalar}, []ids.ObjectAddress{column, provider}},
 		{"tableoid", tableOIDExpression{owner: ref(parent)}, []ids.ObjectAddress{pgDependUnitAddress(1259, 48001, -6)}},
 	}

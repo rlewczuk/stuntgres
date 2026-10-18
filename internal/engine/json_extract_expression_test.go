@@ -40,7 +40,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		}
 	}
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-	original := jsonbSetUnitBind(t, b, `SELECT json_extract_path_text(from_json => '{"a":"x"}',VARIADIC path_elems => '{a}'::text[])`).(functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties])
+	original := jsonbSetUnitBind(t, b, `SELECT json_extract_path_text(from_json => '{"a":"x"}',VARIADIC path_elems => '{a}'::text[])`).(functions.JSONExtract[BoundExpr, ExprContext, ExprProperties])
 	if err := original.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(next, changed, err)
 	}
-	n := next.(functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties])
+	n := next.(functions.JSONExtract[BoundExpr, ExprContext, ExprProperties])
 	for i, arg := range n.Args {
 		if arg.ResultUsage().Type != fresh[original.Args[i].ResultUsage().Type.ID()] || arg.ResultUsage().Type == original.Args[i].ResultUsage().Type {
 			t.Fatal("lost descriptor ownership", i)

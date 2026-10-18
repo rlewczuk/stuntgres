@@ -62,7 +62,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
-			call, ok := node.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+			call, ok := node.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
 			if !ok {
 				t.Fatal("original JSON record carrier", node)
 			}
@@ -142,7 +142,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				if err != nil {
 					t.Fatal("anonymous FROM shape completion", err)
 				}
-				next := completed.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+				next := completed.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
 				if !next.Defined || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Plan.BaseIndex() != tc.base || !reflect.DeepEqual(next.Args, call.Args) || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != Stable || next.Properties().StageDependent != tc.set {
 					t.Fatal("completion erased original authority or domain/stage/shape", next)
 				}
@@ -200,7 +200,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual foreign JSON carrier retag", err)
 			}
-			mapped := remapped.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+			mapped := remapped.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
 			if mapped.Plan.BaseIndex() != tc.base || len(mapped.Args) != arity || mapped.Defined != call.Defined || mapped.Properties() != call.Properties() || mapped.SourcePosition() != call.SourcePosition() {
 				t.Fatal("foreign retag changed physical call contract", mapped)
 			}
@@ -239,7 +239,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		recipe := view.state.descriptors[ref.Address].(*relationDescriptor)
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "json_to_record('{}'::json)")
 		original := append([]expressionDependency(nil), binder.dependencies...)
-		call := node.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+		call := node.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
 		identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 		grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)
 		if err != nil {
@@ -269,7 +269,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal("complete grafted shape", err)
 		}
-		finished := completed.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+		finished := completed.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
 		shape := finished.ResultUsage().Type
 		if !finished.Defined || !shape.IsComposite() || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "a" || shape.CompositeMember(0).Usage.Type.ID() != sqltype.Int4 || shape.CompositeMember(1).Name != "b" || shape.CompositeMember(1).Usage.Type.ID() != sqltype.Text {
 			t.Fatal("genuine completed stored occurrence shape", finished)
@@ -283,7 +283,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			t.Fatal("retag grafted shape", err)
 		}
 		for i, retained := range []BoundExpr{grafted, finished, rebuilt, retagged} {
-			next := retained.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+			next := retained.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
 			expectedInfo := expectedGraft.Info
 			expectedDefined := call.Defined
 			if i != 0 {

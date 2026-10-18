@@ -15,7 +15,8 @@ type likeExpression struct {
 	operator, namespace string
 }
 
-func (e likeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e likeExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	a, err := e.left.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -304,5 +305,5 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewLikeEscape[BoundExpr, *EvalContext](functionInfo(info), pattern, escape)
+	return functions.NewLikeEscape[BoundExpr, ExprContext](functionInfo(info), pattern, escape)
 }

@@ -89,7 +89,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 			return literalExpression{b.info(usage, raw.Pos, ExprProperties{}), sqltype.Null(usage.Type)}, nil
 		}
 	}
-	return functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args}, nil
+	return functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args}, nil
 }
 
 func randomLiteralNull(arg BoundExpr) bool {

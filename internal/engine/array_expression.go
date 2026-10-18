@@ -18,7 +18,8 @@ type arrayExpression struct {
 	multidimensional bool
 }
 
-func (n arrayExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n arrayExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -162,7 +163,8 @@ type subscriptExpression struct {
 	slice      bool
 }
 
-func (n subscriptExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n subscriptExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

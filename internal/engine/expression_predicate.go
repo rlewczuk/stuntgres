@@ -14,8 +14,8 @@ type nullTestExpression struct {
 	whole bool
 }
 
-func (e nullTestExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	v, err := e.child.Eval(c)
+func (e nullTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	v, err := e.child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -42,8 +42,8 @@ type truthTestExpression struct {
 	not   bool
 }
 
-func (e truthTestExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	v, err := e.child.Eval(c)
+func (e truthTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	v, err := e.child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -65,7 +65,8 @@ type distinctExpression struct {
 	not         bool
 }
 
-func (e distinctExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e distinctExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	a, err := e.left.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err

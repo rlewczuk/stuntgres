@@ -18,7 +18,8 @@ type returningWholeRowExpression struct {
 	side         mergeReturningSide
 }
 
-func (e returningWholeRowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e returningWholeRowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
 		return sqltype.Value{}, err

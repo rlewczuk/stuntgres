@@ -19,7 +19,7 @@ func TestSimilarSubstringPresentationIdentity(t *testing.T) {
 		literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "%")},
 		literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "#")},
 	}
-	ordinary := functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Args: args, Provider: provider, Syntax: parser.OrdinaryFunctionSyntax}
+	ordinary := functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Args: args, Provider: provider, Syntax: parser.OrdinaryFunctionSyntax}
 	standard := ordinary
 	standard.Syntax = parser.SQLFunctionSyntax
 	if !sameGroupExpression(ordinary, standard) || !sameGroupExpression(standard, ordinary) {

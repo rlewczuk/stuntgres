@@ -281,7 +281,7 @@ type preparedBoundaryExpression struct {
 	barrier func()
 }
 
-func (expression *preparedBoundaryExpression) Eval(ctx *EvalContext) (sqltype.Value, error) {
+func (expression *preparedBoundaryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	value, err := expression.BoundExpr.Eval(ctx)
 	if err == nil {
 		expression.once.Do(expression.barrier)

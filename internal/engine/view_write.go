@@ -264,7 +264,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		var lowerStored func(BoundExpr, bool) (BoundExpr, bool, error)
 		lowerStored = func(expr BoundExpr, frozenLayout bool) (BoundExpr, bool, error) {
 			return rewriteViewExpression(auth.catalog, expr, d, func(n BoundExpr) (BoundExpr, bool, error) {
-				if q, ok := n.(functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]); ok && q.Origin.owner == (ids.ObjectRef{}) {
+				if q, ok := n.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]); ok && q.Origin.owner == (ids.ObjectRef{}) {
 					q = q.WithOrigin(quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision})
 					q.RoutineRecipeReference = d
 					var args []BoundExpr
@@ -426,8 +426,8 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				b.regclassConcat = true
 			case visibilityInquiryExpression:
 				b.visibilitySnapshot = true
-			case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
-				node := n.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+				node := n.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 				if !node.Plan.Immutable() {
 					demand := true
 					for _, arg := range node.Args {

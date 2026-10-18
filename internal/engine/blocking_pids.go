@@ -109,7 +109,8 @@ func (n blockingInquiryExpression) validateStored() error {
 	return nil
 }
 
-func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n blockingInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

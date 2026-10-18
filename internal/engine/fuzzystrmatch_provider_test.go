@@ -188,7 +188,7 @@ type daitchCountingArgument struct {
 	value sqltype.Value
 }
 
-func (a daitchCountingArgument) Eval(*EvalContext) (sqltype.Value, error) {
+func (a daitchCountingArgument) Eval(ExprContext) (sqltype.Value, error) {
 	*a.calls++
 	return a.value, nil
 }

@@ -60,7 +60,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	definition := source.state.descriptors[ref.Address].(*relationDescriptor).view
 	project := definition.query.Root.(*projectNode)
 	for _, expression := range project.expressions {
-		original := expression.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
+		original := expression.(functions.Timezone[BoundExpr, ExprContext, ExprProperties])
 		before := original
 		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
 			if ref != (ids.ObjectRef{}) {
@@ -71,7 +71,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
+		next := mapped.(functions.Timezone[BoundExpr, ExprContext, ExprProperties])
 		if next.Info != original.Info || next.Local != original.Local {
 			t.Fatal("remap changed usage, position, properties or local flag")
 		}

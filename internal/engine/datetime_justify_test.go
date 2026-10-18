@@ -18,7 +18,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := node.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties])
+		e := node.(functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties])
 		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != Immutable || plannedVolatility(e) != Immutable || !generationImmutable(e) {
 			t.Fatal(e.Properties(), e.ResultUsage())
 		}
@@ -39,7 +39,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties])
+		rebound := next.(functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties])
 		if rebound.ResultUsage().Type != replacements[sqltype.Interval] || rebound.Arg.ResultUsage().Type != replacements[sqltype.Interval] {
 			t.Fatal("foreign retained authority")
 		}
@@ -74,7 +74,7 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := null.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties])
+		e := null.(functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties])
 		e.Arg = literalExpression{boundExpressionInfo(e), sqltype.Null(e.ResultUsage().Type)}
 		v, err := e.Eval(&EvalContext{Context: context.Background()})
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {

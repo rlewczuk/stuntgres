@@ -27,11 +27,11 @@ func renderOverlapsCall[T any](syntax parser.FunctionSyntax, args []T, ordinary 
 	return ordinary + "(" + parts[0] + ", " + parts[1] + ", " + parts[2] + ", " + parts[3] + ")", nil
 }
 
-func datetimeOverlapsLogicalSQL(e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (string, error)) (string, error) {
+func datetimeOverlapsLogicalSQL(e functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error)) (string, error) {
 	return renderOverlapsCall(e.Syntax, e.Args[:], "pg_catalog.overlaps", func(_ int, arg BoundExpr) (string, error) { return child(arg) })
 }
 
-func datetimeOverlapsPublicSQL(e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties], ctx context.Context, r pgRenderer, child func(BoundExpr) (string, error)) (string, error) {
+func datetimeOverlapsPublicSQL(e functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties], ctx context.Context, r pgRenderer, child func(BoundExpr) (string, error)) (string, error) {
 	local := e.Plan.LocalClock()
 	return renderOverlapsCall(e.Syntax, e.Args[:], quoteIdentifier("overlaps"), func(i int, arg BoundExpr) (string, error) {
 		if e.Syntax == parser.SQLFunctionSyntax {

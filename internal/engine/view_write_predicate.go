@@ -10,7 +10,8 @@ type viewQualificationExpression struct {
 	user       BoundExpr
 }
 
-func (e viewQualificationExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e viewQualificationExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

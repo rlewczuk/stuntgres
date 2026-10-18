@@ -31,7 +31,7 @@ func TestJSONBExistsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr, ok := bound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			expr, ok := bound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 			if !ok || expr.Plan.Name() != name || !expr.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != Immutable || b.parameters[1].Type.ID() != sqltype.JSONB {
 				t.Fatal(bound, b.parameters)
 			}
@@ -75,7 +75,7 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 			literalExpression{expressionInfo: expressionInfo{usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
 			literalExpression{expressionInfo: expressionInfo{usage: right.Usage()}, value: key},
 		}
-		expr, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, ExprProperties{})), name, args, parser.OrdinaryFunctionSyntax)
+		expr, err := functions.NewBinary[BoundExpr, ExprContext](functionInfo(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, ExprProperties{})), name, args, parser.OrdinaryFunctionSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}

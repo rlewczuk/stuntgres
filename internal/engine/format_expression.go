@@ -99,5 +99,5 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	}
 	int4 := b.typ(sqltype.Int4)
 	b.info(int4.Usage(), raw.Pos, ExprProperties{})
-	return functions.Format[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
+	return functions.Format[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
 }

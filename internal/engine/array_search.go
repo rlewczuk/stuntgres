@@ -255,10 +255,10 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 	if len(rawName.Parts) == 2 {
 		namespace = rawName.Parts[0].Text
 	}
-	return functions.NewArraySearch[BoundExpr, *EvalContext](functionInfo(info), plan, args, namespace), nil
+	return functions.NewArraySearch[BoundExpr, ExprContext](functionInfo(info), plan, args, namespace), nil
 }
 
-func arraySearchSQL(e functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+func arraySearchSQL(e functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
 	parts := make([]string, len(e.Args))
 	for i, arg := range e.Args {
 		text, err := child(arg)
@@ -273,7 +273,7 @@ func arraySearchSQL(e functions.ArraySearch[BoundExpr, *EvalContext, ExprPropert
 	return "pg_catalog." + e.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 }
 
-func mapArraySearchChildren(e functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+func mapArraySearchChildren(e functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], bool, error) {
 	var args []BoundExpr
 	for i, old := range e.Args {
 		next, changed, err := child(old)

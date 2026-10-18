@@ -51,7 +51,7 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 	if !visible || raw.ResolutionOnly || name != "jsonb_path_query_array" || len(operands) > count {
 		return signature()
 	}
-	e := functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]{WrittenCount: len(operands), Variadic: raw.Variadic}
+	e := functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]{WrittenCount: len(operands), Variadic: raw.Variadic}
 	var supplied [4]bool
 	for i, o := range operands {
 		slot := i
@@ -144,7 +144,7 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 	return e, nil
 }
 
-func jsonbPathQueryArraySQL(e functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbPathQueryArraySQL(e functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.WrittenCount < 2 || e.WrittenCount > 4 {
 		return "", fmt.Errorf("invalid stored JSONPath array query")
 	}

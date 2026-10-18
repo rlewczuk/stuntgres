@@ -77,7 +77,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(expression, err)
 		}
-		leaf := node.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties]).Args[0].(literalExpression)
+		leaf := node.(functions.NullCount[BoundExpr, ExprContext, ExprProperties]).Args[0].(literalExpression)
 		if !leaf.unknownNull || !leaf.value.IsNull() || leaf.usage.Type.ID() != sqltype.Text {
 			t.Fatal(leaf)
 		}
@@ -225,7 +225,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf := node.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties]).Args[0].(literalExpression)
+	leaf := node.(functions.NullCount[BoundExpr, ExprContext, ExprProperties]).Args[0].(literalExpression)
 	if leaf.unknownNull || leaf.usage.Type.ID() != sqltype.Int4 || !leaf.value.IsNull() {
 		t.Fatal(leaf)
 	}
@@ -251,7 +251,7 @@ func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conversion := node.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
+	conversion := node.(functions.Timezone[BoundExpr, ExprContext, ExprProperties])
 	value, err := conversion.Eval(&EvalContext{Context: context.Background()})
 	if err != nil {
 		t.Fatal(err)

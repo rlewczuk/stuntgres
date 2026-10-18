@@ -26,7 +26,7 @@ func (c *EvalContext) FunctionWallTime() time.Time {
 func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
 	return c.Input.Zone
 }
-func transactionTimeSQL(e functions.TransactionTime[*EvalContext, ExprProperties]) (string, error) {
+func transactionTimeSQL(e functions.TransactionTime[ExprContext, ExprProperties]) (string, error) {
 	if err := e.Validate(functionPropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
@@ -82,7 +82,7 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 	if err != nil {
 		return nil, err
 	}
-	return functions.TransactionTime[*EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind}, nil
+	return functions.TransactionTime[ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind}, nil
 }
 
 // Only selected time leaves may introduce volatility into this closed default.
@@ -96,11 +96,11 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case functions.TransactionTime[*EvalContext, ExprProperties]:
+	case functions.TransactionTime[ExprContext, ExprProperties]:
 		return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())) == nil
-	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
 		return n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
-	case rowExpression, fieldExpression, functions.Posix[BoundExpr, *EvalContext, ExprProperties], functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Similar[BoundExpr, *EvalContext, ExprProperties], functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties], functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+	case rowExpression, fieldExpression, functions.Posix[BoundExpr, ExprContext, ExprProperties], functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties], functions.Similar[BoundExpr, ExprContext, ExprProperties], functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties], functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties], functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
@@ -122,20 +122,20 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case commitTimestampExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
-	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
 		return closedTransactionTimeDefault(n.Arg)
-	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
 		for _, arg := range n.Args[:n.Kind.Arity()] {
 			if !closedTransactionTimeDefault(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties], functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties], functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties], functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], functions.RangeInspect[BoundExpr, ExprContext, ExprProperties], functions.Enum[BoundExpr, ExprContext, ExprProperties], functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
@@ -147,11 +147,11 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties], functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties], functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties], functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties], functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties], functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties], functions.JSONBSet[BoundExpr, ExprContext, ExprProperties], functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties], functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties], nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties], functions.Timezone[BoundExpr, *EvalContext, ExprProperties], functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], functions.Format[BoundExpr, *EvalContext, ExprProperties], functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties], caseExpression:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape[BoundExpr, ExprContext, ExprProperties], nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary[BoundExpr, ExprContext, ExprProperties], functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties], functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties], functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties], functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties], functions.String[BoundExpr, ExprContext, ExprProperties], functions.Timezone[BoundExpr, ExprContext, ExprProperties], functions.Math[BoundExpr, ExprContext, ExprProperties], functions.NullCount[BoundExpr, ExprContext, ExprProperties], functions.Format[BoundExpr, ExprContext, ExprProperties], functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, ExprContext, ExprProperties], caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

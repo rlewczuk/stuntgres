@@ -134,7 +134,8 @@ func (n catalogUserNameExpression) validate() error {
 	return nil
 }
 
-func (n catalogUserNameExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n catalogUserNameExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -185,6 +186,6 @@ func (n catalogForeignKeysExpression) validate() error {
 	return nil
 }
 
-func (n catalogForeignKeysExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n catalogForeignKeysExpression) Eval(ExprContext) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: catalog foreign-key set used as scalar")
 }

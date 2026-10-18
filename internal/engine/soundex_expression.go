@@ -11,7 +11,7 @@ import (
 )
 
 type installedSoundexFunctionExpression struct {
-	functions.Soundex[BoundExpr, *EvalContext, ExprProperties]
+	functions.Soundex[BoundExpr, ExprContext, ExprProperties]
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
@@ -101,7 +101,7 @@ func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundE
 	}
 	info := b.info(result, raw.Pos, properties)
 	info.routineReference = proc
-	call, err := functions.NewSoundex[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
+	call, err := functions.NewSoundex[BoundExpr, ExprContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}
