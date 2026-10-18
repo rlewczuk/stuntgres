@@ -8,7 +8,7 @@ import (
 )
 
 // A captured physical position is only a hint; arbitration is by stable RowID.
-func rowByID(rows []rowVersion, id RowID, hint int) (rowVersion, int, bool) {
+func rowByID(rows []rowVersion, id ids.RowID, hint int) (rowVersion, int, bool) {
 	if hint >= 0 && hint < len(rows) && rows[hint].row == id {
 		return rows[hint], hint, true
 	}
@@ -40,7 +40,7 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 		}
 		return append(next, stage[0])
 	}
-	slots := make(map[RowID]int, len(old))
+	slots := make(map[ids.RowID]int, len(old))
 	for i, row := range old {
 		slots[row.row] = i
 	}
@@ -222,7 +222,7 @@ retry:
 			base = predecessor.version
 		}
 		e.nextVersion++
-		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
+		versions[i] = rowVersion{row: predecessor.row, version: ids.VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
 	}
 	if batch.states != nil {
 		for i := range versions {

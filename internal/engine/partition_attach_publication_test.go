@@ -124,7 +124,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			case "length":
 				store.versions = append(store.versions, rowVersion{row: 1, version: 1})
 			case "ends":
-				store.ends = &deletionRoot{rows: map[RowID]rowEnd{}}
+				store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{}}
 			case "generation":
 				store.generation++
 			case "provider":

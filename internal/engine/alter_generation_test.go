@@ -124,17 +124,17 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	}}
 	old.generations = map[int32]columnGeneration{2: {kind: generationStored, planned: untouched}, 3: {kind: generationStored, planned: untouched}}
 	next.generations = map[int32]columnGeneration{2: {kind: generationStored, planned: generated}, 3: {kind: generationStored, planned: untouched}}
-	row := func(id RowID, version uint64) rowVersion {
-		return rowVersion{row: id, version: VersionID(version), born: 1, values: []sqltype.Value{integer(1), integer(2), integer(99)}}
+	row := func(id ids.RowID, version uint64) rowVersion {
+		return rowVersion{row: id, version: ids.VersionID(version), born: 1, values: []sqltype.Value{integer(1), integer(2), integer(99)}}
 	}
-	store := &relationStorage{generation: 1, versions: []rowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, ends: &deletionRoot{rows: map[RowID]rowEnd{2: {version: 2, end: 2}}}}
+	store := &relationStorage{generation: 1, versions: []rowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{2: {version: 2, end: 2}}}}
 	own := row(3, 5)
 	own.base = 3
 	own.born = 0
 	insert := row(5, 6)
 	insert.born = 0
 	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.address: {own, insert}}
-	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
+	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transform := queryProbeExpression{expressionInfo: expressionInfo{usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
 			t.Fatal("TYPE lost old row", ec.Row)

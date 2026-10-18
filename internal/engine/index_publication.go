@@ -432,7 +432,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 					continue
 				}
 				for _, row := range publication.writes {
-					if !rowMaintainsIndex(row, index) || !liveVersion(row, CommitSeq(^uint64(0)), nil, publication.deletion) {
+					if !rowMaintainsIndex(row, index) || !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, publication.deletion) {
 						continue
 					}
 					if output, ok := row.indexOutputs[a]; !ok || !output.matches(index) {
@@ -670,7 +670,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 			if !rowMaintainsIndex(row, index) {
 				continue
 			}
-			if !liveVersion(row, CommitSeq(^uint64(0)), nil, deletes[index.sqlIndex.parent]) {
+			if !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.sqlIndex.parent]) {
 				continue
 			}
 			if output, ok := row.indexOutputs[index.address]; ok && output.matches(index) {

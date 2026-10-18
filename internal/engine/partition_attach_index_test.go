@@ -103,7 +103,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if entry.row != RowID(i+1) || entry.version != VersionID(i+1) || first != int64(i+1) || second != 7 || len(entry.keys) != 2 {
+				if entry.row != ids.RowID(i+1) || entry.version != ids.VersionID(i+1) || first != int64(i+1) || second != 7 || len(entry.keys) != 2 {
 					t.Fatal("physical attribute mapping or INCLUDE uniqueness changed", entry)
 				}
 			}

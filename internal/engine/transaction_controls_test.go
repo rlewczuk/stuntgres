@@ -183,9 +183,9 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			case "tx":
 				a.transactions.next = ids.TxID(^uint64(0))
 			case "frontier":
-				e.commitSeq = CommitSeq(^uint64(0))
+				e.commitSeq = ids.CommitSeq(^uint64(0))
 			case "command":
-				a.transactions.command = CommandID(^uint64(0))
+				a.transactions.command = ids.CommandID(^uint64(0))
 			}
 			err := controlsExecute(t, a, "COMMIT AND CHAIN")
 			if counter == "command" {

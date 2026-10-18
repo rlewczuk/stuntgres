@@ -25,7 +25,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 			var deletes *privateDeletionRoot
 			if overlay == "delete" {
 				r := store.versions[2]
-				deletes = &privateDeletionRoot{rows: map[RowID]deleteCandidate{r.row: {ref: f.ref, storage: &store, row: r.row, version: r.version}}}
+				deletes = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{r.row: {ref: f.ref, storage: &store, row: r.row, version: r.version}}}
 			}
 			if overlay == "outside_successor" || overlay == "member_successor" {
 				active := "false"
@@ -83,7 +83,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	if root == nil || root == f.roots[next.address] {
 		t.Fatal("private baseline borrowed committed root")
 	}
-	want := map[RowID]VersionID{baseline.versions[0].row: baseline.versions[0].version, baseline.versions[1].row: baseline.versions[1].version}
+	want := map[ids.RowID]ids.VersionID{baseline.versions[0].row: baseline.versions[0].version, baseline.versions[1].row: baseline.versions[1].version}
 	if !maps.Equal(root.membership, want) || len(root.entries) != 2 {
 		t.Fatal("private TYPE membership", root)
 	}

@@ -123,8 +123,8 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			partialWantMembership(t, root, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
-			partialWantMembership(t, oldRoot, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
+			partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
+			partialWantMembership(t, oldRoot, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 			if f.e.state != oldCatalog || oldCatalog.descriptors[f.parent.address] != f.parent || oldCatalog.descriptors[f.index.address] != f.index || f.e.indexRoots[f.index.address] != oldRoot || f.index.sqlIndex.predicate != oldPredicate || predicate.definition != beforeDefinition || predicate.execution != beforeExecution || !reflect.DeepEqual(predicate.dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}

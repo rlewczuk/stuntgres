@@ -95,7 +95,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 		versions = append(versions, store.versions...)
 	}
 	e.mu.Unlock()
-	seen := map[RowID]bool{}
+	seen := map[ids.RowID]bool{}
 	for _, v := range versions {
 		if v.row == 0 || v.version == 0 || v.born == 0 || seen[v.row] {
 			t.Fatal("invalid/duplicate identity", v)
@@ -299,7 +299,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	}
 	a.transactions.next = next.ID()
 	ref = transactionBegin(t, a)
-	a.transactions.command = CommandID(^uint64(0))
+	a.transactions.command = ids.CommandID(^uint64(0))
 	_, err := e.Execute(op, statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("command wrapped")
@@ -313,7 +313,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	e.nextRow = 0
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	e.commitSeq = CommitSeq(^uint64(0))
+	e.commitSeq = ids.CommitSeq(^uint64(0))
 	_, err = e.Commit(op, ref)
 	if err == nil || a.TransactionState() != TxIdle {
 		t.Fatal("commit frontier wrapped")
@@ -454,7 +454,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				outcome, err = e.Commit(op, ref)
 			case "counter_before":
 				e.mu.Lock()
-				e.commitSeq = CommitSeq(^uint64(0))
+				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
 				e.mu.Unlock()
 				outcome, err = e.Commit(op, ref)

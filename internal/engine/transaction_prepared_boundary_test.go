@@ -150,7 +150,7 @@ type preparedBoundarySnapshot struct {
 	registry        map[string]*preparedTransaction
 	entries         map[string]preparedTransaction
 	ssi             map[ids.TxRef]serializableTransaction
-	creators        map[VersionID]ids.TxRef
+	creators        map[ids.VersionID]ids.TxRef
 	owners          map[ids.TxRef]*relationTicket
 	resources       map[lockResource]struct{}
 	locks           map[lockResource]relationEntry
@@ -326,7 +326,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 			arrived, release := preparedBoundaryBarrier(t, e, origin, finisher, entry)
 			if veto == "counter" {
 				e.mu.Lock()
-				e.commitSeq = CommitSeq(math.MaxUint64)
+				e.commitSeq = ids.CommitSeq(math.MaxUint64)
 				e.mu.Unlock()
 			}
 			before := preparedBoundaryCapture(e, entry)
@@ -730,9 +730,9 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 			stale := publication
 			stale.writes = slices.Clone(publication.writes)
 			if staleKind == "wrong_base_version" {
-				stale.writes[updatePosition].base = VersionID(^uint64(0))
+				stale.writes[updatePosition].base = ids.VersionID(^uint64(0))
 			} else {
-				stale.ends = &deletionRoot{rows: map[RowID]rowEnd{update.row: {version: update.base, end: entry.frontier}}}
+				stale.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{update.row: {version: update.base, end: entry.frontier}}}
 			}
 			err := e.prepareRowPublication(&stale, entry.ref, materialize)
 			if err == nil || err.Error() != "stuntgres: stale update predecessor" {

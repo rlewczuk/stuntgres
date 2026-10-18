@@ -23,7 +23,7 @@ type preparedTransaction struct {
 	catalog  *catalogChanges
 	claimed  bool
 	roots    map[ids.ObjectAddress]transactionRoot
-	frontier CommitSeq
+	frontier ids.CommitSeq
 	options  TxOptions
 }
 

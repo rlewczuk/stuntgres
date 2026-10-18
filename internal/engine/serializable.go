@@ -13,7 +13,7 @@ import (
 // session while overlapping owners remain; visibility roots stay TX-owned.
 type serializableTracker struct {
 	nodes    map[ids.TxRef]*serializableTransaction
-	creators map[VersionID]ids.TxRef
+	creators map[ids.VersionID]ids.TxRef
 	order    uint64
 }
 
@@ -21,9 +21,9 @@ type serializableTransaction struct {
 	ref                                                 ids.TxRef
 	assignedXID                                         uint32 // Retained canonical public identity, including after completion.
 	captured, readOnly, deferrable                      bool
-	frontier                                            CommitSeq
+	frontier                                            ids.CommitSeq
 	snapshotOrder, order                                uint64
-	commitFrontier                                      CommitSeq
+	commitFrontier                                      ids.CommitSeq
 	commitOrder                                         uint64
 	didWrite, doomed, committed, ended, aborted, exempt bool
 	finalized, prepared                                 bool
@@ -38,9 +38,9 @@ type serializableTransaction struct {
 // A retained event contains identities, never row values. baseBorn and creator
 // select the invisible creator rather than an ender of that invisible version.
 type serializableWrite struct {
-	row               RowID
-	version, base     VersionID
-	baseBorn          CommitSeq
+	row               ids.RowID
+	version, base     ids.VersionID
+	baseBorn          ids.CommitSeq
 	creator           ids.TxRef
 	deletion, rewrite bool
 }
@@ -48,7 +48,7 @@ type serializableWrite struct {
 // Creation and ending of the same version survive/reconcile independently.
 // The zero version is reserved for the relation-wide rewrite event.
 type serializableWriteKey struct {
-	version  VersionID
+	version  ids.VersionID
 	deletion bool
 }
 
@@ -75,7 +75,7 @@ func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation Isolation) {
 			e.serializable.nodes = make(map[ids.TxRef]*serializableTransaction)
 		}
 		if e.serializable.creators == nil {
-			e.serializable.creators = make(map[VersionID]ids.TxRef)
+			e.serializable.creators = make(map[ids.VersionID]ids.TxRef)
 		}
 		e.serializable.nodes[ref] = &serializableTransaction{ref: ref, assignedXID: e.visibility[ref].assignedXID, reads: make(map[ids.ObjectAddress]struct{}), writes: make(map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
 	}
@@ -175,7 +175,7 @@ func (e *Engine) serializablePrecommitLocked(ref ids.TxRef) error {
 }
 
 // Called only at the callback-free installation boundary, Engine.mu held.
-func (e *Engine) serializableCommittedLocked(ref ids.TxRef, frontier CommitSeq) {
+func (e *Engine) serializableCommittedLocked(ref ids.TxRef, frontier ids.CommitSeq) {
 	node := e.serializable.nodes[ref]
 	if !serializableRelevant(node) {
 		return

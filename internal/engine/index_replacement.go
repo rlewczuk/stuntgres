@@ -15,7 +15,7 @@ type remintedIndexStorage struct {
 	roots                map[ids.ObjectAddress]*logicalIndexRoot
 	nextRow, nextVersion uint64
 	baseRow, baseVersion uint64
-	frontier             CommitSeq
+	frontier             ids.CommitSeq
 }
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
@@ -72,7 +72,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 				return nil, 0, 0, ErrCatalogReplaced
 			}
 			selected[identity] = i
-			row.row, row.version = RowID(rowID), VersionID(versionID)
+			row.row, row.version = ids.RowID(rowID), ids.VersionID(versionID)
 			row.base, row.born = 0, e.commitSeq+1
 			row.keyChangedAt, row.pendingKeyChange = 0, false
 			row.indexAdmission = nil

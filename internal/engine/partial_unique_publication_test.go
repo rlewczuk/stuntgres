@@ -76,7 +76,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	if len(root.entries) != 2 || !maps.Equal(root.membership, map[RowID]VersionID{e.storage[ref.Address].versions[0].row: e.storage[ref.Address].versions[0].version, e.storage[ref.Address].versions[1].row: e.storage[ref.Address].versions[1].version}) {
+	if len(root.entries) != 2 || !maps.Equal(root.membership, map[ids.RowID]ids.VersionID{e.storage[ref.Address].versions[0].row: e.storage[ref.Address].versions[0].version, e.storage[ref.Address].versions[1].row: e.storage[ref.Address].versions[1].version}) {
 		t.Fatal("seed membership", root)
 	}
 	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
@@ -115,7 +115,7 @@ func partialUniqueMembership(t *testing.T, f *uniquePublicationFixture, roots ma
 	if !materialize {
 		return
 	}
-	want := make(map[RowID]VersionID, len(rows))
+	want := make(map[ids.RowID]ids.VersionID, len(rows))
 	for _, r := range rows {
 		want[r.row] = r.version
 	}
@@ -124,7 +124,7 @@ func partialUniqueMembership(t *testing.T, f *uniquePublicationFixture, roots ma
 		t.Fatal("exact partial membership", got, want)
 	}
 	for a, r := range f.roots {
-		wantOld := make(map[RowID]VersionID)
+		wantOld := make(map[ids.RowID]ids.VersionID)
 		for _, entry := range f.entries[a] {
 			wantOld[entry.row] = entry.version
 		}
@@ -153,7 +153,7 @@ func TestPartialIndexUniquePublicationCombined(t *testing.T) {
 						want = []rowVersion{rows[0], rows[1], replacement}
 					}
 					if mode == "delete" || mode == "empty" {
-						deletion = &privateDeletionRoot{rows: map[RowID]deleteCandidate{rows[1].row: {ref: f.ref, storage: f.stores[f.parent.address], row: rows[1].row, version: rows[1].version}}}
+						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[1].row: {ref: f.ref, storage: f.stores[f.parent.address], row: rows[1].row, version: rows[1].version}}}
 						want = nil
 						if mode == "delete" {
 							member := partialUniqueRow(t, f, 2, "2001-02-06", "4", "true")
@@ -187,7 +187,7 @@ func TestPartialIndexUniquePublicationRebuiltBeforeDelta(t *testing.T) {
 					var writes []rowVersion
 					var deletion *privateDeletionRoot
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{rows: map[RowID]deleteCandidate{old.row: {ref: f.ref, storage: &store, row: old.row, version: old.version}}}
+						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.row: {ref: f.ref, storage: &store, row: old.row, version: old.version}}}
 					} else {
 						r := partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
 						r.row, r.base = old.row, old.version

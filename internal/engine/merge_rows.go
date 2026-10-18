@@ -191,9 +191,9 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			result.returning.Close()
 		}
 	}()
-	var accepted map[RowID]bool
+	var accepted map[ids.RowID]bool
 	if len(b.merge.updateTargets) != 0 || b.merge.hasDelete {
-		accepted = make(map[RowID]bool)
+		accepted = make(map[ids.RowID]bool)
 	}
 	var excluded []rowVersion
 	for _, candidate := range pairs {
@@ -356,7 +356,7 @@ func mergeCardinalityError() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: "MERGE command cannot affect row a second time", Hint: "Ensure that not more than one source row matches any one target row."}
 }
 
-func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old rowVersion, deletion deleteCandidate, accepted map[RowID]bool, excluded *[]rowVersion) error {
+func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old rowVersion, deletion deleteCandidate, accepted map[ids.RowID]bool, excluded *[]rowVersion) error {
 	if arm.action == parser.MergeDeleteAction {
 		if accepted[old.row] {
 			return mergeCardinalityError()

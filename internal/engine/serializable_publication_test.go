@@ -22,7 +22,7 @@ type serializableStorageSnapshot struct {
 	generation uint64
 	ends       *deletionRoot
 	rows       []rowVersion
-	endRows    map[RowID]rowEnd
+	endRows    map[ids.RowID]rowEnd
 }
 type serializableIndexSnapshot struct {
 	pointer *logicalIndexRoot
@@ -34,7 +34,7 @@ type serializablePublicationSnapshot struct {
 	names               map[ids.NameKey]ids.ObjectAddress
 	namespaceGeneration uint64
 	revision            ids.DefinitionRevision
-	frontier            CommitSeq
+	frontier            ids.CommitSeq
 	order               uint64
 	storage             map[ids.ObjectAddress]serializableStorageSnapshot
 	indexes             map[ids.ObjectAddress]serializableIndexSnapshot
@@ -50,7 +50,7 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 		for i := range rows {
 			rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
 		}
-		var ends map[RowID]rowEnd
+		var ends map[ids.RowID]rowEnd
 		if store.ends != nil {
 			ends = maps.Clone(store.ends.rows)
 		}

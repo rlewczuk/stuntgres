@@ -16,8 +16,8 @@ type foreignKeyRows struct {
 	committed, own, staged       []rowVersion
 	ends                         *deletionRoot
 	priorDeletes, currentDeletes *privateDeletionRoot
-	shadow                       map[RowID]uint8
-	frontier                     CommitSeq
+	shadow                       map[ids.RowID]uint8
+	frontier                     ids.CommitSeq
 	index                        ids.ObjectAddress
 	root                         *logicalIndexRoot
 }
@@ -49,7 +49,7 @@ func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {
 	}
 	return nil
 }
-func (r foreignKeyRows) previous(id RowID) (rowVersion, bool) {
+func (r foreignKeyRows) previous(id ids.RowID) (rowVersion, bool) {
 	for _, v := range r.own {
 		if v.row == id {
 			return v, true
@@ -94,7 +94,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 		r.priorDeletes = nil
 	}
 	if len(r.own)+len(r.staged) > 0 {
-		r.shadow = make(map[RowID]uint8, len(r.own)+len(r.staged))
+		r.shadow = make(map[ids.RowID]uint8, len(r.own)+len(r.staged))
 		for _, v := range r.own {
 			r.shadow[v.row] |= 1
 		}
@@ -105,7 +105,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	return r, nil
 }
 
-func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row RowID, mode relationLockMode, storage *relationStorage) error {
+func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode relationLockMode, storage *relationStorage) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)

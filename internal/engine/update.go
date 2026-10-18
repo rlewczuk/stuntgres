@@ -180,10 +180,10 @@ func updateMatches(eval *EvalContext, predicate BoundExpr) (bool, error) {
 }
 
 // SQL waits never retain replacement admission or state/manager mutexes.
-func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row RowID) error {
+func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row ids.RowID) error {
 	return s.acquireUpdateRowMode(ref, row, noKeyUpdate)
 }
-func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row RowID, mode relationLockMode) error {
+func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode relationLockMode) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
@@ -363,7 +363,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		old    []rowVersion
 		rows   indexWriteBatch
 		staged int
-		prior  map[RowID]struct{}
+		prior  map[ids.RowID]struct{}
 	}
 	var single physicalBatch
 	single.ref = b.ref
@@ -494,7 +494,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		for _, predecessor := range existing[batch.staged:] {
 			if batch.prior == nil {
-				batch.prior = make(map[RowID]struct{})
+				batch.prior = make(map[ids.RowID]struct{})
 			}
 			batch.prior[predecessor.row] = struct{}{}
 		}

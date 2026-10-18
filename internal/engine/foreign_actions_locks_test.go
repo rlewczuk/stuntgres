@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *Session, *Session, *Session, ids.ObjectRef, RowID) {
+func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *Session, *Session, *Session, ids.ObjectRef, ids.RowID) {
 	t.Helper()
 	e := New()
 	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)

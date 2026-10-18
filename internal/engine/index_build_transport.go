@@ -10,8 +10,8 @@ import (
 )
 
 type indexRowIdentity struct {
-	row     RowID
-	version VersionID
+	row     ids.RowID
+	version ids.VersionID
 }
 
 // A validated overlay has a compact physical layout. Baseline installation
@@ -152,7 +152,7 @@ func indexBuildVisibleStore(ctx context.Context, store *relationStorage, writes 
 	if len(writes) == 0 && (deletes == nil || len(deletes.rows) == 0) {
 		return store, nil
 	}
-	replaced := make(map[RowID]bool, len(writes))
+	replaced := make(map[ids.RowID]bool, len(writes))
 	for _, row := range writes {
 		replaced[row.row] = true
 	}
@@ -161,7 +161,7 @@ func indexBuildVisibleStore(ctx context.Context, store *relationStorage, writes 
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !replaced[row.row] && liveVersion(row, CommitSeq(^uint64(0)), store.ends, deletes) {
+		if !replaced[row.row] && liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, deletes) {
 			live = append(live, row)
 		}
 	}

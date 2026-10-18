@@ -56,7 +56,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
 	deleted := innerStorage.versions[2]
-	innerStorage.ends = &deletionRoot{rows: map[RowID]rowEnd{
+	innerStorage.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{
 		deleted.row: {version: deleted.version, end: e.commitSeq},
 	}}
 	frontier := e.commitSeq

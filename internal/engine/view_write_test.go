@@ -241,7 +241,7 @@ func TestViewWriteDemand(t *testing.T) {
 		f := viewWriteMechanics(t)
 		f.e.commitSeq = 2
 		store := f.e.storage[f.base.address]
-		store.ends = &deletionRoot{rows: map[RowID]rowEnd{1: {version: 1, end: 2}}}
+		store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}
 		scope, op := f.scope(t)
 		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
 		f.e.mu.Lock()

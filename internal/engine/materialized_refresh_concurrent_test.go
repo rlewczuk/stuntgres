@@ -429,7 +429,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				case "index_set":
 					materializedConcurrentUnitIndex(t, e, d, "unit_second", "i", "")
 				case "frontier":
-					e.commitSeq = CommitSeq(math.MaxUint64)
+					e.commitSeq = ids.CommitSeq(math.MaxUint64)
 				}
 				beforeCatalog, beforeStore, beforeFrontier := e.state, e.storage[d.address], e.commitSeq
 				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})

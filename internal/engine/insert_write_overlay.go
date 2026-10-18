@@ -16,8 +16,8 @@ type insertWriteKeyOverlay struct {
 }
 
 type insertWriteOverlay struct {
-	affectedRows map[RowID]int
-	ownRowSlots  map[ids.ObjectAddress]map[RowID]int
+	affectedRows map[ids.RowID]int
+	ownRowSlots  map[ids.ObjectAddress]map[ids.RowID]int
 	overlays     map[*uniqueBoundKey]*insertWriteKeyOverlay
 }
 
@@ -31,17 +31,17 @@ func (s *StatementScope) writeOverlay() *insertWriteOverlay {
 	return nil
 }
 
-func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id RowID) (rowVersion, bool) {
+func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (rowVersion, bool) {
 	if len(s.ownWrites[ref.Address]) == 0 {
 		return rowVersion{}, false
 	}
 	c := s.writeOverlay()
 	if c.ownRowSlots == nil {
-		c.ownRowSlots = make(map[ids.ObjectAddress]map[RowID]int)
+		c.ownRowSlots = make(map[ids.ObjectAddress]map[ids.RowID]int)
 	}
 	slots := c.ownRowSlots[ref.Address]
 	if slots == nil {
-		slots = make(map[RowID]int, len(s.ownWrites[ref.Address]))
+		slots = make(map[ids.RowID]int, len(s.ownWrites[ref.Address]))
 		for slot, row := range s.ownWrites[ref.Address] {
 			slots[row.row] = slot
 		}

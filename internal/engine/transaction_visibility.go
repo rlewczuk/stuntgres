@@ -19,9 +19,9 @@ type visibilityGeneration struct {
 
 type visibilityData struct {
 	tx                     ids.TxRef
-	command                CommandID
-	frontier               CommitSeq
-	rewrittenFrontiers     map[ids.ObjectAddress]CommitSeq
+	command                ids.CommandID
+	frontier               ids.CommitSeq
+	rewrittenFrontiers     map[ids.ObjectAddress]ids.CommitSeq
 	catalog                CatalogRead
 	committed              map[ids.ObjectAddress][]rowVersion
 	generations            map[ids.ObjectAddress]visibilityGeneration
@@ -50,7 +50,7 @@ func (d *visibilityData) needsBirthFilterAt(address ids.ObjectAddress) bool {
 	return captured && d.singleNeedsBirthFilter
 }
 
-func (d *visibilityData) frontierAt(address ids.ObjectAddress) CommitSeq {
+func (d *visibilityData) frontierAt(address ids.ObjectAddress) ids.CommitSeq {
 	if frontier, ok := d.rewrittenFrontiers[address]; ok {
 		return frontier
 	}
@@ -203,7 +203,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		}
 		if !latest && rewrite.rewritten && stableIsolation(s.owner.isolation) {
 			if data.rewrittenFrontiers == nil {
-				data.rewrittenFrontiers = make(map[ids.ObjectAddress]CommitSeq)
+				data.rewrittenFrontiers = make(map[ids.ObjectAddress]ids.CommitSeq)
 			}
 			data.rewrittenFrontiers[ref.Address] = rewrite.frontier
 		}
@@ -289,7 +289,7 @@ func (v *VisibilityView) read() *visibilityData {
 	return data
 }
 
-func (v *VisibilityView) Tx() ids.TxRef        { return v.read().tx }
-func (v *VisibilityView) Command() CommandID   { return v.read().command }
-func (v *VisibilityView) Frontier() CommitSeq  { return v.read().frontier }
-func (v *VisibilityView) Catalog() CatalogRead { return v.read().catalog }
+func (v *VisibilityView) Tx() ids.TxRef           { return v.read().tx }
+func (v *VisibilityView) Command() ids.CommandID  { return v.read().command }
+func (v *VisibilityView) Frontier() ids.CommitSeq { return v.read().frontier }
+func (v *VisibilityView) Catalog() CatalogRead    { return v.read().catalog }

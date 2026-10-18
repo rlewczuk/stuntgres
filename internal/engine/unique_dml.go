@@ -283,7 +283,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 	return nil
 }
 
-func uniqueRowExcluded(id RowID, excluded []rowVersion) bool {
+func uniqueRowExcluded(id ids.RowID, excluded []rowVersion) bool {
 	for _, row := range excluded {
 		if row.row == id {
 			return true
@@ -291,7 +291,7 @@ func uniqueRowExcluded(id RowID, excluded []rowVersion) bool {
 	}
 	return false
 }
-func uniqueRowDeleted(id RowID, roots ...*privateDeletionRoot) bool {
+func uniqueRowDeleted(id ids.RowID, roots ...*privateDeletionRoot) bool {
 	for _, root := range roots {
 		if root != nil {
 			if _, ok := root.rows[id]; ok {

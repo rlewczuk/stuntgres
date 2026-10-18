@@ -34,9 +34,9 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 		}
 	}
 	if replacements != 0 {
-		var index map[RowID]int
+		var index map[ids.RowID]int
 		if replacements > 1 {
-			index = make(map[RowID]int, len(p.root))
+			index = make(map[ids.RowID]int, len(p.root))
 			for slot, row := range p.root {
 				index[row.row] = slot
 			}
@@ -64,7 +64,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			} else {
 				predecessor, slot, found = rowByID(p.root, row.row, -1)
 			}
-			if !found || predecessor.version != row.base || !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
+			if !found || predecessor.version != row.base || !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: stale update predecessor")
 			}
 			if materialize {
@@ -82,7 +82,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			if p.ends != nil {
 				count += len(p.ends.rows)
 			}
-			p.nextEnds = &deletionRoot{rows: make(map[RowID]rowEnd, count)}
+			p.nextEnds = &deletionRoot{rows: make(map[ids.RowID]rowEnd, count)}
 			if p.ends != nil {
 				for id, end := range p.ends.rows {
 					p.nextEnds.rows[id] = end
@@ -101,7 +101,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			if !found || predecessor.version != candidate.version || candidate.own && predecessor.base != candidate.base || len(predecessor.values) != len(p.relation.columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}
-			if !candidate.own && !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
+			if !candidate.own && !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: deletion predecessor already ended")
 			}
 			if materialize {

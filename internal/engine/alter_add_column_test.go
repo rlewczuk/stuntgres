@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -94,7 +95,7 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 		t.Fatal(projected, err, traversal.checks)
 	}
 	for i, row := range rows {
-		if row.row != RowID(i+1) || len(row.values) != 1 || row.values[0] != one {
+		if row.row != ids.RowID(i+1) || len(row.values) != 1 || row.values[0] != one {
 			t.Fatal("canceled traversal changed source", rows)
 		}
 	}

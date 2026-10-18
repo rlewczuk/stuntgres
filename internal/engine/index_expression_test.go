@@ -24,7 +24,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}
 	for i, v := range values {
-		store.versions = append(store.versions, rowVersion{row: RowID(i + 1), version: VersionID(i + 1), values: []sqltype.Value{v}})
+		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{v}})
 	}
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, d, store, nil)
 	if err != nil {

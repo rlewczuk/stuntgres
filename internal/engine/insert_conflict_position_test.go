@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func insertConflictWantHints(t *testing.T, root *logicalIndexRoot, store *relationStorage, want map[RowID]int) {
+func insertConflictWantHints(t *testing.T, root *logicalIndexRoot, store *relationStorage, want map[ids.RowID]int) {
 	t.Helper()
 	if root == nil || len(root.entries) != len(want) {
 		t.Fatal("wrong hint membership", root, want)
@@ -51,7 +51,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				} else {
 					values[1] = sqltype.Null(f.parent.columns[1].Usage.Type)
 				}
-				f.store.versions = append(f.store.versions, rowVersion{row: RowID(i + 2), version: VersionID(i + 2), born: 1, values: values})
+				f.store.versions = append(f.store.versions, rowVersion{row: ids.RowID(i + 2), version: ids.VersionID(i + 2), born: 1, values: values})
 			}
 			f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 3, 3, 1
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
@@ -59,7 +59,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.e.indexRoots[f.index.address] = root
-			want := map[RowID]int{1: 0}
+			want := map[ids.RowID]int{1: 0}
 			if !partial {
 				want[2] = 1
 				want[3] = 2
@@ -68,7 +68,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			scope, ref := insertConflictUnitScope(t, f)
 			// Real row publication preparation supplies replacement/append slots. The
 			// independently stated physical positions below cannot be sorted ordinals.
-			publish := func(writes []rowVersion, deleted RowID) {
+			publish := func(writes []rowVersion, deleted ids.RowID) {
 				t.Helper()
 				p := rowPublication{address: f.parent.address, relation: f.parent, store: f.store, root: f.store.versions, ends: f.store.ends, writes: writes, singleSlot: -1}
 				if deleted != 0 {
@@ -76,7 +76,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					if !ok {
 						t.Fatal("missing deletion", deleted)
 					}
-					p.deletion = &privateDeletionRoot{rows: map[RowID]deleteCandidate{deleted: {ref: ref, storage: f.store, row: deleted, version: old.version, ordinal: position}}}
+					p.deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{deleted: {ref: ref, storage: f.store, row: deleted, version: old.version, ordinal: position}}}
 				}
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)
@@ -206,7 +206,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	f.store.versions = append(f.store.versions, rowVersion{row: 2, version: 2, born: 2, values: insertConflictUnitRow(t, f, 20)})
-	f.store.ends = &deletionRoot{rows: map[RowID]rowEnd{1: {version: 1}}}
+	f.store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1}}}
 	f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 2, 2, 2
 	authOp, done := roleOperation(t, f.e, "postgres")
 	defer done()
@@ -228,7 +228,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if root != validated[index.name].root {
 		t.Fatal("validated root was not genuinely reused")
 	}
-	insertConflictWantHints(t, root, f.store, map[RowID]int{2: 1})
+	insertConflictWantHints(t, root, f.store, map[ids.RowID]int{2: 1})
 	scope, ref := insertConflictUnitScope(t, f)
 	scope.owner.catalog = changes
 	scope.owner.isolation = RepeatableRead

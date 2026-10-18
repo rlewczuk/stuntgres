@@ -158,7 +158,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		}
 		e.nextRow++
 		e.nextVersion++
-		version = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
+		version = rowVersion{row: ids.RowID(e.nextRow), version: ids.VersionID(e.nextVersion), values: row}
 	}
 	version.indexAdmission = catalog.state
 	version.indexOutputs = candidate.indexes

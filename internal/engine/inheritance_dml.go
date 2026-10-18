@@ -173,7 +173,7 @@ func (row queryPhysicalRow) deletion() deleteCandidate {
 
 type mutationRowIdentity struct {
 	ref ids.ObjectRef
-	row RowID
+	row ids.RowID
 }
 
 // Physical generation/checks use the full physical proposal; diagnostic values

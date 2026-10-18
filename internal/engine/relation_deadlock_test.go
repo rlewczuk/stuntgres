@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -99,7 +100,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 			for i := range n {
 				modes[i] = accessExclusive
 				if kind == "row" || kind == "mixed" && i == 1 {
-					resources[i].row = RowID(i + 1)
+					resources[i].row = ids.RowID(i + 1)
 					modes[i] = noKeyUpdate
 				}
 				if r := deadlockRequest(t, e, tickets[i], resources[i], modes[i]); r != nil {

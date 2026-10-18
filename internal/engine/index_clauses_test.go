@@ -401,7 +401,7 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		store.versions = append(store.versions, rowVersion{row: RowID(i + 1), version: VersionID(i + 1), values: []sqltype.Value{payload, payload, sqltype.String(typ, text)}})
+		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{payload, payload, sqltype.String(typ, text)}})
 	}
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, definition, store, nil)
 	if err != nil {

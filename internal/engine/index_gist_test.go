@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor, func(RowID, string, string) rowVersion) {
+func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor, func(ids.RowID, string, string) rowVersion) {
 	t.Helper()
 	types := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, typ := range sqltype.Builtins() {
@@ -30,7 +30,7 @@ func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor,
 	}
 	index := &relationDescriptor{name: "booking_ex", sqlIndex: &indexDefinition{method: gistMethod, keys: []indexKey{{attribute: 1, class: ic}, {attribute: 2, class: rc}}, exclusion: []sqltype.ExclusionOperator{eq, overlap}, ready: true, live: true, valid: true}}
 	index.sqlIndex.constraint = &backingConstraint{kind: exclusionBackingKind, OID: 1, Name: index.name}
-	row := func(id RowID, tenant, during string) rowVersion {
+	row := func(id ids.RowID, tenant, during string) rowVersion {
 		a, err := inet.Input(context.Background(), tenant, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -39,7 +39,7 @@ func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor,
 		if err != nil {
 			t.Fatal(err)
 		}
-		return rowVersion{row: id, version: VersionID(id), born: 1, values: []sqltype.Value{a, b}}
+		return rowVersion{row: id, version: ids.VersionID(id), born: 1, values: []sqltype.Value{a, b}}
 	}
 	return parent, index, row
 }

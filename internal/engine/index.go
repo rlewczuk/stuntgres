@@ -44,15 +44,15 @@ func (d *indexDefinition) publicationState() (ready, valid, live bool) {
 
 type logicalIndexEntry struct {
 	keys     []sqltype.Value
-	row      RowID
-	version  VersionID
+	row      ids.RowID
+	version  ids.VersionID
 	position int // Physical slot in the simultaneously published immutable storage.
 }
 type logicalIndexRoot struct {
 	entries    []logicalIndexEntry // Ordered B-tree keys or unordered logical GiST membership.
 	hash       *hashIndexRoot
-	membership map[RowID]VersionID // Immutable; partial roots only.
-	rowEntries map[RowID]int       // Entry ordinals, only checked unique/exclusion expression keys.
+	membership map[ids.RowID]ids.VersionID // Immutable; partial roots only.
+	rowEntries map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
 }
 type indexOrdering struct {
 	slots       []int
@@ -336,7 +336,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
+		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, nil) {
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)
 			if err != nil {
 				return nil, err
@@ -380,7 +380,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 	if p.deletion != nil {
 		endedCount += len(p.deletion.rows)
 	}
-	ended := make(map[RowID]VersionID, endedCount)
+	ended := make(map[ids.RowID]ids.VersionID, endedCount)
 	added := make([]logicalIndexEntry, 0, len(p.writes))
 	var preparation indexExecutionPreparation
 	for i, row := range p.writes {

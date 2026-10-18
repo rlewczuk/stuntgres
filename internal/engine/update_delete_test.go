@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // This worker executes the real command and Finish; its owner cancels and joins
@@ -369,7 +371,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				case "version_exhaustion":
 					target.nextVersion = ^uint64(0)
 				case "frontier_exhaustion":
-					target.commitSeq = CommitSeq(^uint64(0))
+					target.commitSeq = ids.CommitSeq(^uint64(0))
 				}
 				state, frontier, rowCounter, versionCounter := target.state, target.commitSeq, target.nextRow, target.nextVersion
 				oldStorage := target.storage

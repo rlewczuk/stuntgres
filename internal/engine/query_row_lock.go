@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -108,7 +109,7 @@ func appendQueryProvenance(dst []int, source *querySource, index int) []int {
 
 // The source manifest, not target-only DML authority or a re-resolved name,
 // identifies each grant. Waiting shares the existing journal/deadline machinery.
-func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row RowID, mark queryRowMark) (bool, error) {
+func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark queryRowMark) (bool, error) {
 	if err := s.active(); err != nil {
 		return false, err
 	}

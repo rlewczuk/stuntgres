@@ -12,7 +12,7 @@ import (
 // exact immutable version: a successor copies original raw xmax, not its new action.
 type multiTuple struct {
 	lockResource
-	version VersionID
+	version ids.VersionID
 }
 type multiMode uint8
 
@@ -82,7 +82,7 @@ type multiRow struct {
 }
 type multiEvent struct {
 	tuple     multiTuple
-	successor VersionID
+	successor ids.VersionID
 	mode      multiMode
 }
 type multiContribution struct {
@@ -385,7 +385,7 @@ func (m *relationLockManager) physicalEvents(owner *relationTicket, events []mul
 	m.multiNext = next
 	return nil
 }
-func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode multiMode, successor VersionID) error {
+func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode multiMode, successor ids.VersionID) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	err := e.assignTransactionXIDLocked(s.txRef)

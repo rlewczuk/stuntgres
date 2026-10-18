@@ -15,7 +15,7 @@ type dumpRelation struct {
 	attributes          []int32
 	versions            []rowVersion
 	ends                *deletionRoot
-	frontier            CommitSeq
+	frontier            ids.CommitSeq
 	comment             string
 	columnComments      map[int32]string
 	notNullConstraints  []notNullConstraint

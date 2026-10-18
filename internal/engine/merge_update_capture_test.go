@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Selection occurrence identity is VersionID, not RowID. A MERGE descendant
@@ -27,7 +29,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer retained.close()
-				base := VersionID(11)
+				base := ids.VersionID(11)
 				if matching {
 					base = 10
 				}
@@ -36,25 +38,25 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 					own = append(own, rowVersion{row: 2, version: 200, base: 20})
 				}
 				own = append(own, rowVersion{row: 3, version: 300})
-				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &deletionRoot{rows: map[RowID]rowEnd{1: {version: 10, end: 2}}}, nil)
+				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 10, end: 2}}}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer selected.close()
-				var got []VersionID
-				var identity []RowID
+				var got []ids.VersionID
+				var identity []ids.RowID
 				for i := range selected.count() {
 					v := selected.versionAt(selected.rawIndex(i))
 					got = append(got, v.version)
 					identity = append(identity, v.row)
 				}
-				second := VersionID(20)
+				second := ids.VersionID(20)
 				if multiple {
 					second = 200
 				}
-				want := []VersionID{10, second, 100, 300}
+				want := []ids.VersionID{10, second, 100, 300}
 				if matching {
-					want = []VersionID{100, second, 300}
+					want = []ids.VersionID{100, second, 300}
 				}
 				if !reflect.DeepEqual(got, want) {
 					t.Fatal("canonical version bag", got, want, identity)

@@ -1504,7 +1504,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				err = next.advanceNamespaceGeneration()
 			}
 		}
-		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.commitSeq == CommitSeq(math.MaxUint64) {
+		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.commitSeq == ids.CommitSeq(math.MaxUint64) {
 			err = fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if err == nil && s.initialTx != (ids.TxRef{}) {
@@ -1756,7 +1756,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if imported > ^uint64(0)-e.nextVersion {
 			return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
 		}
-		if e.commitSeq == CommitSeq(^uint64(0)) {
+		if e.commitSeq == ids.CommitSeq(^uint64(0)) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if hasHierarchy {
@@ -1833,7 +1833,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if imported > ^uint64(0)-e.nextVersion {
 		return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
 	}
-	if e.commitSeq == CommitSeq(^uint64(0)) {
+	if e.commitSeq == ids.CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 	}
 	replacement.state.aclItemImport = e.aclItemImporter(replacement.owner, sourceRoles, targetRoles, replacement.owner.importTargets)

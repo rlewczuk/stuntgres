@@ -30,7 +30,7 @@ type uniquePublicationFixture struct {
 	entries        map[ids.ObjectAddress][]logicalIndexEntry
 	nextRow        uint64
 	nextVersion    uint64
-	frontier       CommitSeq
+	frontier       ids.CommitSeq
 }
 
 func uniquePublicationRows(rows []rowVersion) []rowVersion {
@@ -156,7 +156,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) ro
 		}
 	}
 	values[2] = sqltype.String(f.parent.columns[2].Usage.Type, fmt.Sprintf("new%d", offset))
-	return rowVersion{row: RowID(f.nextRow + uint64(offset)), version: VersionID(f.nextVersion + uint64(offset)), values: values}
+	return rowVersion{row: ids.RowID(f.nextRow + uint64(offset)), version: ids.VersionID(f.nextVersion + uint64(offset)), values: values}
 }
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
@@ -186,7 +186,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	}
 	beforeStore := uniquePublicationStore(store)
 	beforeWrites := uniquePublicationRows(writes)
-	var beforeDeletes map[RowID]deleteCandidate
+	var beforeDeletes map[ids.RowID]deleteCandidate
 	if deletion != nil {
 		beforeDeletes = maps.Clone(deletion.rows)
 	}
@@ -286,7 +286,7 @@ func TestUniqueIndexPublicationRebuiltPredecessor(t *testing.T) {
 					var writes []rowVersion
 					var deletion *privateDeletionRoot
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{rows: map[RowID]deleteCandidate{old.row: {ref: f.ref, storage: &store, row: old.row, version: old.version}}}
+						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.row: {ref: f.ref, storage: &store, row: old.row, version: old.version}}}
 					} else {
 						replacement := f.row(t, 1, "2001-02-05", "3")
 						replacement.row, replacement.base = old.row, old.version
@@ -373,7 +373,7 @@ func TestUniqueIndexPublicationReplacementMembership(t *testing.T) {
 			t.Run(fmt.Sprintf("attached=%t/materialize=%t", attached, materialize), func(t *testing.T) {
 				f := newUniquePublicationFixture(t, attached, true, true, "table", false)
 				rows := f.stores[f.parent.address].versions
-				deletion := &privateDeletionRoot{rows: map[RowID]deleteCandidate{rows[0].row: {ref: f.ref, storage: f.stores[f.parent.address], row: rows[0].row, version: rows[0].version}}}
+				deletion := &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[0].row: {ref: f.ref, storage: f.stores[f.parent.address], row: rows[0].row, version: rows[0].version}}}
 				replacement := f.row(t, 1, "2001-02-05", "3")
 				replacement.row, replacement.base = rows[1].row, rows[1].version
 				writes := []rowVersion{replacement, f.row(t, 2, "2001-02-06", "4")}

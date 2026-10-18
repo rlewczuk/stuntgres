@@ -330,7 +330,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if err == nil && ref.Epoch() != e.state.epoch {
 			err = ErrCatalogReplaced
 		}
-		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
+		if err == nil && e.commitSeq == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
 		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)

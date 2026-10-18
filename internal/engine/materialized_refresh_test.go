@@ -148,7 +148,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "frontier":
-				e.commitSeq = CommitSeq(math.MaxUint64)
+				e.commitSeq = ids.CommitSeq(math.MaxUint64)
 			case "source":
 				stage.querySources = []Descriptor{&relationDescriptor{address: d.address}}
 			case "role", "authorization":

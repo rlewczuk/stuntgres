@@ -156,7 +156,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				_, err = scope.Execute(query, 0, nil)
 			case "counter_before":
 				e.mu.Lock()
-				e.commitSeq = CommitSeq(^uint64(0))
+				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
 				e.mu.Unlock()
 				_, err = scope.Execute(query, 0, nil)

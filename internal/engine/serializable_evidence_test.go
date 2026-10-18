@@ -190,7 +190,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	if err := e.serializableWriteLocked(scope, relation, ending[:]); err != nil {
 		t.Fatal(err)
 	}
-	owner.deletes = map[ids.ObjectAddress]*privateDeletionRoot{relation.Address: {rows: map[RowID]deleteCandidate{41: {row: 41, version: 73, own: true}}}}
+	owner.deletes = map[ids.ObjectAddress]*privateDeletionRoot{relation.Address: {rows: map[ids.RowID]deleteCandidate{41: {row: 41, version: 73, own: true}}}}
 	e.reconcileSerializableWritesLocked(owner)
 	if len(writer.writes[relation.Address]) != 2 {
 		t.Fatal("ending overwrote same-version creator")

@@ -82,7 +82,7 @@ type lockResource struct {
 	ids.ObjectRef
 	kind       lockResourceKind
 	high, low  uint32
-	row        RowID
+	row        ids.RowID
 	key        *uniqueLockKey
 	completion *relationTicket
 }
@@ -224,7 +224,7 @@ func (m *relationLockManager) valid(t *relationTicket) bool {
 // A checkpoint contains only held contributions, never pending requests.
 type relationCheckpointHold struct {
 	mode  relationLockMode
-	multi map[VersionID]uint8
+	multi map[ids.VersionID]uint8
 }
 type relationLockCheckpoint map[lockResource]relationCheckpointHold
 
@@ -246,7 +246,7 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 	for tuple, bits := range t.multiContributions {
 		h := held[tuple.lockResource]
 		if h.multi == nil {
-			h.multi = make(map[VersionID]uint8)
+			h.multi = make(map[ids.VersionID]uint8)
 		}
 		h.multi[tuple.version] = bits
 		held[tuple.lockResource] = h

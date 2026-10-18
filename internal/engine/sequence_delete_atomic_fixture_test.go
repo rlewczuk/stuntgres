@@ -23,8 +23,8 @@ type sequenceDeletePublicationSnapshot struct {
 	root                    []rowVersion
 	rows                    []rowVersion
 	ends                    *deletionRoot
-	endValues               map[RowID]rowEnd
-	frontier                CommitSeq
+	endValues               map[ids.RowID]rowEnd
+	frontier                ids.CommitSeq
 	temporary, last         ids.ObjectAddress
 	memoryID                uintptr
 	memory                  map[ids.ObjectAddress]*sequenceMemory
@@ -66,7 +66,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		p.rows[i].values = append([]sqltype.Value(nil), p.rows[i].values...)
 	}
 	if p.ends != nil {
-		p.endValues = make(map[RowID]rowEnd)
+		p.endValues = make(map[ids.RowID]rowEnd)
 		for id, end := range p.ends.rows {
 			p.endValues[id] = end
 		}

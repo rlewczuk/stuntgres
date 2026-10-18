@@ -19,13 +19,13 @@ type exclusionEntry struct {
 }
 type exclusionProjection struct {
 	entries map[ids.ObjectAddress][]exclusionEntry
-	ended   map[ids.ObjectAddress]map[RowID]VersionID
+	ended   map[ids.ObjectAddress]map[ids.RowID]ids.VersionID
 }
 type exclusionEvent struct {
 	parent, index ids.ObjectRef
 	constraint    ids.OID
-	row           RowID
-	version       VersionID
+	row           ids.RowID
+	version       ids.VersionID
 }
 type exclusionModes struct {
 	allSet, allDeferred bool
@@ -90,7 +90,7 @@ func exclusionKeysMatch(ctx context.Context, d *indexDefinition, left, right []s
 	return true, nil
 }
 func cloneExclusionProjection(old *exclusionProjection) *exclusionProjection {
-	p := &exclusionProjection{entries: make(map[ids.ObjectAddress][]exclusionEntry), ended: make(map[ids.ObjectAddress]map[RowID]VersionID)}
+	p := &exclusionProjection{entries: make(map[ids.ObjectAddress][]exclusionEntry), ended: make(map[ids.ObjectAddress]map[ids.RowID]ids.VersionID)}
 	if old != nil {
 		p.entries = maps.Clone(old.entries)
 		p.ended = maps.Clone(old.ended)
@@ -121,10 +121,10 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 		return rowVersion{}, fmt.Errorf("stuntgres: row identity exhausted")
 	}
 	e.nextVersion++
-	row := rowVersion{version: VersionID(e.nextVersion), values: proposal.values, indexAdmission: catalog}
+	row := rowVersion{version: ids.VersionID(e.nextVersion), values: proposal.values, indexAdmission: catalog}
 	if len(excluded) == 0 {
 		e.nextRow++
-		row.row = RowID(e.nextRow)
+		row.row = ids.RowID(e.nextRow)
 	} else {
 		predecessor := excluded[len(excluded)-1]
 		row.row, row.base = predecessor.row, predecessor.base
@@ -190,7 +190,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	if len(excluded) != 0 {
 		ends := maps.Clone(p.ended[ref.Address])
 		if ends == nil {
-			ends = make(map[RowID]VersionID)
+			ends = make(map[ids.RowID]ids.VersionID)
 		}
 		for _, old := range excluded {
 			ends[old.row] = old.version
@@ -239,7 +239,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 	p := cloneExclusionProjection(e.exclusionPending[s.ticket])
 	ends := maps.Clone(p.ended[candidate.ref.Address])
 	if ends == nil {
-		ends = make(map[RowID]VersionID)
+		ends = make(map[ids.RowID]ids.VersionID)
 	}
 	ends[candidate.row] = candidate.version
 	p.ended[candidate.ref.Address] = ends

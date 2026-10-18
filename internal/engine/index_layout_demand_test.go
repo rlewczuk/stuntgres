@@ -1,6 +1,10 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"stuntgres/internal/engine/ids"
+)
 
 func TestDomainCheckIndexPrivateLayoutTransport(t *testing.T) {
 	for _, definition := range []struct{ name, index string }{
@@ -34,7 +38,7 @@ func TestDomainCheckIndexPrivateLayoutTransport(t *testing.T) {
 			parent := roleTableRef(t, e, "subject").Address
 			root := e.indexRoots[roleTableRef(t, e, "checked_idx").Address]
 			store := e.storage[parent]
-			check := func(row RowID, version VersionID, position int) {
+			check := func(row ids.RowID, version ids.VersionID, position int) {
 				if position < 0 || position >= len(store.versions) || store.versions[position].row != row || store.versions[position].version != version {
 					t.Fatal("projected entry lost actual heap identity/position")
 				}

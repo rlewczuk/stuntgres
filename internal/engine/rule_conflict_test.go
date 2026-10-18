@@ -17,7 +17,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first.conflict.markAffected(RowID(42), 0)
+	first.conflict.markAffected(ids.RowID(42), 0)
 	first.conflict.selected = append(first.conflict.selected, sink.address)
 	first.conflict.frame = make([]sqltype.Value, 4)
 	first.conflict.catalog = auth.catalog.state

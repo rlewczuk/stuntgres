@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func identityMultiUnitTuple(e *Engine, row RowID) multiTuple {
+func identityMultiUnitTuple(e *Engine, row ids.RowID) multiTuple {
 	resource := blockingUnitResource(e)
 	resource.row = row
-	return multiTuple{resource, VersionID(row)}
+	return multiTuple{resource, ids.VersionID(row)}
 }
 func identityMultiGrant(t *testing.T, e *Engine, owner *relationTicket, tuple multiTuple, mode relationLockMode) {
 	t.Helper()

@@ -1,13 +1,15 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Historical ALTER worklists are separate from unconditional successor DML.
 // The caller supplies only selected valid CHECKs and required valid NN jobs.
-func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []rowVersion, ends *deletionRoot, frontier CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
-	var replaced map[RowID]bool
+func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []rowVersion, ends *deletionRoot, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {
 			if replaced == nil {
-				replaced = make(map[RowID]bool)
+				replaced = make(map[ids.RowID]bool)
 			}
 			replaced[row.row] = true
 		}

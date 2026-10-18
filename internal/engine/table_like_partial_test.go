@@ -146,7 +146,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO clone VALUES('x',1,10,TRUE,2),('x',2,20,FALSE,0),('x',3,30,NULL,0),('x',4,NULL,TRUE,2),('x',5,10,TRUE,2)")
 	assertMembership := func(count int) {
-		want := make(map[RowID]VersionID)
+		want := make(map[ids.RowID]ids.VersionID)
 		for _, row := range e.storage[destination.address].versions {
 			truth, err := TruthOf(row.values[3])
 			if err != nil {
@@ -253,7 +253,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 					t.Fatal("TRUE did not include all rows", root)
 				}
 			} else {
-				partialWantMembership(t, root, map[RowID]VersionID{})
+				partialWantMembership(t, root, map[ids.RowID]ids.VersionID{})
 			}
 		})
 	}

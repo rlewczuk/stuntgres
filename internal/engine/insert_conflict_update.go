@@ -185,9 +185,9 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 	}
 }
 
-func (c *boundInsertConflict) markAffected(id RowID, slot int) {
+func (c *boundInsertConflict) markAffected(id ids.RowID, slot int) {
 	if c.affectedRows == nil {
-		c.affectedRows = make(map[RowID]int)
+		c.affectedRows = make(map[ids.RowID]int)
 	}
 	c.affectedRows[id] = slot
 	c.affected++

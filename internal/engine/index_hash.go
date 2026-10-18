@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -129,13 +130,13 @@ func extractIndexKey(slot int, expression BoundExpr, values []sqltype.Value, eva
 
 type hashIndexEntry struct {
 	key      sqltype.Value
-	row      RowID
-	version  VersionID
+	row      ids.RowID
+	version  ids.VersionID
 	position int
 }
 type hashIndexRoot struct {
 	buckets    map[uint64][]hashIndexEntry
-	rowEntries map[RowID]*hashIndexEntry
+	rowEntries map[ids.RowID]*hashIndexEntry
 	binding    hashIndexBinding
 	storage    *relationStorage
 	generation uint64
@@ -168,7 +169,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
+		if !liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, nil) {
 			continue
 		}
 		matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, nil, &binding)
@@ -260,7 +261,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 			}
 		}
 	}
-	var ended map[RowID]VersionID
+	var ended map[ids.RowID]ids.VersionID
 	var touched map[uint64]bool
 	var added map[uint64][]hashIndexEntry
 	touch := func(h uint64) {
@@ -271,7 +272,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 	}
 	end := func(row rowVersion) error {
 		if ended == nil {
-			ended = make(map[RowID]VersionID)
+			ended = make(map[ids.RowID]ids.VersionID)
 		}
 		ended[row.row] = row.version
 		// A plain physical key can locate its bucket without evaluating SQL.
@@ -429,7 +430,7 @@ func (r *hashIndexRoot) captureRowEntries(ctx context.Context, d *indexDefinitio
 	if !d.isExclusion() || !d.hasRuntimeDomainKeyConversion() {
 		return nil
 	}
-	r.rowEntries = make(map[RowID]*hashIndexEntry)
+	r.rowEntries = make(map[ids.RowID]*hashIndexEntry)
 	for _, bucket := range r.buckets {
 		for i := range bucket {
 			if err := ctx.Err(); err != nil {

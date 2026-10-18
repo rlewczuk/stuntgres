@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Context.Err is the canonical cooperative publication seam. With no peer
@@ -102,7 +104,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				err = m.end(nil)
 			case "counter_before":
 				e.mu.Lock()
-				e.commitSeq = CommitSeq(^uint64(0))
+				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
 				e.mu.Unlock()
 				err = m.end(nil)

@@ -28,7 +28,7 @@ func TestExclusionPublication(t *testing.T) {
 				before := indexMaintenanceCapture(e)
 				storeBefore := uniquePublicationStore(store)
 				row, version := e.nextRow, e.nextVersion
-				writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{value}}}
+				writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{value}}}
 				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 				if materialize {
 					if err := e.prepareRowPublication(&publication, e.domain.Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
@@ -66,7 +66,7 @@ func TestExclusionPublication(t *testing.T) {
 				before := indexMaintenanceCapture(e)
 				storeBefore := uniquePublicationStore(store)
 				row, version := e.nextRow, e.nextVersion
-				writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{overflow}}}
+				writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{overflow}}}
 				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 				if err := e.prepareRowPublication(&publication, e.domain.Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
 					t.Fatal(err)
@@ -108,7 +108,7 @@ func TestExclusionPublication(t *testing.T) {
 					before := indexMaintenanceCapture(e)
 					storeBefore := uniquePublicationStore(store)
 					row, version := e.nextRow, e.nextVersion
-					writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{value}}}
+					writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{value}}}
 					publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 					if materialize {
 						if err := e.prepareRowPublication(&publication, e.domain.Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {

@@ -355,7 +355,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
+func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
 	if store.generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
@@ -395,11 +395,11 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 		}
 	}
 	writes, deletes := scope.columnProjectionRoots(old.address)
-	var replaced map[RowID]bool
+	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {
 			if replaced == nil {
-				replaced = make(map[RowID]bool)
+				replaced = make(map[ids.RowID]bool)
 			}
 			replaced[row.row] = true
 		}

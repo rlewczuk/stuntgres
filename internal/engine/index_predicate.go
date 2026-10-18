@@ -195,13 +195,13 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 func newLogicalIndexRoot(d *indexDefinition, entries []logicalIndexEntry) *logicalIndexRoot {
 	root := &logicalIndexRoot{entries: entries}
 	if d.predicate != nil {
-		root.membership = make(map[RowID]VersionID, len(entries))
+		root.membership = make(map[ids.RowID]ids.VersionID, len(entries))
 		for _, entry := range entries {
 			root.membership[entry.row] = entry.version
 		}
 	}
 	if (d.unique || d.isExclusion()) && d.hasRuntimeDomainKeyConversion() {
-		root.rowEntries = make(map[RowID]int, len(entries))
+		root.rowEntries = make(map[ids.RowID]int, len(entries))
 		for i, entry := range entries {
 			root.rowEntries[entry.row] = i
 		}

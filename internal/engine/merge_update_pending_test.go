@@ -14,7 +14,7 @@ import (
 
 // These are executor/Finish and manager-state witnesses, not public SQL copies.
 // A live request on the original RowID establishes the exact interleaving.
-func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row RowID, worker *Session, blocker *relationTicket, mode relationLockMode) {
+func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, worker *Session, blocker *relationTicket, mode relationLockMode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

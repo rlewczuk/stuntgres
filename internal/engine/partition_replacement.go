@@ -66,7 +66,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if !liveVersion(version, ^CommitSeq(0), store.ends, nil) {
+			if !liveVersion(version, ^ids.CommitSeq(0), store.ends, nil) {
 				continue
 			}
 			var original []sqltype.Value

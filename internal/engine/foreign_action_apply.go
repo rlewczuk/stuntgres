@@ -200,7 +200,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	// Retained matches take precedence by real RowID. The canonical grant and
 	// live-successor crosscheck below run before any latest-key match/staging.
 	var candidates []rowVersion
-	var retainedMatches map[RowID]struct{}
+	var retainedMatches map[ids.RowID]struct{}
 	if retained.storage != nil {
 		err = retained.each(func(child rowVersion) (bool, error) {
 			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.values, event.old.values, s.input)
@@ -208,7 +208,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return false, err
 			}
 			if retainedMatches == nil {
-				retainedMatches = make(map[RowID]struct{})
+				retainedMatches = make(map[ids.RowID]struct{})
 			}
 			retainedMatches[child.row] = struct{}{}
 			candidates = append(candidates, child)

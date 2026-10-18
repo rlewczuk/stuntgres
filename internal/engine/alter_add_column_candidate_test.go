@@ -129,9 +129,9 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		{row: 2, version: 2, born: 1, values: []sqltype.Value{one}},
 		{row: 3, version: 3, born: 1, values: []sqltype.Value{one}},
 		{row: 4, version: 4, born: 1, values: []sqltype.Value{one}},
-	}, ends: &deletionRoot{rows: map[RowID]rowEnd{2: {version: 2, end: 2}}}}
+	}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{2: {version: 2, end: 2}}}}
 	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.address: {{row: 3, version: 5, base: 3, values: []sqltype.Value{one}}, {row: 5, version: 6, values: []sqltype.Value{one}}}}
-	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
+	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transformCalls := 0
 	transformed, err := sqltype.Integer(u.Type, 31)
 	if err != nil {

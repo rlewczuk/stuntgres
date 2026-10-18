@@ -10,24 +10,24 @@ import (
 
 // Roots are immutable after transfer to a command view or committed storage.
 type rowEnd struct {
-	version VersionID
-	end     CommitSeq
+	version ids.VersionID
+	end     ids.CommitSeq
 }
-type deletionRoot struct{ rows map[RowID]rowEnd }
+type deletionRoot struct{ rows map[ids.RowID]rowEnd }
 type deleteCandidate struct {
 	ref     ids.ObjectRef
 	storage *relationStorage
-	row     RowID
-	version VersionID
-	base    VersionID
+	row     ids.RowID
+	version ids.VersionID
+	base    ids.VersionID
 	ordinal int
 	own     bool
 }
-type privateDeletionRoot struct{ rows map[RowID]deleteCandidate }
+type privateDeletionRoot struct{ rows map[ids.RowID]deleteCandidate }
 
 // A private replacement and an older retained snapshot may share RowID without
 // sharing lineage. End only the deleted version and its actual replacement base.
-func liveVersion(v rowVersion, frontier CommitSeq, ends *deletionRoot, own *privateDeletionRoot) bool {
+func liveVersion(v rowVersion, frontier ids.CommitSeq, ends *deletionRoot, own *privateDeletionRoot) bool {
 	if own != nil {
 		if deleted, ok := own.rows[v.row]; ok && (v.version == deleted.version || deleted.base != 0 && v.version == deleted.base) {
 			return false
@@ -61,7 +61,7 @@ func mergeDeletions(previous, staged map[ids.ObjectAddress]*privateDeletionRoot)
 			next[a] = root
 			continue
 		}
-		rows := make(map[RowID]deleteCandidate, len(old.rows)+len(root.rows))
+		rows := make(map[ids.RowID]deleteCandidate, len(old.rows)+len(root.rows))
 		for id, candidate := range old.rows {
 			rows[id] = candidate
 		}
@@ -209,7 +209,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	}
 	root := w.deletes[candidate.ref.Address]
 	if root == nil {
-		root = &privateDeletionRoot{rows: make(map[RowID]deleteCandidate)}
+		root = &privateDeletionRoot{rows: make(map[ids.RowID]deleteCandidate)}
 		w.deletes[candidate.ref.Address] = root
 	}
 	root.rows[candidate.row] = candidate
@@ -427,7 +427,7 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 }
 
 // Query and catalog replacement share one physical-to-live head selection.
-func selectQuerySource(ctx context.Context, source *querySource, frontier CommitSeq, ends *deletionRoot, own *privateDeletionRoot) (*querySource, error) {
+func selectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *deletionRoot, own *privateDeletionRoot) (*querySource, error) {
 	if source.rlsDenied {
 		return source, ctx.Err()
 	}
@@ -442,10 +442,10 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier Commit
 		return source, nil
 	}
 	total := len(source.committed) + len(source.own)
-	var heads map[VersionID]int
+	var heads map[ids.VersionID]int
 	singleSubstituted := false
 	if replacements > 1 {
-		heads = make(map[VersionID]int, replacements)
+		heads = make(map[ids.VersionID]int, replacements)
 		for i, row := range source.own {
 			if row.base != 0 {
 				heads[row.base] = len(source.committed) + i

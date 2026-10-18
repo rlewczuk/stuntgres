@@ -269,14 +269,14 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	first := compose()
 	firstDefinition, firstConflict := executable(first)
 	// Mutate the actual normalized execution binding, not a stand-alone clone.
-	firstConflict.markAffected(RowID(42), 0)
+	firstConflict.markAffected(ids.RowID(42), 0)
 	firstConflict.selected = []ids.ObjectAddress{sink.address}
 	firstConflict.catalog = auth.catalog.state
 	firstConflict.checkpoint = make(relationLockCheckpoint)
 	firstConflict.statementKeys = make(relationLockCheckpoint)
 	firstConflict.frame = make([]sqltype.Value, 4)
 	firstConflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
-	firstConflict.ownRowSlots = map[ids.ObjectAddress]map[RowID]int{sink.address: {RowID(42): 0}}
+	firstConflict.ownRowSlots = map[ids.ObjectAddress]map[ids.RowID]int{sink.address: {ids.RowID(42): 0}}
 	second := compose()
 	secondDefinition, secondConflict := executable(second)
 	if firstConflict == secondConflict || firstConflict == recipe || secondConflict == recipe || firstDefinition == definition || secondDefinition == definition {
@@ -290,7 +290,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			t.Fatal("unchanged analyzed conflict recipes were unnecessarily cloned")
 		}
 	}
-	if firstConflict.affected != 1 || firstConflict.affectedRows[RowID(42)] != 0 || definition.mutation != &modifier.binding || definition.owner != 3 || scan.cte != definition {
+	if firstConflict.affected != 1 || firstConflict.affectedRows[ids.RowID(42)] != 0 || definition.mutation != &modifier.binding || definition.owner != 3 || scan.cte != definition {
 		t.Fatal("command cardinality or frozen definition/provider state changed")
 	}
 	// Executable descendants use the same stored-action refresh authority.

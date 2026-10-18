@@ -21,14 +21,14 @@ type indexSnapshotSource struct {
 	index, parent *relationDescriptor
 	store         relationStorage
 	root          *logicalIndexRoot
-	frontier      CommitSeq
+	frontier      ids.CommitSeq
 }
 
-func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier CommitSeq) (*indexSnapshot, error) {
+func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
 	return captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 		if root.hash != nil && (root.hash.storage != indexStorageIdentity(store) || root.hash.generation != store.generation || root.hash.ends != store.ends || root.hash.prefix != len(store.versions)) {
 			return nil, ErrCatalogReplaced
 		}
-		check := func(row RowID, version VersionID, position int) error {
+		check := func(row ids.RowID, version ids.VersionID, position int) error {
 			if position < 0 || position >= len(store.versions) {
 				return ErrCatalogReplaced
 			}

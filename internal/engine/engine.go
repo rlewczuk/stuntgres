@@ -37,7 +37,7 @@ type Engine struct {
 	settingsDefinitions  map[string]SettingDefinition
 	nextRow              uint64
 	nextVersion          uint64
-	commitSeq            CommitSeq
+	commitSeq            ids.CommitSeq
 	diagnosticTx         uint32
 	visibilityXID        uint64
 	visibility           map[ids.TxRef]transactionVisibility

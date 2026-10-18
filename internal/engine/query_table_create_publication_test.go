@@ -123,7 +123,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				t.Fatal(storage.generation)
 			}
 			for i, row := range storage.versions {
-				if row.row != RowID(i+1) || row.version != VersionID(i+1) || row.born != wantFrontier || len(row.values) != tc.width {
+				if row.row != ids.RowID(i+1) || row.version != ids.VersionID(i+1) || row.born != wantFrontier || len(row.values) != tc.width {
 					t.Fatal(row)
 				}
 				if tc.width != 0 && !sqltype.SameDatum(row.values[0], rows[i][0]) {
@@ -204,7 +204,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			before := e.commitSeq
 			switch phase {
 			case "frontier":
-				e.commitSeq = CommitSeq(math.MaxUint64)
+				e.commitSeq = ids.CommitSeq(math.MaxUint64)
 				before = e.commitSeq
 			case "cancel":
 				cancel()

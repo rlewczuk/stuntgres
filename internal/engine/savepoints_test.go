@@ -203,13 +203,13 @@ func TestSavepointsOperationAuthority(t *testing.T) {
 		}
 	}
 	op.Done()
-	a.transactions.command = CommandID(^uint64(0))
+	a.transactions.command = ids.CommandID(^uint64(0))
 	a.transactions.next = ids.TxID(^uint64(0))
-	e.commitSeq = CommitSeq(^uint64(0))
+	e.commitSeq = ids.CommitSeq(^uint64(0))
 	for _, q := range []string{"ROLLBACK TO s", "RELEASE s", "SAVEPOINT s"} {
 		controlsRequire(t, a, q)
 	}
-	if a.transactions.command != CommandID(^uint64(0)) || a.transactions.next != ids.TxID(^uint64(0)) || e.commitSeq != CommitSeq(^uint64(0)) {
+	if a.transactions.command != ids.CommandID(^uint64(0)) || a.transactions.next != ids.TxID(^uint64(0)) || e.commitSeq != ids.CommitSeq(^uint64(0)) {
 		t.Fatal("savepoint control advanced exhausted counters")
 	}
 	controlsRequire(t, a, "ROLLBACK")

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
@@ -36,7 +38,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			}
 			switch phase {
 			case "frontier":
-				e.commitSeq = CommitSeq(^uint64(0))
+				e.commitSeq = ids.CommitSeq(^uint64(0))
 			case "predecessor":
 				for id, candidate := range s.transactions.deletes[table.Address].rows {
 					candidate.version++

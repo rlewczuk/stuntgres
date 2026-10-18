@@ -18,7 +18,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				f := insertConflictUniqueFixture(b)
 				f.store.versions = make([]rowVersion, size)
 				for i := range f.store.versions {
-					f.store.versions[i] = rowVersion{row: RowID(i + 1), version: VersionID(i + 1), born: 1, values: insertConflictUnitRow(b, f, int64(size-i))}
+					f.store.versions[i] = rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), born: 1, values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
 				f.e.nextRow, f.e.nextVersion, f.e.commitSeq = uint64(size), uint64(size), 1
 				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.sqlIndex, f.store, nil)

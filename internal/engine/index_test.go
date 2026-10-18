@@ -26,7 +26,7 @@ func btreeRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *logi
 func btreeKeys(t *testing.T, root *logicalIndexRoot) []string {
 	t.Helper()
 	keys := make([]string, len(root.entries))
-	identities := make(map[VersionID]bool)
+	identities := make(map[ids.VersionID]bool)
 	for i, entry := range root.entries {
 		if entry.row == 0 || entry.version == 0 || identities[entry.version] {
 			t.Fatal("collapsed/invalid identity", entry)
@@ -201,7 +201,7 @@ func TestBtreeIndexForeignReplacement(t *testing.T) {
 	if target.CatalogRead().Epoch() == epoch || destination == sourceRoot {
 		t.Fatal("replacement reused source authority/root")
 	}
-	sourceRows := make(map[RowID]bool)
+	sourceRows := make(map[ids.RowID]bool)
 	for _, entry := range sourceRoot.entries {
 		sourceRows[entry.row] = true
 	}

@@ -60,7 +60,7 @@ func (w *conflictUpdateWorker) await(t *testing.T) conflictUpdateWorkerResult {
 		return conflictUpdateWorkerResult{}
 	}
 }
-func conflictUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, id RowID) (*relationTicket, relationLockMode) {
+func conflictUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, id ids.RowID) (*relationTicket, relationLockMode) {
 	t.Helper()
 	lockPending(t, e, 1)
 	e.locks.mu.Lock()

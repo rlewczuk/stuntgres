@@ -42,15 +42,15 @@ type TxOptions struct {
 type EndResult struct{ Committed bool }
 
 type rowVersion struct {
-	row     RowID
-	version VersionID
-	born    CommitSeq
+	row     ids.RowID
+	version ids.VersionID
+	born    ids.CommitSeq
 	// The last committed key transition survives key restoration and payload
 	// replacements. Private successors accumulate transitions until commit.
-	keyChangedAt     CommitSeq
+	keyChangedAt     ids.CommitSeq
 	pendingKeyChange bool
 	// base is the committed predecessor for a private replacement; zero is an insert.
-	base   VersionID
+	base   ids.VersionID
 	values []sqltype.Value
 	// Private admission captures index readiness; committed rows clear this pin.
 	indexAdmission *catalogState
@@ -68,7 +68,7 @@ type transactionOwner struct {
 	state           TxState
 	ref             ids.TxRef
 	next            ids.TxID
-	command         CommandID
+	command         ids.CommandID
 	writes          map[ids.ObjectAddress][]rowVersion
 	deletes         map[ids.ObjectAddress]*privateDeletionRoot
 	start           time.Time
@@ -79,7 +79,7 @@ type transactionOwner struct {
 	entryReadOnly   bool
 	entryDeferrable bool
 	snapshotSet     bool
-	frontier        CommitSeq
+	frontier        ids.CommitSeq
 	roots           map[ids.ObjectAddress]transactionRoot
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
 	sequenceCatalog     *catalogState
@@ -325,7 +325,7 @@ type StatementScope struct {
 	queryLocks                     *queryLockContext
 	activeViews                    []ids.ObjectAddress
 	txRef                          ids.TxRef
-	command                        CommandID
+	command                        ids.CommandID
 	ownWrites                      map[ids.ObjectAddress][]rowVersion
 	ownDeletes                     map[ids.ObjectAddress]*privateDeletionRoot
 	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput
@@ -550,7 +550,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	if t.state == TxAborted {
 		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}
-	if t.command == CommandID(^uint64(0)) {
+	if t.command == ids.CommandID(^uint64(0)) {
 		return errors.New("stuntgres: command identity exhausted")
 	}
 	return nil
@@ -1008,7 +1008,7 @@ func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *ca
 	for i, row := range rows {
 		e.nextRow++
 		e.nextVersion++
-		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row, indexAdmission: admission}
+		versions[i] = rowVersion{row: ids.RowID(e.nextRow), version: ids.VersionID(e.nextVersion), values: row, indexAdmission: admission}
 	}
 	return versions, nil
 }

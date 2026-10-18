@@ -74,7 +74,7 @@ func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows []
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entry, err := ordering.entry(rowVersion{values: values, row: RowID(i + 1), version: VersionID(i + 1)}, &evaluation)
+		entry, err := ordering.entry(rowVersion{values: values, row: ids.RowID(i + 1), version: ids.VersionID(i + 1)}, &evaluation)
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +168,7 @@ func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, 
 // eligible key narrows candidates; all eligible key equalities and row images
 // decide matches. Matches are existential, never consumed one-to-one. Datum
 // buffers are shared/transferred, including each surviving old row's image.
-func materializedConcurrentRows(ctx context.Context, view CatalogRead, parent *relationDescriptor, previous *relationStorage, frontier CommitSeq, oldEntries []logicalIndexEntry, indices []*relationDescriptor, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func materializedConcurrentRows(ctx context.Context, view CatalogRead, parent *relationDescriptor, previous *relationStorage, frontier ids.CommitSeq, oldEntries []logicalIndexEntry, indices []*relationDescriptor, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

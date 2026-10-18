@@ -82,7 +82,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	}
 	ends := maps.Clone(p.ended[parent.address])
 	if ends == nil {
-		ends = make(map[RowID]VersionID)
+		ends = make(map[ids.RowID]ids.VersionID)
 	}
 	for _, row := range writes {
 		if row.base != 0 {

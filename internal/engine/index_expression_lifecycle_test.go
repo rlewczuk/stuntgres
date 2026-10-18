@@ -41,9 +41,9 @@ func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *
 	if store == nil {
 		t.Fatal("missing real parent storage")
 	}
-	live := make(map[VersionID]RowID)
+	live := make(map[ids.VersionID]ids.RowID)
 	for _, row := range store.versions {
-		if liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
+		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, nil) {
 			live[row.version] = row.row
 		}
 	}
@@ -136,7 +136,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	if fresh == old || target.CatalogRead().Epoch() == epoch {
 		t.Fatal("replacement reused root/catalog authority")
 	}
-	identities := make(map[RowID]bool)
+	identities := make(map[ids.RowID]bool)
 	for _, entry := range old.entries {
 		identities[entry.row] = true
 	}

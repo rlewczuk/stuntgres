@@ -21,7 +21,7 @@ func hashRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *hashI
 func hashKeys(t *testing.T, root *hashIndexRoot) []string {
 	t.Helper()
 	keys := []string{}
-	versions := map[VersionID]bool{}
+	versions := map[ids.VersionID]bool{}
 	for _, bucket := range root.buckets {
 		for _, entry := range bucket {
 			if entry.key.IsNull() || entry.row == 0 || entry.version == 0 || versions[entry.version] || entry.position < 0 || entry.position >= root.prefix {
@@ -205,7 +205,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 	if fresh == old || fresh.storage == old.storage || fresh.storage != store || fresh.generation != store.generation || fresh.prefix != 4 {
 		t.Fatal("replacement retained source authority", fresh)
 	}
-	ids := map[RowID]bool{}
+	ids := map[ids.RowID]bool{}
 	for _, bucket := range old.buckets {
 		for _, entry := range bucket {
 			ids[entry.row] = true

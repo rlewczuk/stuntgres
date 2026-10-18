@@ -19,7 +19,7 @@ type catalogStorageChange struct {
 	hasSnapshot bool
 	rewritten   bool
 	truncated   bool
-	frontier    CommitSeq
+	frontier    ids.CommitSeq
 	fills       map[int32]sqltype.Value
 	// Latest replacement's diagnostic mode is distinct from uninterrupted
 	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
@@ -181,7 +181,7 @@ func projectDeletions(root *privateDeletionRoot, store *relationStorage) *privat
 	if root == nil {
 		return nil
 	}
-	next := &privateDeletionRoot{rows: make(map[RowID]deleteCandidate, len(root.rows))}
+	next := &privateDeletionRoot{rows: make(map[ids.RowID]deleteCandidate, len(root.rows))}
 	for id, candidate := range root.rows {
 		candidate.storage = store
 		next.rows[id] = candidate

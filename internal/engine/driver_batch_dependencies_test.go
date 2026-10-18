@@ -142,7 +142,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 				if _, err := m.step(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 					t.Fatal(err)
 				}
-				s.transactions.command = CommandID(^uint64(0))
+				s.transactions.command = ids.CommandID(^uint64(0))
 			} else if counter == "tx" {
 				s.transactions.next = ids.TxID(^uint64(0))
 			} else {

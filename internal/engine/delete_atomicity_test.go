@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -302,7 +303,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				replacement := *e.storage[target.Address]
 				e.storage[target.Address] = &replacement
 			case "exhausted_frontier":
-				e.commitSeq = CommitSeq(^uint64(0))
+				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
 			case "stale_epoch":
 				e.state = cloneCatalog(e.state)

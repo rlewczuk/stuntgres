@@ -7,7 +7,7 @@ import (
 
 type domainCheckIdentity struct {
 	transaction ids.TxRef
-	command     CommandID
+	command     ids.CommandID
 }
 
 // The existing domain map owns both prepared expressions and every actual phase

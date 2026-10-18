@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,7 +12,7 @@ import (
 type partitionRowHistory struct {
 	relation *relationDescriptor
 	store    relationStorage
-	frontier CommitSeq
+	frontier ids.CommitSeq
 }
 
 func partitionNeedsRowHistory(catalog CatalogRead, d *relationDescriptor) bool {

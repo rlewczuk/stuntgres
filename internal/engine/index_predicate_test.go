@@ -39,7 +39,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 		if i == 2 {
 			active = sqltype.Null(boolean)
 		}
-		store.versions = append(store.versions, rowVersion{row: RowID(i + 1), version: VersionID(i + 1), values: []sqltype.Value{value, active}})
+		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{value, active}})
 	}
 	e.state.descriptors[parent.address], e.state.descriptors[index.address] = parent, index
 	e.storage[parent.address] = store
@@ -51,7 +51,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	return partialIndexFixture{e, parent, index, column, store}
 }
 
-func partialWantMembership(t *testing.T, root *logicalIndexRoot, want map[RowID]VersionID) {
+func partialWantMembership(t *testing.T, root *logicalIndexRoot, want map[ids.RowID]ids.VersionID) {
 	t.Helper()
 	if !reflect.DeepEqual(root.membership, want) || len(root.entries) != len(want) {
 		t.Fatal("wrong membership", root.membership, want, root.entries)
@@ -93,7 +93,7 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 func TestPartialIndexRootMembership(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	root := f.e.indexRoots[f.index.address]
-	partialWantMembership(t, root, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
+	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 	if got := btreeKeys(t, root); !reflect.DeepEqual(got, []string{"10", "10", "NULL"}) {
 		t.Fatal(got)
 	}
@@ -124,7 +124,7 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	old := f.e.indexRoots[f.index.address]
 	boolean := f.predicate.usage.Type
-	write := func(id RowID, version, base VersionID, active sqltype.Value) rowVersion {
+	write := func(id ids.RowID, version, base ids.VersionID, active sqltype.Value) rowVersion {
 		row := f.store.versions[id-1]
 		row.version, row.base = version, base
 		row.values = append([]sqltype.Value(nil), row.values...)
@@ -142,21 +142,21 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialWantMembership(t, next, map[RowID]VersionID{2: 7, 3: 8, 5: 10})
-	partialWantMembership(t, old, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
-	p = &rowPublication{deletion: &privateDeletionRoot{rows: map[RowID]deleteCandidate{2: {version: 7}, 1: {version: 6}}}}
+	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{2: 7, 3: 8, 5: 10})
+	partialWantMembership(t, old, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
+	p = &rowPublication{deletion: &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{2: {version: 7}, 1: {version: 6}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialWantMembership(t, next, map[RowID]VersionID{3: 8, 5: 10})
+	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
-	p = &rowPublication{writes: []rowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{rows: map[RowID]deleteCandidate{2: {version: 12, own: true}}}}
+	p = &rowPublication{writes: []rowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{2: {version: 12, own: true}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialWantMembership(t, next, map[RowID]VersionID{5: 10})
+	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{5: 10})
 }
 
 // Test-only execution witness: excluded rows must not call the key provider.
@@ -241,7 +241,7 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 	if _, err := mergeIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.parent, f.index, root.entries, &rowPublication{}, false, true, false, "", sqltype.OutputEnvironment{}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	partialWantMembership(t, root, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
+	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 }
 
 func TestPartialIndexImplication(t *testing.T) {
@@ -427,7 +427,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "frontier":
 				f.e.commitSeq++
 			case "rewrite":
-				data.rewrittenFrontiers = map[ids.ObjectAddress]CommitSeq{a: 0}
+				data.rewrittenFrontiers = map[ids.ObjectAddress]ids.CommitSeq{a: 0}
 			case "generation":
 				data.singleGeneration = &relationStorage{}
 			case "prefix":
@@ -528,8 +528,8 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	if err != nil || rows != 105 || versions != 205 {
 		t.Fatal(rows, versions, err)
 	}
-	partialWantMembership(t, roots[f.index.address], map[RowID]VersionID{101: 201, 104: 204, 105: 205})
-	partialWantMembership(t, old, map[RowID]VersionID{1: 1, 4: 4, 5: 5})
+	partialWantMembership(t, roots[f.index.address], map[ids.RowID]ids.VersionID{101: 201, 104: 204, 105: 205})
+	partialWantMembership(t, old, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 	if roots[f.index.address] == old || f.store.versions[0].row != 1 || f.e.nextRow != 100 {
 		t.Fatal("replacement transplanted/mutated source")
 	}

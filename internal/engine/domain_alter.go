@@ -236,16 +236,16 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *ty
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view CatalogRead, selected *typeDescriptor, use domainValidationUse, frontier CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (c *EvalContext) validateSelectedDomainRows(view CatalogRead, selected *typeDescriptor, use domainValidationUse, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
 	violations := make([]error, len(use.columns))
 	for i, column := range use.columns {
 		violations[i] = domainHistoricalViolation(view, use.relation, column)
 	}
-	var replaced map[RowID]bool
+	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {
 			if replaced == nil {
-				replaced = make(map[RowID]bool)
+				replaced = make(map[ids.RowID]bool)
 			}
 			replaced[row.row] = true
 		}

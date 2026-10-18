@@ -20,12 +20,12 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consume := func(label string, metadata indexMetadata, want []Truth, membership map[RowID]VersionID) {
+	consume := func(label string, metadata indexMetadata, want []Truth, membership map[ids.RowID]ids.VersionID) {
 		t.Helper()
 		if metadata.Predicate == nil {
 			t.Fatalf("%s: structural metadata omitted the partial predicate", label)
 		}
-		gotMembership := make(map[RowID]VersionID)
+		gotMembership := make(map[ids.RowID]ids.VersionID)
 		for i, row := range rows {
 			value, err := metadata.Predicate.Eval(&EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: row.values})
 			if err != nil {
@@ -44,7 +44,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		}
 	}
 	oldTruth := []Truth{True, False, Unknown, True, True}
-	oldMembers := map[RowID]VersionID{1: 1, 4: 4, 5: 5}
+	oldMembers := map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5}
 	consume("initial projection", retained, oldTruth, oldMembers)
 	partialWantMembership(t, oldRoot, oldMembers)
 
@@ -83,8 +83,8 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consume("current projection", current, []Truth{False, True, Unknown, False, False}, map[RowID]VersionID{2: 2})
-	partialWantMembership(t, root, map[RowID]VersionID{2: 2})
+	consume("current projection", current, []Truth{False, True, Unknown, False, False}, map[ids.RowID]ids.VersionID{2: 2})
+	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{2: 2})
 	consume("retained projection", retained, oldTruth, oldMembers)
 	historical, _, err := projectIndexMetadata(ctx, capture, ref)
 	if err != nil {

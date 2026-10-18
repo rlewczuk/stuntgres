@@ -44,7 +44,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	oldValues := []sqltype.Value{integer(1), integer(0)}
 	dead := rowVersion{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(99), integer(99)}}
 	live := rowVersion{row: 2, version: 2, born: 3, values: oldValues}
-	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[RowID]rowEnd{1: {version: 1, end: 2}}}}
+	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}}
 	catalog.owner.state = catalog.state
 	catalog.owner.commitSeq = 3
 	catalog.owner.storage = map[ids.ObjectAddress]*relationStorage{leaf.address: store}
