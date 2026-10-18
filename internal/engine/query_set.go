@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,7 +15,7 @@ type setNode struct {
 	left, right                       *projectNode
 	operation                         string
 	all                               bool
-	leftExpressions, rightExpressions []BoundExpr
+	leftExpressions, rightExpressions []expr.Expr
 	grouping                          []queryGrouping
 }
 
@@ -47,16 +48,16 @@ func setMultiplicity(operation string, all bool, left, right int) int {
 
 type setArm struct {
 	inner       indexedStage
-	expressions []BoundExpr
+	expressions []expr.Expr
 	schema      []ColumnDescriptor
 	row         []sqltype.Value
 }
 
-func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []BoundExpr, schema []ColumnDescriptor) (setArm, error) {
+func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []ColumnDescriptor) (setArm, error) {
 	return openSetArmScratch(ctx, state, project, expressions, schema, nil)
 }
 
-func openSetArmScratch(ctx context.Context, state *queryState, project *projectNode, expressions []BoundExpr, schema []ColumnDescriptor, scratch []sqltype.Value) (setArm, error) {
+func openSetArmScratch(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []ColumnDescriptor, scratch []sqltype.Value) (setArm, error) {
 	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
@@ -235,8 +236,8 @@ func preflightSet(c *EvalContext, n *setNode) (LogicalNode, error) {
 	copy := *n
 	copy.left, copy.right = left.(*projectNode), right.(*projectNode)
 	changed := left != n.left || right != n.right
-	for side, expressions := range [2][]BoundExpr{n.leftExpressions, n.rightExpressions} {
-		var next []BoundExpr
+	for side, expressions := range [2][]expr.Expr{n.leftExpressions, n.rightExpressions} {
+		var next []expr.Expr
 		for i, expression := range expressions {
 			folded, different, err := preflightCoercions(c, expression)
 			if err != nil {
@@ -244,7 +245,7 @@ func preflightSet(c *EvalContext, n *setNode) (LogicalNode, error) {
 			}
 			if different {
 				if next == nil {
-					next = append([]BoundExpr(nil), expressions...)
+					next = append([]expr.Expr(nil), expressions...)
 				}
 				next[i] = folded
 				changed = true

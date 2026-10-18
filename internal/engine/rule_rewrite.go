@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +13,7 @@ import (
 
 type ruleProducer struct {
 	root     LogicalNode
-	old, new []BoundExpr
+	old, new []expr.Expr
 	sources  []queryLeaf
 }
 
@@ -44,13 +45,13 @@ type ruleAncestry struct {
 	event string
 }
 
-func ruleColumnInfo(column ColumnDescriptor) expressionInfo {
-	return expressionInfo{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: ExprProperties{RowDependent: true}}
+func ruleColumnInfo(column ColumnDescriptor) expr.Info {
+	return expr.Info{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: expr.Properties{RowDependent: true}}
 }
 
 func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
 	d := b.relation
-	p := ruleProducer{old: make([]BoundExpr, len(d.columns)), new: make([]BoundExpr, len(d.columns)), sources: b.querySources}
+	p := ruleProducer{old: make([]expr.Expr, len(d.columns)), new: make([]expr.Expr, len(d.columns)), sources: b.querySources}
 	for i, column := range d.columns {
 		ref := b.ref
 		ref.Address.SubID = d.attributes[i]
@@ -65,10 +66,10 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 				p.new[i] = b.defaults[i]
 			}
 		}
-		assign := func(output int, value BoundExpr) {
+		assign := func(output int, value expr.Expr) {
 			slot := b.targets[output]
 			if len(b.arrayTargets) > output && b.arrayTargets[output] != nil {
-				value = assignmentValueExpression{Info: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
+				value = assignmentValueExpression{Info: expr.Info{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
 			}
 			p.new[slot] = value
 		}
@@ -118,14 +119,14 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		p.sources = append([]queryLeaf{{ref: b.ref, relation: d, storage: b.storage, uses: b.usedColumns}}, b.querySources...)
 		p.root = &sourceNode{querySchema: querySchema(d.columns), ref: b.ref, occurrence: 0}
 		var from LogicalNode
-		var condition BoundExpr
+		var condition expr.Expr
 		if event == "UPDATE" {
 			from = b.update.from
 			condition = b.update.predicate
 			for i, slot := range b.targets {
 				value := b.update.assignments[i]
 				if len(b.update.arrayTargets) > i && b.update.arrayTargets[i] != nil {
-					value = assignmentValueExpression{Info: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
+					value = assignmentValueExpression{Info: expr.Info{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
 				}
 				p.new[slot] = value
 			}
@@ -133,8 +134,8 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 			from = b.deleteUsing
 			condition = b.predicate
 		}
-		mapper := func(bound BoundExpr) (BoundExpr, bool, error) {
-			return rewriteViewExpression(catalog, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapper := func(bound expr.Expr) (expr.Expr, bool, error) {
+			return rewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 				column, ok := expr.(columnExpression)
 				if !ok {
 					return expr, false, nil
@@ -234,7 +235,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 		}
 		failure = fmt.Errorf("stuntgres: missing rule DEFAULT routine manifest")
 	}
-	walkBoundExpression(definition.expression, func(node BoundExpr) {
+	walkBoundExpression(definition.expression, func(node expr.Expr) {
 		if failure != nil {
 			return
 		}
@@ -315,7 +316,7 @@ func normalizeRuleInsert(b binding) binding {
 	if len(b.expressions) == 1 {
 		b.query = &BoundQuery{Root: &projectNode{querySchema: schema, child: &singletonNode{}, expressions: b.expressions[0], frame: 1}}
 	} else {
-		projection := make([]BoundExpr, len(schema))
+		projection := make([]expr.Expr, len(schema))
 		for i, column := range schema {
 			projection[i] = columnExpression{Info: ruleColumnInfo(column), scope: 1, frame: 1, slot: i}
 		}
@@ -453,7 +454,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	}
 	windowSlots := make(map[int]int)
 	targetOffset, shift := targetWidth, true
-	substitute := func(bound BoundExpr) (BoundExpr, bool, error) {
+	substitute := func(bound expr.Expr) (expr.Expr, bool, error) {
 		if window, ok := bound.(*windowExpression); ok && window.frame == actionFrame {
 			if slot, ok := windowSlots[window.slot]; ok && slot != window.slot {
 				copy := *window
@@ -482,7 +483,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			recipe := recipes[slot]
 			if targetOffset != 0 {
 				var err error
-				recipe, _, err = rewriteViewExpression(catalog, recipe, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+				recipe, _, err = rewriteViewExpression(catalog, recipe, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					c, ok := expr.(columnExpression)
 					if ok && c.scope == 1 && c.frame == actionFrame {
 						c.slot += targetOffset
@@ -526,7 +527,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			return &copy, true
 		},
 	})
-	mapper := func(expr BoundExpr) (BoundExpr, bool, error) {
+	mapper := func(expr expr.Expr) (expr.Expr, bool, error) {
 		previousOffset, previousShift := targetOffset, shift
 		targetOffset, shift = targetWidth, true
 		defer func() { targetOffset, shift = previousOffset, previousShift }()
@@ -605,7 +606,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			if err != nil {
 				return nil, err
 			}
-			projection := make([]BoundExpr, len(right.Schema()))
+			projection := make([]expr.Expr, len(right.Schema()))
 			for i, column := range right.Schema() {
 				projection[i] = columnExpression{Info: ruleColumnInfo(column), scope: 1, frame: innerFrame, slot: i}
 			}
@@ -666,7 +667,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			return b, err
 		}
 		if condition != nil {
-			u.predicate = viewWritePredicate([]BoundExpr{condition}, u.predicate)
+			u.predicate = viewWritePredicate([]expr.Expr{condition}, u.predicate)
 		}
 		u.from, err = graft(u.from)
 		if err != nil {
@@ -681,7 +682,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			return b, err
 		}
 		if condition != nil {
-			b.predicate = viewWritePredicate([]BoundExpr{condition}, b.predicate)
+			b.predicate = viewWritePredicate([]expr.Expr{condition}, b.predicate)
 		}
 		b.deleteUsing, err = graft(b.deleteUsing)
 		if err != nil {
@@ -896,7 +897,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 	if err != nil {
 		return b, err
 	}
-	var predicates []BoundExpr
+	var predicates []expr.Expr
 	for _, r := range rules {
 		if r.event != event || !r.instead || r.condition == nil {
 			continue
@@ -927,7 +928,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			b.sequenceConstants = append(slices.Clone(b.sequenceConstants), cb.sequenceConstants...)
 			b.regtypeConstants = append(slices.Clone(b.regtypeConstants), cb.regtypeConstants...)
 		}
-		tree := newRuleTreeMapper(catalog, nil, 0, b.ctes, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr BoundExpr) (BoundExpr, bool, error) {
+		tree := newRuleTreeMapper(catalog, nil, 0, b.ctes, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 			if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
 				recipes := p.old
 				if column.frame == 2 {
@@ -946,7 +947,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		if err != nil {
 			return b, err
 		}
-		predicates = append(predicates, truthTestExpression{Info: expressionInfo{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, child: condition, truth: True, not: true})
+		predicates = append(predicates, truthTestExpression{Info: expr.Info{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, child: condition, truth: True, not: true})
 	}
 	if len(predicates) == 0 {
 		return b, nil
@@ -957,7 +958,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		if b.query != nil {
 			frame = b.query.Root.(*projectNode).frame
 		}
-		projection := make([]BoundExpr, len(b.targets))
+		projection := make([]expr.Expr, len(b.targets))
 		for i, slot := range b.targets {
 			schema[i] = b.relation.columns[slot]
 			projection[i] = p.new[slot]
@@ -986,7 +987,7 @@ func ruleReturningProjection(catalog CatalogRead, original, provider *boundRetur
 	copy.expressions = slices.Clone(original.expressions)
 	for i, bound := range copy.expressions {
 		var err error
-		copy.expressions[i], _, err = rewriteViewExpression(catalog, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+		copy.expressions[i], _, err = rewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			column, ok := expr.(returningColumnExpression)
 			if !ok {
 				return expr, false, nil
@@ -1053,7 +1054,7 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 			return b, err
 		}
 	}
-	leaf := func(expr BoundExpr) (BoundExpr, bool, error) {
+	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if column, ok := expr.(columnExpression); ok && column.scope == 1 && column.frame == 1 && column.slot >= len(old.columns) {
 			column.slot += len(current.columns) - len(old.columns)
 			if column.virtual != nil {
@@ -1074,12 +1075,12 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 		}
 		return column, true, nil
 	}
-	mapExpr := func(expr BoundExpr) (BoundExpr, error) {
+	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
 		next, _, err := rewriteViewExpression(catalog, expr, nil, leaf)
 		return next, err
 	}
 	mapTargets := func(targets []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {
-		return mapRuleAssignmentTargets(targets, func(expr BoundExpr) (BoundExpr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return mapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	b.arrayTargets, err = mapTargets(b.arrayTargets)
 	if err != nil {
@@ -1087,7 +1088,7 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 	}
 	if b.query != nil {
 		next := *b.query
-		next.Root, err = rewriteQueryExpressions(next.Root, func(expr BoundExpr) (BoundExpr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
+		next.Root, err = rewriteQueryExpressions(next.Root, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
 		if err != nil {
 			return b, err
 		}
@@ -1189,7 +1190,7 @@ func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescri
 		return nil, err
 	}
 	oldWidth, width := len(b.relation.attributes), len(current.attributes)
-	leaf := func(expr BoundExpr) (BoundExpr, bool, error) {
+	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		column, ok := expr.(columnExpression)
 		if !ok || column.origin.Address.ClassID != b.ref.Address.ClassID || column.origin.Address.ObjectID != b.ref.Address.ObjectID {
 			return expr, false, nil
@@ -1226,8 +1227,8 @@ func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescri
 
 func ruleBindingHasPseudo(b binding) bool {
 	found := false
-	inspect := func(bound BoundExpr) {
-		walkBoundExpression(bound, func(node BoundExpr) {
+	inspect := func(bound expr.Expr) {
+		walkBoundExpression(bound, func(node expr.Expr) {
 			if column, ok := node.(columnExpression); ok && column.scope == rulePseudoScope {
 				found = true
 			}
@@ -1238,9 +1239,9 @@ func ruleBindingHasPseudo(b binding) bool {
 			visitCTEQuery(root, func(LogicalNode) {}, inspect, true)
 		}
 	}
-	expression := func(bound BoundExpr) {
+	expression := func(bound expr.Expr) {
 		if bound != nil && !found {
-			query(&projectNode{expressions: []BoundExpr{bound}})
+			query(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
 	targets := func(items []*arrayAssignmentTarget) {

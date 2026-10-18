@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *querySource) {
 	t.Helper()
 	schema := make(querySchema, width)
-	expressions := make([]BoundExpr, width)
+	expressions := make([]expr.Expr, width)
 	rows := make([][]sqltype.Value, 3)
 	for i := range rows {
 		rows[i] = make([]sqltype.Value, width)
@@ -20,7 +21,7 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *
 	for i := range schema {
 		usage := testUsage(e, sqltype.Int4)
 		schema[i] = ColumnDescriptor{Name: "i", Usage: usage}
-		expressions[i] = columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: i}
+		expressions[i] = columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: i}
 		for j := range rows {
 			rows[j][i], _ = sqltype.Integer(usage.Type, int64(j+1))
 		}
@@ -39,7 +40,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		value, _ := c.Row[0].Integer()
 		return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= 2), nil
 	})}
-	project.expressions = []BoundExpr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil })}
+	project.expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil })}
 	result, count, err := finalizeQuery(context.Background(), project, source, nil)
 	if err != nil || count != 2 || calls != 2 || predicates != 3 {
 		t.Fatal(result, count, err, calls, predicates)
@@ -123,7 +124,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 		closes := 0
 		inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{Scope: 1, Frame: 1}, finish: func() error { closes++; return cleanup }}
 		if primary {
-			inner.expressions = []BoundExpr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+			inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}
 		bridge := &querySource{nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
 		outer := &projectNode{querySchema: project.Schema(), child: &sourceNode{querySchema: project.Schema()}, expressions: project.expressions, frame: 1}

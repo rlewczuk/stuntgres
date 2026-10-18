@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -45,12 +46,12 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		view.state.setDescriptor(descriptor.Address(), descriptor)
 		view.state.bindName(descriptorNameKey(descriptor), descriptor.Address())
 	}
-	literal := func(s string) BoundExpr {
-		return literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
+	literal := func(s string) expr.Expr {
+		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
 	}
 	node := deparseExpression{
-		Info:      expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}},
-		signature: deparseSerialSequence, args: []BoundExpr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
+		Info:      expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}},
+		signature: deparseSerialSequence, args: []expr.Expr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
 	}
 	scope := &StatementScope{commentCatalog: view, deparseAuth: catalogAuthorization(e, view)}
 	return serialSequenceUnit{e, view, &EvalContext{Context: context.Background(), statementScope: scope}, table, sequence, node}
@@ -140,9 +141,9 @@ func TestSerialSequenceNameInput(t *testing.T) {
 	} {
 		t.Run(tc.table+"/"+tc.column, func(t *testing.T) {
 			node := f.node
-			node.args = []BoundExpr{
-				literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, tc.table)},
-				literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, tc.column)},
+			node.args = []expr.Expr{
+				literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, tc.table)},
+				literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, tc.column)},
 			}
 			_, err := node.Eval(f.context)
 			var diagnostic *sqlstate.Error
@@ -189,13 +190,13 @@ func TestSerialSequenceExpression(t *testing.T) {
 		{"child-type", func(n *deparseExpression) {
 			integer, _ := f.view.LookupType(sqltype.Int4)
 			v, _ := sqltype.Integer(integer, 1)
-			n.args[1] = literalExpression{Info: expressionInfo{Usage: integer.Usage()}, value: v}
+			n.args[1] = literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: v}
 		}},
-		{"properties", func(n *deparseExpression) { n.Property.Volatility = Immutable }},
+		{"properties", func(n *deparseExpression) { n.Property.Volatility = expr.Immutable }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node := f.node
-			node.args = append([]BoundExpr(nil), node.args...)
+			node.args = append([]expr.Expr(nil), node.args...)
 			tc.edit(&node)
 			if err := validateDeparseExpression(node); err == nil {
 				t.Fatal("damaged stored inquiry accepted")
@@ -205,7 +206,7 @@ func TestSerialSequenceExpression(t *testing.T) {
 	// Real parameter nodes prove strict child demand and property merging.
 	text := f.node.ResultUsage().Type
 	node := f.node
-	node.args = []BoundExpr{literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}, parameterExpression{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}}
+	node.args = []expr.Expr{literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text)}, parameterExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, number: 1}}
 	node.Property.ParameterDependent = true
 	if _, err := node.Eval(&EvalContext{Context: context.Background()}); err == nil {
 		t.Fatal("NULL suppressed demanded child")
@@ -222,7 +223,7 @@ func TestSerialSequenceExpression(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := bound.(deparseExpression)
-		if n.signature != deparseSerialSequence || n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != Stable || n.Properties().ParameterDependent != strings.Contains(rawSQL, "$1") {
+		if n.signature != deparseSerialSequence || n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != expr.Stable || n.Properties().ParameterDependent != strings.Contains(rawSQL, "$1") {
 			t.Fatal(n)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -240,10 +241,10 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	if schema, ok := stmt.(*parser.CreateSchema); ok {
 		for _, table := range schema.Tables {
 			if table.PartitionOf != nil {
-				return Result{}, expressionError("0A000", "partition definitions in CREATE SCHEMA are unsupported", table.PartitionOf.Pos)
+				return Result{}, expr.ErrorAt("0A000", "partition definitions in CREATE SCHEMA are unsupported", table.PartitionOf.Pos)
 			}
 			if table.PartitionBy != nil {
-				return Result{}, expressionError("0A000", "partition definitions in CREATE SCHEMA are unsupported", table.PartitionBy.Pos)
+				return Result{}, expr.ErrorAt("0A000", "partition definitions in CREATE SCHEMA are unsupported", table.PartitionBy.Pos)
 			}
 		}
 	}

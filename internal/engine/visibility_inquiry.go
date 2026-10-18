@@ -75,34 +75,34 @@ func (k visibilityInquiryKind) result() sqltype.ID {
 	return sqltype.Bool
 }
 
-func (k visibilityInquiryKind) volatility() Volatility {
+func (k visibilityInquiryKind) volatility() expr.Volatility {
 	if k == collationVersionInquiry || k == databaseCollationVersionInquiry || k == importSystemCollationsInquiry {
-		return Volatile
+		return expr.Volatile
 	}
-	return Stable
+	return expr.Stable
 }
 
 type visibilityInquiryExpression struct {
 	expr.Info
 	kind visibilityInquiryKind
-	arg  BoundExpr
+	arg  expr.Expr
 }
 
-func (b *expressionBinder) bindVisibilityInquiry(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindVisibilityInquiry(raw parser.FunctionExpr) (expr.Expr, error) {
 	n, err := b.bindVisibilityInquiryStructure(raw)
 	if err != nil {
 		return nil, err
 	}
 	if literal, ok := n.arg.(literalExpression); ok && literal.value.IsNull() {
 		typ := n.Usage.Type
-		return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
+		return literalExpression{b.info(typ.Usage(), raw.Pos, expr.Properties{}), sqltype.Null(typ)}, nil
 	}
 	b.visibilitySnapshot = true
 	return n, nil
 }
 func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExpr) (visibilityInquiryExpression, error) {
 	if b.defaultConsumer {
-		return visibilityInquiryExpression{}, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return visibilityInquiryExpression{}, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	// Transform children before either the argument guard or namespace lookup.
 	// Unknown literals/parameters retain the existing operand inference seam;
@@ -129,7 +129,7 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 		}
 	}
 	if len(raw.Args) > 100 {
-		return visibilityInquiryExpression{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return visibilityInquiryExpression{}, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
@@ -195,7 +195,7 @@ func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ids.
 	}
 	return false
 }
-func (e visibilityInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e visibilityInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

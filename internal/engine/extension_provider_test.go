@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -65,9 +66,9 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if proc.signature != signature {
 			t.Fatal("declared signature", i, proc.signature)
 		}
-		vol, strict, result := Stable, true, ids.OID(25)
+		vol, strict, result := expr.Stable, true, ids.OID(25)
 		if i >= 2 {
-			vol, strict, result = Volatile, false, 2281
+			vol, strict, result = expr.Volatile, false, 2281
 		}
 		if proc.volatility != vol || proc.strict != strict || proc.result != result {
 			t.Fatal("procedure properties", i)
@@ -137,7 +138,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	n := node.(installedFunctionExpression)
 	value, err := node.Eval(&EvalContext{Context: context.Background()})
 	text, _ := value.Text()
-	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || plannedVolatility(node) != Stable {
+	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || plannedVolatility(node) != expr.Stable {
 		t.Fatal("typed stable evaluation", text, err)
 	}
 	if n.procedure.address != ext.members[1] || n.dictionary.address != ext.members[5] || n.template.address != ext.members[4] {
@@ -147,7 +148,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("procedure dependency", refs, err)
 	}
-	n.Arg = literalExpression{Info: expressionInfo{Usage: node.ResultUsage()}, value: sqltype.Null(node.ResultUsage().Type)}
+	n.Arg = literalExpression{Info: expr.Info{Usage: node.ResultUsage()}, value: sqltype.Null(node.ResultUsage().Type)}
 	value, err = n.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 		t.Fatal("strict typed NULL", value, err)
@@ -158,7 +159,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	}
 	value, err = retagged.Eval(&EvalContext{Context: context.Background()})
 	text, _ = value.Text()
-	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || plannedVolatility(retagged) != Stable {
+	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || plannedVolatility(retagged) != expr.Stable {
 		t.Fatal("retagged provider consumer", text, err)
 	}
 	rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), node)
@@ -166,7 +167,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal("stored renderer", rendered, err)
 	}
 	children := 0
-	boundExpressionChildren(node, func(BoundExpr) { children++ })
+	boundExpressionChildren(node, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("child traversal", children)
 	}

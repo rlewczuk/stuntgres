@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -462,7 +463,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	return nil
 }
 
-func mergeMatches(evaluation *EvalContext, on BoundExpr) (bool, error) {
+func mergeMatches(evaluation *EvalContext, on expr.Expr) (bool, error) {
 	value, err := on.Eval(evaluation)
 	if err != nil {
 		return false, err

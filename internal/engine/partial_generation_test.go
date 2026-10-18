@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -97,7 +98,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if !reflect.DeepEqual(p.dependencies, beforeDependencies) || !reflect.DeepEqual(p.attributes, beforeAttributes) || reowned.sqlIndex.parent != f.parent.address {
 				t.Fatal("types-only pass changed dependencies, attributes or parent identity")
 			}
-			for _, node := range []BoundExpr{p.definition, p.execution} {
+			for _, node := range []expr.Expr{p.definition, p.execution} {
 				column := node.(columnExpression)
 				if column.ResultUsage() != newUsage || column.origin != f.predicate.origin || column.scope != f.predicate.scope || column.frame != f.predicate.frame || column.slot != f.predicate.slot {
 					t.Error("predicate tree retained a stale usage or changed its reference/frame", column)

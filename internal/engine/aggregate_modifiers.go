@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -9,7 +10,7 @@ import (
 )
 
 // FILTER is transformed after ordinary children, but before signature lookup.
-func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error) {
 	if raw.Filter == nil {
 		return nil, nil
 	}
@@ -20,7 +21,7 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (BoundE
 }
 
 // SQL99 ignores implicit coercion of an existing target, not explicit casts.
-func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) bool {
+func (b *expressionBinder) sameAggregateTarget(target, expression expr.Expr) bool {
 	for {
 		c, ok := target.(coercionExpression)
 		if !ok || c.mode != sqltype.Implicit {
@@ -31,7 +32,7 @@ func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) boo
 	return b.sameGroupExpression(target, expression)
 }
 
-func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter BoundExpr, info expressionInfo) (BoundExpr, error) {
+func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
 	call.filter = filter
 	objectProvider, object := call.provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
@@ -84,7 +85,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		}
 		if expression.CollationIndeterminate() {
 			left, right, position := expression.ImplicitCollationConflict()
-			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
+			d := expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
 			d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
 			return nil, d
 		}
@@ -109,7 +110,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, err
 		}
 		if raw.Distinct && slot < 0 {
-			return nil, expressionError("42P10", "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list", parser.ExpressionStart(key.Expr))
+			return nil, expr.ErrorAt("42P10", "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list", parser.ExpressionStart(key.Expr))
 		}
 		if slot < 0 {
 			for j, prior := range call.order[:i] {
@@ -141,7 +142,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			}
 		}
 		call.distinct = make([]queryGrouping, len(raw.Args))
-		args := [2]BoundExpr{call.argument, call.separator}
+		args := [2]expr.Expr{call.argument, call.separator}
 		for i, arg := range args {
 			if arg == nil {
 				continue
@@ -172,15 +173,15 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		}
 		call.provider = provider
 	}
-	properties := ExprProperties{StageDependent: true}
-	call.expressions(func(bound BoundExpr) {
+	properties := expr.Properties{StageDependent: true}
+	call.expressions(func(bound expr.Expr) {
 		if bound != nil {
-			properties = mergeExpressionProperties(properties, bound.Properties())
+			properties = expr.MergeProperties(properties, bound.Properties())
 		}
 	})
 	info.Property = properties
 	slot := len(b.aggregates)
-	if properties.Volatility == Immutable {
+	if properties.Volatility == expr.Immutable {
 		for i, existing := range b.aggregates {
 			if b.sameAggregateCall(call, existing) {
 				slot = i
@@ -223,7 +224,7 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 
 // A modifier resolves one particular ANY input occurrence, not every use of its
 // parameter number. Keep earlier occurrences for finish's 42P08 validation.
-func (b *expressionBinder) completeJSONObjectAggregateInput(node BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) completeJSONObjectAggregateInput(node expr.Expr) (expr.Expr, error) {
 	p, unknown := node.(parameterExpression)
 	if !unknown || p.Usage.Type != nil {
 		return node, nil

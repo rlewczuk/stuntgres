@@ -49,21 +49,21 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 type deparseExpression struct {
 	expr.Info
 	signature deparseSignature
-	args      []BoundExpr
+	args      []expr.Expr
 }
 
-func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var args []BoundExpr
+func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
+	var args []expr.Expr
 	var unknown []bool
 	if len(raw.Args) <= 100 {
-		args = make([]BoundExpr, len(raw.Args))
+		args = make([]expr.Expr, len(raw.Args))
 		unknown = make([]bool, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		if literal, ok := child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{Info: expressionInfo{Pos: child.SourcePosition()}}
+				args[i] = literalExpression{Info: expr.Info{Pos: child.SourcePosition()}}
 			}
 			continue
 		}
@@ -77,7 +77,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	var candidates [len(deparseSignatures)]deparseSignature
 	count, best := 0, -1
@@ -185,7 +185,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 		return nil, functions.DirectResolutionError(b, raw, args, unknown, count > 1)
 	}
 	signature := candidates[0]
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, arg := range args {
 		u := b.typ(deparseSignatures[signature].args[i]).Usage()
 		if unknown[i] {
@@ -201,7 +201,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 			}
 			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit, false}
 		}
-		properties = mergeExpressionProperties(properties, args[i].Properties())
+		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), catalogRoutineProvider, name, deparseSignatures[signature].args...)
 	if err != nil {
@@ -210,7 +210,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 	return deparseExpression{info, signature, args}, nil
 }
 
-func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -406,13 +406,13 @@ func validateDeparseExpression(e deparseExpression) error {
 	if len(e.args) != len(definition.args) {
 		return fmt.Errorf("stuntgres: invalid stored deparse signature")
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, arg := range e.args {
 		id := definition.args[i]
 		if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != id {
 			return fmt.Errorf("stuntgres: invalid stored deparse argument")
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if e.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored deparse properties")

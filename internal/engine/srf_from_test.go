@@ -6,12 +6,13 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func srfFromUnitNode(t *testing.T, calls ...BoundExpr) *functionFromNode {
+func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *functionFromNode {
 	t.Helper()
 	n := &functionFromNode{calls: calls, frame: 1, ordinality: true}
 	for _, call := range calls {
@@ -210,7 +211,7 @@ func TestSRFFromOwnership(t *testing.T) {
 	bad := seriesUnit(t, d, 1, 2)
 	bad.args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []BoundExpr{n.calls[0], bad}})
+	invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []expr.Expr{n.calls[0], bad}})
 	if !errors.Is(err, failure) || len(invocation.cursors) != 0 {
 		t.Fatal(invocation, err)
 	}
@@ -262,12 +263,12 @@ func TestSRFFromOwnership(t *testing.T) {
 func TestSRFFromStoredEligibility(t *testing.T) {
 	d := seriesUnitType(t, sqltype.Int4)
 	view := New().CatalogRead()
-	calls := []BoundExpr{seriesUnit(t, d, 1, 2), subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, 1)}
+	calls := []expr.Expr{seriesUnit(t, d, 1, 2), subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, 1)}
 	for _, original := range calls {
 		if !validFunctionSourceCall(original) {
 			t.Fatal("stored call rejected", original)
 		}
-		args := append([]BoundExpr(nil), functionCallArguments(original)...)
+		args := append([]expr.Expr(nil), functionCallArguments(original)...)
 		first := args[0]
 		args[0] = queryProbe(first.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return first.Eval(c) })
 		mapped, err := withFunctionCallArguments(original, args)
@@ -285,7 +286,7 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 		}
 	}
 	original := srfFromUnitNode(t, calls[0])
-	rewritten, err := rewriteQueryExpressions(original, func(expr BoundExpr) (BoundExpr, bool, error) {
+	rewritten, err := rewriteQueryExpressions(original, func(expr expr.Expr) (expr.Expr, bool, error) {
 		literal, ok := expr.(literalExpression)
 		if !ok {
 			return expr, false, nil

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,8 +27,8 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	base := inner.child.(*sourceNode)
 	outer := &projectNode{querySchema: inner.querySchema, frame: inner.frame + 1}
 	outer.child = &sourceNode{querySchema: inner.querySchema, ref: base.ref, occurrence: 0, presenceSlot: base.presenceSlot}
-	column := columnExpression{Info: expressionInfo{Usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
-	outer.expressions = []BoundExpr{column}
+	column := columnExpression{Info: expr.Info{Usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
+	outer.expressions = []expr.Expr{column}
 	bound := *query
 	bound.Root = outer
 	expr := subqueryTestExpression(t, e, &bound, parser.SubqueryScalar)

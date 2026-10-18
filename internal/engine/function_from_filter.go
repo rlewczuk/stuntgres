@@ -1,12 +1,15 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+)
 
 // A left-only WHERE restriction belongs before a correlated function invocation:
 // excluded predecessor rows must not open its cursor. Move the complete predicate
 // once in an execution-private copy, without changing canonical/view literal
 // paths, outer joins, merged columns or expression boundaries. Nil declines.
-func functionFromWhere(root LogicalNode, predicate BoundExpr) *joinNode {
+func functionFromWhere(root LogicalNode, predicate expr.Expr) *joinNode {
 	join, ok := root.(*joinNode)
 	if !ok || join.kind != parser.JoinInner || !join.correlatedRight || len(join.merges) != 0 {
 		return nil
@@ -24,13 +27,13 @@ func functionFromWhere(root LogicalNode, predicate BoundExpr) *joinNode {
 
 // A conjunct can move only when its dependencies and evaluation properties
 // already satisfy the whole-predicate predecessor rule.
-func functionFromRestriction(join *joinNode, predicate BoundExpr) bool {
+func functionFromRestriction(join *joinNode, predicate expr.Expr) bool {
 	properties := predicate.Properties()
-	if properties.Volatility == Volatile || properties.StageDependent || properties.DomainDependent || properties.RuntimeDomainConversion {
+	if properties.Volatility == expr.Volatile || properties.StageDependent || properties.DomainDependent || properties.RuntimeDomainConversion {
 		return false
 	}
 	currentFrame := true
-	walkBoundExpression(predicate, func(expr BoundExpr) {
+	walkBoundExpression(predicate, func(expr expr.Expr) {
 		if column, ok := expr.(columnExpression); ok && (column.frame != join.frame || column.virtual != nil) {
 			currentFrame = false
 		}
@@ -50,7 +53,7 @@ func functionFromRestriction(join *joinNode, predicate BoundExpr) bool {
 // functionFromConjuncts partitions only the immediate function join's WHERE
 // conjunction. Volatile/unsafe residuals stay after expansion; ordinary Boolean
 // evaluation and the canonical tree remain unchanged. Nil declines.
-func functionFromConjuncts(root LogicalNode, predicate BoundExpr) LogicalNode {
+func functionFromConjuncts(root LogicalNode, predicate expr.Expr) LogicalNode {
 	join, ok := root.(*joinNode)
 	if !ok || join.kind != parser.JoinInner || len(join.merges) != 0 {
 		return nil
@@ -74,14 +77,14 @@ func functionFromConjuncts(root LogicalNode, predicate BoundExpr) LogicalNode {
 	return &filterNode{querySchema: join.Schema(), child: &copy, predicate: after}
 }
 
-func partitionFunctionConjuncts(join *joinNode, predicate BoundExpr) (before, after BoundExpr) {
+func partitionFunctionConjuncts(join *joinNode, predicate expr.Expr) (before, after expr.Expr) {
 	if logical, ok := predicate.(logicalExpression); ok {
 		if logical.op != parser.LogicalAnd || logical.queryRight {
 			return nil, predicate
 		}
 		leftBefore, leftAfter := partitionFunctionConjuncts(join, logical.left)
 		rightBefore, rightAfter := partitionFunctionConjuncts(join, logical.right)
-		combine := func(left, right BoundExpr) BoundExpr {
+		combine := func(left, right expr.Expr) expr.Expr {
 			if left == nil {
 				return right
 			}
@@ -90,7 +93,7 @@ func partitionFunctionConjuncts(join *joinNode, predicate BoundExpr) (before, af
 			}
 			copy := logical
 			copy.left, copy.right = left, right
-			copy.Property = mergeExpressionProperties(left.Properties(), right.Properties())
+			copy.Property = expr.MergeProperties(left.Properties(), right.Properties())
 			return copy
 		}
 		return combine(leftBefore, rightBefore), combine(leftAfter, rightAfter)

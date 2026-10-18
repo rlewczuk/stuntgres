@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestStringIdentBinding(t *testing.T) {
 			var observed []int
 			failure := errors.New("argument failed")
 			copy := n
-			copy.Args = append([]BoundExpr(nil), n.Args...)
+			copy.Args = append([]expr.Expr(nil), n.Args...)
 			for i, arg := range n.Args {
 				v := sqltype.String(b.typ(sqltype.Text), "A.B[]")
 				if n.Textual[i] == false {
@@ -42,7 +43,7 @@ func TestStringIdentBinding(t *testing.T) {
 				if i == failing {
 					childError = failure
 				}
-				copy.Args[i] = mathObservedArgument{Info: boundExpressionInfo(arg), value: v, order: &observed, index: i, err: childError}
+				copy.Args[i] = mathObservedArgument{Info: expr.InfoOf(arg), value: v, order: &observed, index: i, err: childError}
 			}
 			v, err := copy.Eval(&EvalContext{Context: context.Background()})
 			want := []int{0, 1}
@@ -164,7 +165,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		t.Fatal("generation ownership was not replaced")
 	}
 	broken := copy
-	broken.Args = append([]BoundExpr(nil), copy.Args...)
+	broken.Args = append([]expr.Expr(nil), copy.Args...)
 	broken.Args[1] = n.Args[1]
 	if err := broken.Validate(); err == nil {
 		t.Fatal("foreign input owner accepted")

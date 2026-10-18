@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -49,7 +50,7 @@ func TestBetweenGroupedDefaultSerialization(t *testing.T) {
 			if err != nil {
 				t.Fatal("serialized default cannot rebind", err)
 			}
-			for _, node := range []BoundExpr{original, replayed} {
+			for _, node := range []expr.Expr{original, replayed} {
 				value, err := node.Eval(&EvalContext{Context: context.Background()})
 				if code, ok := tc.want.(string); ok {
 					state(t, err, code)

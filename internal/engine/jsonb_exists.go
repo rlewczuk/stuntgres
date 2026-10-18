@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 
 func jsonbExistenceName(name string) bool { return name == "?" || name == "?|" || name == "?&" }
 
-func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (expr.Expr, error) {
 	var operands [2]comparisonOperand
 	for i, arg := range raw.Args {
 		o, err := b.comparisonOperand(arg)
@@ -56,14 +57,14 @@ func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (BoundExp
 			}
 		}
 	}
-	args := make([]BoundExpr, 2)
-	properties := ExprProperties{}
+	args := make([]expr.Expr, 2)
+	properties := expr.Properties{}
 	for i, o := range operands {
 		args[i], err = b.coerceConditional(o, targets[i], name)
 		if err != nil {
 			return nil, err
 		}
-		properties = mergeExpressionProperties(properties, args[i].Properties())
+		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
 	return functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), name, args, parser.OrdinaryFunctionSyntax)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func TestInsertReturningModes(t *testing.T) {
 	typ := relation.columns[0].Usage.Type
 	three, _ := sqltype.Integer(typ, 3)
 	seven, _ := sqltype.Integer(typ, 7)
-	column := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 0}
+	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 0}
 	outer := EvalContext{Context: context.Background(), Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}
 	inner := EvalContext{Context: context.Background(), Scope: 1, Frame: 8, Outer: &outer}
 	calls := 0

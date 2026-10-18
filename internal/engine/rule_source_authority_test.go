@@ -3,6 +3,7 @@ package engine
 import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -56,12 +57,12 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					original.deleteUsing = from
 					if event == "UPDATE" {
 						syntax = &parser.Update{}
-						original.update = &boundUpdate{assignments: []BoundExpr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, from: from}
+						original.update = &boundUpdate{assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, from: from}
 					}
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
 					ref.Address.SubID = sink.attributes[0]
-					value := BoundExpr(columnExpression{Info: ruleColumnInfo(sink.columns[0]), origin: ref, scope: 1, frame: 1})
+					value := expr.Expr(columnExpression{Info: ruleColumnInfo(sink.columns[0]), origin: ref, scope: 1, frame: 1})
 					if dependent {
 						ref = original.ref
 						ref.Address.SubID = src.attributes[0]
@@ -69,7 +70,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					}
 					action.binding.expressions = nil
 					action.binding.commandQuery = true
-					action.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.columns), child: &sourceNode{querySchema: querySchema(sink.columns), ref: lookupRef}, expressions: []BoundExpr{value, ruleUnitInt(sink, 8)}, frame: 1}}
+					action.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.columns), child: &sourceNode{querySchema: querySchema(sink.columns), ref: lookupRef}, expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, frame: 1}}
 					action.binding.querySources = []queryLeaf{{ref: lookupRef, relation: sink, uses: []int{0}}}
 					src.rules = []ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}}
 					program := ruleProgram{count: -1, returning: -1}

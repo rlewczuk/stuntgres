@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,7 +28,7 @@ func TestTimezoneReviewStoredStableDefaultValidation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := node.Properties(); got != (ExprProperties{Volatility: Stable}) {
+			if got := node.Properties(); got != (expr.Properties{Volatility: expr.Stable}) {
 				t.Fatalf("properties = %+v", got)
 			}
 			if text, err := defaultSQL(ctx, e.CatalogRead(), node); err != nil || text == "" {
@@ -40,11 +41,11 @@ func TestTimezoneReviewStoredStableDefaultValidation(t *testing.T) {
 func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 	e := New()
 	ctx := context.Background()
-	for _, properties := range []ExprProperties{
-		{Volatility: Volatile}, {Volatility: Volatility(255)},
-		{Volatility: Stable, RowDependent: true},
-		{Volatility: Stable, ParameterDependent: true},
-		{Volatility: Stable, StageDependent: true},
+	for _, properties := range []expr.Properties{
+		{Volatility: expr.Volatile}, {Volatility: expr.Volatility(255)},
+		{Volatility: expr.Stable, RowDependent: true},
+		{Volatility: expr.Stable, ParameterDependent: true},
+		{Volatility: expr.Stable, StageDependent: true},
 	} {
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		node, err := binder.bind(castTarget(t, "SELECT TRUE FROM t"), expressionPolicy{context: projectionContext})

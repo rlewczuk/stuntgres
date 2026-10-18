@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -17,10 +18,10 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		usage := relation.columns[0].Usage
 		typ := usage.Type
 		calls := make([]int, count)
-		expressions := make([][]BoundExpr, count)
+		expressions := make([][]expr.Expr, count)
 		for i := range expressions {
 			index := i
-			expressions[i] = []BoundExpr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			expressions[i] = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls[index]++
 				if index == 3 {
 					return sqltype.Null(typ), nil
@@ -38,9 +39,9 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		projection := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+		projection := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 		sorted := &sortNode{querySchema: schema, child: values, keys: []sortKey{{expression: projection, slot: 0, cache: -1, comparison: comparison}}}
-		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []BoundExpr{projection}}}
+		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []expr.Expr{projection}}}
 		source := &querySource{}
 		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows.values) != count || source.anonymous != nil {

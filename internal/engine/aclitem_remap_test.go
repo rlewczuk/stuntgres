@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -76,7 +77,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	// The literal retagger must apply ACL import even without type changes.
 	next := cloneCatalog(source.catalog.state)
 	next.aclItemImport = importer
-	literal := literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
 	rebound, changed, err := retagBoundTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed || rebound.(literalExpression).value == value {
 		t.Fatal("constant principal import skipped", changed, err)
@@ -88,7 +89,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comparison := comparisonExpression{Info: expressionInfo{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
+	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
 	rebound, changed, err = retagBoundTypes(target.catalog.read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed {
 		t.Fatal("enclosing principal import skipped", changed, err)
@@ -172,7 +173,7 @@ func TestACLItemStaleDump(t *testing.T) {
 	value := aclUnitValue(t, e, "acl_dump_a=r*/acl_dump_b")
 	captured := capturedACLItemOutput{owner: e, roles: e.Roles(), lossless: true}
 	ctx := aclItemOutputContext(context.Background(), captured)
-	literal := literalExpression{Info: expressionInfo{Usage: value.Type().Usage()}, value: value}
+	literal := literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
 	if text, err := catalogLiteralSQL(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal(text, err)
 	}

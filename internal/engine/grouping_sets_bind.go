@@ -20,11 +20,11 @@ type analyzedGroupItem struct {
 	pos   parser.Position
 }
 
-func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []BoundExpr, names []string) ([]BoundExpr, []queryGrouping, [][]int, error) {
+func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []expr.Expr, names []string) ([]expr.Expr, []queryGrouping, [][]int, error) {
 	if raw == nil {
 		return nil, nil, nil, nil
 	}
-	var keys []BoundExpr
+	var keys []expr.Expr
 	var families []queryGrouping
 	leaf := 0
 	var bind func(parser.GroupItem) (analyzedGroupItem, error)
@@ -44,7 +44,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			}
 			// Child resolution precedes the independent CUBE width guard.
 			if item.Kind == parser.GroupCube && len(item.Items) > 12 {
-				return out, expressionError("54011", "CUBE is limited to 12 elements", item.Pos)
+				return out, expr.ErrorAt("54011", "CUBE is limited to 12 elements", item.Pos)
 			}
 			return out, nil
 		}
@@ -66,7 +66,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 							continue
 						}
 						if output >= 0 && !b.sameQueryTarget(projection[output], projection[i]) {
-							return out, expressionError("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
+							return out, expr.ErrorAt("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
 						}
 						output = i
 					}
@@ -76,7 +76,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 				}
 			}
 		}
-		var key BoundExpr
+		var key expr.Expr
 		if isOrdinal {
 			key = projection[ordinal]
 		} else {
@@ -91,7 +91,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 							continue
 						}
 						if output >= 0 && !b.sameQueryTarget(projection[output], projection[i]) {
-							return out, expressionError("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
+							return out, expr.ErrorAt("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
 						}
 						output = i
 					}
@@ -111,19 +111,19 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			}
 		}
 		var operation *groupingExpression
-		walkBoundExpression(key, func(node BoundExpr) {
+		walkBoundExpression(key, func(node expr.Expr) {
 			if n, ok := node.(groupingExpression); ok && n.frame == b.frameID() && operation == nil {
 				operation = &n
 			}
 		})
 		if operation != nil {
-			return out, expressionError("42803", "grouping operations are not allowed in GROUP BY", operation.Pos)
+			return out, expr.ErrorAt("42803", "grouping operations are not allowed in GROUP BY", operation.Pos)
 		}
 		if call := aggregateOccurrence(key); call != nil && (call.frame == 0 || call.frame == b.frameID()) {
-			return out, expressionError("42803", "aggregate functions are not allowed in GROUP BY", call.Pos)
+			return out, expr.ErrorAt("42803", "aggregate functions are not allowed in GROUP BY", call.Pos)
 		}
 		if call := windowOccurrence(key); call != nil && call.frame == b.frameID() {
-			return out, expressionError("42P20", "window functions are not allowed in GROUP BY", call.Pos)
+			return out, expr.ErrorAt("42P20", "window functions are not allowed in GROUP BY", call.Pos)
 		}
 		key, err = b.finalizeProjection(key)
 		if err != nil {
@@ -257,7 +257,7 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 				return nil, err
 			}
 			if len(sets) > maximumGroupingSets-len(out) {
-				return nil, expressionError("54001", "too many grouping sets present (maximum 4096)", item.pos)
+				return nil, expr.ErrorAt("54001", "too many grouping sets present (maximum 4096)", item.pos)
 			}
 			out = append(out, sets...)
 		}
@@ -270,14 +270,14 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 				return nil, err
 			}
 			if len(sets) > maximumGroupingSets-len(out) {
-				return nil, expressionError("54001", "too many grouping sets present (maximum 4096)", item.pos)
+				return nil, expr.ErrorAt("54001", "too many grouping sets present (maximum 4096)", item.pos)
 			}
 			out = append(out, sets...)
 		}
 		return out, nil
 	case parser.GroupCube:
 		if len(item.items) > 12 {
-			return nil, expressionError("54011", "CUBE is limited to 12 elements", item.pos)
+			return nil, expr.ErrorAt("54011", "CUBE is limited to 12 elements", item.pos)
 		}
 		var out [][]int
 		units := make([]analyzedGroupItem, 0, len(item.items))
@@ -296,7 +296,7 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 				return nil, err
 			}
 			if len(sets) > maximumGroupingSets-len(out) {
-				return nil, expressionError("54001", "too many grouping sets present (maximum 4096)", item.pos)
+				return nil, expr.ErrorAt("54001", "too many grouping sets present (maximum 4096)", item.pos)
 			}
 			out = append(out, sets...)
 		}
@@ -309,14 +309,14 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 // The immutable masks address the execution-local occurrence suffix in its owner.
 type groupingExpression struct {
 	expr.Info
-	args      []BoundExpr
+	args      []expr.Expr
 	positions []parser.Position
 	frame     uint32
 	slot      int
 	masks     []int32
 }
 
-func (e groupingExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e groupingExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -341,14 +341,14 @@ func (e groupingExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return sqltype.Integer(e.Usage.Type, int64(e.masks[occurrence]))
 }
 
-func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, error) {
 	if len(raw.Args) > 31 {
-		return nil, expressionError("54023", "GROUPING must have fewer than 32 arguments", raw.Pos)
+		return nil, expr.ErrorAt("54023", "GROUPING must have fewer than 32 arguments", raw.Pos)
 	}
 	parent := b.argumentOwner
 	b.argumentOwner = argumentWindowOwner{active: true}
 	defer func() { b.argumentOwner = parent }()
-	args := make([]BoundExpr, len(raw.Args))
+	args := make([]expr.Expr, len(raw.Args))
 	positions := make([]parser.Position, len(raw.Args))
 	for i, arg := range raw.Args {
 		child, err := b.bind(arg, expressionPolicy{context: projectionContext})
@@ -362,15 +362,15 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 		return nil, err
 	}
 	if b.checkConsumer {
-		return nil, expressionError("42803", "grouping operations are not allowed in check constraints", raw.Pos)
+		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in check constraints", raw.Pos)
 	}
 	if b.indexPredicateConsumer {
-		return nil, expressionError("42803", "grouping operations are not allowed in index predicates", raw.Pos)
+		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in index predicates", raw.Pos)
 	}
 	if b.indexConsumer {
-		return nil, expressionError("42803", "grouping operations are not allowed in index expressions", raw.Pos)
+		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in index expressions", raw.Pos)
 	}
-	owner, index := b.argumentQueryOwner(func(visit func(BoundExpr)) {
+	owner, index := b.argumentQueryOwner(func(visit func(expr.Expr)) {
 		for _, arg := range args {
 			walkQueryArgumentExpression(arg, visit)
 		}
@@ -379,9 +379,9 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 	if index >= 0 {
 		clause = b.queryScopes[index].clause
 	}
-	var nested BoundExpr
+	var nested expr.Expr
 	for _, arg := range args {
-		walkQueryArgumentExpression(arg, func(node BoundExpr) {
+		walkQueryArgumentExpression(arg, func(node expr.Expr) {
 			switch n := node.(type) {
 			case aggregateExpression:
 				if n.frame == owner && nested == nil {
@@ -395,7 +395,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 		})
 	}
 	if nested != nil {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
+		return nil, expr.ErrorAt("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
 	if clause == "INSERT VALUES" {
 		clause = "VALUES"
@@ -403,11 +403,11 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 	switch clause {
 	case "SELECT", "HAVING", "ORDER BY", "window definitions":
 	case "window RANGE", "window GROUPS", "window ROWS":
-		return nil, expressionError("42803", "grouping operations are not allowed in "+clause, raw.Pos)
+		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in "+clause, raw.Pos)
 	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER", "UPDATE":
-		return nil, expressionError("42803", "grouping operations are not allowed in "+clause, raw.Pos)
+		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in "+clause, raw.Pos)
 	default:
-		return nil, expressionError("42803", "grouping operations are not allowed in "+clause, raw.Pos)
+		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in "+clause, raw.Pos)
 	}
 	if index >= 0 {
 		b.queryScopes[index].groupingActive = true
@@ -415,10 +415,10 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 		b.groupingActive = true
 	}
 	usage := b.typ(sqltype.Int4).Usage()
-	return groupingExpression{Info: expressionInfo{Usage: usage, Pos: raw.Pos, Property: ExprProperties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
+	return groupingExpression{Info: expr.Info{Usage: usage, Pos: raw.Pos, Property: expr.Properties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
 }
 
-func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []expr.Expr) (expr.Expr, error) {
 	if e.frame != b.frameID() {
 		return e, nil
 	}
@@ -439,7 +439,7 @@ func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []BoundExp
 			if i < len(e.positions) {
 				pos = e.positions[i]
 			}
-			return nil, expressionError("42803", "arguments to GROUPING must be grouping expressions of the associated query level", pos)
+			return nil, expr.ErrorAt("42803", "arguments to GROUPING must be grouping expressions of the associated query level", pos)
 		}
 	}
 	e.slot = len(keys) + len(b.aggregates)

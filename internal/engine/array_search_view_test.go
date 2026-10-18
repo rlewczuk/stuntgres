@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -28,10 +29,10 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	targetBinder := newTestExpressionBinder(t, ctx, targetEngine, sqltype.InputEnvironment{}, nil)
 	integer, wide, text := b.typ(sqltype.Int4), b.typ(sqltype.Int8), b.typ(sqltype.Text)
 	array, wideArray, textArray := b.typ(integer.AssociatedArray()), b.typ(wide.AssociatedArray()), b.typ(text.AssociatedArray())
-	literal := func(value sqltype.Value) BoundExpr {
-		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, ExprProperties{}), value: value}
+	literal := func(value sqltype.Value) expr.Expr {
+		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), value: value}
 	}
-	coerce := func(child BoundExpr, target *sqltype.Descriptor, mode sqltype.CoercionContext) BoundExpr {
+	coerce := func(child expr.Expr, target *sqltype.Descriptor, mode sqltype.CoercionContext) expr.Expr {
 		plan, err := sqltype.PlanCoercion(child.ResultUsage(), target.Usage(), mode)
 		if err != nil {
 			t.Fatal(err)
@@ -54,11 +55,11 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	name := func(text string) parser.ObjectName {
 		return parser.ObjectName{Parts: []parser.Identifier{{Text: text}}}
 	}
-	inner, err := functions.ArraySearchNode(b, "array_position", name("array_position"), parser.Position{}, integer.Usage(), []BoundExpr{arrayArgument, wideOne})
+	inner, err := functions.ArraySearchNode(b, "array_position", name("array_position"), parser.Position{}, integer.Usage(), []expr.Expr{arrayArgument, wideOne})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, wideArray.Usage(), []BoundExpr{arrayArgument, wideOne, coerce(inner, wide, sqltype.Implicit)})
+	outer, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, wideArray.Usage(), []expr.Expr{arrayArgument, wideOne, coerce(inner, wide, sqltype.Implicit)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,15 +75,15 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	usage := textArray.Usage()
 	usage.Collation = ref
 	position := parser.Position{Character: 1}
-	info := b.info(usage, position, ExprProperties{})
+	info := b.info(usage, position, expr.Properties{})
 	info.CollationExplicit = position
 	collated := collationExpression{Info: info, child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
-	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []BoundExpr{collated, search, replacement})
+	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []expr.Expr{collated, search, replacement})
 	if err != nil {
 		t.Fatal(err)
 	}
-	positions, err := functions.ArraySearchNode(b, "array_positions", name("array_positions"), parser.Position{}, array.Usage(), []BoundExpr{replace, replacement})
+	positions, err := functions.ArraySearchNode(b, "array_positions", name("array_positions"), parser.Position{}, array.Usage(), []expr.Expr{replace, replacement})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,14 +97,14 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	}}
 	for i, capture := range []struct {
 		raw  parser.Expr
-		node BoundExpr
+		node expr.Expr
 	}{{raw, outer}, {rawText, positions}} {
 		if err := b.captureViewLiterals(capture.raw, capture.node, viewTargetLiteral, i); err != nil {
 			t.Fatal(err)
 		}
 	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
-	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, child: &singletonNode{}, expressions: []BoundExpr{outer, positions}, frame: b.frameID(), syntax: syntax}
+	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, child: &singletonNode{}, expressions: []expr.Expr{outer, positions}, frame: b.frameID(), syntax: syntax}
 	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.viewLiterals, castUsages: b.viewCastUsages, collations: b.viewCollations}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view CatalogRead, definition *viewDefinition, target int, expression parser.Expr, want string) {
@@ -116,7 +117,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	const numericSQL = "array_replace('{1,2}'::integer[]::integer[]::bigint[], 1::bigint, array_position('{1,2}'::integer[]::integer[]::bigint[], 1::bigint)::bigint)"
 	const sourceTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_source), 'a'::text, 'b'::text), 'b'::text)"
 	const targetTextSQL = "array_positions(array_replace(('{a,b,NULL}'::text[] COLLATE as_unit_target), 'a'::text, 'b'::text), 'b'::text)"
-	assertValue := func(node BoundExpr, typ *sqltype.Descriptor, want string) sqltype.Value {
+	assertValue := func(node expr.Expr, typ *sqltype.Descriptor, want string) sqltype.Value {
 		value, err := node.Eval(&EvalContext{Context: ctx})
 		if err != nil {
 			t.Fatal(err)

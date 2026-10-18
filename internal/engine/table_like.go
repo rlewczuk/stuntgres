@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -102,7 +103,7 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}, slots
 }
 
-func (in *createLikeInput) remap(node BoundExpr, destination *relationDescriptor, authority CatalogRead) (BoundExpr, error) {
+func (in *createLikeInput) remap(node expr.Expr, destination *relationDescriptor, authority CatalogRead) (expr.Expr, error) {
 	if in.rowRef == nil {
 		in.rowRef, in.slots = in.rowMapper(destination, authority)
 	}

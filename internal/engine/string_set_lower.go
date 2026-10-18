@@ -2,19 +2,20 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
 type querySetSlot struct {
-	original  BoundExpr
-	column    BoundExpr
+	original  expr.Expr
+	column    expr.Expr
 	scheduled bool // The owner reads its reserved slot only for an active scalar event.
 }
 
-func querySetDepth(bound BoundExpr) int {
+func querySetDepth(bound expr.Expr) int {
 	depth := 0
-	boundExpressionChildren(bound, func(child BoundExpr) {
+	boundExpressionChildren(bound, func(child expr.Expr) {
 		if d := querySetDepth(child); d > depth {
 			depth = d
 		}
@@ -24,7 +25,7 @@ func querySetDepth(bound BoundExpr) int {
 	}
 	return depth
 }
-func sameQuerySetOccurrence(a, b BoundExpr) bool {
+func sameQuerySetOccurrence(a, b expr.Expr) bool {
 	if !isQuerySet(a) || !isQuerySet(b) || a.SourcePosition() != b.SourcePosition() {
 		return false
 	}
@@ -75,19 +76,19 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 
 // Requests identify this clause's required occurrences. Companions share only
 // already resolved occurrences; their unrelated SRFs remain for later stages.
-func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr, companions [][]BoundExpr, attempts bool, templateRoots ...[]BoundExpr) (LogicalNode, error) {
+func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr, companions [][]expr.Expr, attempts bool, templateRoots ...[]expr.Expr) (LogicalNode, error) {
 	maxDepth, scalarUpper := querySetProjectionDepth(requests)
 	if maxDepth == 0 {
 		return root, nil
 	}
 	frame := b.frameID()
-	template := &querySetTemplate{group: &frame, expressions: append([]BoundExpr(nil), requests...), attempts: attempts}
+	template := &querySetTemplate{group: &frame, expressions: append([]expr.Expr(nil), requests...), attempts: attempts}
 	if len(templateRoots) != 0 {
-		template.expressions = append([]BoundExpr(nil), templateRoots[0]...)
+		template.expressions = append([]expr.Expr(nil), templateRoots[0]...)
 	}
 	for level := range maxDepth {
 		for _, bound := range requests {
-			walkBoundExpression(bound, func(e BoundExpr) {
+			walkBoundExpression(bound, func(e expr.Expr) {
 				if !isQuerySet(e) || querySetDepth(e) != level+1 {
 					return
 				}
@@ -114,7 +115,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 				template.steps = append(template.steps, querySetStep{kind: querySetScalarStep, index: i})
 			}
 		}
-		walkBoundExpression(expression, func(marker BoundExpr) {
+		walkBoundExpression(expression, func(marker expr.Expr) {
 			for i, original := range template.origins {
 				if !sameQuerySetOccurrence(marker, original) {
 					continue
@@ -132,18 +133,18 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 	}
 	base := len(root.Schema())
 	schema := append(querySchema(nil), root.Schema()...)
-	for _, expressions := range [][]BoundExpr{template.origins, template.scalars} {
+	for _, expressions := range [][]expr.Expr{template.origins, template.scalars} {
 		for _, expression := range expressions {
 			schema = append(schema, ColumnDescriptor{Usage: expression.ResultUsage()})
 		}
 	}
-	column := func(bound BoundExpr, slot int) BoundExpr {
-		info := boundExpressionInfo(bound)
+	column := func(bound expr.Expr, slot int) expr.Expr {
+		info := expr.InfoOf(bound)
 		info.Property.StageDependent, info.Property.RowDependent = true, true
 		return columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: base + slot}
 	}
-	rewrite := func(bound BoundExpr, sql99 bool, beforeDepth int) (BoundExpr, error) {
-		return b.mapQuerySetStage(bound, func(e BoundExpr) (BoundExpr, bool, error) {
+	rewrite := func(bound expr.Expr, sql99 bool, beforeDepth int) (expr.Expr, error) {
+		return b.mapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
 			for i, original := range template.origins {
 				if (sameQuerySetOccurrence(e, original) || sql99 && isQuerySet(e) && b.sameGroupExpression(e, original)) && querySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
@@ -160,7 +161,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 				continue
 			}
 			call := original
-			args := append([]BoundExpr(nil), functionCallArguments(call)...)
+			args := append([]expr.Expr(nil), functionCallArguments(call)...)
 			for j, arg := range args {
 				var err error
 				args[j], err = rewrite(arg, false, level+1)
@@ -220,14 +221,14 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 	}
 	return root, nil
 }
-func stringSortExpressions(keys []sortKey) []BoundExpr {
-	out := make([]BoundExpr, len(keys))
+func stringSortExpressions(keys []sortKey) []expr.Expr {
+	out := make([]expr.Expr, len(keys))
 	for i, key := range keys {
 		out[i] = key.expression
 	}
 	return out
 }
-func replaceStringSortExpressions(keys []sortKey, expressions []BoundExpr) {
+func replaceStringSortExpressions(keys []sortKey, expressions []expr.Expr) {
 	for i, expr := range expressions {
 		keys[i].expression = expr
 	}
@@ -241,7 +242,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	if len(template.scalars) != len(template.scalarRequests) {
 		return nil, fmt.Errorf("stuntgres: invalid string scalar ownership")
 	}
-	roots := make([]BoundExpr, len(template.expressions))
+	roots := make([]expr.Expr, len(template.expressions))
 	for i, expression := range template.expressions {
 		folded, _, err := preflightCoercions(c, expression)
 		if err != nil {
@@ -249,9 +250,9 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 		}
 		roots[i] = folded
 	}
-	live := make([]BoundExpr, len(template.origins))
+	live := make([]expr.Expr, len(template.origins))
 	for _, root := range roots {
-		walkBoundExpression(root, func(marker BoundExpr) {
+		walkBoundExpression(root, func(marker expr.Expr) {
 			for i, original := range template.origins {
 				if sameQuerySetOccurrence(marker, original) {
 					live[i] = marker
@@ -279,14 +280,14 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	column := func(original BoundExpr, slot int) BoundExpr {
-		info := boundExpressionInfo(original)
+	column := func(original expr.Expr, slot int) expr.Expr {
+		info := expr.InfoOf(original)
 		info.Property.StageDependent, info.Property.RowDependent = true, true
 		return columnExpression{Info: info, scope: 1, frame: n.frame, slot: n.baseWidth + slot}
 	}
-	rewrite := func(bound BoundExpr, beforeDepth int) (BoundExpr, error) {
+	rewrite := func(bound expr.Expr, beforeDepth int) (expr.Expr, error) {
 		next, _, err := mapBoundExpression(c.catalog, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
-			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(e BoundExpr) (BoundExpr, bool, error) {
+			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(e expr.Expr) (expr.Expr, bool, error) {
 				for i, original := range template.origins {
 					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil
@@ -328,7 +329,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 				continue
 			}
 			call := marker
-			args := append([]BoundExpr(nil), functionCallArguments(call)...)
+			args := append([]expr.Expr(nil), functionCallArguments(call)...)
 			for j, arg := range args {
 				args[j], err = rewrite(arg, level+1)
 				if err != nil {
@@ -356,9 +357,9 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	return root, nil
 }
 
-func (n *setProjectNode) appendScalar(expression BoundExpr, candidate, candidates int) {
+func (n *setProjectNode) appendScalar(expression expr.Expr, candidate, candidates int) {
 	if n.scalars == nil {
-		n.scalars = make([]BoundExpr, 0, candidates)
+		n.scalars = make([]expr.Expr, 0, candidates)
 	}
 	if n.scalarSlots != nil {
 		n.scalarSlots = append(n.scalarSlots, candidate)
@@ -453,7 +454,7 @@ func validateQuerySetStageOrder(original, executable []querySetStep, callSlots, 
 	return nil
 }
 
-func querySetProjectionDepth(expressions []BoundExpr) (int, bool) {
+func querySetProjectionDepth(expressions []expr.Expr) (int, bool) {
 	depth, upper := 0, false
 	for _, expression := range expressions {
 		current := querySetDepth(expression)
@@ -468,7 +469,7 @@ func querySetProjectionDepth(expressions []BoundExpr) (int, bool) {
 
 // Only the current owner's direct scalar roots or reserved scalar references
 // change ownership. Child query frames and unrelated scalar subexpressions do not.
-func queryScalarOwner(child LogicalNode, expression BoundExpr) (BoundExpr, bool) {
+func queryScalarOwner(child LogicalNode, expression expr.Expr) (expr.Expr, bool) {
 	for child != nil {
 		if node, ok := child.(*setProjectNode); ok {
 			for _, binding := range node.scalarBindings {
@@ -507,7 +508,7 @@ func queryScalarOwner(child LogicalNode, expression BoundExpr) (BoundExpr, bool)
 // A demanded level brings its peers and their lower dependencies, not unrelated
 // higher target levels. Templates retain complete scalar roots so simplification
 // can erase a peer's occurrence rather than making its extracted marker live.
-func querySetPeerClosure(requests []BoundExpr, companions [][]BoundExpr) ([]BoundExpr, []BoundExpr) {
+func querySetPeerClosure(requests []expr.Expr, companions [][]expr.Expr) ([]expr.Expr, []expr.Expr) {
 	depth := 0
 	for _, expression := range requests {
 		depth = max(depth, querySetDepth(expression))
@@ -515,11 +516,11 @@ func querySetPeerClosure(requests []BoundExpr, companions [][]BoundExpr) ([]Boun
 	if depth == 0 {
 		return requests, nil
 	}
-	templates := append([]BoundExpr(nil), requests...)
+	templates := append([]expr.Expr(nil), requests...)
 	for _, expressions := range companions {
 		templates = append(templates, expressions...)
 		for _, expression := range expressions {
-			walkBoundExpression(expression, func(marker BoundExpr) {
+			walkBoundExpression(expression, func(marker expr.Expr) {
 				if isQuerySet(marker) && querySetDepth(marker) <= depth {
 					requests = append(requests, marker)
 				}

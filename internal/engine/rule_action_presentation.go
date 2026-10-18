@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+)
 
 func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b binding) (*viewDefinition, error) {
 	if query, ok := action.(*parser.Select); ok {
@@ -28,7 +31,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	case *parser.Delete:
 		query.From = syntax.Using
 	}
-	var expressions []BoundExpr
+	var expressions []expr.Expr
 	for _, row := range b.expressions {
 		expressions = append(expressions, row...)
 	}

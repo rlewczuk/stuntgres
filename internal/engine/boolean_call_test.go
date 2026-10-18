@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 				t.Fatal(name, err)
 			}
 			p := node.Properties()
-			if node.ResultUsage() != b.typ(sqltype.Bool).Usage() || !p.ParameterDependent || p.RowDependent || p.Volatility != Stable {
+			if node.ResultUsage() != b.typ(sqltype.Bool).Usage() || !p.ParameterDependent || p.RowDependent || p.Volatility != expr.Stable {
 				t.Fatal(name, node.ResultUsage(), p)
 			}
 			info, err := b.finish()
@@ -31,7 +32,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 				t.Fatal(name, info, err)
 			}
 			found := false
-			walkBoundExpression(node, func(child BoundExpr) {
+			walkBoundExpression(node, func(child expr.Expr) {
 				if _, ok := child.(visibilityInquiryExpression); ok {
 					found = true
 				}

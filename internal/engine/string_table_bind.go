@@ -2,17 +2,18 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func isStringSet(expr BoundExpr) bool {
+func isStringSet(expr expr.Expr) bool {
 	e, ok := expr.(functions.String)
 	return ok && e.Plan.Name() == "string_to_table"
 }
-func isQuerySet(expr BoundExpr) bool {
+func isQuerySet(expr expr.Expr) bool {
 	if _, ok := expr.(catalogForeignKeysExpression); ok {
 		return true
 	}
@@ -36,7 +37,7 @@ func isQuerySet(expr BoundExpr) bool {
 	}
 	return isStringSet(expr)
 }
-func validFunctionSourceCall(expr BoundExpr) bool {
+func validFunctionSourceCall(expr expr.Expr) bool {
 	switch call := expr.(type) {
 	case functions.JSONBPathQuery, catalogUserNameExpression, catalogForeignKeysExpression:
 		return true
@@ -75,7 +76,7 @@ func selectedFunctionSourceName(name string) bool {
 }
 
 // A selected scalar OUT name controls the column label, not the range alias.
-func functionScalarOutName(expr BoundExpr) string {
+func functionScalarOutName(expr expr.Expr) string {
 	switch expr.(type) {
 	case functions.JSONElements, functions.JSONBElements:
 		return "value"
@@ -91,10 +92,10 @@ type fromSetObservation struct {
 }
 
 func nestedFromSetError(pos parser.Position) error {
-	return expressionError("0A000", "set-returning functions must appear at top level of FROM", pos)
+	return expr.ErrorAt("0A000", "set-returning functions must appear at top level of FROM", pos)
 }
 
-func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) {
 	before := b.fromSetObservation
 	expr, err := b.bindFunction(raw)
 	if err != nil {
@@ -108,12 +109,12 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 	}
 	return expr, nil
 }
-func functionCallArguments(bound BoundExpr) []BoundExpr {
+func functionCallArguments(bound expr.Expr) []expr.Expr {
 	switch call := bound.(type) {
 	case functions.JSONBPathQuery:
 		return call.Arguments()
 	case catalogUserNameExpression:
-		return []BoundExpr{call.arg}
+		return []expr.Expr{call.arg}
 	case catalogForeignKeysExpression:
 		return nil
 	case aclValueExpression:
@@ -126,12 +127,12 @@ func functionCallArguments(bound BoundExpr) []BoundExpr {
 		return call.Args
 	case transactionIdentityExpression:
 		if call.arg != nil {
-			return []BoundExpr{call.arg}
+			return []expr.Expr{call.arg}
 		}
 		return nil
 	case commitTimestampExpression:
 		if call.arg != nil {
-			return []BoundExpr{call.arg}
+			return []expr.Expr{call.arg}
 		}
 		return nil
 	case seriesExpression:
@@ -162,13 +163,13 @@ func functionCallArguments(bound BoundExpr) []BoundExpr {
 		return nil
 	}
 }
-func withFunctionCallArguments(bound BoundExpr, args []BoundExpr) (BoundExpr, error) {
+func withFunctionCallArguments(bound expr.Expr, args []expr.Expr) (expr.Expr, error) {
 	switch call := bound.(type) {
 	case functions.JSONBPathQuery:
 		if len(args) != 4 {
 			return nil, fmt.Errorf("invalid JSONPath query arguments")
 		}
-		return call.Reconstruct(call.Info, [4]BoundExpr{args[0], args[1], args[2], args[3]})
+		return call.Reconstruct(call.Info, [4]expr.Expr{args[0], args[1], args[2], args[3]})
 	case catalogUserNameExpression:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid catalog role-name arguments")
@@ -313,12 +314,12 @@ func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
 			message = "set-returning functions are not allowed in VALUES"
 		}
 	}
-	err := expressionError("0A000", message, pos).(*sqlstate.Error)
+	err := expr.ErrorAt("0A000", message, pos).(*sqlstate.Error)
 	err.Hint = hint
 	return err
 }
 func stringLateralError(q queryQualifier, pos parser.Position, target bool) error {
-	err := expressionError("42P10", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, q.name), pos).(*sqlstate.Error)
+	err := expr.ErrorAt("42P10", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, q.name), pos).(*sqlstate.Error)
 	if target {
 		err.Hint = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
 	} else {
@@ -333,7 +334,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	}
 	b.aggregateClause = "FROM"
 	defer func() { b.queryNamespace, b.aggregateClause = old, clause }()
-	calls := make([]BoundExpr, len(raw.Calls))
+	calls := make([]expr.Expr, len(raw.Calls))
 	schema := make(querySchema, len(calls))
 	ordinal := b.viewFunctionCount
 	b.viewFunctionCount += len(raw.Calls)
@@ -343,10 +344,10 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 			return nil, queryNamespace{}, err
 		}
 		if len(call.ColumnDefinitions) != 0 {
-			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(bound), call.ColumnDefinitions[0].Name.Pos)
+			return nil, queryNamespace{}, expr.ErrorAt("42601", functionColumnDefinitionMessage(bound), call.ColumnDefinitions[0].Name.Pos)
 		}
 		if !isStringSet(bound) {
-			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)
+			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", call.Pos)
 		}
 		calls[i] = bound
 		schema[i] = ColumnDescriptor{Name: "string_to_table", Usage: bound.ResultUsage()}
@@ -375,8 +376,8 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
-func (b *expressionBinder) mapQuerySetStage(bound BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
-	mapped, _, err := mapBoundExpression(b.bindingCatalog(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, func(e BoundExpr) (BoundExpr, bool, error) {
+func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
+	mapped, _, err := mapBoundExpression(b.bindingCatalog(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, func(e expr.Expr) (expr.Expr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
 		if _, ok := e.(*windowExpression); ok {
@@ -387,9 +388,9 @@ func (b *expressionBinder) mapQuerySetStage(bound BoundExpr, leaf func(BoundExpr
 	return mapped, err
 }
 
-func functionFrameReference(bound BoundExpr, frame uint32) bool {
+func functionFrameReference(bound expr.Expr, frame uint32) bool {
 	found := false
-	walkQueryArgumentExpression(bound, func(node BoundExpr) {
+	walkQueryArgumentExpression(bound, func(node expr.Expr) {
 		if column, ok := node.(columnExpression); ok && column.frame == frame {
 			found = true
 		}
@@ -419,11 +420,11 @@ func (b *expressionBinder) stringFromContext() bool {
 	return false
 }
 
-func (b *expressionBinder) functionCaptures(calls []BoundExpr) []functionCorrelation {
+func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrelation {
 	var captures []functionCorrelation
 	for _, call := range calls {
 		for _, arg := range functionCallArguments(call) {
-			walkQueryArgumentExpression(arg, func(expr BoundExpr) {
+			walkQueryArgumentExpression(arg, func(expr expr.Expr) {
 				column, ok := expr.(columnExpression)
 				if !ok || column.frame != b.frameID() {
 					return

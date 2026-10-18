@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 		if n.Plan.Name() == "to_ascii" {
 			slot = 1
 		}
-		if n.Plan.ArgumentUsage(slot).Type.ID() != tc.formal || n.ResultUsage().Type.ID() != tc.result || n.Properties().Volatility != Immutable || n.Plan.SessionDependent() {
+		if n.Plan.ArgumentUsage(slot).Type.ID() != tc.formal || n.ResultUsage().Type.ID() != tc.result || n.Properties().Volatility != expr.Immutable || n.Plan.SessionDependent() {
 			t.Fatal("formal role/properties", tc, n)
 		}
 		if tc.parameter != 0 && (b.parameters[tc.parameter].Type.ID() != tc.formal || !n.Properties().ParameterDependent) {
@@ -95,9 +96,9 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, name := b.typ(sqltype.Text), b.typ(sqltype.Name)
-	args := []BoundExpr{
-		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable, ParameterDependent: true}}, sqltype.Null(text)},
-		literalExpression{expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, sqltype.String(name, "nope")},
+	args := []expr.Expr{
+		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable, ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expr.Info{Usage: name.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, sqltype.String(name, "nope")},
 	}
 	node, err := b.stringNode("to_ascii", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
@@ -105,10 +106,10 @@ func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	}
 	// Keep generic property/group identity/preflight integration here. The
 	// actual carrier's NULL/error runtime demand lives in its local unit.
-	if node.Properties().Volatility != Volatile || !node.Properties().ParameterDependent || !node.Properties().RowDependent {
+	if node.Properties().Volatility != expr.Volatile || !node.Properties().ParameterDependent || !node.Properties().RowDependent {
 		t.Fatal("once-analyzed child properties", node.Properties())
 	}
-	bind := func(query string) BoundExpr {
+	bind := func(query string) expr.Expr {
 		t.Helper()
 		node, err := b.bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
@@ -356,7 +357,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 		}
 	}
 	column := project.expressions[0].(columnExpression)
-	for _, expr := range []BoundExpr{sequenceCallExpression{}, functions.Random{}, advisoryExpression{}, subqueryExpression{}, queryProbe(column.ResultUsage(), nil)} {
+	for _, expr := range []expr.Expr{sequenceCallExpression{}, functions.Random{}, advisoryExpression{}, subqueryExpression{}, queryProbe(column.ResultUsage(), nil)} {
 		if parallelQueryExpression(expr, project.frame, len(project.child.Schema())) {
 			t.Fatalf("unsafe/unknown %T admitted", expr)
 		}
@@ -419,7 +420,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var calls atomic.Int64
-			probe := func(usage sqltype.Usage) BoundExpr {
+			probe := func(usage sqltype.Usage) expr.Expr {
 				return queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls.Add(1)
 					cancel()

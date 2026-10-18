@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -25,20 +26,20 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		name       string
 		args       []parser.Expr
 		result     sqltype.ID
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{"age", []parser.Expr{ageFiniteTyped("timestamp", "2000-01-01")}, sqltype.Interval, Stable},
-		{"age", []parser.Expr{ageFiniteTyped("timestamp", "2004-06-01"), ageFiniteTyped("date", "2004-04-30")}, sqltype.Interval, Immutable},
-		{"isfinite", []parser.Expr{ageFiniteTyped("date", "infinity")}, sqltype.Bool, Immutable},
-		{"isfinite", []parser.Expr{ageFiniteTyped("timestamp", "infinity")}, sqltype.Bool, Immutable},
-		{"isfinite", []parser.Expr{ageFiniteTyped("interval", "infinity")}, sqltype.Bool, Immutable},
+		{"age", []parser.Expr{ageFiniteTyped("timestamp", "2000-01-01")}, sqltype.Interval, expr.Stable},
+		{"age", []parser.Expr{ageFiniteTyped("timestamp", "2004-06-01"), ageFiniteTyped("date", "2004-04-30")}, sqltype.Interval, expr.Immutable},
+		{"isfinite", []parser.Expr{ageFiniteTyped("date", "infinity")}, sqltype.Bool, expr.Immutable},
+		{"isfinite", []parser.Expr{ageFiniteTyped("timestamp", "infinity")}, sqltype.Bool, expr.Immutable},
+		{"isfinite", []parser.Expr{ageFiniteTyped("interval", "infinity")}, sqltype.Bool, expr.Immutable},
 	} {
 		node, err := b.bindFunctionProvider(datetimeMakeRaw(tc.name, tc.args...))
 		if err != nil {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeAgeFinite)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties())
 		}
 		if !b.sameGroupExpression(e, e) {

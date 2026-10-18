@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -30,18 +31,18 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.DatetimeFormatting{Info: expressionInfo{Usage: result.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: [2]BoundExpr{
-			literalExpression{expressionInfo{Usage: source.Usage()}, sqltype.Null(source)},
-			literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, template)},
+		node := functions.DatetimeFormatting{Info: expr.Info{Usage: result.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: [2]expr.Expr{
+			literalExpression{expr.Info{Usage: source.Usage()}, sqltype.Null(source)},
+			literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, template)},
 		}}
-		if plannedVolatility(node) != Stable || generationImmutable(node) {
+		if plannedVolatility(node) != expr.Stable || generationImmutable(node) {
 			t.Fatal("lost intrinsic STABLE classification", signature)
 		}
 		if !b.sameGroupExpression(node, node) {
 			t.Fatal("semantic identity lost", signature)
 		}
 		other := node
-		other.Args[1] = literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "MM")}
+		other.Args[1] = literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "MM")}
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}
@@ -98,7 +99,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 			t.Fatal(signature, err)
 		}
 		node, ok := bound.(functions.DatetimeFormatting)
-		if !ok || node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable {
+		if !ok || node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != expr.Stable {
 			t.Fatal("signature authority", signature, bound)
 		}
 	}

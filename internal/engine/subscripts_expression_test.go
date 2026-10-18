@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -40,13 +41,13 @@ func subscriptsUnit(t *testing.T, view CatalogRead, dimensions []sqltype.ArrayDi
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := subscriptsExpression{Info: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}, args: []BoundExpr{
-		literalExpression{Info: expressionInfo{Usage: array.Usage()}, value: value},
-		literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: integer},
+	e := subscriptsExpression{Info: expr.Info{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: expr.Properties{StageDependent: true}}, args: []expr.Expr{
+		literalExpression{Info: expr.Info{Usage: array.Usage()}, value: value},
+		literalExpression{Info: expr.Info{Usage: d.Usage()}, value: integer},
 	}}
 	if len(reverse) != 0 {
 		boolean, _ := view.LookupType(sqltype.Bool)
-		e.args = append(e.args, literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, reverse[0])})
+		e.args = append(e.args, literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, reverse[0])})
 	}
 	return e
 }
@@ -145,7 +146,7 @@ func TestSubscriptsCursor(t *testing.T) {
 	}
 	e := subscriptsUnit(t, view, dims, 2, true)
 	sentinel := errors.New("later child")
-	e.args[0] = literalExpression{Info: expressionInfo{Usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
+	e.args[0] = literalExpression{Info: expr.Info{Usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
 	e.args[1] = queryProbe(e.args[1].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
 	e.args[2] = queryProbe(e.args[2].ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("evaluation continued after child error")
@@ -221,12 +222,12 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		t.Fatal(got)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n BoundExpr) {
+	walkBoundExpression(original, func(n expr.Expr) {
 		if _, ok := n.(literalExpression); ok {
 			walked++
 		}
 	})
-	if walked != 3 || plannedVolatility(original) != Immutable || querySetDepth(original) != 1 || !sameGroupExpression(original, original) {
+	if walked != 3 || plannedVolatility(original) != expr.Immutable || querySetDepth(original) != 1 || !sameGroupExpression(original, original) {
 		t.Fatal("visitor identity", walked)
 	}
 	other := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1, false)
@@ -237,11 +238,11 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	if err != nil || !sameGroupExpression(original, clone) {
 		t.Fatal("remap", clone, err)
 	}
-	for _, fold := range []func() (BoundExpr, bool, error){
-		func() (BoundExpr, bool, error) {
+	for _, fold := range []func() (expr.Expr, bool, error){
+		func() (expr.Expr, bool, error) {
 			return preflightCoercions(&EvalContext{Context: context.Background(), catalog: view}, original)
 		},
-		func() (BoundExpr, bool, error) {
+		func() (expr.Expr, bool, error) {
 			return simplifyConditional(&EvalContext{Context: context.Background(), catalog: view}, original, false)
 		},
 	} {
@@ -259,15 +260,15 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		t.Fatal(tree, err)
 	}
 	volatile := original
-	volatile.args = append([]BoundExpr(nil), original.args...)
+	volatile.args = append([]expr.Expr(nil), original.args...)
 	probe := queryProbe(original.args[2].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, nil }).(queryProbeExpression)
-	probe.Property.Volatility = Volatile
+	probe.Property.Volatility = expr.Volatile
 	volatile.args[2] = probe
-	if plannedVolatility(volatile) != Volatile {
+	if plannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("reverse child volatility erased")
 	}
 	replacement := other.args[2]
-	n, did, err := original.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+	n, did, err := original.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
 		if arg == original.args[2] {
 			return replacement, true, nil
 		}
@@ -283,7 +284,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 
 func subscriptsUnitProject(t *testing.T, engine *Engine, bound subscriptsExpression) *projectNode {
 	t.Helper()
-	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{bound}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []expr.Expr{bound}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,8 +375,8 @@ func TestSubscriptsFinalization(t *testing.T) {
 		calls := 0
 		sentinel := errors.New("later subscripts argument")
 		value := e.args[0].(literalExpression).value
-		input := &valuesNode{rows: [][]BoundExpr{{}, {}}}
-		root, outputs, err := regexpSetUnitLower(engine, input, []BoundExpr{e}, 1)
+		input := &valuesNode{rows: [][]expr.Expr{{}, {}}}
+		root, outputs, err := regexpSetUnitLower(engine, input, []expr.Expr{e}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -399,7 +400,7 @@ func TestSubscriptsFinalization(t *testing.T) {
 			defer cancel()
 			calls := 0
 			sentinel := errors.New("late subscripts projection")
-			q.expressions = []BoundExpr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			q.expressions = []expr.Expr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				if calls == 2 {
 					if phase == "cancel" {

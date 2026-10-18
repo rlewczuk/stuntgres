@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -62,7 +63,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	in.rowRef, in.slots = in.rowMapper(destination, e.CatalogRead())
 	columnRef := ref
 	columnRef.Address.SubID = 3
-	column := columnExpression{Info: expressionInfo{Usage: testUsage(e, sqltype.Int4)}, origin: columnRef, scope: 1, frame: 1, slot: 1}
+	column := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: columnRef, scope: 1, frame: 1, slot: 1}
 	mapped, err := in.remap(column, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +72,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if got.origin.Domain() != e.catalog.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
 		t.Fatal(got, column)
 	}
-	owner := tableOIDExpression{Info: expressionInfo{Usage: testUsage(e, sqltype.Oid)}, owner: ref}
+	owner := tableOIDExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, owner: ref}
 	mapped, err = in.remap(owner, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +81,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
-	literal := literalExpression{Info: expressionInfo{Usage: usage, RegclassRef: ref}, value: sqltype.Null(usage.Type)}
+	literal := literalExpression{Info: expr.Info{Usage: usage, RegclassRef: ref}, value: sqltype.Null(usage.Type)}
 	mapped, err = in.remap(literal, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)

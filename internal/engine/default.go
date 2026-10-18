@@ -19,7 +19,7 @@ import (
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
 	OID                    ids.OID
-	expression             BoundExpr
+	expression             expr.Expr
 	dependencies           []ids.ObjectRef
 	catalogSnapshot        bool
 	catalogAliasReferences bool
@@ -29,14 +29,14 @@ type columnDefault struct {
 // Cooked copies supply no position: their original call token is not in LIKE SQL.
 func validateDefaultTemporaryProvider(provider, consumer ids.SessionToken, position parser.Position) error {
 	if provider != (ids.SessionToken{}) && provider != consumer {
-		return expressionError("0A000", "temporary sequence DEFAULT is unsupported", position)
+		return expr.ErrorAt("0A000", "temporary sequence DEFAULT is unsupported", position)
 	}
 	return nil
 }
 
-func validateCookedDefaultTemporary(node BoundExpr, consumer ids.SessionToken) error {
+func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) error {
 	var err error
-	walkBoundExpression(node, func(node BoundExpr) {
+	walkBoundExpression(node, func(node expr.Expr) {
 		if err != nil {
 			return
 		}
@@ -47,7 +47,7 @@ func validateCookedDefaultTemporary(node BoundExpr, consumer ids.SessionToken) e
 	return err
 }
 
-func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (BoundExpr, error) {
+func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (expr.Expr, error) {
 	// Recursive binding carries this consumer policy through Boolean and
 	// comparison children, preserving their ordinary diagnostic order.
 	previous := b.defaultConsumer
@@ -61,8 +61,8 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	if err != nil {
 		return nil, err
 	}
-	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) {
-		return nil, expressionError("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
+	if node.Properties().Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) {
+		return nil, expr.ErrorAt("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
 		input, annotations := domainCoercionInput(node, column.Usage)
@@ -149,17 +149,17 @@ type scalarRenderer struct {
 	uuidShiftIntervalNulls bool
 }
 
-func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
+func defaultSQL(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
 	return (scalarRenderer{}).sql(ctx, view, node)
 }
 
-func renderColumnDefault(ctx context.Context, view CatalogRead, node BoundExpr) (string, []ids.ObjectRef, error) {
+func renderColumnDefault(ctx context.Context, view CatalogRead, node expr.Expr) (string, []ids.ObjectRef, error) {
 	var dependencies []ids.ObjectRef
 	text, err := (scalarRenderer{dependencies: &dependencies}).sql(ctx, view, node)
 	return text, dependencies, err
 }
 
-func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
+func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -167,7 +167,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.definition, u); err != nil {
@@ -259,7 +259,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if clock, ok := definitionTypeAt(view, r.definition, sqltype.Timestamptz); !ok || clock != n.ClockUsage.Type {
 			return "", fmt.Errorf("stuntgres: foreign datetime sleep clock type")
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.Kind.Name(), []BoundExpr{n.Arg})
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Kind.Name(), []expr.Expr{n.Arg})
 	case advisoryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -322,7 +322,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if r.visibilitySnapshot != nil {
 			*r.visibilitySnapshot = true
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), []BoundExpr{n.arg})
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), []expr.Expr{n.arg})
 	case commentInquiryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: comment inquiries are unsupported in stored defaults")
@@ -342,7 +342,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if len(n.args) != arity || u != u.Type.Usage() || u.Type.ID() != sqltype.Text {
 			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry signature")
 		}
-		properties := ExprProperties{Volatility: Stable}
+		properties := expr.Properties{Volatility: expr.Stable}
 		for i, arg := range n.args {
 			id := sqltype.Oid
 			if i == 1 {
@@ -370,19 +370,19 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage().Type.ID() != sqltype.Bool || u.Type.ID() != sqltype.NameArray {
 			return "", fmt.Errorf("stuntgres: invalid stored current_schemas signature")
 		}
-		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []BoundExpr{n.arg})
+		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []expr.Expr{n.arg})
 	case objectAddressExpression:
 		if r.commentSnapshot != nil {
 			*r.commentSnapshot = true
 		}
-		return n.sql("pg_catalog."+n.op.name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+		return n.sql("pg_catalog."+n.op.name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 	case aclValueExpression:
-		return n.sql(func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+		return n.sql(func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 	case objectACLExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")
 		}
-		return n.sql("pg_catalog.pg_get_acl", func(arg BoundExpr) (string, error) {
+		return n.sql("pg_catalog.pg_get_acl", func(arg expr.Expr) (string, error) {
 			return r.sql(ctx, view, arg)
 		})
 	case accessInquiryExpression:
@@ -545,9 +545,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	case functions.Timezone:
 		if n.Function {
 			if n.Local {
-				return r.functionSQL(ctx, view, "pg_catalog.timezone", []BoundExpr{n.Value})
+				return r.functionSQL(ctx, view, "pg_catalog.timezone", []expr.Expr{n.Value})
 			}
-			return r.functionSQL(ctx, view, "pg_catalog.timezone", []BoundExpr{n.Zone, n.Value})
+			return r.functionSQL(ctx, view, "pg_catalog.timezone", []expr.Expr{n.Zone, n.Value})
 		}
 		value, err := r.sql(ctx, view, n.Value)
 		if err != nil {
@@ -646,7 +646,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.namespace != "" {
 			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
 		}
-		operandSQL := func(child BoundExpr) (string, error) {
+		operandSQL := func(child expr.Expr) (string, error) {
 			text, err := r.sql(ctx, view, child)
 			if err != nil {
 				return "", err
@@ -681,8 +681,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		namespace := view.Get(d.namespace).Name()
 		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.name + ")"
-		var operands []BoundExpr
-		boundExpressionChildren(n.provider, func(arg BoundExpr) {
+		var operands []expr.Expr
+		boundExpressionChildren(n.provider, func(arg expr.Expr) {
 			if arg != nil {
 				operands = append(operands, arg)
 			}
@@ -734,7 +734,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.namespace != "" {
 			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
 		}
-		operandSQL := func(child BoundExpr) (string, error) {
+		operandSQL := func(child expr.Expr) (string, error) {
 			text, err := r.sql(ctx, view, child)
 			if err != nil {
 				return "", err
@@ -869,9 +869,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", err
 			}
 		}
-		return renderRowComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
+		return renderRowComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
 	case functions.Regexp:
-		return regexpSQL(n.RegexpCall, "pg_catalog."+n.Plan.Name(), func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
+		return regexpSQL(n.RegexpCall, "pg_catalog."+n.Plan.Name(), func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
 	case scalarArrayComparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || (n.array == nil) == (len(n.items) == 0) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate")
@@ -885,7 +885,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil || !predicate.Equal(n.predicate) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate binding")
 		}
-		return renderScalarArrayComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
+		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
@@ -1020,7 +1020,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 // A captured NAME literal would otherwise replay as unknown and resolve to TEXT
 // inside a string call. Keep its admitted type without changing general literal
 // serialization or the generation-owned literal slots used for CHECK rebinding.
-func (r scalarRenderer) stringArgumentSQL(ctx context.Context, view CatalogRead, arg BoundExpr) (string, error) {
+func (r scalarRenderer) stringArgumentSQL(ctx context.Context, view CatalogRead, arg expr.Expr) (string, error) {
 	text, err := r.sql(ctx, view, arg)
 	if err != nil {
 		return "", err
@@ -1031,7 +1031,7 @@ func (r scalarRenderer) stringArgumentSQL(ctx context.Context, view CatalogRead,
 	return text, nil
 }
 
-func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []BoundExpr) (string, error) {
+func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []expr.Expr) (string, error) {
 	parts := make([]string, len(args))
 	for i, arg := range args {
 		text, err := r.sql(ctx, view, arg)

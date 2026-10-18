@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -18,7 +19,7 @@ type restoredHistoricalFact struct {
 	name                string
 	check               bool
 	attributes          []int32
-	expression          BoundExpr
+	expression          expr.Expr
 	notValid, noInherit bool
 	local               bool
 	count               int
@@ -78,9 +79,9 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 	return maximum
 }
 
-func constraintAttributeKeys(table *relationDescriptor, expression BoundExpr) []int32 {
+func constraintAttributeKeys(table *relationDescriptor, expression expr.Expr) []int32 {
 	var keys []int32
-	walkBoundExpression(expression, func(node BoundExpr) {
+	walkBoundExpression(expression, func(node expr.Expr) {
 		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.address.ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
 			keys = append(keys, column.origin.Address.SubID)
 		}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -22,12 +23,12 @@ func (n installedFunctionExpression) validProvider() bool {
 		return false
 	}
 	if p.fuzzy != nil {
-		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == expr.Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
-	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == Stable && p.strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
+	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == expr.Stable && p.strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
 }
 
-func (n installedFunctionExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n installedFunctionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err := evaluationContext(evalContext(ctx)); err != nil {
 		return sqltype.Value{}, err
 	}

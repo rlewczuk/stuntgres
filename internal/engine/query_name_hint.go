@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
@@ -67,7 +68,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 			if c.descriptor.Name == name {
 				exactAttributes++
 				if exactAttributes > 1 {
-					return "", "", expressionError("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), pos)
+					return "", "", expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), pos)
 				}
 			}
 		}

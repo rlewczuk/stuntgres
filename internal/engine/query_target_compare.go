@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
@@ -20,13 +21,13 @@ type queryTargetOccurrence struct {
 
 // Query target resolution can normalize independently analyzed child frames;
 // ordinary grouping comparison keeps its conservative identity contract.
-func (b *expressionBinder) sameQueryTarget(a, c BoundExpr) bool {
+func (b *expressionBinder) sameQueryTarget(a, c expr.Expr) bool {
 	return b.sameGroupExpression(a, c) || b.sameSubqueryTarget(a, c)
 }
 
-func (b *expressionBinder) sameSubqueryTarget(a, c BoundExpr) bool {
+func (b *expressionBinder) sameSubqueryTarget(a, c expr.Expr) bool {
 	found := false
-	walkBoundExpression(a, func(e BoundExpr) {
+	walkBoundExpression(a, func(e expr.Expr) {
 		if _, ok := e.(subqueryExpression); ok {
 			found = true
 		}
@@ -67,7 +68,7 @@ func (c *queryTargetComparison) pairOccurrence(a, b int) bool {
 	c.occurrences = append(c.occurrences, queryTargetOccurrence{c.leftFrame, c.rightFrame, a, b})
 	return true
 }
-func (c *queryTargetComparison) expressions(b *expressionBinder, a, d []BoundExpr) bool {
+func (c *queryTargetComparison) expressions(b *expressionBinder, a, d []expr.Expr) bool {
 	if len(a) != len(d) {
 		return false
 	}
@@ -132,7 +133,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 	if !c.sameQuery(b, left, otherLeft) || !c.sameQuery(b, right, otherRight) {
 		return false
 	}
-	same := func(a, d BoundExpr) bool { return b.sameGroupExpressionIn(a, d, c) }
+	same := func(a, d expr.Expr) bool { return b.sameGroupExpressionIn(a, d, c) }
 	switch n := a.(type) {
 	case *functionFromNode:
 		o, ok := d.(*functionFromNode)

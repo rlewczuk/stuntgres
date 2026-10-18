@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -26,7 +27,7 @@ func TestStringSliceFormalInference(t *testing.T) {
 				args[1] = parser.CastExpr{Child: args[1], TypeName: parser.TypeName{Name: "int4"}, Syntax: parser.PostfixCast}
 			}
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
-			var node BoundExpr
+			var node expr.Expr
 			var err error
 			if name == "substring" || name == "substr" {
 				node, err = functions.BindBinary(b, raw, true)
@@ -85,20 +86,20 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 		if name == "substring" || name == "substr" {
 			arity = 3
 		}
-		args := make([]BoundExpr, arity)
+		args := make([]expr.Expr, arity)
 		for i := range arity {
 			typ := integer
 			if i == 0 {
 				typ = text
 			}
-			args[i] = columnExpression{Info: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, slot: i}
+			args[i] = columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, slot: i}
 		}
 		node, err := b.stringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var slots []int
-		walkBoundExpression(node, func(child BoundExpr) {
+		walkBoundExpression(node, func(child expr.Expr) {
 			if col, ok := child.(columnExpression); ok {
 				slots = append(slots, col.slot)
 			}
@@ -118,10 +119,10 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
-	args := []BoundExpr{
-		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
-		literalExpression{expressionInfo{Usage: integer.Usage()}, two},
-		literalExpression{expressionInfo{Usage: integer.Usage()}, one},
+	args := []expr.Expr{
+		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
+		literalExpression{expr.Info{Usage: integer.Usage()}, two},
+		literalExpression{expr.Info{Usage: integer.Usage()}, one},
 	}
 	ordinary, err := b.stringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {

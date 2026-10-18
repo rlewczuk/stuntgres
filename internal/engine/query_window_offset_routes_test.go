@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,28 +37,28 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	b.queryFrame = 7
 	marker := stringSplitMarker(t, b, 11, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
 	peer := stringSplitMarker(t, b, 21, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))
-	markerArgs := append([]BoundExpr(nil), functionCallArguments(marker)...)
-	peerArgs := append([]BoundExpr(nil), functionCallArguments(peer)...)
+	markerArgs := append([]expr.Expr(nil), functionCallArguments(marker)...)
+	peerArgs := append([]expr.Expr(nil), functionCallArguments(peer)...)
 	argument := stringSplitLiteral(b, "value")
 	offset, err := sqltype.Integer(b.typ(sqltype.Int4), 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinal := literalExpression{Info: expressionInfo{Usage: b.typ(sqltype.Int4).Usage()}, value: offset}
+	ordinal := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, value: offset}
 	tail := stringSplitLiteral(b, "tail")
 	retainedCalls := []windowCall{
 		{operation: windowLead, argument: argument, ordinal: ordinal, defaultValue: marker},
 		{operation: windowLag, argument: argument, ordinal: ordinal, defaultValue: tail},
 	}
-	retainedSpecs := []boundWindowSpec{{partition: []BoundExpr{stringSplitLiteral(b, "partition")}, order: []sortKey{{expression: stringSplitLiteral(b, "order")}}}}
-	retainedCompanion := []BoundExpr{marker, peer}
+	retainedSpecs := []boundWindowSpec{{partition: []expr.Expr{stringSplitLiteral(b, "partition")}, order: []sortKey{{expression: stringSplitLiteral(b, "order")}}}}
+	retainedCompanion := []expr.Expr{marker, peer}
 	calls := append([]windowCall(nil), retainedCalls...)
 	specs := append([]boundWindowSpec(nil), retainedSpecs...)
-	companion := append([]BoundExpr(nil), retainedCompanion...)
+	companion := append([]expr.Expr(nil), retainedCompanion...)
 	// This mechanics test supplies a real pre-lowering marker, not public SQL
 	// admitting an SRF inside a window call. The lowering contract must transform
 	// every owned request and corresponding companion without changing its inputs.
-	root, err := b.lowerStringWindowSpecs(&singletonNode{}, specs, calls, [][]BoundExpr{companion})
+	root, err := b.lowerStringWindowSpecs(&singletonNode{}, specs, calls, [][]expr.Expr{companion})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if !reflect.DeepEqual(calls[0].argument, argument) || !reflect.DeepEqual(calls[0].ordinal, ordinal) || !reflect.DeepEqual(calls[1], retainedCalls[1]) {
 		t.Fatal("ordered default writeback displaced another child", calls)
 	}
-	if !reflect.DeepEqual(functionCallArguments(marker), markerArgs) || !reflect.DeepEqual(functionCallArguments(peer), peerArgs) || !reflect.DeepEqual(retainedCalls[0].defaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []BoundExpr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].partition, []BoundExpr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].order, []sortKey{{expression: stringSplitLiteral(b, "order")}}) {
+	if !reflect.DeepEqual(functionCallArguments(marker), markerArgs) || !reflect.DeepEqual(functionCallArguments(peer), peerArgs) || !reflect.DeepEqual(retainedCalls[0].defaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].order, []sortKey{{expression: stringSplitLiteral(b, "order")}}) {
 		t.Fatal("lowering mutated retained input ownership")
 	}
 	node, ok := root.(*setProjectNode)
@@ -100,7 +101,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 		}
 		evaluation.Row = stage.source.row(stage.index(occurrence))
 		row := make([]any, 4)
-		for i, expr := range []BoundExpr{calls[0].defaultValue, companion[0], companion[1], calls[1].defaultValue} {
+		for i, expr := range []expr.Expr{calls[0].defaultValue, companion[0], companion[1], calls[1].defaultValue} {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
 				t.Fatal(err)

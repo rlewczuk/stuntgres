@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -39,7 +40,7 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 			continue
 		}
 		properties := key.expression.Properties()
-		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != Volatile {
+		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
 		if key.cache >= len(evaluation.orderValues) {
@@ -56,7 +57,7 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 	}
 	for i, bound := range n.outputs {
 		properties := bound.Properties()
-		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != Volatile {
+		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
 		slot := n.cacheWidth - len(n.outputs) + i

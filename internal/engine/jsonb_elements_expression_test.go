@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -22,15 +23,15 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{Info: expressionInfo{Usage: b.typ(sqltype.JSONB).Usage()}, value: value}
-		original, err := functions.NewJSONBElements(expressionInfo{Usage: b.typ(id).Usage(), Pos: parser.Position{Offset: 20, Character: 21}, Property: ExprProperties{StageDependent: true}}, name, BoundExpr(arg))
+		arg := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.JSONB).Usage()}, value: value}
+		original, err := functions.NewJSONBElements(expr.Info{Usage: b.typ(id).Usage(), Pos: parser.Position{Offset: 20, Character: 21}, Property: expr.Properties{StageDependent: true}}, name, expr.Expr(arg))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if _, err := original.Reconstruct(original.Info, nil); err == nil {
 			t.Fatal("zero children accepted")
 		}
-		if _, err := original.Reconstruct(original.Info, []BoundExpr{arg, arg}); err == nil {
+		if _, err := original.Reconstruct(original.Info, []expr.Expr{arg, arg}); err == nil {
 			t.Fatal("two children accepted")
 		}
 		if _, err := original.Eval(&EvalContext{Context: context.Background()}); err == nil {
@@ -42,7 +43,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal(changed, err)
 		}
 		next := mapped.(functions.JSONBElements)
-		assertFirst := func(call BoundExpr, result *sqltype.Descriptor, want string) {
+		assertFirst := func(call expr.Expr, result *sqltype.Descriptor, want string) {
 			t.Helper()
 			cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, call)
 			if err != nil {
@@ -59,13 +60,13 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			}
 		}
 		assertFirst(next, fresh[id], "1")
-		root := &functionFromNode{calls: []BoundExpr{original}, querySchema: querySchema{{Usage: original.ResultUsage()}}, frame: 1}
+		root := &functionFromNode{calls: []expr.Expr{original}, querySchema: querySchema{{Usage: original.ResultUsage()}}, frame: 1}
 		replacementValue, err := b.typ(sqltype.JSONB).Input(context.Background(), `[9]`, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
 		replacement := queryProbe(arg.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return replacementValue, nil })
-		rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return replacement, true, nil
 			}
@@ -79,7 +80,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		draws := 0
 		// Use the reminted argument captured before replacing its expression.
 		input := mapped.(functions.JSONBElements).Args[0]
-		next.Args = []BoundExpr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *EvalContext) (sqltype.Value, error) { draws++; return input.Eval(c) })}
+		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *EvalContext) (sqltype.Value, error) { draws++; return input.Eval(c) })}
 		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
 		if err != nil {
 			t.Fatal(err)
@@ -105,7 +106,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal("repeated child evaluation", draws)
 		}
 		failure := errors.New("selected child failure")
-		next.Args = []BoundExpr{queryProbe(fresh[sqltype.JSONB].Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+		next.Args = []expr.Expr{queryProbe(fresh[sqltype.JSONB].Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		if c, err := openFunctionCall(&EvalContext{Context: context.Background()}, next); !errors.Is(err, failure) || c.initialized {
 			t.Fatal("published failed invocation", c, err)
 		}

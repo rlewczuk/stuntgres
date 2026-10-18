@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -39,10 +40,10 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
-			if carrier.Properties().Volatility != Stable || generationImmutable(carrier) {
+			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
 				t.Fatal("address inquiry lost STABLE boundary")
 			}
 			owned, ok := evaluation.catalog.Procedure(address)
@@ -188,7 +189,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if tc.parameter {
 				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.parameters[1].Type)}
 			}
-			originalCalls := append([]BoundExpr(nil), source.calls...)
+			originalCalls := append([]expr.Expr(nil), source.calls...)
 			originalSchema := append(querySchema(nil), source.querySchema...)
 			originalManifest := append([]expressionDependency(nil), binder.dependencies...)
 			planned, err := preflightFunctionFrom(&evaluation, source)
@@ -206,7 +207,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			// Dependency/render walkers must still see the original callable,
 			// even though this execution has no invocation/argument demand.
 			seen := 0
-			queryExpressions(execution, func(call BoundExpr) {
+			queryExpressions(execution, func(call expr.Expr) {
 				seen++
 				if ref, err := expressionRoutineDescriptor(call); err != nil || ref == nil {
 					t.Fatal("lost original callable", ref, err)
@@ -288,7 +289,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	// still refuse to cross the domain conversion itself.
 	for _, planner := range []struct {
 		name string
-		run  func(*EvalContext, BoundExpr, bool) (BoundExpr, bool, error)
+		run  func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error)
 	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
 		t.Run("domain_sibling_"+planner.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "($1::integer)+(NULL::strict_null_checked)::integer")
@@ -296,9 +297,9 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			if !node.Properties().RuntimeDomainConversion {
 				t.Fatal("fixture lost genuine domain-conversion sibling")
 			}
-			before := boundExpressionInfo(node)
+			before := expr.InfoOf(node)
 			proofs, barriers := 0, 0
-			strictRoutineArguments(node, func(argument BoundExpr) {
+			strictRoutineArguments(node, func(argument expr.Expr) {
 				known, err := executionKnownNullArgument(&evaluation, argument)
 				if err != nil {
 					t.Fatal(err)
@@ -327,7 +328,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			if ref, err := expressionRoutineDescriptor(folded); err != nil || ref != nil {
 				t.Fatal("pruned callable identity", ref, err)
 			}
-			if folded.Properties() != node.Properties() || !reflect.DeepEqual(before, boundExpressionInfo(node)) {
+			if folded.Properties() != node.Properties() || !reflect.DeepEqual(before, expr.InfoOf(node)) {
 				t.Fatal("generic pruning changed conservative properties/original Info")
 			}
 		})
@@ -337,7 +338,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if len(binder.parameters) != 0 {
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.parameters[1].Type)}
 		}
-		before := boundExpressionInfo(node)
+		before := expr.InfoOf(node)
 		folded, changed, err := preflightCoercions(&evaluation, node)
 		if err != nil || !changed || !randomLiteralNull(folded) {
 			t.Fatal("scalar NULL folding", changed, err)
@@ -348,7 +349,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if ref, err := expressionRoutineDescriptor(node); err != nil || ref == nil || ref.address.ObjectID != 3537 {
 			t.Fatal("folding erased original identity", ref, err)
 		}
-		if folded.ResultUsage() != node.ResultUsage() || !reflect.DeepEqual(before, boundExpressionInfo(node)) {
+		if folded.ResultUsage() != node.ResultUsage() || !reflect.DeepEqual(before, expr.InfoOf(node)) {
 			t.Fatal("folding changed original source info")
 		}
 		value, err := folded.Eval(&evaluation)
@@ -365,7 +366,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			t.Fatal("literal-sibling source binding", bindErr)
 		}
 		source := query.Root.(*projectNode).child.(*functionFromNode)
-		sourceInfo := boundExpressionInfo(source.calls[0])
+		sourceInfo := expr.InfoOf(source.calls[0])
 		sourceSchema := append(querySchema(nil), source.querySchema...)
 		sourceManifest := append([]expressionDependency(nil), sourceBinder.dependencies...)
 		sourceEvaluation := evaluation
@@ -383,7 +384,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}
 		cursor.close()
-		if source.scalarNull != nil || !reflect.DeepEqual(sourceInfo, boundExpressionInfo(source.calls[0])) || !reflect.DeepEqual(sourceSchema, execution.querySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.dependencies) {
+		if source.scalarNull != nil || !reflect.DeepEqual(sourceInfo, expr.InfoOf(source.calls[0])) || !reflect.DeepEqual(sourceSchema, execution.querySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.dependencies) {
 			t.Fatal("literal sibling pruning changed original Info/schema/manifest")
 		}
 	}
@@ -416,7 +417,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	if !domain.IsDomain() || !domain.HasDomainChecks() {
 		t.Fatal("parameter lost genuine domain input authority")
 	}
-	before := boundExpressionInfo(node)
+	before := expr.InfoOf(node)
 	manifest := append([]expressionDependency(nil), binder.dependencies...)
 	input := evaluation.Input
 	input.DomainChecks = &evaluation
@@ -444,7 +445,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	if err != nil || !result.IsNull() || result.Type() != node.ResultUsage().Type {
 		t.Fatal("imported-domain sibling result", result, err)
 	}
-	if !reflect.DeepEqual(before, boundExpressionInfo(node)) || !reflect.DeepEqual(manifest, binder.dependencies) {
+	if !reflect.DeepEqual(before, expr.InfoOf(node)) || !reflect.DeepEqual(manifest, binder.dependencies) {
 		t.Fatal("domain import/pruning changed original Info or manifest")
 	}
 }

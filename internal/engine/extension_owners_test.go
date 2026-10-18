@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -176,7 +177,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal("relocated consumer", err)
 	}
 	relocated := next.MustRelation(address)
-	assertCall := func(node BoundExpr) {
+	assertCall := func(node expr.Expr) {
 		t.Helper()
 		actual := node.(installedCryptoFunctionExpression)
 		if actual.ref.Address != mapping[call.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.Get(actual.ref.Address) {
@@ -207,7 +208,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	project := &projectNode{
 		querySchema: querySchema{{Name: "hmac", Usage: call.ResultUsage()}},
-		child:       &valuesNode{}, expressions: []BoundExpr{call},
+		child:       &valuesNode{}, expressions: []expr.Expr{call},
 	}
 	ref := func(ref ids.ObjectRef) ids.ObjectRef {
 		if target, ok := mapping[ref.Address]; ok {
@@ -234,13 +235,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal(name, err)
 		}
 		original := node.(installedCryptoFunctionExpression)
-		project := &projectNode{querySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, child: &valuesNode{}, expressions: []BoundExpr{original}}
+		project := &projectNode{querySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, child: &valuesNode{}, expressions: []expr.Expr{original}}
 		query, err := remapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 		if err != nil {
 			t.Fatal(name, err)
 		}
 		actual := query.(*projectNode).expressions[0].(installedCryptoFunctionExpression)
-		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.Get(actual.ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != Volatile || !closedPgcryptoDefault(actual) {
+		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.Get(actual.ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}
 		if err := actual.validate(view); err != nil {

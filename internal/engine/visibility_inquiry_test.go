@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -170,7 +171,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := visibilityInquiryExpression{Info: expressionInfo{Usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{Info: expressionInfo{Usage: oid.Usage()}, value: value}}
+	n := visibilityInquiryExpression{Info: expr.Info{Usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: value}}
 	got, err := n.Eval(&EvalContext{Context: ctx, statementScope: scope})
 	if err != nil {
 		t.Fatal(err)

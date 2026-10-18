@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonbSetUnitBind(t *testing.T, b *expressionBinder, q string) BoundExpr {
+func jsonbSetUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -33,7 +34,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 			t.Fatal("lost formal inference", i, b.parameters)
 		}
 	}
-	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable || plannedVolatility(node) != Immutable {
+	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || plannedVolatility(node) != expr.Immutable {
 		t.Fatal(e, node.Properties())
 	}
 	for slot, id := range ids {
@@ -57,7 +58,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(slot, err)
 		}
-		if n.Properties().Volatility != Volatile || plannedVolatility(n) != Volatile || generationImmutable(n) {
+		if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 			t.Fatal("hidden volatile child", slot, n.Properties())
 		}
 	}
@@ -195,9 +196,9 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 	base := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'return_target')`).(functions.JSONBSet)
 	for slot := range 5 {
 		e := base
-		column := columnExpression{Info: expressionInfo{Usage: e.Args[slot].ResultUsage(), Property: ExprProperties{RowDependent: true}}}
+		column := columnExpression{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
 		e.Args[slot] = column
-		rewritten, err := b.rewriteGroup(e, []BoundExpr{column})
+		rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(slot, err)
 		}
@@ -209,7 +210,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 			t.Fatal("rewrite mutated original", slot)
 		}
 		seen := false
-		boundExpressionChildren(e, func(child BoundExpr) {
+		boundExpressionChildren(e, func(child expr.Expr) {
 			if sameGroupExpression(child, column) {
 				seen = true
 			}

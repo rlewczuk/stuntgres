@@ -14,14 +14,14 @@ import (
 // immutable flat payload. Neither route constructs an array per input row.
 type scalarArrayComparisonExpression struct {
 	expr.Info
-	left, array         BoundExpr
-	items               []BoundExpr
+	left, array         expr.Expr
+	items               []expr.Expr
 	predicate           sqltype.ComparisonPredicate
 	operator, namespace string
 	all                 bool
 }
 
-func (n scalarArrayComparisonExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -179,7 +179,7 @@ func (b *expressionBinder) comparisonInputType(id sqltype.ID, own, other *sqltyp
 	return b.typ(id)
 }
 
-func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (expr.Expr, error) {
 	left, err := b.comparisonOperand(raw.Left)
 	if err != nil {
 		return nil, err
@@ -192,7 +192,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if d := right.descriptor(); d != nil {
 		base := d.BaseType()
 		if !base.IsArray() {
-			return nil, expressionError("42809", "op ANY/ALL (array) requires array on right side", raw.Pos)
+			return nil, expr.ErrorAt("42809", "op ANY/ALL (array) requires array on right side", raw.Pos)
 		}
 		element = base.Element()
 	}
@@ -210,7 +210,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 			return nil, err
 		}
 		if selected.result != ids.OID(sqltype.Bool) {
-			return nil, expressionError("42809", "op ANY/ALL (array) requires operator to yield boolean", raw.Pos)
+			return nil, expr.ErrorAt("42809", "op ANY/ALL (array) requires operator to yield boolean", raw.Pos)
 		}
 		if err := requireBuiltinComparison(selected, raw.Pos); err != nil {
 			return nil, err
@@ -248,7 +248,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	} else {
 		arrayType, found := b.definitionArray(rt)
 		if !found || !arrayType.Concrete() {
-			return nil, expressionError("0A000", "unsupported array element type", raw.Pos)
+			return nil, expr.ErrorAt("0A000", "unsupported array element type", raw.Pos)
 		}
 		target = arrayType.Usage()
 	}
@@ -264,9 +264,9 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, b.comparisonError(err, left.descriptor(), element, operatorRaw)
 	}
-	properties := mergeExpressionProperties(l.Properties(), r.Properties())
-	if predicate.SessionDependent() && properties.Volatility < Stable {
-		properties.Volatility = Stable
+	properties := expr.MergeProperties(l.Properties(), r.Properties())
+	if predicate.SessionDependent() && properties.Volatility < expr.Stable {
+		properties.Volatility = expr.Stable
 	}
 	namespace := ""
 	if len(raw.Name.Parts) == 2 {
@@ -282,11 +282,11 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	return scalarArrayComparisonExpression{Info: info, left: l, array: r, predicate: predicate, operator: name, namespace: namespace, all: raw.All}, nil
 }
 
-func (b *expressionBinder) inListHasVar(node BoundExpr) bool {
+func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
 	found := false
 	frame := b.frameID()
-	var visit func(BoundExpr)
-	visit = func(child BoundExpr) {
+	var visit func(expr.Expr)
+	visit = func(child expr.Expr) {
 		switch n := child.(type) {
 		case columnExpression:
 			found = found || n.frame == frame
@@ -295,7 +295,7 @@ func (b *expressionBinder) inListHasVar(node BoundExpr) bool {
 		case aggregateExpression:
 			if n.frame == frame {
 				if call, ok := b.aggregateCallAt(n); ok {
-					call.expressions(func(expr BoundExpr) { walkQueryArgumentExpression(expr, visit) })
+					call.expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
 				}
 			}
 		}
@@ -309,7 +309,7 @@ type storedExpressionSyntaxKey struct {
 	position parser.Position
 }
 
-func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 	if len(raw.Items) == 0 {
 		return nil, fmt.Errorf("stuntgres: empty IN list")
 	}
@@ -359,7 +359,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 	}
 	operator, _ := comparisonOperator(name)
 	op := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}, Pos: raw.Pos}
-	var result BoundExpr
+	var result expr.Expr
 	capture := b.noParameters || b.materializedDefinition
 	var syntax parser.Expr
 	batched := false
@@ -384,8 +384,8 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			}
 		}
 		if feasible {
-			children := make([]BoundExpr, len(nonvar)-1)
-			properties := ExprProperties{}
+			children := make([]expr.Expr, len(nonvar)-1)
+			properties := expr.Properties{}
 			for i, item := range nonvar[1:] {
 				children[i], err = b.coerceConditional(item, common, "IN")
 				if err != nil {
@@ -407,13 +407,13 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 				if err != nil {
 					return nil, err
 				}
-				properties = mergeExpressionProperties(properties, children[i].Properties())
+				properties = expr.MergeProperties(properties, children[i].Properties())
 			}
 			l, err := b.coerceConditional(left, leftTarget.Usage(), name)
 			if err != nil {
 				return nil, err
 			}
-			properties = mergeExpressionProperties(properties, l.Properties())
+			properties = expr.MergeProperties(properties, l.Properties())
 			input, err := b.collatedInfo(b.info(rightTarget.Usage(), raw.Pos, properties), children...)
 			if err != nil {
 				return nil, err
@@ -426,8 +426,8 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			if err != nil {
 				return nil, b.comparisonError(err, left.descriptor(), common.Type, op)
 			}
-			if predicate.SessionDependent() && properties.Volatility < Stable {
-				properties.Volatility = Stable
+			if predicate.SessionDependent() && properties.Volatility < expr.Stable {
+				properties.Volatility = expr.Stable
 			}
 			info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
 			if declaration != nil {
@@ -459,7 +459,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 		if batched && !vars[i] {
 			continue
 		}
-		var pair BoundExpr
+		var pair expr.Expr
 		rowPair := leftInput.constructor && rowItems[i].constructor
 		if rowPair {
 			pair, err = b.bindRowPredicateOperands(op, operator, leftInput.fields, rowItems[i].fields, leftInput.expansions, rowItems[i].expansions, name)
@@ -506,7 +506,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			}
 			continue
 		}
-		properties := mergeExpressionProperties(result.Properties(), pair.Properties())
+		properties := expr.MergeProperties(result.Properties(), pair.Properties())
 		result = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), op: logical, left: result, right: pair}
 		if capture {
 			syntax = parser.LogicalExpr{Op: logical, Left: syntax, Right: pairSyntax, Pos: raw.Pos}
@@ -522,7 +522,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 }
 
 // Copy only changed list storage; the analyzed tree remains immutable.
-func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(BoundExpr) (BoundExpr, bool, error)) (scalarArrayComparisonExpression, bool, error) {
+func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(expr.Expr) (expr.Expr, bool, error)) (scalarArrayComparisonExpression, bool, error) {
 	left, changed, err := child(n.left)
 	if err != nil {
 		return n, false, err
@@ -536,14 +536,14 @@ func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(BoundE
 		n.array = array
 		changed = changed || replaced
 	}
-	var items []BoundExpr
+	var items []expr.Expr
 	for i, old := range n.items {
 		next, replaced, err := child(old)
 		if err != nil {
 			return n, false, err
 		}
 		if replaced && items == nil {
-			items = append([]BoundExpr(nil), n.items...)
+			items = append([]expr.Expr(nil), n.items...)
 		}
 		if items != nil {
 			items[i] = next
@@ -563,7 +563,7 @@ func (n scalarArrayComparisonExpression) elementType() *sqltype.Descriptor {
 	return n.items[0].ResultUsage().Type
 }
 
-func renderScalarArrayComparison(n scalarArrayComparisonExpression, child func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func renderScalarArrayComparison(n scalarArrayComparisonExpression, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
 	left, err := child(n.left)
 	if err != nil {
 		return "", err

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					t.Fatal(err)
 				}
 				node := bound.(advisoryExpression)
-				if node.lifetime != advisoryTransaction || !node.validStored() || node.Properties().Volatility != Volatile || node.Properties().ParameterDependent != strings.Contains(arguments, "$") {
+				if node.lifetime != advisoryTransaction || !node.validStored() || node.Properties().Volatility != expr.Volatile || node.Properties().ParameterDependent != strings.Contains(arguments, "$") {
 					t.Fatal("lost transaction identity", node)
 				}
 				bad := node
@@ -49,9 +50,9 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					}
 				} else {
 					last := len(node.args) - 1
-					column := columnExpression{Info: expressionInfo{Usage: node.args[last].ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
+					column := columnExpression{Info: expr.Info{Usage: node.args[last].ResultUsage(), Property: expr.Properties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
 					stored := node
-					stored.args = append([]BoundExpr(nil), node.args...)
+					stored.args = append([]expr.Expr(nil), node.args...)
 					stored.args[last] = column
 					remapped, err := remapBoundExpression(stored, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 					if err != nil {
@@ -87,7 +88,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, preflight := range []bool{false, true} {
-			var folded BoundExpr
+			var folded expr.Expr
 			if preflight {
 				folded, _, err = preflightCoercions(&EvalContext{Context: ctx}, bound)
 			} else {
@@ -112,9 +113,9 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := advisoryExpression{Info: expressionInfo{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: advisoryExclusive, action: advisoryTry, args: []BoundExpr{
-		mathObservedArgument{Info: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
-		mathObservedArgument{Info: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: value, order: &order, index: 1},
+	node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: advisoryExclusive, action: advisoryTry, args: []expr.Expr{
+		mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
+		mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: value, order: &order, index: 1},
 	}}
 	got, err := node.Eval(&EvalContext{Context: ctx})
 	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
@@ -122,7 +123,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 	}
 	failure := errors.New("demanded xact sibling")
 	order = nil
-	node.args[1] = mathObservedArgument{Info: expressionInfo{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
+	node.args[1] = mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
 	if _, err := node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal("suppressed runtime sibling", order, err)
 	}

@@ -16,14 +16,14 @@ type unknownOutput struct {
 	raw parser.Expr
 }
 
-func (unknownOutput) Eval(ExprContext) (sqltype.Value, error) {
+func (unknownOutput) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unresolved query output")
 }
 
-func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundExpr, error) {
+func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (expr.Expr, error) {
 	if contextual {
 		if v, ok := raw.(parser.LiteralExpr); ok && (v.Value.Kind == parser.StringValue || v.Value.Kind == parser.NullValue) {
-			return unknownOutput{Info: expressionInfo{Pos: raw.SourcePosition()}, raw: raw}, nil
+			return unknownOutput{Info: expr.Info{Pos: raw.SourcePosition()}, raw: raw}, nil
 		}
 	}
 	return b.bind(raw, expressionPolicy{context: projectionContext})
@@ -75,7 +75,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		for _, definition := range definitions {
 			if definition.query != nil {
-				project.analysisExpressions = append(project.analysisExpressions, subqueryExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.position, ExprProperties{}), queryPlan: definition.query, cteDefinition: true})
+				project.analysisExpressions = append(project.analysisExpressions, subqueryExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.position, expr.Properties{}), queryPlan: definition.query, cteDefinition: true})
 			}
 		}
 	}()
@@ -124,7 +124,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	b.queryNamespace = &namespace
 	b.aggregateClause, b.aggregates = "SELECT", nil
 	b.windowRaw = s.Windows
-	var projection []BoundExpr
+	var projection []expr.Expr
 	var targetNames []string
 	var literalTargets []int
 	for target, raw := range s.Targets {
@@ -173,7 +173,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					recordQualifier = q
 				}
 			} else if s.From == nil {
-				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
+				return nil, expr.ErrorAt("42601", "SELECT * with no tables specified is not valid", star.Pos)
 			}
 			if returningScope == nil {
 				frozenColumns, err := b.jsonbRecordStarColumns(columns, frame, star, recordQualifier)
@@ -192,7 +192,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				if c.hideStar {
 					continue
 				}
-				var expr BoundExpr
+				var expr expr.Expr
 				if returningScope != nil {
 					expr = b.outerReturningColumnAt(returningScope, c.physical, star.Pos, newValues)
 				} else {
@@ -264,7 +264,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	b.groupSets = sets
 	b.aggregateClause = "HAVING"
-	var having BoundExpr
+	var having expr.Expr
 	if s.Having != nil {
 		var err error
 		having, err = b.bindBoolean(s.Having, projectionContext, "HAVING")
@@ -312,7 +312,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 			}
 			if slot < 0 {
-				return nil, expressionError("42P10", "for SELECT DISTINCT, ORDER BY expressions must appear in select list", parser.ExpressionStart(s.Order.Keys[i].Expr))
+				return nil, expr.ErrorAt("42P10", "for SELECT DISTINCT, ORDER BY expressions must appear in select list", parser.ExpressionStart(s.Order.Keys[i].Expr))
 			}
 			distinctOrder[i] = slot
 		}
@@ -455,7 +455,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	grouped := s.GroupBy != nil || b.groupingActive || len(b.aggregates) > 0 || having != nil
-	var stringAnalysis []BoundExpr
+	var stringAnalysis []expr.Expr
 	if b.noParameters || b.materializedDefinition {
 		stringAnalysis = append(stringAnalysis, projection...)
 		stringAnalysis = append(stringAnalysis, keys...)
@@ -491,7 +491,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	if grouped {
-		runtimeKeys := append([]BoundExpr(nil), keys...)
+		runtimeKeys := append([]expr.Expr(nil), keys...)
 		root, err = b.lowerQuerySets(root, runtimeKeys, nil, false)
 		if err != nil {
 			return nil, err
@@ -555,9 +555,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		root = &distinctNode{querySchema: results, child: root, expressions: projection, grouping: distinctFamilies}
-		slots := make([]BoundExpr, len(projection))
+		slots := make([]expr.Expr, len(projection))
 		for i, expression := range projection {
-			slots[i] = columnExpression{Info: boundExpressionInfo(expression), scope: 1, frame: b.frameID(), slot: i}
+			slots[i] = columnExpression{Info: expr.InfoOf(expression), scope: 1, frame: b.frameID(), slot: i}
 		}
 		for i := range order {
 			order[i].expression = slots[distinctOrder[i]]
@@ -566,8 +566,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	earlySets := append(stringSortExpressions(order), stringSortExpressions(on)...)
 	earlyWidth := len(earlySets)
-	earlySets, earlyTemplates := querySetPeerClosure(earlySets, [][]BoundExpr{projection})
-	root, err = b.lowerQuerySets(root, earlySets, [][]BoundExpr{projection}, false, earlyTemplates)
+	earlySets, earlyTemplates := querySetPeerClosure(earlySets, [][]expr.Expr{projection})
+	root, err = b.lowerQuerySets(root, earlySets, [][]expr.Expr{projection}, false, earlyTemplates)
 	if err != nil {
 		return nil, err
 	}
@@ -677,7 +677,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
-func (b *expressionBinder) assignOutput(bound BoundExpr, target ColumnDescriptor) (BoundExpr, error) {
+func (b *expressionBinder) assignOutput(bound expr.Expr, target ColumnDescriptor) (expr.Expr, error) {
 	if raw, ok := bound.(unknownOutput); ok {
 		return b.bind(raw.raw, expressionPolicy{context: assignmentContext, expected: target.Usage, mode: sqltype.Assignment})
 	}
@@ -703,7 +703,7 @@ func (b *expressionBinder) assignOutput(bound BoundExpr, target ColumnDescriptor
 	}
 	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
-		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())
+		d := expr.ErrorAt("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
 	}
@@ -717,7 +717,7 @@ func (b *expressionBinder) assignOutput(bound BoundExpr, target ColumnDescriptor
 
 // rewriteOrderedSetDirect rewrites an ordered-set aggregate's direct
 // arguments over the group keys.
-func (b *expressionBinder) rewriteOrderedSetDirect(expr BoundExpr, keys []BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) rewriteOrderedSetDirect(expr expr.Expr, keys []expr.Expr) (expr.Expr, error) {
 	direct, err := b.rewriteGroup(expr, keys)
 	if d, ok := err.(*sqlstate.Error); ok && d.Code == "42803" {
 		copy := *d

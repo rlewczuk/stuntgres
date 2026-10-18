@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -187,9 +188,9 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 			if node.ResultUsage() != b.typ(tc.id).Usage() || node.ResultUsage().Collation.ID != 0 {
 				t.Fatal("result authority", node.ResultUsage())
 			}
-			child := &valuesNode{rows: [][]BoundExpr{{}}}
+			child := &valuesNode{rows: [][]expr.Expr{{}}}
 			aggregate := &aggregateNode{querySchema: querySchema{{Usage: node.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{Info: expressionInfo{Usage: node.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("50-key private execution", count, err)
@@ -208,13 +209,13 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 				t.Fatal("50-key result", value, tc.want, err)
 			}
 			other := call
-			other.direct = append([]BoundExpr(nil), call.direct...)
+			other.direct = append([]expr.Expr(nil), call.direct...)
 			other.direct[49] = call.direct[0]
 			if b.sameAggregateCall(call, other) {
 				t.Fatal("later direct identity omitted")
 			}
 			// Copy-on-change must not alter the original direct slice.
-			rewritten, err := rewriteQueryExpressions(aggregate, func(expr BoundExpr) (BoundExpr, bool, error) {
+			rewritten, err := rewriteQueryExpressions(aggregate, func(expr expr.Expr) (expr.Expr, bool, error) {
 				if b.sameGroupExpression(expr, call.direct[49]) {
 					return call.direct[0], true, nil
 				}
@@ -242,7 +243,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 				t.Fatal(err)
 			}
 			mapped := remapped.(*aggregateNode).calls[0]
-			expressions := append([]BoundExpr(nil), mapped.direct...)
+			expressions := append([]expr.Expr(nil), mapped.direct...)
 			for _, key := range mapped.order {
 				expressions = append(expressions, key.expression)
 			}
@@ -320,7 +321,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				execution = family
 			}
 			directCalls, keyCalls := []int{}, 0
-			var direct []BoundExpr
+			var direct []expr.Expr
 			for i := range 2 {
 				direct = append(direct, queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) {
 					directCalls = append(directCalls, i)
@@ -334,10 +335,10 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 			call := aggregateCall{provider: p, direct: direct, operation: p.Operation(), stageWidth: 4, includeNulls: true, order: []sortKey{{expression: key, comparison: in.order[0].comparison, slot: -1, cache: 2}, {expression: key, comparison: in.order[0].comparison, slot: -1, cache: 3}}}
 			child := &valuesNode{querySchema: querySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
-				child.rows = append(child.rows, []BoundExpr{literalExpression{Info: expressionInfo{Usage: input.Usage()}, value: in.tuple(i)[2]}})
+				child.rows = append(child.rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Usage()}, value: in.tuple(i)[2]}})
 			}
 			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{Info: expressionInfo{Usage: p.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
+			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: p.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 			if phase == "prepublication" {
 				result := root.expressions[0]
 				root.expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })

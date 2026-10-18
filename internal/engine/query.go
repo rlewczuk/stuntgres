@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/engine/ids"
@@ -51,16 +52,16 @@ type valuesNode struct {
 	querySchema
 	viewOrdinal         int
 	presenceSlot        int
-	rows                [][]BoundExpr
+	rows                [][]expr.Expr
 	identityOrderDemand []bool // Only singleton USER identity VALUES need pruning.
 }
 type filterNode struct {
 	querySchema
 	child     LogicalNode
-	predicate BoundExpr
+	predicate expr.Expr
 }
 type sortKey struct {
-	expression       BoundExpr
+	expression       expr.Expr
 	comparison       sqltype.Comparison
 	equalityRoutine  ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
 	position         int           // Original ORDER reference character position, not reused output syntax.
@@ -76,14 +77,14 @@ type sortNode struct {
 	child        LogicalNode
 	keys         []sortKey
 	cacheWidth   int
-	outputs      []BoundExpr // Nonvolatile targets required by the sort input.
+	outputs      []expr.Expr // Nonvolatile targets required by the sort input.
 	presenceOnly bool        // Ignored EXISTS order graphs remain available to capture.
 }
 type projectNode struct {
 	querySchema
 	child               LogicalNode
-	expressions         []BoundExpr
-	analysisExpressions []BoundExpr // Unused named definitions remain analyzed, not executed.
+	expressions         []expr.Expr
+	analysisExpressions []expr.Expr // Unused named definitions remain analyzed, not executed.
 	frozenValues        bool        // Synthetic FROM VALUES slots are already produced.
 	frame               uint32
 	syntax              *parser.Select
@@ -94,7 +95,7 @@ type projectNode struct {
 
 // Only a physical literal or this execution's imported parameter is row-free.
 // Never evaluate arbitrary expressions, rows, stages or subqueries as a proof.
-func queryPredicateProofValue(c *EvalContext, expr BoundExpr) (sqltype.Value, bool, error) {
+func queryPredicateProofValue(c *EvalContext, expr expr.Expr) (sqltype.Value, bool, error) {
 	switch expression := expr.(type) {
 	case literalExpression:
 		return expression.value, true, nil
@@ -106,7 +107,7 @@ func queryPredicateProofValue(c *EvalContext, expr BoundExpr) (sqltype.Value, bo
 	}
 }
 
-func queryPredicateRejectsAll(c *EvalContext, expr BoundExpr) (bool, error) {
+func queryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
 	value, known, err := queryPredicateProofValue(c, expr)
 	if err != nil || !known {
 		return false, err
@@ -127,7 +128,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	case *setProjectNode:
 		return preflightQuerySet(c, n)
 	case *windowNode:
-		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) }, func(child LogicalNode) (LogicalNode, error) {
+		return rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return preflightCoercions(c, expr) }, func(child LogicalNode) (LogicalNode, error) {
 			if child == n {
 				return child, nil
 			}
@@ -196,7 +197,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		var expressions []BoundExpr
+		var expressions []expr.Expr
 		for i, operand := range n.expressions {
 			folded, changed, err := preflightCoercions(c, operand)
 			if err != nil {
@@ -207,7 +208,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if changed {
 				if expressions == nil {
-					expressions = append([]BoundExpr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.expressions...)
 				}
 				expressions[i] = folded
 			}
@@ -237,9 +238,9 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	case *sourceNode, *singletonNode:
 		return n, nil
 	case *valuesNode:
-		var rows [][]BoundExpr
+		var rows [][]expr.Expr
 		for i, row := range n.rows {
-			var expressions []BoundExpr
+			var expressions []expr.Expr
 			for j, expression := range row {
 				folded, changed, err := preflightCoercions(c, expression)
 				if err != nil {
@@ -247,14 +248,14 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				}
 				if changed {
 					if expressions == nil {
-						expressions = append([]BoundExpr(nil), row...)
+						expressions = append([]expr.Expr(nil), row...)
 					}
 					expressions[j] = folded
 				}
 			}
 			if expressions != nil {
 				if rows == nil {
-					rows = append([][]BoundExpr(nil), n.rows...)
+					rows = append([][]expr.Expr(nil), n.rows...)
 				}
 				rows[i] = expressions
 			}
@@ -277,7 +278,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			copy.child = child
 			return &copy, nil
 		}
-		var keys []BoundExpr
+		var keys []expr.Expr
 		for i, key := range n.keys {
 			folded, replacement, err := preflightCoercions(c, key)
 			if err != nil {
@@ -285,7 +286,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if replacement {
 				if keys == nil {
-					keys = append([]BoundExpr(nil), n.keys...)
+					keys = append([]expr.Expr(nil), n.keys...)
 				}
 				keys[i] = folded
 			}
@@ -294,7 +295,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		for i, call := range n.calls {
 			// Ordered-set direct expressions remain group-finalization owned:
 			// preflight must not evaluate them for absent keyed groups.
-			for j, expression := range [3]BoundExpr{call.argument, call.separator, call.filter} {
+			for j, expression := range [3]expr.Expr{call.argument, call.separator, call.filter} {
 				if expression == nil {
 					continue
 				}
@@ -393,7 +394,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				keys[i].expression = folded
 			}
 		}
-		var outputs []BoundExpr
+		var outputs []expr.Expr
 		for i, operand := range n.outputs {
 			folded, changed, err := preflightCoercions(c, operand)
 			if err != nil {
@@ -401,7 +402,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if changed {
 				if outputs == nil {
-					outputs = append([]BoundExpr(nil), n.outputs...)
+					outputs = append([]expr.Expr(nil), n.outputs...)
 				}
 				outputs[i] = folded
 			}
@@ -424,7 +425,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	case *projectNode:
 		// Projection initialization precedes opening its child. CHECK recipes
 		// may fail here, but checked conversion truth stays in each runtime row.
-		var expressions []BoundExpr
+		var expressions []expr.Expr
 		for i, expression := range n.expressions {
 			folded, changed, err := preflightCoercions(c, expression)
 			if err != nil {
@@ -432,7 +433,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if changed {
 				if expressions == nil {
-					expressions = append([]BoundExpr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.expressions...)
 				}
 				expressions[i] = folded
 			}
@@ -468,7 +469,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if owned, changed := queryScalarOwner(child, expression); changed {
 				if expressions == nil {
-					expressions = append([]BoundExpr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.expressions...)
 				}
 				expressions[i] = owned
 			}
@@ -794,7 +795,7 @@ type indexedStage struct {
 	cacheWidth         int
 	pending            []queryPendingMark
 	schema             []ColumnDescriptor
-	expressions        []BoundExpr
+	expressions        []expr.Expr
 	evaluation         EvalContext
 	position           int
 	terminal           error
@@ -1133,7 +1134,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			if err != nil {
 				return false, err
 			}
-			if n.predicate.Properties().Volatility == Volatile {
+			if n.predicate.Properties().Volatility == expr.Volatile {
 				if !changed {
 					if _, err := child.rewind(ctx); err != nil {
 						return false, err

@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,12 +13,12 @@ import (
 )
 
 // Field dependencies retain logical attribute identities, not field spellings.
-func expressionUsesCompositeField(node BoundExpr, id sqltype.ID, attribute int32) bool {
+func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32) bool {
 	if field, ok := node.(fieldExpression); ok && field.base.ResultUsage().Type.BaseType().ID() == id && field.attribute == attribute {
 		return true
 	}
 	found := false
-	boundExpressionChildren(node, func(child BoundExpr) {
+	boundExpressionChildren(node, func(child expr.Expr) {
 		if !found {
 			found = expressionUsesCompositeField(child, id, attribute)
 		}

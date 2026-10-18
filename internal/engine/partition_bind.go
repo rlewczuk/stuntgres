@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,11 +18,11 @@ func (b *expressionBinder) partitionExpressionError(code, message string, pos pa
 	if b.partitionConsumer == "partition key expression" {
 		return sqlError(code, message)
 	}
-	return expressionError(code, message, pos)
+	return expr.ErrorAt(code, message, pos)
 }
 
 func partitionGeneratedError(_ error, pos parser.Position, name string) error {
-	d := expressionError("42P17", "cannot use generated column in partition key", pos).(*sqlstate.Error)
+	d := expr.ErrorAt("42P17", "cannot use generated column in partition key", pos).(*sqlstate.Error)
 	d.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, name)
 	return d
 }
@@ -41,9 +42,9 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			slot, ok := d.index[r.Column.Text]
 			if !ok {
 				if id, _ := sqltype.SystemAttributeType(r.Column.Text); id != 0 {
-					return nil, expressionError("42P17", fmt.Sprintf(`cannot use system column "%s" in partition key`, r.Column.Text), r.Pos)
+					return nil, expr.ErrorAt("42P17", fmt.Sprintf(`cannot use system column "%s" in partition key`, r.Column.Text), r.Pos)
 				}
-				return nil, expressionError("42703", fmt.Sprintf(`column "%s" named in partition key does not exist`, r.Column.Text), r.Pos)
+				return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" named in partition key does not exist`, r.Column.Text), r.Pos)
 			}
 			key.attribute = d.attributes[slot]
 			usage = d.columns[slot].Usage
@@ -72,7 +73,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			if err != nil {
 				return nil, err
 			}
-			if plannedVolatility(planned) != Immutable {
+			if plannedVolatility(planned) != expr.Immutable {
 				return nil, sqlError("42P17", "functions in partition key expression must be marked IMMUTABLE")
 			}
 			if !planned.Properties().RowDependent {
@@ -129,7 +130,7 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")
 		}
 		if raw.Strategy != parser.PartitionHash {
-			return nil, expressionError("42P16", "invalid bound specification for a hash partition", raw.Pos)
+			return nil, expr.ErrorAt("42P16", "invalid bound specification for a hash partition", raw.Pos)
 		}
 		if raw.Modulus <= 0 {
 			return nil, sqlError("42P16", "modulus for hash partition must be an integer value greater than zero")
@@ -141,7 +142,7 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 		return bound, nil
 	}
 	if raw.Strategy == parser.PartitionHash {
-		return nil, expressionError("42P16", "invalid bound specification for a range partition", raw.Pos)
+		return nil, expr.ErrorAt("42P16", "invalid bound specification for a range partition", raw.Pos)
 	}
 	if raw.Default {
 		return bound, nil
@@ -160,7 +161,7 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 // bindPartitionDatum captures one datum's exact provider references under mu.
 // Its caller evaluates the returned tree only after this method releases mu;
 // transient sequence calls retain their ordinary RX/grant-time admission.
-func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, datum parser.PartitionDatum, key partitionKeyEntry) (BoundExpr, error) {
+func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, datum parser.PartitionDatum, key partitionKeyEntry) (expr.Expr, error) {
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -190,7 +191,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		}
 		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if err != nil {
-			return nil, expressionError("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.usage.Type.DiagnosticName(), key.label), datum.Pos)
+			return nil, expr.ErrorAt("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.usage.Type.DiagnosticName(), key.label), datum.Pos)
 		}
 		info.Property = coercionProperties(input, plan)
 		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
@@ -239,7 +240,7 @@ func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evalu
 				if sentinel > 0 {
 					name = "MAXVALUE"
 				}
-				return expressionError("42804", "every bound following "+name+" must also be "+name, datum.pos)
+				return expr.ErrorAt("42804", "every bound following "+name+" must also be "+name, datum.pos)
 			}
 			if datum.kind != 0 {
 				sentinel = datum.kind

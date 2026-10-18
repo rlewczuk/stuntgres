@@ -34,14 +34,14 @@ func TestVersionInformationBinding(t *testing.T) {
 	for _, tc := range []struct {
 		kind       functions.VersionInformationKind
 		oid        ids.OID
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{functions.VersionInformationServer, 89, Stable},
-		{functions.VersionInformationUnicode, 4549, Immutable},
-		{functions.VersionInformationICU, 6099, Immutable},
+		{functions.VersionInformationServer, 89, expr.Stable},
+		{functions.VersionInformationUnicode, 4549, expr.Immutable},
+		{functions.VersionInformationICU, 6099, expr.Immutable},
 	} {
 		leaf := versionInformationUnitLeaf(t, b, tc.kind)
-		if leaf.ResultUsage() != b.typ(sqltype.Text).Usage() || leaf.Property != (ExprProperties{Volatility: tc.volatility}) || leaf.RoutineReference == nil || leaf.RoutineReference.RoutineOID() != uint32(tc.oid) {
+		if leaf.ResultUsage() != b.typ(sqltype.Text).Usage() || leaf.Property != (expr.Properties{Volatility: tc.volatility}) || leaf.RoutineReference == nil || leaf.RoutineReference.RoutineOID() != uint32(tc.oid) {
 			t.Fatalf("incorrect binding: %#v", leaf)
 		}
 		declaration, err := lookupBuiltinRoutineDeclaration(catalogRoutineProvider, tc.kind.Name(), nil)
@@ -51,7 +51,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if declaration.identity.id != tc.oid || declaration.identity.signature != "" || declaration.kind != functionRoutine || declaration.result != 25 || !declaration.strict || declaration.parallel != 's' || declaration.volatility != tc.volatility || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 {
 			t.Fatalf("incorrect declaration %#v", declaration)
 		}
-		if plannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == Immutable) {
+		if plannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {
 			t.Error("lost immutable/stable boundary")
 		}
 		if sides, err := joinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {
@@ -66,7 +66,7 @@ func TestVersionInformationBinding(t *testing.T) {
 			t.Error("distinct inquiries merged")
 		}
 		children := 0
-		boundExpressionChildren(leaf, func(BoundExpr) { children++ })
+		boundExpressionChildren(leaf, func(expr.Expr) { children++ })
 		if children != 0 {
 			t.Error("zero-argument leaf has children")
 		}

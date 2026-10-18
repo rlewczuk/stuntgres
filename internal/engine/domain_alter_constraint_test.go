@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -84,7 +85,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	if evaluation.domainValue != sentinel || evaluation.Input.DomainChecks != prior {
 		t.Fatal("cancellation leaked frame")
 	}
-	leaf := domainValueExpression{Info: expressionInfo{Usage: child.typ.DomainBase()}}
+	leaf := domainValueExpression{Info: expr.Info{Usage: child.typ.DomainBase()}}
 	evaluation.Context = context.Background()
 	evaluation.domainValue = sqltype.Null(child.typ.DomainBase().Type)
 	evaluation.domainFrameUsage = child.typ.DomainBase()

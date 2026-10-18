@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			calls++
 			return sqltype.Integer(usage.Type, int64(calls))
 		}).(queryProbeExpression)
-		probe.Property.Volatility = Volatile
+		probe.Property.Volatility = expr.Volatile
 		subqueryTestTarget(t, rhs, probe)
 		leftUsage, rightUsage := node.comparisons[0].left.ResultUsage(), node.comparisons[0].right.ResultUsage()
 		ref, conflict := node.comparisons[0].predicate.InputCollation()

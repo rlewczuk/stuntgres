@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+
+	"stuntgres/internal/engine/expr"
 )
 
 func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
@@ -21,7 +23,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	infoType, catalogType := reflect.TypeFor[expressionInfo](), reflect.TypeFor[CatalogRead]()
+	infoType, catalogType := reflect.TypeFor[expr.Info](), reflect.TypeFor[CatalogRead]()
 	assertMetadata := func(root any) {
 		t.Helper()
 		seen := make(map[uintptr]bool)

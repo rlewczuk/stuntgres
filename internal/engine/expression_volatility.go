@@ -4,44 +4,44 @@ import "stuntgres/internal/engine/expr"
 
 // plannedVolatility inspects the physical surviving tree. Analysis properties
 // deliberately retain dependence from eliminated CASE/COALESCE arms.
-func plannedVolatility(node BoundExpr) Volatility {
+func plannedVolatility(node expr.Expr) expr.Volatility {
 	return plannedPhysicalVolatility(node, false)
 }
 
 // COPY's supported nextval defaults are batch-safe, but their argument trees
 // are still inspected. Other consumers retain ordinary physical volatility.
-func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
+func plannedPhysicalVolatility(node expr.Expr, copyNextval bool) expr.Volatility {
 	return plannedNodeVolatility(node, copyNextval, false)
 }
 
 // Use the same provider/signature authority without walking operand recipes.
-func plannedIntrinsicVolatility(node BoundExpr) Volatility {
+func plannedIntrinsicVolatility(node expr.Expr) expr.Volatility {
 	return plannedNodeVolatility(node, false, true)
 }
 
-func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Volatility {
+func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr.Volatility {
 	if node == nil {
-		return Immutable
+		return expr.Immutable
 	}
-	merge := func(a, b Volatility) Volatility {
+	merge := func(a, b expr.Volatility) expr.Volatility {
 		if b > a {
 			return b
 		}
 		return a
 	}
-	children := func(args ...BoundExpr) Volatility {
+	children := func(args ...expr.Expr) expr.Volatility {
 		if intrinsicOnly {
-			return Immutable
+			return expr.Immutable
 		}
-		v := Immutable
+		v := expr.Immutable
 		for _, a := range args {
 			v = merge(v, plannedPhysicalVolatility(a, copyNextval))
 		}
 		return v
 	}
-	session := func(v Volatility, dependent bool) Volatility {
+	session := func(v expr.Volatility, dependent bool) expr.Volatility {
 		if dependent {
-			return merge(v, Stable)
+			return merge(v, expr.Stable)
 		}
 		return v
 	}
@@ -67,16 +67,16 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 	case arrayExpression:
 		return children(n.elements...)
 	case subscriptExpression:
-		var storage [13]BoundExpr
+		var storage [13]expr.Expr
 		return children(subscriptChildren(n, &storage)...)
 	case domainValueExpression, literalExpression, columnExpression:
-		return Immutable
+		return expr.Immutable
 	case collationExpression:
 		return children(n.child)
 	case coercionExpression:
 		return session(children(n.child), n.plan.SessionDependent())
 	case rowComparisonExpression:
-		v := Immutable
+		v := expr.Immutable
 		for _, pair := range n.comparisons {
 			if intrinsicOnly {
 				v = merge(v, plannedNodeVolatility(pair, false, true))
@@ -121,22 +121,22 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 	case aclValueExpression:
 		return merge(children(n.arguments()...), n.baseProperties().Volatility)
 	case objectAddressExpression:
-		return merge(children(n.args[:]...), Stable)
+		return merge(children(n.args[:]...), expr.Stable)
 	case catalogUserNameExpression:
-		return merge(children(n.arg), Stable)
+		return merge(children(n.arg), expr.Stable)
 	case catalogForeignKeysExpression:
-		return Stable
+		return expr.Stable
 	case transactionIdentityExpression:
-		volatility := Stable
+		volatility := expr.Stable
 		if n.kind == identityStatus || n.kind == identityMembers {
-			volatility = Volatile
+			volatility = expr.Volatile
 		}
 		if n.arg != nil {
 			return merge(children(n.arg), volatility)
 		}
 		return volatility
 	case commitTimestampExpression:
-		return Volatile
+		return expr.Volatile
 	case installedSoundexFunctionExpression:
 		return children(n.Args...)
 	case installedMetaphoneFunctionExpression:
@@ -144,7 +144,7 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 	case installedLevenshteinFunctionExpression:
 		return children(n.Args...)
 	case installedUUIDOsspFunctionExpression:
-		return Volatile
+		return expr.Volatile
 	case installedCryptoFunctionExpression:
 		return merge(n.procedure.volatility, children(n.Args...))
 	case installedFunctionExpression:

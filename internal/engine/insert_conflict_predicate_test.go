@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -19,16 +20,16 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	return insertConflictProofFixture{integer: integer, boolean: boolean, column: columnExpression{Info: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}, ctx: EvalContext{Context: context.Background()}}
+	return insertConflictProofFixture{integer: integer, boolean: boolean, column: columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}, ctx: EvalContext{Context: context.Background()}}
 }
-func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right BoundExpr) comparisonExpression {
+func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right expr.Expr) comparisonExpression {
 	t.Helper()
 	operators := map[string]sqltype.ComparisonOperator{"<": sqltype.CompareLess, "<=": sqltype.CompareLessEqual, "=": sqltype.CompareEqual, ">=": sqltype.CompareGreaterEqual, ">": sqltype.CompareGreater, "<>": sqltype.CompareNotEqual}
 	predicate, err := sqltype.BindComparisonPredicate(operators[op], left.ResultUsage().Type, right.ResultUsage().Type, f.boolean, left.ResultUsage().Collation, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return comparisonExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: left.Properties().RowDependent || right.Properties().RowDependent, ParameterDependent: left.Properties().ParameterDependent || right.Properties().ParameterDependent}}, left: left, right: right, predicate: predicate, operator: op}
+	return comparisonExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: left.Properties().RowDependent || right.Properties().RowDependent, ParameterDependent: left.Properties().ParameterDependent || right.Properties().ParameterDependent}}, left: left, right: right, predicate: predicate, operator: op}
 }
 func (f insertConflictProofFixture) integerLiteral(t *testing.T, n int64) literalExpression {
 	t.Helper()
@@ -36,7 +37,7 @@ func (f insertConflictProofFixture) integerLiteral(t *testing.T, n int64) litera
 	if err != nil {
 		t.Fatal(err)
 	}
-	return literalExpression{Info: expressionInfo{Usage: f.integer.Usage()}, value: value}
+	return literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: value}
 }
 func TestInsertConflictPredicateConstantMatrix(t *testing.T) {
 	f := insertConflictProofTypes(t)
@@ -69,22 +70,22 @@ func TestInsertConflictPredicateCompositionAndNull(t *testing.T) {
 	positive := f.comparison(t, ">", f.column, f.integerLiteral(t, 0))
 	stronger := f.comparison(t, ">", f.column, f.integerLiteral(t, 10))
 	weaker := f.comparison(t, ">=", f.column, f.integerLiteral(t, 0))
-	boolean := columnExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 1}
-	logical := func(op parser.LogicalOperator, a, b BoundExpr) logicalExpression {
-		return logicalExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: true}}, op: op, left: a, right: b}
+	boolean := columnExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 1}
+	logical := func(op parser.LogicalOperator, a, b expr.Expr) logicalExpression {
+		return logicalExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, op: op, left: a, right: b}
 	}
-	nullRequired := nullTestExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: true}}, child: f.column, not: true}
-	isNotTrue := truthTestExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: true}}, child: boolean, truth: True, not: true}
+	nullRequired := nullTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, child: f.column, not: true}
+	isNotTrue := truthTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, child: boolean, truth: True, not: true}
 	negated := logical(parser.LogicalNot, boolean, nil)
 	truthLiteral := func(truth Truth) literalExpression {
 		v := sqltype.Boolean(f.boolean, truth == True)
 		if truth == Unknown {
 			v = sqltype.Null(f.boolean)
 		}
-		return literalExpression{Info: expressionInfo{Usage: f.boolean.Usage()}, value: v}
+		return literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: v}
 	}
 	for _, c := range []struct {
-		a, b BoundExpr
+		a, b expr.Expr
 		want bool
 	}{
 		{stronger, positive, true}, {weaker, positive, false}, {positive, nullRequired, true},
@@ -118,7 +119,7 @@ func TestInsertConflictPredicateCompositionAndNull(t *testing.T) {
 }
 func TestInsertConflictPredicateCurrentParameters(t *testing.T) {
 	f := insertConflictProofTypes(t)
-	parameter := parameterExpression{Info: expressionInfo{Usage: f.integer.Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}
+	parameter := parameterExpression{Info: expr.Info{Usage: f.integer.Usage(), Property: expr.Properties{ParameterDependent: true}}, number: 1}
 	target := f.comparison(t, ">", f.column, parameter)
 	installed := f.comparison(t, ">", f.column, f.integerLiteral(t, 0))
 	for _, c := range []struct {
@@ -146,13 +147,13 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: value}
+		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: value}
 	}
 	// Analysis properties are not executable volatility: a comparison between
 	// an ordinary column and a literal stays immutable even if manually mislabeled.
 	// FORMAT is an actual surviving stable operation with a row-dependent argument.
-	stable := functions.Format{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true, Volatility: Stable}}, Args: []BoundExpr{literal("%s"), f.column}, Int4: f.integer}
-	if plannedVolatility(stable) != Stable {
+	stable := functions.Format{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true, Volatility: expr.Stable}}, Args: []expr.Expr{literal("%s"), f.column}, Int4: f.integer}
+	if plannedVolatility(stable) != expr.Stable {
 		t.Fatal("fixture has no actual stable operation")
 	}
 	a := f.comparison(t, ">", stable, literal("10"))
@@ -180,14 +181,14 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return literalExpression{Info: expressionInfo{Usage: descriptor.Usage()}, value: value}
+		return literalExpression{Info: expr.Info{Usage: descriptor.Usage()}, value: value}
 	}
 	for _, c := range []struct {
 		id        sqltype.ID
 		high, low string
 	}{{sqltype.Numeric, "10.000", "0.00"}, {sqltype.Float8, "NaN", "1"}, {sqltype.Date, "2001-01-01", "2000-01-01"}} {
 		high, low := literal(c.id, c.high), literal(c.id, c.low)
-		column := columnExpression{Info: expressionInfo{Usage: high.Usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+		column := columnExpression{Info: expr.Info{Usage: high.Usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
 		a := f.comparison(t, "=", column, high)
 		b := f.comparison(t, ">", column, low)
 		got, err := conflictPredicateImpliedBy(&f.ctx, a, b)
@@ -205,7 +206,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	}
 	stamp := literal(sqltype.Timestamp, "2001-01-01 00:00:00")
 	zoned := literal(sqltype.Timestamptz, "2000-01-01 00:00:00+00")
-	column := columnExpression{Info: expressionInfo{Usage: stamp.Usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	column := columnExpression{Info: expr.Info{Usage: stamp.Usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
 	a = f.comparison(t, ">", column, zoned)
 	b = f.comparison(t, ">", column, literal(sqltype.Timestamp, "1999-01-01 00:00:00"))
 	if !a.predicate.SessionDependent() {
@@ -217,7 +218,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	}
 	text := literal(sqltype.Text, "z")
 	otherText := literal(sqltype.Text, "a")
-	left := columnExpression{Info: expressionInfo{Usage: text.Usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	left := columnExpression{Info: expr.Info{Usage: text.Usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
 	right := left
 	// Use owned collations, not an invented comparator/provider.
 	right.Usage.Collation = sqltype.CollationRef{ID: 950, Derivation: sqltype.Default}

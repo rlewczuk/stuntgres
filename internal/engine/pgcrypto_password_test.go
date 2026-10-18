@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -18,10 +19,10 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 	for _, v := range []struct {
 		name       string
 		args       []parser.Expr
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{"crypt", []parser.Expr{literal("foox"), literal("$2a$04$......................")}, Immutable},
-		{"gen_salt", []parser.Expr{literal("bf")}, Volatile},
+		{"crypt", []parser.Expr{literal("foox"), literal("$2a$04$......................")}, expr.Immutable},
+		{"gen_salt", []parser.Expr{literal("bf")}, expr.Volatile},
 	} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: v.name}}}, Args: v.args}
 		node, err := binder.bindFunctionProvider(raw)
@@ -29,7 +30,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := node.(installedCryptoFunctionExpression)
-		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == Immutable) {
+		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal(v, n)
 		}
 		if err := n.validate(e.CatalogRead()); err != nil {
@@ -45,10 +46,10 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if _, err := defaultSQL(context.Background(), e.CatalogRead(), stored); err != nil {
 			t.Fatal("installed crypto DEFAULT rendering", v.name, err)
 		}
-		for _, properties := range []ExprProperties{
-			{Volatility: Volatile, RowDependent: true},
-			{Volatility: Volatile, ParameterDependent: true},
-			{Volatility: Volatile, StageDependent: true},
+		for _, properties := range []expr.Properties{
+			{Volatility: expr.Volatile, RowDependent: true},
+			{Volatility: expr.Volatile, ParameterDependent: true},
+			{Volatility: expr.Volatile, StageDependent: true},
 		} {
 			bad := n
 			bad.Property = properties
@@ -68,14 +69,14 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(err)
 		}
 		n.Pgcrypto = rebuilt
-		if plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == Immutable) {
+		if plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal("reconstruction changed intrinsic volatility")
 		}
 		retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 		if err != nil {
 			t.Fatal(err)
 		}
-		if plannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == Immutable) {
+		if plannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == expr.Immutable) {
 			t.Fatal("retag changed intrinsic volatility")
 		}
 		value, err := n.Eval(&EvalContext{Context: context.Background()})
@@ -83,7 +84,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(value, err)
 		}
 	}
-	random := functions.Random{Info: expressionInfo{Usage: binder.typ(sqltype.Float8).Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}
+	random := functions.Random{Info: expr.Info{Usage: binder.typ(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if closedPgcryptoDefault(random) {
 		t.Fatal("unrelated volatile DEFAULT admitted")
 	}

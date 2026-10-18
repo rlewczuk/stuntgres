@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -34,7 +35,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
 	ref.Address.SubID = 1
-	node := columnExpression{Info: expressionInfo{Usage: d.columns[0].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+	node := columnExpression{Info: expr.Info{Usage: d.columns[0].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: node, planned: node}}
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	if err != nil {
@@ -97,12 +98,12 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
-	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
-	volatile := functions.Random{Info: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}
+	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
+	volatile := functions.Random{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}
-	pruned := caseExpression{Info: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, otherwise: leaf}
+	pruned := caseExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, otherwise: leaf}
 	if !generationImmutable(pruned) || !generationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
@@ -126,7 +127,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	e, view, parent := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	owner := e.catalog.domain.Ref(view.Epoch(), parent.address)
-	original := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, owner}
+	original := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner}
 	child := *parent
 	child.address.ObjectID++
 	mapper := createLikeInput{source: parent}
@@ -212,7 +213,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.address.ObjectID = 26000
 	d.columns[1].Usage = oid.Usage()
 	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
-	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
+	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
@@ -237,7 +238,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
-	d.checkConstraints = []checkConstraint{{Name: "blocked", expression: literalExpression{expressionInfo{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
+	d.checkConstraints = []checkConstraint{{Name: "blocked", expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ type preparedCommandExecution struct {
 	auth        AuthorizationView
 	evaluation  EvalContext
 	queryRoot   LogicalNode
-	expressions [][]BoundExpr
+	expressions [][]expr.Expr
 	primaryTag  string
 }
 
@@ -85,7 +86,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				destination, destinationTargets = b.viewWrite.logical.relation, b.viewWrite.logical.targets
 			}
 			for i, row := range b.expressions {
-				var privateRow []BoundExpr
+				var privateRow []expr.Expr
 				for j, expression := range row {
 					if len(b.expressions) == 1 && len(b.identityDiscard) != 0 && b.identityDiscard[b.targets[j]] {
 						continue
@@ -96,14 +97,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					}
 					if changed {
 						if privateRow == nil {
-							privateRow = append([]BoundExpr(nil), row...)
+							privateRow = append([]expr.Expr(nil), row...)
 						}
 						privateRow[j] = folded
 					}
 				}
 				if privateRow != nil {
 					if !expressionsChanged {
-						expressions = append([][]BoundExpr(nil), b.expressions...)
+						expressions = append([][]expr.Expr(nil), b.expressions...)
 						expressionsChanged = true
 					}
 					expressions[i] = privateRow
@@ -157,7 +158,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if b.viewWrite != nil {
 			var checks []viewCheckGroup
 			for i, group := range b.viewWrite.checks {
-				var predicates []BoundExpr
+				var predicates []expr.Expr
 				for j, expression := range group.predicates {
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
@@ -165,7 +166,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					}
 					if changed {
 						if predicates == nil {
-							predicates = append([]BoundExpr(nil), group.predicates...)
+							predicates = append([]expr.Expr(nil), group.predicates...)
 						}
 						predicates[j] = folded
 					}
@@ -184,7 +185,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Both INSERT paths plan only defaults this binding actually consumes.
 		// Demand immutable conversions even for an empty query source, while
 		// keeping the stored definition and any runtime-only producer unfolded.
-		var privateDefaults []BoundExpr
+		var privateDefaults []expr.Expr
 		for i, expression := range b.defaults {
 			if expression == nil {
 				continue
@@ -206,7 +207,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 			if changed {
 				if privateDefaults == nil {
-					privateDefaults = append([]BoundExpr(nil), b.defaults...)
+					privateDefaults = append([]expr.Expr(nil), b.defaults...)
 				}
 				privateDefaults[i] = folded
 			}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
@@ -131,7 +132,7 @@ func (b *expressionBinder) outerQualifiers() []queryQualifier {
 	return out
 }
 
-func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) BoundExpr {
+func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) expr.Expr {
 	expr := b.queryColumnAt(c, pos).(columnExpression)
 	expr.frame = frame
 	expr.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(frame)

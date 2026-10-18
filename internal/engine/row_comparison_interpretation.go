@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -61,7 +62,7 @@ func (b *expressionBinder) checkRowComparisonInterpretation(raw parser.OperatorE
 		if declaration != nil && declaration == selected && rowBTreeFormalPair(formalLeft, formalRight) {
 			continue
 		}
-		err = expressionError("0A000", "could not determine interpretation of row comparison operator "+name, raw.Pos)
+		err = expr.ErrorAt("0A000", "could not determine interpretation of row comparison operator "+name, raw.Pos)
 		err.(*sqlstate.Error).Hint = "Row comparison operators must be associated with btree operator families."
 		return err
 	}

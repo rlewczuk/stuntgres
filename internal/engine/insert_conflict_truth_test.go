@@ -1,22 +1,23 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func insertConflictTruthSubject(f insertConflictProofFixture) columnExpression {
-	return columnExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	return columnExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
 }
-func insertConflictTruthTest(f insertConflictProofFixture, child BoundExpr, truth Truth, not bool) truthTestExpression {
-	return truthTestExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, truth: truth, not: not}
+func insertConflictTruthTest(f insertConflictProofFixture, child expr.Expr, truth Truth, not bool) truthTestExpression {
+	return truthTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, truth: truth, not: not}
 }
-func insertConflictNullTest(f insertConflictProofFixture, child BoundExpr, not bool) nullTestExpression {
-	return nullTestExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, not: not}
+func insertConflictNullTest(f insertConflictProofFixture, child expr.Expr, not bool) nullTestExpression {
+	return nullTestExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, not: not}
 }
-func insertConflictNot(f insertConflictProofFixture, child BoundExpr) logicalExpression {
-	return logicalExpression{Info: expressionInfo{Usage: f.boolean.Usage(), Property: child.Properties()}, op: parser.LogicalNot, left: child}
+func insertConflictNot(f insertConflictProofFixture, child expr.Expr) logicalExpression {
+	return logicalExpression{Info: expr.Info{Usage: f.boolean.Usage(), Property: child.Properties()}, op: parser.LogicalNot, left: child}
 }
 func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 	f := insertConflictProofTypes(t)
@@ -26,7 +27,7 @@ func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 	nonnull := insertConflictNullTest(f, subject, true)
 	for _, c := range []struct {
 		name string
-		a, b BoundExpr
+		a, b expr.Expr
 		want bool
 	}{
 		{"NOT IS TRUE", insertConflictNot(f, isTrue), nonnull, false},
@@ -55,13 +56,13 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	subject := insertConflictTruthSubject(f)
 	isTrue := insertConflictTruthTest(f, subject, True, false)
 	isFalse := insertConflictTruthTest(f, subject, False, false)
-	falseLiteral := literalExpression{Info: expressionInfo{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
+	falseLiteral := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
 	ctx := f.ctx
 	ctx.Scope, ctx.Frame = 1, 1
 	inputs := [3]sqltype.Value{sqltype.Boolean(f.boolean, true), sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)}
 	for _, c := range []struct {
 		name string
-		node BoundExpr
+		node expr.Expr
 		want [3]Truth
 	}{
 		{"IS TRUE", isTrue, [3]Truth{True, False, False}},
@@ -80,7 +81,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 		}
 		for i, input := range inputs {
 			ctx.Row = []sqltype.Value{input}
-			for _, node := range [2]BoundExpr{c.node, normalized} {
+			for _, node := range [2]expr.Expr{c.node, normalized} {
 				value, err := node.Eval(&ctx)
 				if err != nil {
 					t.Fatal(c.name, i, err)
@@ -104,7 +105,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	want := [3]Truth{True, False, False}
 	for i, input := range integerInputs {
 		ctx.Row = []sqltype.Value{input}
-		for _, expression := range [2]BoundExpr{node, normalized} {
+		for _, expression := range [2]expr.Expr{node, normalized} {
 			value, err := expression.Eval(&ctx)
 			if err != nil {
 				t.Fatal(i, err)

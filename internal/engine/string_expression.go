@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -10,7 +11,7 @@ import (
 
 // stringNode builds a string node and records what only the analyzer owns:
 // catalog-identifier output of ||, and polymorphic body casts.
-func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {
+func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []expr.Expr, textual [4]bool, syntax parser.StringSyntax) (expr.Expr, error) {
 	node, err := functions.StringNode(b, name, result, pos, args, textual, syntax)
 	if err != nil {
 		return nil, err
@@ -49,7 +50,7 @@ func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (compari
 	return b.comparisonOperandPolicy(raw, policy)
 }
 
-func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (expr.Expr, error) {
 	var operands [2]functions.Argument
 	var types [2]*sqltype.Descriptor
 	for i, child := range raw.Args {
@@ -68,7 +69,7 @@ func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr,
 	if !functions.StringPrefixViable(visible, len(raw.Args), types) {
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), types[0], types[1], raw)
 	}
-	args := make([]BoundExpr, 2)
+	args := make([]expr.Expr, 2)
 	for i, o := range operands {
 		args[i], err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.typ(sqltype.Text).Usage()})
 		if err != nil {
@@ -77,9 +78,9 @@ func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr,
 	}
 	return b.stringNode("starts_with", b.typ(sqltype.Bool).Usage(), raw.Pos, args, [4]bool{true, true}, parser.PrefixStringSyntax)
 }
-func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Args) != 2 {
-		return nil, expressionError("42883", "operator does not exist: ||", raw.Pos)
+		return nil, expr.ErrorAt("42883", "operator does not exist: ||", raw.Pos)
 	}
 	var operands [2]functions.Argument
 	var types [2]*sqltype.Descriptor
@@ -116,11 +117,11 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 			}
 			return t.DiagnosticName()
 		}
-		d := expressionError("42725", fmt.Sprintf("operator is not unique: %s %s %s", typeName(types[0]), objectNameText(raw.Name), typeName(types[1])), raw.Pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42725", fmt.Sprintf("operator is not unique: %s %s %s", typeName(types[0]), objectNameText(raw.Name), typeName(types[1])), raw.Pos).(*sqlstate.Error)
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}
-	args := make([]BoundExpr, 2)
+	args := make([]expr.Expr, 2)
 	for i, o := range operands {
 		if o.Usage.Type == nil {
 			args[i], err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.typ(sqltype.Text).Usage()})

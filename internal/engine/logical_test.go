@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -30,7 +31,7 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	rawParam := func(n int) parser.Expr {
 		return parser.ParameterExpr{Number: n, Pos: parser.Position{Character: n + 7}}
 	}
-	nodes := make([]BoundExpr, 3)
+	nodes := make([]expr.Expr, 3)
 	for i, op := range []parser.LogicalOperator{parser.LogicalAnd, parser.LogicalOr, parser.LogicalNot} {
 		raw := parser.LogicalExpr{Op: op, Left: rawParam(1), Pos: parser.Position{Character: 10}}
 		if op != parser.LogicalNot {
@@ -137,8 +138,8 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	}
 	// Stage dependence is preserved from each child without any row-time allocation.
 	typ := b.typ(sqltype.Bool)
-	child := literalExpression{expressionInfo{Usage: typ.Usage(), Property: ExprProperties{StageDependent: true}}, sqltype.Boolean(typ, true)}
-	invalid := logicalExpression{Info: expressionInfo{Usage: typ.Usage()}, op: parser.LogicalOperator(99), left: child, right: child}
+	child := literalExpression{expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, sqltype.Boolean(typ, true)}
+	invalid := logicalExpression{Info: expr.Info{Usage: typ.Usage()}, op: parser.LogicalOperator(99), left: child, right: child}
 	if _, err := invalid.Eval(&EvalContext{Context: context.Background()}); err == nil {
 		t.Fatal("invalid bound operator")
 	}
@@ -175,9 +176,9 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	project := bound.query.Root.(*projectNode)
 	for i, node := range project.expressions {
 		p := node.Properties()
-		volatility := Immutable
+		volatility := expr.Immutable
 		if i == 3 {
-			volatility = Stable
+			volatility = expr.Stable
 		}
 		if !p.RowDependent || p.ParameterDependent != (i == 2) || p.Volatility != volatility {
 			t.Fatal(p)

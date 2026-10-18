@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -148,13 +149,13 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	}{{177, []int64{2, 3}, 5}, {181, []int64{2, 3}, -1}, {212, []int64{3}, -3}} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		typ, _ := view.LookupType(sqltype.Int4)
-		args := make([]BoundExpr, len(tc.inputs))
+		args := make([]expr.Expr, len(tc.inputs))
 		for i, n := range tc.inputs {
 			value, err := sqltype.Integer(typ, n)
 			if err != nil {
 				t.Fatal(err)
 			}
-			args[i] = literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: value}
+			args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
 		}
 		routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid})
 		node, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
@@ -179,9 +180,9 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	text, _ := view.LookupType(sqltype.Text)
-	arg := literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "ABC")}
+	arg := literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "ABC")}
 	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 870})
-	node, err := b.bindSelectedOperatorRoutine(routine, []BoundExpr{arg}, parser.Position{})
+	node, err := b.bindSelectedOperatorRoutine(routine, []expr.Expr{arg}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,16 +351,16 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
 	three, _ := sqltype.Integer(integer, 3)
-	args := []BoundExpr{literalExpression{Info: expressionInfo{Usage: integer.Usage()}, value: two}, literalExpression{Info: expressionInfo{Usage: integer.Usage()}, value: three}}
+	args := []expr.Expr{literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: two}, literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: three}}
 	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 177})
 	provider, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := boundExpressionInfo(provider)
+	info := expr.InfoOf(provider)
 	info.RoutineReference = nil
 	wrapped := selectedOperatorExpression{Info: info, operator: source, ref: original, provider: provider}
-	assertManifest := func(node BoundExpr, operator ids.ObjectAddress) {
+	assertManifest := func(node expr.Expr, operator ids.ObjectAddress) {
 		t.Helper()
 		_, manifest, err := renderColumnDefault(context.Background(), view, node)
 		if err != nil {
@@ -402,7 +403,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal("operator reference remap lost provenance")
 	}
 	children := 0
-	boundExpressionChildren(got, func(BoundExpr) { children++ })
+	boundExpressionChildren(got, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("provider walked twice", children)
 	}

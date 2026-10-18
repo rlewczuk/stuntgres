@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 
 // resolveIntaggAggregate analyzes an int_array_aggregate call's operands, its
 // FILTER and its installed routine, and records the routine's identity.
-func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.FunctionExpr) (BoundExpr, *procedureDescriptor, ids.ObjectRef, BoundExpr, error) {
+func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.FunctionExpr) (expr.Expr, *procedureDescriptor, ids.ObjectRef, expr.Expr, error) {
 	operands, err := functions.AnalyzeIntaggArguments(b, call)
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
@@ -35,7 +36,7 @@ func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call
 	return arg, proc, ref, filter, nil
 }
 
-func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
+func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, error) {
 	// As with SUM/bitwise aggregates, VALUES has no input namespace.
 	defer b.valuesAggregateNamespace()()
 	callRaw := parser.FunctionExpr{Name: name, Args: raw.Args, Star: raw.Star, Variadic: raw.Variadic, Pos: raw.Pos}
@@ -89,10 +90,10 @@ func (r installedExtensionRoutine) intaggIdentity() (*procedureDescriptor, ids.O
 
 // attachIntaggEnumeration admits int_array_enum where a set-returning call
 // may appear and lifts it as the engine's set-returning unnest node.
-func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.IntaggEnumeration) (BoundExpr, error) {
+func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.IntaggEnumeration) (expr.Expr, error) {
 	b := r.binder
 	if b.executeParameters {
-		return nil, expressionError("0A000", "set-returning functions are not allowed in EXECUTE parameters", call.Pos)
+		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", call.Pos)
 	}
 	if b.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
@@ -105,5 +106,5 @@ func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.Intagg
 		return nil, err
 	}
 	call.RoutineReference = proc
-	return unnestExpression{Info: call.Info, args: []BoundExpr{call.Arg}, procedure: proc, ref: ref}, nil
+	return unnestExpression{Info: call.Info, args: []expr.Expr{call.Arg}, procedure: proc, ref: ref}, nil
 }

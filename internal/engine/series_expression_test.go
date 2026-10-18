@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,13 +17,13 @@ import (
 
 func seriesUnit(t *testing.T, d *sqltype.Descriptor, values ...int64) seriesExpression {
 	t.Helper()
-	e := seriesExpression{Info: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}}
+	e := seriesExpression{Info: expr.Info{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: expr.Properties{StageDependent: true}}}
 	for _, n := range values {
 		v, err := sqltype.Integer(d, n)
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.args = append(e.args, literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: v})
+		e.args = append(e.args, literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v})
 	}
 	return e
 }
@@ -113,7 +114,7 @@ func TestSeriesCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	e.args[0] = literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: sqltype.Null(d)}
+	e.args[0] = literalExpression{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d)}
 	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(d, 3) })
 	if got := seriesUnitRead(t, e); len(got) != 0 || calls != 1 {
 		t.Fatal(got, calls)
@@ -153,12 +154,12 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		null := literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: sqltype.Null(d)}
+		null := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d)}
 		wrapper := arithmeticExpression{Info: original.Info, left: original, right: null, provider: plan, operator: sqltype.ArithmeticAdd}
 		ctx := &EvalContext{Context: context.Background(), catalog: view}
-		for _, fold := range []func() (BoundExpr, bool, error){
-			func() (BoundExpr, bool, error) { return preflightCoercions(ctx, wrapper) },
-			func() (BoundExpr, bool, error) { return simplifyConditional(ctx, wrapper, false) },
+		for _, fold := range []func() (expr.Expr, bool, error){
+			func() (expr.Expr, bool, error) { return preflightCoercions(ctx, wrapper) },
+			func() (expr.Expr, bool, error) { return simplifyConditional(ctx, wrapper, false) },
 		} {
 			node, changed, err := fold()
 			value, ok := node.(literalExpression)
@@ -178,7 +179,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 		peer := seriesUnit(t, d, 10, 11)
 		peer.Pos = parser.Position{Offset: 20, Character: 21}
-		root, _, err := regexpSetUnitLower(e, &singletonNode{}, []BoundExpr{wrapper, peer}, 1)
+		root, _, err := regexpSetUnitLower(e, &singletonNode{}, []expr.Expr{wrapper, peer}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,22 +210,22 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		t.Fatal(got)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n BoundExpr) {
+	walkBoundExpression(original, func(n expr.Expr) {
 		if _, ok := n.(literalExpression); ok {
 			walked++
 		}
 	})
-	if walked != 3 || plannedVolatility(original) != Immutable || querySetDepth(original) != 1 || !sameGroupExpression(original, original) {
+	if walked != 3 || plannedVolatility(original) != expr.Immutable || querySetDepth(original) != 1 || !sameGroupExpression(original, original) {
 		t.Fatal(walked)
 	}
 	if sameGroupExpression(original, seriesUnit(t, d, 1, 3, 2)) || sameGroupExpression(original, seriesUnit(t, fresh, 1, 3, 1)) {
 		t.Fatal("step/width equality")
 	}
-	for _, fold := range []func() (BoundExpr, bool, error){
-		func() (BoundExpr, bool, error) {
+	for _, fold := range []func() (expr.Expr, bool, error){
+		func() (expr.Expr, bool, error) {
 			return preflightCoercions(&EvalContext{Context: context.Background()}, original)
 		},
-		func() (BoundExpr, bool, error) {
+		func() (expr.Expr, bool, error) {
 			return simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
 		},
 	} {
@@ -246,16 +247,16 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		t.Fatal(tree, err)
 	}
 	volatile := original
-	volatile.args = append([]BoundExpr(nil), original.args...)
+	volatile.args = append([]expr.Expr(nil), original.args...)
 	probe := queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(d, 1) }).(queryProbeExpression)
-	probe.Property.Volatility = Volatile
+	probe.Property.Volatility = expr.Volatile
 	volatile.args[0] = probe
-	if plannedVolatility(volatile) != Volatile {
+	if plannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("erased volatile child")
 	}
-	root := &setProjectNode{querySchema: querySchema{{Usage: d.Usage()}}, child: &singletonNode{}, calls: []BoundExpr{original}}
-	rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
-		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n BoundExpr) (BoundExpr, bool, error) {
+	root := &setProjectNode{querySchema: querySchema{{Usage: d.Usage()}}, child: &singletonNode{}, calls: []expr.Expr{original}}
+	rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.args[0] {
 				return seriesUnit(t, d, 2, 3).args[0], true, nil
 			}
@@ -274,7 +275,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 
 func seriesUnitProject(t *testing.T, engine *Engine, bound seriesExpression) *projectNode {
 	t.Helper()
-	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{bound}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []expr.Expr{bound}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,8 +394,8 @@ func TestSeriesFinalization(t *testing.T) {
 			}
 			return sqltype.Integer(d, 1)
 		})
-		input := &valuesNode{rows: [][]BoundExpr{{}, {}}}
-		root, outputs, err := regexpSetUnitLower(engine, input, []BoundExpr{e}, 1)
+		input := &valuesNode{rows: [][]expr.Expr{{}, {}}}
+		root, outputs, err := regexpSetUnitLower(engine, input, []expr.Expr{e}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -416,7 +417,7 @@ func TestSeriesFinalization(t *testing.T) {
 			defer cancel()
 			calls := 0
 			sentinel := errors.New("late projection error")
-			q.expressions = []BoundExpr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			q.expressions = []expr.Expr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				if calls == 2 {
 					if phase == "cancel" {

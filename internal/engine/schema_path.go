@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -259,7 +260,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	}
 	if a == (ids.ObjectAddress{}) {
 		if kind != relationLookup {
-			return namespaceSelection{}, expressionError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
+			return namespaceSelection{}, expr.ErrorAt("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
 		}
 		return namespaceSelection{}, nil
 	}
@@ -273,7 +274,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		if kind == relationLookup {
 			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.name))
 		}
-		return namespaceSelection{}, expressionError("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
+		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
 	}
 	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {

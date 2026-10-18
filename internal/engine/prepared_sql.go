@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -144,7 +145,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		}
 		binder := newExpressionBinder(ctx, e, input, s.op, nil)
 		binder.queryAuth, binder.noParameters, binder.executeParameters = &auth, true, true
-		nodes := make([]BoundExpr, formal.Count)
+		nodes := make([]expr.Expr, formal.Count)
 		for i, argument := range raw.Arguments {
 			node, err := binder.bind(argument, expressionPolicy{context: functionArgumentContext, expected: formal.Types[i], mode: sqltype.Assignment})
 			if err != nil {

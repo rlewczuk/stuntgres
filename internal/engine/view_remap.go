@@ -12,13 +12,13 @@ import (
 
 // Replacement copies the closed bound tree; source and expression identities
 // are reminted together. Syntax and frozen layouts are immutable and shared.
-func remapBoundExpression(node BoundExpr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int) (BoundExpr, error) {
+func remapBoundExpression(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int) (expr.Expr, error) {
 	return remapBoundExpressionWithQuery(node, ref, slots, func(root LogicalNode) (LogicalNode, error) {
 		return (&viewQueryRemapper{ref: ref, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).query(root)
 	}, nil)
 }
 
-func remapBoundExpressionWithQuery(node BoundExpr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (BoundExpr, error) {
+func remapBoundExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (expr.Expr, error) {
 	if rowRef == nil {
 		rowRef = ref
 	}
@@ -28,31 +28,31 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ids.ObjectRef) ids.O
 // Row copies retain explicit object constants and external calls. Replacement
 // callers map both roles, whereas LIKE and partition inheritance supply a
 // distinct owner-row mapper.
-func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
+func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
 	var err error
-	child := func(old BoundExpr) BoundExpr {
+	child := func(old expr.Expr) expr.Expr {
 		if err != nil {
 			return old
 		}
-		var next BoundExpr
+		var next expr.Expr
 		next, err = remapScalarExpression(old, ref, rowRef, slots, queryMapper)
 		return next
 	}
-	args := func(old []BoundExpr) []BoundExpr {
-		next := make([]BoundExpr, len(old))
+	args := func(old []expr.Expr) []expr.Expr {
+		next := make([]expr.Expr, len(old))
 		for i, n := range old {
 			next[i] = child(n)
 		}
 		return next
 	}
-	var next BoundExpr
+	var next expr.Expr
 	switch n := node.(type) {
 	case assignmentValueExpression:
 		n.base, n.value = child(n.base), child(n.value)
-		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, func(expr BoundExpr) (BoundExpr, bool, error) {
+		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if expr == nil {
 				return nil, false, nil
 			}
@@ -72,7 +72,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		next = n
 	case rowExpression:
-		n, _, err = mapRowAnalysis(n, func(old BoundExpr) (BoundExpr, bool, error) { next := child(old); return next, true, err })
+		n, _, err = mapRowAnalysis(n, func(old expr.Expr) (expr.Expr, bool, error) { next := child(old); return next, true, err })
 		next = n
 	case fieldExpression:
 		n.base = child(n.base)
@@ -81,7 +81,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		n.elements = args(n.elements)
 		next = n
 	case subscriptExpression:
-		n, _, err = mapSubscript(n, func(old BoundExpr) (BoundExpr, bool, error) {
+		n, _, err = mapSubscript(n, func(old expr.Expr) (expr.Expr, bool, error) {
 			if old == nil {
 				return nil, false, nil
 			}
@@ -107,7 +107,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			}
 			n.comparisons[i] = mapped.(comparisonExpression)
 		}
-		n.leftExpansions, _, err = mapRowComparisonExpansions(n.leftExpansions, func(old BoundExpr) (BoundExpr, bool, error) {
+		n.leftExpansions, _, err = mapRowComparisonExpansions(n.leftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := child(old)
 			return next, true, err
 		})
@@ -267,7 +267,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			return nil, err
 		}
 		for side, expansions := range n.expansions {
-			n.expansions[side], _, err = mapRowComparisonExpansions(expansions, func(old BoundExpr) (BoundExpr, bool, error) {
+			n.expansions[side], _, err = mapRowComparisonExpansions(expansions, func(old expr.Expr) (expr.Expr, bool, error) {
 				next := child(old)
 				return next, true, err
 			})
@@ -281,7 +281,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		if n.array != nil {
 			n.array = child(n.array)
 		}
-		n.items = append([]BoundExpr(nil), n.items...)
+		n.items = append([]expr.Expr(nil), n.items...)
 		for i := range n.items {
 			n.items[i] = child(n.items[i])
 		}
@@ -438,7 +438,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. Remap
 		// copies the whole tree, so every child counts as replaced.
-		next, _, err = expr.Map(n, func(old BoundExpr) (BoundExpr, bool, error) {
+		next, _, err = expr.Map(n, func(old expr.Expr) (expr.Expr, bool, error) {
 			next, failure := remapScalarExpression(old, ref, rowRef, slots, queryMapper)
 			return next, true, failure
 		})
@@ -536,7 +536,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		next, err = m.query(old)
 		return next
 	}
-	expression := func(old BoundExpr) BoundExpr {
+	expression := func(old expr.Expr) expr.Expr {
 		if err != nil {
 			return old
 		}
@@ -554,8 +554,8 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		return next
 	}
-	expressions := func(old []BoundExpr) []BoundExpr {
-		next := make([]BoundExpr, len(old))
+	expressions := func(old []expr.Expr) []expr.Expr {
+		next := make([]expr.Expr, len(old))
 		for i, n := range old {
 			next[i] = expression(n)
 		}
@@ -566,7 +566,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 	case *functionFromNode:
 		copy := *n
 		copy.querySchema = schema
-		copy.calls = append([]BoundExpr(nil), n.calls...)
+		copy.calls = append([]expr.Expr(nil), n.calls...)
 		for i, call := range copy.calls {
 			next := expression(call)
 			if err == nil {
@@ -584,7 +584,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			template.expressions, template.origins, template.scalars = expressions(n.template.expressions), expressions(n.template.origins), expressions(n.template.scalars)
 			copy.template = &template
 		}
-		copy.calls = append([]BoundExpr(nil), n.calls...)
+		copy.calls = append([]expr.Expr(nil), n.calls...)
 		for i, call := range copy.calls {
 			next := expression(call)
 			if err == nil {
@@ -593,7 +593,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		next = &copy
 	case *valuesNode:
-		rows := make([][]BoundExpr, len(n.rows))
+		rows := make([][]expr.Expr, len(n.rows))
 		for i, row := range n.rows {
 			rows[i] = expressions(row)
 		}
@@ -957,8 +957,8 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	typ = recordTypeMapper(typ)
 	changed := false
-	expression := func(node BoundExpr) {
-		walkQueryArgumentExpression(node, func(child BoundExpr) {
+	expression := func(node expr.Expr) {
+		walkQueryArgumentExpression(node, func(child expr.Expr) {
 			old := child.ResultUsage().Type
 			changed = changed || old != typ(old)
 		})
@@ -1138,7 +1138,7 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	if !occurrenceRecordArray(copy.path) || copy.path.Element() != copy.record {
 		return nil, ErrCatalogReplaced
 	}
-	expression := func(old BoundExpr) (BoundExpr, error) {
+	expression := func(old expr.Expr) (expr.Expr, error) {
 		next, err := remapBoundExpressionWithQuery(old, m.ref, nil, m.nested, nil)
 		if err != nil {
 			return nil, err
@@ -1213,7 +1213,7 @@ func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
 
 // remapQuoteOwner retargets the owner of a node's quote-capture origin, which
 // the node carries as an opaque annotation.
-func remapQuoteOwner(node BoundExpr, ref func(ids.ObjectRef) ids.ObjectRef) BoundExpr {
+func remapQuoteOwner(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef) expr.Expr {
 	annotated, ok := node.(expr.Annotated)
 	if !ok {
 		return node

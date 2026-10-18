@@ -17,7 +17,7 @@ type enumCapturedArgument struct {
 	calls *int
 }
 
-func (e enumCapturedArgument) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e enumCapturedArgument) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -57,19 +57,19 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	for _, route := range []string{"default", "generation", "check"} {
 		t.Run(route, func(t *testing.T) {
 			calls := 0
-			producer := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: plan, Args: []BoundExpr{enumCapturedArgument{Info: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
-			nested := conditionalExpression{Info: expressionInfo{Usage: mood.Usage()}, kind: parser.Coalesce, args: []BoundExpr{literalExpression{Info: expressionInfo{Usage: mood.Usage()}, value: safe}, producer}}
+			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: plan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			nested := conditionalExpression{Info: expr.Info{Usage: mood.Usage()}, kind: parser.Coalesce, args: []expr.Expr{literalExpression{Info: expr.Info{Usage: mood.Usage()}, value: safe}, producer}}
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog
 			scope.owner.catalog = newCatalogChanges()
 			b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
 			b.queryAuth = &auth
-			var defaults []BoundExpr
+			var defaults []expr.Expr
 			var generations map[int32]columnGeneration
 			var checks []checkConstraint
 			switch route {
 			case "default":
-				defaults = []BoundExpr{nested}
+				defaults = []expr.Expr{nested}
 			case "generation":
 				generations = map[int32]columnGeneration{1: {planned: nested}}
 			case "check":

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
@@ -40,7 +41,7 @@ type builtinRoutineDeclaration struct {
 	kind       routineKind
 	result     ids.OID
 	strict     bool
-	volatility Volatility
+	volatility expr.Volatility
 	parallel   byte
 	returnsSet bool
 	variadic   ids.OID

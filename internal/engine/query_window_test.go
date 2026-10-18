@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -476,7 +477,7 @@ func TestQueryWindowReview3SignatureAnalysisNoRegistration(t *testing.T) {
 			}
 			before := append([]aggregateCall(nil), b.aggregates...)
 			name := parser.ObjectName{Parts: []parser.Identifier{{Text: raw.Name, Pos: raw.Pos}}}
-			var argument BoundExpr
+			var argument expr.Expr
 			_, err := b.resolveWindowAggregateSignature(raw, name, &argument)
 			var diagnostic *sqlstate.Error
 			if tc.code == "" {

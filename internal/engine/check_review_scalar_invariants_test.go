@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -55,7 +56,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			bad := inquiry
-			bad.args = append([]BoundExpr(nil), inquiry.args...)
+			bad.args = append([]expr.Expr(nil), inquiry.args...)
 			test.change(&bad)
 			if _, err := renderer.sql(ctx, view, bad); err == nil {
 				t.Fatal("malformed inquiry persisted")

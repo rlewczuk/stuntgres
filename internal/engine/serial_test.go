@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func serialLeaf(node BoundExpr) sequenceCallExpression {
+func serialLeaf(node expr.Expr) sequenceCallExpression {
 	for {
 		if wrapper, ok := node.(coercionExpression); ok {
 			node = wrapper.child
@@ -47,11 +48,11 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 			func(n sequenceCallExpression) sequenceCallExpression { n.name = "currval"; return n },
 			func(n sequenceCallExpression) sequenceCallExpression { n.ref.Epoch++; return n },
 			func(n sequenceCallExpression) sequenceCallExpression { n.args = nil; return n },
-			func(n sequenceCallExpression) sequenceCallExpression { n.Property.Volatility = Stable; return n },
+			func(n sequenceCallExpression) sequenceCallExpression { n.Property.Volatility = expr.Stable; return n },
 			func(n sequenceCallExpression) sequenceCallExpression {
 				arg := n.args[0].(literalExpression)
 				arg.value = sqltype.String(arg.Usage.Type, "999")
-				n.args = []BoundExpr{arg}
+				n.args = []expr.Expr{arg}
 				return n
 			},
 		} {

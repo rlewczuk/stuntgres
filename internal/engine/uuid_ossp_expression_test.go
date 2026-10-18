@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if carrier, err := expressionRoutineDescriptor(n); err != nil || carrier != n.procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.ref.Address != ext.members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != Volatile || !n.validShape() || !closedUUIDDefault(n) || generationImmutable(n) {
+	if n.ref.Address != ext.members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Volatile || !n.validShape() || !closedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
 	if generationHasTableOID(n) {
@@ -48,7 +49,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("missing genuine procedure dependency")
 	}
 	visits := 0
-	boundExpressionChildren(n, func(BoundExpr) { visits++ })
+	boundExpressionChildren(n, func(expr.Expr) { visits++ })
 	if visits != 0 || !sameGroupExpression(n, n) {
 		t.Fatal("not a zero-child identity leaf")
 	}
@@ -72,7 +73,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := mapped.(installedUUIDOsspFunctionExpression)
-	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != Volatile {
+	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
@@ -87,7 +88,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		},
 		func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
 		func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = Immutable },
+		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Immutable },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.RowDependent = true },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.ParameterDependent = true },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.DomainDependent = true },
@@ -152,7 +153,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("actual grouping rewrite", err)
 	}
 	n := grouped.(installedUUIDOsspFunctionExpression)
-	if !n.Properties().StageDependent || n.Properties().Volatility != Volatile || n.procedure != node.(installedUUIDOsspFunctionExpression).procedure {
+	if !n.Properties().StageDependent || n.Properties().Volatility != expr.Volatile || n.procedure != node.(installedUUIDOsspFunctionExpression).procedure {
 		t.Fatal("grouping lost staged volatility/installed identity", n)
 	}
 	if closedUUIDDefault(grouped) {
@@ -166,7 +167,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.ParameterDependent = true },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.DomainDependent = true },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.RuntimeDomainConversion = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = Stable },
+		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Stable },
 	} {
 		bad := n
 		mutate(&bad)
@@ -187,7 +188,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
 	got := rebound.(installedUUIDOsspFunctionExpression)
-	if got.ref != n.ref || got.procedure != n.procedure || !got.Properties().StageDependent || plannedVolatility(got) != Volatile || closedUUIDDefault(got) {
+	if got.ref != n.ref || got.procedure != n.procedure || !got.Properties().StageDependent || plannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
 	}
 }
@@ -215,7 +216,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := expressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.address != ext.members[0] || captured.routineKind != functionRoutine || captured.result != 2950 || captured.signature != "" || !captured.strict || captured.volatility != Volatile || len(captured.body) != 0 || n.ref.Domain() != e.catalog.domain {
+	if err != nil || captured != n.procedure || captured.address != ext.members[0] || captured.routineKind != functionRoutine || captured.result != 2950 || captured.signature != "" || !captured.strict || captured.volatility != expr.Volatile || len(captured.body) != 0 || n.ref.Domain() != e.catalog.domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
@@ -291,7 +292,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, grafted, true, false); err != nil {
 		t.Fatal("graft lost actual owning manifest", err)
 	}
-	if boundExpressionInfo(grafted).RoutineRecipeReference != recipe || boundExpressionInfo(node).RoutineRecipeReference != nil {
+	if expr.InfoOf(grafted).RoutineRecipeReference != recipe || expr.InfoOf(node).RoutineRecipeReference != nil {
 		t.Fatal("graft lost ancestry or mutated original")
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
@@ -366,7 +367,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
-	if !reflect.DeepEqual(binder.dependencies, original) || boundExpressionInfo(node).RoutineReference != captured || n.procedure != captured || n.ref.Address != ext.members[0] {
+	if !reflect.DeepEqual(binder.dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.procedure != captured || n.ref.Address != ext.members[0] {
 		t.Fatal("authority probes mutated original")
 	}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {

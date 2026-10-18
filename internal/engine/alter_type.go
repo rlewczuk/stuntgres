@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,7 +12,7 @@ import (
 
 type columnTransformation struct {
 	attribute    int32
-	expression   BoundExpr
+	expression   expr.Expr
 	dependencies []expressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
 	rewrite      bool
 }
@@ -72,10 +73,10 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.columns}
 }
 
-func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (BoundExpr, []expressionDependency, error) {
+func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []expressionDependency, error) {
 	if action.Using == nil {
 		source := original.index[action.Column.Text]
-		return columnExpression{Info: expressionInfo{Usage: original.columns[source].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
+		return columnExpression{Info: expr.Info{Usage: original.columns[source].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)
@@ -117,7 +118,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 	}
 	if _, generated := original.generations[original.attributes[source]]; generated {
 		if a.Using != nil {
-			diagnostic := expressionError("42611", "cannot specify USING when altering type of generated column", a.Column.Pos).(*sqlstate.Error)
+			diagnostic := expr.ErrorAt("42611", "cannot specify USING when altering type of generated column", a.Column.Pos).(*sqlstate.Error)
 			diagnostic.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, a.Column.Text)
 			return fail(diagnostic)
 		}
@@ -168,7 +169,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	usage := prepared.usage
 	node := prepared.transformation.expression
 	input, annotations := domainCoercionInput(node, usage)
-	info, err := storageCoercionInfo(auth.catalog, expressionInfo{Usage: usage, Property: input.Properties()}, input)
+	info, err := storageCoercionInfo(auth.catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 	if err != nil {
 		return fail(err)
 	}
@@ -319,7 +320,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			expression = wrapper.child
 		}
 		input, annotations := domainCoercionInput(expression, usage)
-		info, err := storageCoercionInfo(auth.catalog, expressionInfo{Usage: usage, Property: input.Properties()}, input)
+		info, err := storageCoercionInfo(auth.catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 		if err != nil {
 			return fail(err)
 		}
@@ -373,7 +374,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 		addedSlots[i].index = next.index[added.column.Name]
 		if added.expression != nil {
 			properties := added.expression.Properties()
-			addedSlots[i].perRow = properties.Volatility > Stable || properties.RuntimeDomainConversion
+			addedSlots[i].perRow = properties.Volatility > expr.Stable || properties.RuntimeDomainConversion
 		}
 	}
 	for i, attribute := range next.attributes {
@@ -406,7 +407,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 	}
 	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.catalog}
 	preparedTransforms := false
-	var generationProgram []BoundExpr
+	var generationProgram []expr.Expr
 	preparedGeneration := false
 	convert := func(input []rowVersion, committed bool) ([]rowVersion, error) {
 		result := make([]rowVersion, 0, len(input))

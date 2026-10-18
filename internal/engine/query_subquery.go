@@ -22,30 +22,30 @@ type subqueryExpression struct {
 	cteDefinition   bool // Analysis-only graph edge, never expression demand.
 	jsonArray       *sqlJSONArrayQuery
 	leftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
-	leftConstructor BoundExpr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
+	leftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
 	erasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
 }
 
-func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "cannot use subquery in DEFAULT expression", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "cannot use subquery in DEFAULT expression", raw.Pos)
 	}
 	if b.checkConsumer {
-		return nil, expressionError("0A000", "cannot use subquery in check constraint", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "cannot use subquery in check constraint", raw.Pos)
 	}
 	if b.indexPredicateConsumer {
-		return nil, expressionError("0A000", "cannot use subquery in index predicate", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "cannot use subquery in index predicate", raw.Pos)
 	}
 	if b.indexConsumer {
-		return nil, expressionError("0A000", "cannot use subquery in index expression", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "cannot use subquery in index expression", raw.Pos)
 	}
 	if b.generatedOwner != nil {
-		return nil, expressionError("0A000", "cannot use subquery in column generation expression", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "cannot use subquery in column generation expression", raw.Pos)
 	}
 	b.subqueryDemand = true
 	var left []comparisonOperand
 	var leftExpansions map[int]compositeExpansionBinding
-	var leftConstructor BoundExpr
+	var leftConstructor expr.Expr
 	var erasedLeftType sqltype.ID
 	if raw.Left != nil {
 		var err error
@@ -87,18 +87,18 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	usage := b.typ(sqltype.Bool).Usage()
 	if raw.Kind == parser.SubqueryScalar {
 		if width != 1 {
-			return nil, expressionError("42601", "subquery must return only one column", raw.Pos)
+			return nil, expr.ErrorAt("42601", "subquery must return only one column", raw.Pos)
 		}
 		usage = project.Schema()[0].Usage
 	} else if raw.Kind != parser.SubqueryExists {
 		if width < len(left) {
-			return nil, expressionError("42601", "subquery has too few columns", raw.Pos)
+			return nil, expr.ErrorAt("42601", "subquery has too few columns", raw.Pos)
 		}
 		if width > len(left) {
-			return nil, expressionError("42601", "subquery has too many columns", raw.Pos)
+			return nil, expr.ErrorAt("42601", "subquery has too many columns", raw.Pos)
 		}
 		if width == 0 {
-			return nil, expressionError("0A000", "cannot compare rows of zero length", raw.Pos)
+			return nil, expr.ErrorAt("0A000", "cannot compare rows of zero length", raw.Pos)
 		}
 	}
 	presenceOnly := raw.Kind == parser.SubqueryExists && canSimplifyExists(query)
@@ -139,13 +139,13 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 		e.ordering = make([]sqltype.Comparison, width)
 	}
 	for i, column := range project.Schema() {
-		right := columnExpression{Info: b.info(column.Usage, raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: i}
+		right := columnExpression{Info: b.info(column.Usage, raw.Pos, expr.Properties{RowDependent: true}), scope: 1, frame: project.frame, slot: i}
 		bound, err := b.bindComparisonOperands(parser.OperatorExpr{Name: raw.Operator, Pos: raw.Pos}, operator, left[i], comparisonOperand{node: right})
 		if err != nil {
 			return nil, err
 		}
 		e.comparisons[i] = bound.(comparisonExpression)
-		e.Property = mergeExpressionProperties(e.Property, e.comparisons[i].left.Properties())
+		e.Property = expr.MergeProperties(e.Property, e.comparisons[i].left.Properties())
 		if len(e.ordering) != 0 {
 			ref, conflict := e.comparisons[i].predicate.InputCollation()
 			e.ordering[i], err = sqltype.BindComparison(e.comparisons[i].left.ResultUsage().Type, e.comparisons[i].right.ResultUsage().Type, ref, conflict)
@@ -171,7 +171,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	return e, nil
 }
 
-func (e subqueryExpression) Eval(ctx ExprContext) (value sqltype.Value, err error) {
+func (e subqueryExpression) Eval(ctx expr.Context) (value sqltype.Value, err error) {
 	c := evalContext(ctx)
 	if err = evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -369,7 +369,7 @@ func presenceQueryPlan(query *BoundQuery) (*BoundQuery, error) {
 			return nil, fmt.Errorf("stuntgres: missing analyzed presence target")
 		}
 		if &expressions[0] == &project.expressions[0] {
-			expressions = append([]BoundExpr(nil), expressions...)
+			expressions = append([]expr.Expr(nil), expressions...)
 		}
 		expressions[i] = original
 	}
@@ -384,7 +384,7 @@ func presenceQueryPlan(query *BoundQuery) (*BoundQuery, error) {
 	return &plan, nil
 }
 
-func scheduledQueryTarget(node LogicalNode, slot int) BoundExpr {
+func scheduledQueryTarget(node LogicalNode, slot int) expr.Expr {
 	for node != nil {
 		switch n := node.(type) {
 		case *evaluationNode:

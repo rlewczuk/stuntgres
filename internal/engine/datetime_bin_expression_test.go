@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -17,22 +18,22 @@ func TestDatetimeBinBinding(t *testing.T) {
 	for _, tc := range []struct {
 		source, origin string
 		result         sqltype.ID
-		volatility     Volatility
+		volatility     expr.Volatility
 	}{
-		{"timestamp", "timestamp", sqltype.Timestamp, Immutable},
-		{"timestamptz", "timestamptz", sqltype.Timestamptz, Immutable},
-		{"timestamp", "timestamptz", sqltype.Timestamptz, Stable},
-		{"timestamptz", "timestamp", sqltype.Timestamptz, Stable},
-		{"date", "timestamp", sqltype.Timestamp, Immutable},
-		{"timestamp", "date", sqltype.Timestamp, Immutable},
-		{"date", "timestamptz", sqltype.Timestamptz, Stable},
-		{"timestamptz", "date", sqltype.Timestamptz, Stable},
-		{"date", "date", sqltype.Timestamptz, Stable},
-		{"", "", sqltype.Timestamptz, Immutable},
-		{"timestamp", "", sqltype.Timestamp, Immutable},
-		{"", "timestamp", sqltype.Timestamp, Immutable},
-		{"timestamptz", "", sqltype.Timestamptz, Immutable},
-		{"", "timestamptz", sqltype.Timestamptz, Immutable},
+		{"timestamp", "timestamp", sqltype.Timestamp, expr.Immutable},
+		{"timestamptz", "timestamptz", sqltype.Timestamptz, expr.Immutable},
+		{"timestamp", "timestamptz", sqltype.Timestamptz, expr.Stable},
+		{"timestamptz", "timestamp", sqltype.Timestamptz, expr.Stable},
+		{"date", "timestamp", sqltype.Timestamp, expr.Immutable},
+		{"timestamp", "date", sqltype.Timestamp, expr.Immutable},
+		{"date", "timestamptz", sqltype.Timestamptz, expr.Stable},
+		{"timestamptz", "date", sqltype.Timestamptz, expr.Stable},
+		{"date", "date", sqltype.Timestamptz, expr.Stable},
+		{"", "", sqltype.Timestamptz, expr.Immutable},
+		{"timestamp", "", sqltype.Timestamp, expr.Immutable},
+		{"", "timestamp", sqltype.Timestamp, expr.Immutable},
+		{"timestamptz", "", sqltype.Timestamptz, expr.Immutable},
+		{"", "timestamptz", sqltype.Timestamptz, expr.Immutable},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
 		arg := func(typ, value string) parser.Expr {
@@ -45,7 +46,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || plannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == Immutable) {
+		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || plannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node.ResultUsage(), node.Properties())
 		}
 		v, err := node.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}})
@@ -75,7 +76,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.parameters[1].Type.ID() != sqltype.Interval || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Timestamptz || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable {
+	if b.parameters[1].Type.ID() != sqltype.Interval || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Timestamptz || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node.Properties(), b.parameters)
 	}
 	for _, id := range []string{"timestamp", "timestamptz"} {
@@ -108,7 +109,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 		for i := range e.Args {
 			null := e
-			null.Args[i] = literalExpression{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(e.Args[i].ResultUsage().Type)}
+			null.Args[i] = literalExpression{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&EvalContext{Context: context.Background()}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
@@ -123,7 +124,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := volatile.Properties()
-	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != Volatile || plannedVolatility(volatile) != Volatile || generationImmutable(volatile) {
+	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || generationImmutable(volatile) {
 		t.Fatal(p)
 	}
 	flags.aggregateClause = "SELECT"
@@ -132,7 +133,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	p = stage.Properties()
-	if !p.StageDependent || !p.RowDependent || !p.ParameterDependent || p.Volatility != Immutable {
+	if !p.StageDependent || !p.RowDependent || !p.ParameterDependent || p.Volatility != expr.Immutable {
 		t.Fatal(p)
 	}
 }
@@ -144,11 +145,11 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin)
-	column := columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+	column := columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
-	var children []BoundExpr
-	boundExpressionChildren(e, func(arg BoundExpr) { children = append(children, arg) })
+	var children []expr.Expr
+	boundExpressionChildren(e, func(arg expr.Expr) { children = append(children, arg) })
 	if len(children) != 3 || children[1] != column || !b.sameGroupExpression(e, e) {
 		t.Fatal(children)
 	}
@@ -157,7 +158,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if b.sameGroupExpression(e, different) {
 		t.Fatal("distinct children treated as equal")
 	}
-	rewritten, err := b.rewriteGroup(e, []BoundExpr{column})
+	rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
 	if err != nil || !rewritten.Properties().StageDependent {
 		t.Fatal(rewritten, err)
 	}
@@ -174,12 +175,12 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	}
 	// Preflight must traverse a child codec conversion rather than attempting
 	// date_bin on a mismatched descriptor or bypassing coercion failures.
-	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
+	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
 	plan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), text, plan, sqltype.Explicit, false}
+	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), text, plan, sqltype.Explicit, false}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type boundTree struct{ expression BoundExpr }
+type boundTree struct{ expression expr.Expr }
 
 // StructuralOutput is native structural data, not PostgreSQL nodeToString.
 // Captured immutable nodes do not depend on their owner's continued existence.
@@ -21,7 +21,7 @@ func (t boundTree) StructuralOutput(ctx context.Context) (string, error) {
 	return out.String(), err
 }
 
-func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) error {
+func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -30,20 +30,20 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	}
 	u := node.ResultUsage()
 	fmt.Fprintf(out, "{type %d typmod %d collation %d derivation %d node ", u.Type.ID(), u.Typmod, u.Collation.ID, u.Collation.Derivation)
-	child := func(n BoundExpr) error {
+	child := func(n expr.Expr) error {
 		if n == nil {
 			return nil
 		}
 		out.WriteByte(' ')
 		return appendBoundTree(ctx, out, n)
 	}
-	pair := func(a, b BoundExpr) error {
+	pair := func(a, b expr.Expr) error {
 		if err := child(a); err != nil {
 			return err
 		}
 		return child(b)
 	}
-	args := func(nodes []BoundExpr) error {
+	args := func(nodes []expr.Expr) error {
 		for _, n := range nodes {
 			if err := child(n); err != nil {
 				return err
@@ -378,7 +378,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		err = args(n.Args)
 	case functions.DatetimeSleep:
 		out.WriteString("DatetimeSleep " + n.Kind.Name())
-		err = args([]BoundExpr{n.Arg})
+		err = args([]expr.Expr{n.Arg})
 	case advisoryExpression:
 		if n.lifetime == advisoryTransaction {
 			out.WriteString("AdvisoryTransaction " + n.name)
@@ -408,13 +408,13 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		err = args(n.Args)
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
-		err = args([]BoundExpr{n.Arg})
+		err = args([]expr.Expr{n.Arg})
 	case sqlJSONExpression:
 		fmt.Fprintf(out, "SQLJSON %s absent %t unique %t", n.raw.Kind, n.raw.Absent, n.raw.Unique)
 		err = args(n.args)
 	case jsonPredicateExpression:
 		fmt.Fprintf(out, "IS JSON %s unique %t not %t", n.kind, n.unique, n.not)
-		err = args([]BoundExpr{n.child})
+		err = args([]expr.Expr{n.child})
 	case functions.JSONCreate:
 		fmt.Fprintf(out, "JSONCreate %s variadic %t", n.Kind.Name(), n.Variadic)
 		err = args(n.Args)
@@ -516,6 +516,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	return nil
 }
 
-func catalogTree(typ *sqltype.Descriptor, expression BoundExpr) (sqltype.Value, error) {
+func catalogTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
 	return sqltype.Tree(typ, boundTree{expression})
 }

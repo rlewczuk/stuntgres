@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 	}
 	if closedSequenceDefault(node) {
 		eligible, captured := true, false
-		walkBoundExpression(node, func(child BoundExpr) {
+		walkBoundExpression(node, func(child expr.Expr) {
 			if call, ok := child.(sequenceCallExpression); ok {
 				captured = true
 				if !slices.Contains(definition.dependencies, call.ref) {
@@ -31,7 +32,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 			return eligible
 		}
 	}
-	if node.Properties() != (ExprProperties{}) {
+	if node.Properties() != (expr.Properties{}) {
 		return false
 	}
 	// The selected stored regclass result subset also includes opaque arrays,
@@ -40,7 +41,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 		return true
 	}
 	captured := false
-	walkBoundExpression(node, func(child BoundExpr) {
+	walkBoundExpression(node, func(child expr.Expr) {
 		literal, ok := child.(literalExpression)
 		if ok && literal.RegclassRef != (ids.ObjectRef{}) &&
 			literal.RegclassRef.Address.ClassID == ids.RelationClassID && literal.RegclassRef.Address.SubID == 0 &&

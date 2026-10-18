@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/expr"
+
 func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	row := out.expressions[0]
 	found := false
@@ -9,7 +11,7 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	if !found {
 		return nil
 	}
-	projection := make([]BoundExpr, 0, len(row))
+	projection := make([]expr.Expr, 0, len(row))
 	targets := make([]int, 0, len(out.targets))
 	var partials []*arrayAssignmentTarget
 	if len(out.arrayTargets) != 0 {

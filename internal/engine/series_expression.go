@@ -13,10 +13,10 @@ import (
 // Invocation-private arithmetic lives in the shared functionSetCursor.
 type seriesExpression struct {
 	expr.Info
-	args []BoundExpr
+	args []expr.Expr
 }
 
-func (e seriesExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e seriesExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -24,7 +24,7 @@ func (e seriesExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_series set call")
 }
 
-func (e seriesExpression) mapChildren(mapper func(BoundExpr) (BoundExpr, bool, error)) (seriesExpression, bool, error) {
+func (e seriesExpression) mapChildren(mapper func(expr.Expr) (expr.Expr, bool, error)) (seriesExpression, bool, error) {
 	changed := false
 	for i, arg := range e.args {
 		next, did, err := mapper(arg)
@@ -33,7 +33,7 @@ func (e seriesExpression) mapChildren(mapper func(BoundExpr) (BoundExpr, bool, e
 		}
 		if did {
 			if !changed {
-				e.args = append([]BoundExpr(nil), e.args...)
+				e.args = append([]expr.Expr(nil), e.args...)
 			}
 			e.args[i] = next
 			changed = true
@@ -68,18 +68,18 @@ func seriesPreferred(id sqltype.ID) bool {
 	return id == sqltype.Timestamptz || id == sqltype.Interval || id == sqltype.Text
 }
 
-func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var args []BoundExpr
+func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
+	var args []expr.Expr
 	var unknown []bool
 	if len(raw.Args) <= 100 {
-		args = make([]BoundExpr, len(raw.Args))
+		args = make([]expr.Expr, len(raw.Args))
 		unknown = make([]bool, len(raw.Args))
 	}
 	for i, r := range raw.Args {
 		if l, ok := r.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{Info: expressionInfo{Pos: r.SourcePosition()}}
+				args[i] = literalExpression{Info: expr.Info{Pos: r.SourcePosition()}}
 			}
 			continue
 		}
@@ -93,7 +93,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	if !visible || raw.Name.Parts[len(raw.Name.Parts)-1].Text != "generate_series" || raw.Variadic || len(raw.ArgNames) != 0 {
 		return nil, b.seriesSignatureError(raw, args, unknown, false)
@@ -198,7 +198,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		return nil, b.seriesSignatureError(raw, args, unknown, len(candidates) > 1)
 	}
 	s := candidates[0]
-	properties := ExprProperties{Volatility: Immutable, StageDependent: true}
+	properties := expr.Properties{Volatility: expr.Immutable, StageDependent: true}
 	for i, arg := range args {
 		u := b.typ(s.args[i]).Usage()
 		if unknown[i] {
@@ -231,22 +231,22 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		decoration, message = "OVER", "not a window function nor an aggregate function"
 	}
 	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but generate_series is "+message, raw.Pos)
+		return nil, expr.ErrorAt("42809", decoration+" specified, but generate_series is "+message, raw.Pos)
 	}
 	if b.executeParameters {
-		return nil, expressionError("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
 	if b.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if b.aggregateClause == "INSERT VALUES" {
-		return nil, expressionError("0A000", "generate_series is unsupported in INSERT VALUES", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "generate_series is unsupported in INSERT VALUES", raw.Pos)
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
 	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric {
-		return nil, expressionError("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
 	}
 	switch b.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
@@ -259,7 +259,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 	return seriesExpression{Info: info, args: args}, nil
 }
 
-func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []BoundExpr, unknown []bool, ambiguous bool) error {
+func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []expr.Expr, unknown []bool, ambiguous bool) error {
 	names := make([]string, len(args))
 	for i, arg := range args {
 		name := "unknown"

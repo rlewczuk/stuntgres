@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -23,12 +24,12 @@ func TestArrayGeneratedPhysicalIOImmutability(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, descriptor := range []*sqltype.Descriptor{array, whole} {
-			leaf := columnExpression{Info: expressionInfo{Usage: descriptor.Usage(), Property: ExprProperties{RowDependent: true}}}
+			leaf := columnExpression{Info: expr.Info{Usage: descriptor.Usage(), Property: expr.Properties{RowDependent: true}}}
 			identityPlan, err := sqltype.PlanCoercion(descriptor.Usage(), descriptor.Usage(), sqltype.Explicit)
 			if err != nil {
 				t.Fatal(err)
 			}
-			identity := coercionExpression{Info: expressionInfo{Usage: descriptor.Usage()}, child: leaf, plan: identityPlan, mode: sqltype.Explicit}
+			identity := coercionExpression{Info: expr.Info{Usage: descriptor.Usage()}, child: leaf, plan: identityPlan, mode: sqltype.Explicit}
 			if !generationImmutable(identity) {
 				t.Fatal("array identity coercion rejected", descriptor.Name())
 			}
@@ -41,14 +42,14 @@ func TestArrayGeneratedPhysicalIOImmutability(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				child := columnExpression{Info: expressionInfo{Usage: from, Property: ExprProperties{RowDependent: true}}}
-				cast := coercionExpression{Info: expressionInfo{Usage: to}, child: child, plan: plan, mode: sqltype.Explicit}
+				child := columnExpression{Info: expr.Info{Usage: from, Property: expr.Properties{RowDependent: true}}}
+				cast := coercionExpression{Info: expr.Info{Usage: to}, child: child, plan: plan, mode: sqltype.Explicit}
 				if generationImmutable(cast) {
 					t.Fatal("surviving array IO accepted as immutable", descriptor.Name(), input)
 				}
 				// The existing consumer follows surviving providers, not inherited
 				// volatility from a removed CASE branch. No blanket array ban.
-				pruned := caseExpression{Info: expressionInfo{Usage: descriptor.Usage(), Property: ExprProperties{Volatility: Stable, RowDependent: true}}, otherwise: leaf}
+				pruned := caseExpression{Info: expr.Info{Usage: descriptor.Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}}, otherwise: leaf}
 				if !generationImmutable(pruned) {
 					t.Fatal("pruned IO volatility rejected immutable survivor")
 				}

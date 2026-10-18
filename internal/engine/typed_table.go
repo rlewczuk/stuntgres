@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -20,7 +21,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 			return auth.catalog.MustType(found[0]), nil
 		}
 	}
-	return nil, expressionError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
+	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
 func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
@@ -229,7 +230,7 @@ func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTa
 			if _, exists := table.index[action.Column.Text]; !exists {
 				return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, table.name))
 			}
-			return expressionError("42809", "cannot alter column type of typed table", action.Column.Pos)
+			return expr.ErrorAt("42809", "cannot alter column type of typed table", action.Column.Pos)
 		}
 	}
 	return nil

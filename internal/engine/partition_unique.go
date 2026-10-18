@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -169,7 +170,7 @@ func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *rela
 			return false, nil
 		}
 	}
-	render := func(expr BoundExpr) (string, error) { return (scalarRenderer{owner: table}).sql(ctx, view, expr) }
+	render := func(expr expr.Expr) (string, error) { return (scalarRenderer{owner: table}).sql(ctx, view, expr) }
 	for i, key := range a.keys {
 		other := b.keys[i]
 		if key.attribute != other.attribute || (key.derived == nil) != (other.derived == nil) {

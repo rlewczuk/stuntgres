@@ -22,7 +22,7 @@ type conditionalSpy struct {
 	failure error
 }
 
-func (e conditionalSpy) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e conditionalSpy) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -39,8 +39,8 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	other, _ := sqltype.Integer(integer, 2)
 	ctx := &EvalContext{Context: context.Background()}
 	calls := [5]int{}
-	spy := func(i int, v sqltype.Value) BoundExpr {
-		return conditionalSpy{expressionInfo{Usage: v.Type().Usage(), Property: ExprProperties{RowDependent: true}}, v, &calls[i], nil}
+	spy := func(i int, v sqltype.Value) expr.Expr {
+		return conditionalSpy{expr.Info{Usage: v.Type().Usage(), Property: expr.Properties{RowDependent: true}}, v, &calls[i], nil}
 	}
 	comparison, err := sqltype.BindComparison(integer, integer, sqltype.CollationRef{}, false)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := expressionInfo{Usage: integer.Usage()}
+	info := expr.Info{Usage: integer.Usage()}
 	searched := caseExpression{Info: info, arms: []caseBranch{{condition: spy(0, sqltype.Boolean(boolean, true)), result: spy(1, value)}, {condition: spy(2, sqltype.Boolean(boolean, true)), result: spy(3, other)}}, otherwise: spy(4, other)}
 	got, err := searched.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
@@ -63,19 +63,19 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	coalesce := conditionalExpression{Info: info, kind: parser.Coalesce, args: []BoundExpr{spy(0, sqltype.Null(integer)), spy(1, value), spy(2, other)}}
+	coalesce := conditionalExpression{Info: info, kind: parser.Coalesce, args: []expr.Expr{spy(0, sqltype.Null(integer)), spy(1, value), spy(2, other)}}
 	got, err = coalesce.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	nullif := conditionalExpression{Info: info, kind: parser.NullIf, args: []BoundExpr{spy(0, sqltype.Null(integer)), spy(1, value)}, comparison: comparison}
+	nullif := conditionalExpression{Info: info, kind: parser.NullIf, args: []expr.Expr{spy(0, sqltype.Null(integer)), spy(1, value)}, comparison: comparison}
 	got, err = nullif.Eval(ctx)
 	if err != nil || !got.IsNull() || calls != [5]int{1, 1, 0, 0, 0} {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	extrema := conditionalExpression{Info: info, kind: parser.Greatest, args: []BoundExpr{spy(0, other), spy(1, sqltype.Null(integer)), spy(2, value), spy(3, other)}, comparison: comparison}
+	extrema := conditionalExpression{Info: info, kind: parser.Greatest, args: []expr.Expr{spy(0, other), spy(1, sqltype.Null(integer)), spy(2, value), spy(3, other)}, comparison: comparison}
 	got, err = extrema.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, other) || calls != [5]int{1, 1, 1, 1, 0} {
 		t.Fatal(got, calls, err)
@@ -130,10 +130,10 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		ast := statement(t, tc.q).(*parser.Select)
-		var nodes []BoundExpr
+		var nodes []expr.Expr
 		var err error
 		for _, raw := range ast.Targets {
-			var node BoundExpr
+			var node expr.Expr
 			node, err = b.bind(raw, expressionPolicy{context: projectionContext})
 			if err != nil {
 				break
@@ -277,13 +277,13 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := expressionInfo{Usage: floating.Usage()}
+	info := expr.Info{Usage: floating.Usage()}
 	comparison, err := sqltype.BindComparison(floating, floating, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []parser.ConditionalKind{parser.Greatest, parser.Least} {
-		node := conditionalExpression{Info: info, kind: kind, args: []BoundExpr{literalExpression{info, negative}, literalExpression{info, positive}}, comparison: comparison}
+		node := conditionalExpression{Info: info, kind: kind, args: []expr.Expr{literalExpression{info, negative}, literalExpression{info, positive}}, comparison: comparison}
 		got, err := node.Eval(&EvalContext{Context: context.Background()})
 		if err != nil {
 			t.Fatal(err)
@@ -448,7 +448,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			return old
 		}
 	}
-	bind := func(e *Engine, expression string) BoundExpr {
+	bind := func(e *Engine, expression string) expr.Expr {
 		t.Helper()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.defaultConsumer = true
@@ -459,7 +459,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 		}
 		return node
 	}
-	assertValue := func(node BoundExpr, domain *sqltype.Descriptor, label string, null bool) {
+	assertValue := func(node expr.Expr, domain *sqltype.Descriptor, label string, null bool) {
 		t.Helper()
 		got, err := node.Eval(&EvalContext{Context: ctx})
 		if err != nil || got.Type() != domain || got.IsNull() != null || node.ResultUsage().Type != domain {
@@ -483,7 +483,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 	} {
 		t.Run(tc.expression, func(t *testing.T) {
 			node := bind(source, tc.expression)
-			before := boundExpressionInfo(node)
+			before := expr.InfoOf(node)
 			assertValue(node, oldDomain, tc.label, tc.null)
 			rendered, err := defaultSQL(ctx, source.CatalogRead(), node)
 			if err != nil {

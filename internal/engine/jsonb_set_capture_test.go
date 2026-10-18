@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -47,7 +48,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	if !foundColumn || !foundTypmod {
 		t.Fatal("capture lost original column identity or written typmod", b.viewColumns, b.viewCastUsages)
 	}
-	pathConversion := func(node BoundExpr) coercionExpression {
+	pathConversion := func(node expr.Expr) coercionExpression {
 		e := node.(functions.JSONBSet)
 		arg := e.Args[1]
 		for {
@@ -90,7 +91,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	if err != nil || convertedText != "a" {
 		t.Fatal("stored contextual conversion changed", convertedText, err)
 	}
-	assertRows := func(node BoundExpr, text *sqltype.Descriptor) {
+	assertRows := func(node expr.Expr, text *sqltype.Descriptor) {
 		for _, tc := range []struct{ input, want string }{{"ab", wantA}, {"bc", wantB}} {
 			input := sqltype.String(text, tc.input)
 			eval := EvalContext{Context: ctx, Scope: 1, Frame: b.frameID(), Row: []sqltype.Value{input}}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -17,7 +18,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			}
 		}
 	}
-	expr := func(e BoundExpr) error {
+	expr := func(e expr.Expr) error {
 		if e == nil {
 			return nil
 		}

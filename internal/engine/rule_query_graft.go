@@ -1,6 +1,10 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+
+	"stuntgres/internal/engine/expr"
+)
 
 func ruleQueryHasPseudo(root LogicalNode) bool {
 	found := false
@@ -9,8 +13,8 @@ func ruleQueryHasPseudo(root LogicalNode) bool {
 		if node == nil || found {
 			return
 		}
-		queryExpressions(node, func(bound BoundExpr) {
-			walkBoundExpression(bound, func(expr BoundExpr) {
+		queryExpressions(node, func(bound expr.Expr) {
+			walkBoundExpression(bound, func(expr expr.Expr) {
 				if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
 					found = true
 				}

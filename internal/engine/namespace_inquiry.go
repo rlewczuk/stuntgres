@@ -30,10 +30,10 @@ func (k namespaceInquiryKind) name() string {
 type namespaceInquiryExpression struct {
 	expr.Info
 	kind namespaceInquiryKind
-	arg  BoundExpr
+	arg  expr.Expr
 }
 
-func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operand comparisonOperand
 	var single [1]string
 	names := single[:0]
@@ -59,7 +59,7 @@ func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (BoundE
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
@@ -73,8 +73,8 @@ func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (BoundE
 	if !visible || name != kind.name() || len(raw.Args) != arity || raw.Variadic || len(raw.ArgNames) != 0 {
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	properties := ExprProperties{Volatility: Stable}
-	var arg BoundExpr
+	properties := expr.Properties{Volatility: expr.Stable}
+	var arg expr.Expr
 	if arity == 1 {
 		target := b.typ(sqltype.Oid).Usage()
 		arg, err = b.finalizeOperand(operand, target.Type)
@@ -92,12 +92,12 @@ func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (BoundE
 			arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		properties = arg.Properties()
-		properties.Volatility = max(Stable, properties.Volatility)
+		properties.Volatility = max(expr.Stable, properties.Volatility)
 	}
 	return namespaceInquiryExpression{b.info(result, raw.Pos, properties), kind, arg}, nil
 }
 
-func (n namespaceInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n namespaceInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -188,23 +188,23 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 	return auth, path, err
 }
 
-func (n namespaceInquiryExpression) arguments() []BoundExpr {
+func (n namespaceInquiryExpression) arguments() []expr.Expr {
 	if n.arg == nil {
 		return nil
 	}
-	return []BoundExpr{n.arg}
+	return []expr.Expr{n.arg}
 }
 
 func (n namespaceInquiryExpression) validateStored() error {
 	result := sqltype.Oid
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	if n.kind == otherTempNamespace {
 		result = sqltype.Bool
 		if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage() != n.arg.ResultUsage().Type.Usage() || n.arg.ResultUsage().Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid stored namespace inquiry argument")
 		}
 		properties = n.arg.Properties()
-		properties.Volatility = max(Stable, properties.Volatility)
+		properties.Volatility = max(expr.Stable, properties.Volatility)
 	} else if n.kind != myTempNamespace || n.arg != nil {
 		return fmt.Errorf("stuntgres: invalid stored namespace inquiry kind")
 	}

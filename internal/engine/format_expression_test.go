@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"testing"
 
@@ -23,15 +24,15 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	node, ok := bound.(functions.Format)
-	if !ok || node.ResultUsage().Type.ID() != sqltype.Text || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable || plannedVolatility(node) != Stable {
+	if !ok || node.ResultUsage().Type.ID() != sqltype.Text || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != expr.Stable || plannedVolatility(node) != expr.Stable {
 		t.Fatalf("format metadata: %#v", bound)
 	}
 	for _, rewrite := range []struct {
 		name string
-		run  func() (BoundExpr, bool, error)
+		run  func() (expr.Expr, bool, error)
 	}{
-		{"preflight", func() (BoundExpr, bool, error) { return preflightCoercions(&EvalContext{Context: ctx}, node) }},
-		{"conditional", func() (BoundExpr, bool, error) { return simplifyConditional(&EvalContext{Context: ctx}, node, false) }},
+		{"preflight", func() (expr.Expr, bool, error) { return preflightCoercions(&EvalContext{Context: ctx}, node) }},
+		{"conditional", func() (expr.Expr, bool, error) { return simplifyConditional(&EvalContext{Context: ctx}, node, false) }},
 	} {
 		got, changed, err := rewrite.run()
 		if err != nil || changed {
@@ -141,7 +142,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(stored, err)
 			}
-			for _, current := range []BoundExpr{node, rebound} {
+			for _, current := range []expr.Expr{node, rebound} {
 				rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, current, pgRenderParent{})
 				if err != nil || rendered != tc.want {
 					t.Fatal("ANY provenance/replay deparse", rendered, tc.want, err)
@@ -186,7 +187,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 		t.Fatal("VARIADIC participates in grouping identity")
 	}
 	other = node
-	other.Args = []BoundExpr{node.Args[1], node.Args[0]}
+	other.Args = []expr.Expr{node.Args[1], node.Args[0]}
 	if b.sameGroupExpression(node, other) {
 		t.Fatal("ordered argument identity")
 	}
@@ -236,14 +237,14 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
-	column := columnExpression{Info: expressionInfo{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID()}
+	column := columnExpression{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: b.frameID()}
 	node.Variadic = false
-	node.Args = []BoundExpr{node.Args[0], column}
+	node.Args = []expr.Expr{node.Args[0], column}
 	node.Property.RowDependent = true
 	if generationImmutable(node) || firstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
 		t.Fatal("stable/variable descendants must remain visible")
 	}
-	rebound, err := b.rewriteGroup(node, []BoundExpr{column})
+	rebound, err := b.rewriteGroup(node, []expr.Expr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,8 +255,8 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if _, ok := node.Args[1].(columnExpression); !ok {
 		t.Fatal("group rewrite mutated shared children")
 	}
-	aggregate := aggregateExpression{Info: expressionInfo{Usage: node.ResultUsage(), Property: ExprProperties{StageDependent: true}}, slot: 7}
-	node.Args = []BoundExpr{node.Args[0], column, aggregate}
+	aggregate := aggregateExpression{Info: expr.Info{Usage: node.ResultUsage(), Property: expr.Properties{StageDependent: true}}, slot: 7}
+	node.Args = []expr.Expr{node.Args[0], column, aggregate}
 	if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
 		t.Fatal("all arguments must participate in aggregate traversal")
 	}
@@ -265,7 +266,7 @@ func TestFormatParameterDependence(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	bound, err := b.bind(nullCountRaw("format", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 1}), expressionPolicy{context: projectionContext})
-	if err != nil || !bound.Properties().ParameterDependent || bound.Properties().Volatility != Stable {
+	if err != nil || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Stable {
 		t.Fatal(bound, err)
 	}
 }

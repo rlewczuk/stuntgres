@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,9 +18,9 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
 	left, right := text.Usage(), text.Usage()
 	left.Collation.ID, right.Collation.ID = 950, 951
-	args := []BoundExpr{
-		literalExpression{expressionInfo{Usage: left}, sqltype.String(text, "abc")},
-		literalExpression{expressionInfo{Usage: right}, sqltype.String(text, "")},
+	args := []expr.Expr{
+		literalExpression{expr.Info{Usage: left}, sqltype.String(text, "abc")},
+		literalExpression{expr.Info{Usage: right}, sqltype.String(text, "")},
 	}
 	for _, name := range []string{"position", "strpos"} {
 		node, err := b.stringNode(name, integer.Usage(), parser.Position{Character: 8}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
@@ -35,8 +36,8 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 			t.Fatal("empty needle bypassed input demand", err)
 		}
-		explicit := append([]BoundExpr(nil), args...)
-		explicit[0] = literalExpression{expressionInfo{Usage: left, CollationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
+		explicit := append([]expr.Expr(nil), args...)
+		explicit[0] = literalExpression{expr.Info{Usage: left, CollationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
 		resolved, err := b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if err != nil || resolved.(functions.String).Plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
 			t.Fatal(resolved, err)
@@ -46,7 +47,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if err != nil || index != 1 {
 			t.Fatal(value, err)
 		}
-		explicit[1] = literalExpression{expressionInfo{Usage: right, CollationExplicit: parser.Position{Character: 40}}, sqltype.Null(text)}
+		explicit[1] = literalExpression{expr.Info{Usage: right, CollationExplicit: parser.Position{Character: 40}}, sqltype.Null(text)}
 		_, err = b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" || diagnostic.Position != "40" {
 			t.Fatal("explicit mismatch analysis", err)
@@ -62,9 +63,9 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
-	args := []BoundExpr{
-		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable, ParameterDependent: true}}, sqltype.Null(text)},
-		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, sqltype.String(text, "x")},
+	args := []expr.Expr{
+		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable, ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, sqltype.String(text, "x")},
 	}
 	bound, err := b.stringNode("strpos", integer.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
@@ -72,13 +73,13 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	}
 	node := bound.(functions.String)
 	// Pure child demand/error order is local; retain genuine owner property merge.
-	if node.Properties().Volatility != Volatile || !node.Properties().RowDependent || !node.Properties().ParameterDependent {
+	if node.Properties().Volatility != expr.Volatile || !node.Properties().RowDependent || !node.Properties().ParameterDependent {
 		t.Fatal("child properties", node.Properties())
 	}
 	bpchar := b.typ(sqltype.BPChar)
 	fixed := bpchar.Usage()
 	fixed.Typmod = 8
-	count, err := b.stringNode("octet_length", integer.Usage(), parser.Position{}, []BoundExpr{literalExpression{expressionInfo{Usage: fixed}, sqltype.String(bpchar, "é🙂  ")}}, [4]bool{true}, parser.OrdinaryStringSyntax)
+	count, err := b.stringNode("octet_length", integer.Usage(), parser.Position{}, []expr.Expr{literalExpression{expr.Info{Usage: fixed}, sqltype.String(bpchar, "é🙂  ")}}, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}

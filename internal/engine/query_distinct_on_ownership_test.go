@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -12,12 +13,12 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v+0) v+0 AS shown FROM t"+suffix)
 		project := query.Root.(*projectNode)
 		node := project.child.(*distinctOnNode)
-		var cached []BoundExpr
+		var cached []expr.Expr
 		switch input := node.child.(type) {
 		case *evaluationNode:
 			cached = input.expressions
 		case *sortNode:
-			cached = []BoundExpr{input.keys[0].expression}
+			cached = []expr.Expr{input.keys[0].expression}
 		default:
 			t.Fatalf("missing key cache %T", input)
 		}
@@ -98,7 +99,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		closeFailure := errors.New("ON child close")
 		primary := errors.New("ON key or sort primary")
 		closed := 0
-		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []BoundExpr{literalExpression{Info: expressionInfo{Usage: usage}, value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
+		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{literalExpression{Info: expr.Info{Usage: usage}, value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
 		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &projectNode{querySchema: schema, child: &singletonNode{}}, nestedStage: inner}
 		source := &querySource{sources: []*querySource{bridge}}
 		key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
@@ -115,8 +116,8 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 			}
 			child = &sortNode{querySchema: schema, child: child, cacheWidth: 1, keys: []sortKey{{cache: 0, slot: -1, comparison: comparison, expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
 		}
-		node := &distinctOnNode{querySchema: schema, child: child, expressions: []BoundExpr{key}, grouping: []queryGrouping{{Grouping: family}}}
-		root := &projectNode{querySchema: schema, child: node, expressions: []BoundExpr{columnExpression{Info: expressionInfo{Usage: usage}, scope: 1, frame: 1, slot: 0}}}
+		node := &distinctOnNode{querySchema: schema, child: child, expressions: []expr.Expr{key}, grouping: []queryGrouping{{Grouping: family}}}
+		root := &projectNode{querySchema: schema, child: node, expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: usage}, scope: 1, frame: 1, slot: 0}}}
 		rows, count, err := finalizeQuery(context.Background(), root, source, nil)
 		want := error(primary)
 		if phase == "close" {

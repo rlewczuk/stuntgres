@@ -36,7 +36,7 @@ type identityExpression struct {
 	ordinaryCall bool
 }
 
-func (e identityExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e identityExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -135,7 +135,7 @@ func (c *EvalContext) expressionPrincipal() authorization.PrincipalRef {
 	return s.identity.currentPrincipal
 }
 
-func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (BoundExpr, error) {
+func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (expr.Expr, error) {
 	var kind sessionIdentityKind
 	switch name {
 	case "current_catalog":
@@ -161,7 +161,7 @@ func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (Bound
 	if kind == identitySystemUser {
 		id = sqltype.Text
 	}
-	info := b.info(b.typ(id).Usage(), pos, ExprProperties{Volatility: Stable})
+	info := b.info(b.typ(id).Usage(), pos, expr.Properties{Volatility: expr.Stable})
 	if kind == identitySystemUser {
 		var err error
 		info, err = b.builtinRoutineInfo(info, catalogRoutineProvider, "system_user")
@@ -172,7 +172,7 @@ func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (Bound
 	return identityExpression{Info: info, kind: kind}, nil
 }
 
-func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (expr.Expr, error) {
 	// PostgreSQL transforms children before looking up the callee namespace.
 	// Valid zero-argument calls need neither diagnostic storage nor child work.
 	var names []string

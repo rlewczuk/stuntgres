@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,15 +55,15 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		t.Fatal("different defaults matched")
 	}
 	var found [3]bool
-	queryExpressions(node, func(e BoundExpr) {
-		for i, child := range [3]BoundExpr{first.argument, first.ordinal, first.defaultValue} {
+	queryExpressions(node, func(e expr.Expr) {
+		for i, child := range [3]expr.Expr{first.argument, first.ordinal, first.defaultValue} {
 			found[i] = found[i] || e == child
 		}
 	})
 	if found != [3]bool{true, true, true} {
 		t.Fatal("missing window child", found)
 	}
-	next, err := rewriteQueryExpressions(node, func(e BoundExpr) (BoundExpr, bool, error) {
+	next, err := rewriteQueryExpressions(node, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == first.defaultValue {
 			return second.defaultValue, true, nil
 		}
@@ -90,7 +91,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		project := matched.Root.(*projectNode)
 		found := false
 		for _, bound := range project.analysisExpressions {
-			walkBoundExpression(bound, func(child BoundExpr) {
+			walkBoundExpression(bound, func(child expr.Expr) {
 				if _, ok := child.(subqueryExpression); ok {
 					found = true
 				}

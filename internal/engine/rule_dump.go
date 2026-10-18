@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -23,11 +24,11 @@ func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
 	return quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name), nil
 }
 
-func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound BoundExpr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
+func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
 	r := pgRenderer{view: view, showImplicit: true}
 	r.columnSQL = func(column columnExpression) (string, error) {
 		if column.scope == 1 && column.frame == 1 && len(sourceRoots) != 0 {
-			return ruleSourceColumnSQL(view, sourceRoots[0], column.slot, action, func(root LogicalNode, expr BoundExpr) (string, error) {
+			return ruleSourceColumnSQL(view, sourceRoots[0], column.slot, action, func(root LogicalNode, expr expr.Expr) (string, error) {
 				return ruleExpressionSQL(ctx, view, expr, action, root)
 			})
 		}
@@ -40,7 +41,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound BoundExpr, a
 				from = action.binding.deleteUsing
 			}
 			if from != nil && column.slot >= offset {
-				return ruleSourceColumnSQL(view, from, column.slot-offset, action, func(root LogicalNode, expr BoundExpr) (string, error) {
+				return ruleSourceColumnSQL(view, from, column.slot-offset, action, func(root LogicalNode, expr expr.Expr) (string, error) {
 					return ruleExpressionSQL(ctx, view, expr, action, root)
 				})
 			}
@@ -72,7 +73,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound BoundExpr, a
 		}
 		return quoteIdentifier(d.name) + "." + name, nil
 	}
-	r.nodeSQL = func(expr BoundExpr) (string, bool, error) {
+	r.nodeSQL = func(expr expr.Expr) (string, bool, error) {
 		subquery, ok := expr.(subqueryExpression)
 		if !ok {
 			return "", false, nil
@@ -116,7 +117,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound BoundExpr, a
 		}
 		return text, true, nil
 	}
-	node, _, err := rewriteViewExpression(view, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+	node, _, err := rewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if c, ok := expr.(returningColumnExpression); ok {
 			return c.columnExpression, true, nil
 		}

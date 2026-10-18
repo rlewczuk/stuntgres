@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -71,7 +72,7 @@ func bindIndexProvider(parent *relationDescriptor, d *indexDefinition) error {
 
 type hashIndexBinding struct {
 	slot       int
-	expression BoundExpr
+	expression expr.Expr
 	derived    *derivedIndexKey
 	usage      sqltype.Usage
 	class      sqltype.IndexClass
@@ -120,7 +121,7 @@ func bindHashIndex(parent *relationDescriptor, d *indexDefinition) (hashIndexBin
 }
 
 // Both AMs use the same typed/expression extraction authority.
-func extractIndexKey(slot int, expression BoundExpr, values []sqltype.Value, evaluation *EvalContext) (sqltype.Value, error) {
+func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, evaluation *EvalContext) (sqltype.Value, error) {
 	if slot >= 0 {
 		return values[slot], nil
 	}

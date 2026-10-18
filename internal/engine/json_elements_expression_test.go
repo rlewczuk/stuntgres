@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -39,7 +40,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -63,13 +64,13 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if err != nil || !present || value.Type() != fresh[id] {
 			t.Fatal("retagged provider", value, present, err)
 		}
-		var dependencies []BoundExpr
-		walkBoundExpression(original, func(n BoundExpr) {
+		var dependencies []expr.Expr
+		walkBoundExpression(original, func(n expr.Expr) {
 			if n == original.Args[0] {
 				dependencies = append(dependencies, n)
 			}
 		})
-		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || plannedVolatility(original) != Immutable {
+		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || plannedVolatility(original) != expr.Immutable {
 			t.Fatal("lost argument dependency", dependencies)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
@@ -89,8 +90,8 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonElementsUnitMarker(t, b, name, `[2]`)
-		root := &functionFromNode{calls: []BoundExpr{original}, querySchema: querySchema{{Name: "value", Usage: b.typ(id).Usage()}}, frame: 1}
-		rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+		root := &functionFromNode{calls: []expr.Expr{original}, querySchema: querySchema{{Name: "value", Usage: b.typ(id).Usage()}}, frame: 1}
+		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
 			}
@@ -123,7 +124,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		calls := []BoundExpr{series, marker}
+		calls := []expr.Expr{series, marker}
 		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: calls})
 		if err != nil {
 			t.Fatal(err)
@@ -148,12 +149,12 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
-		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []BoundExpr{marker}})
+		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []expr.Expr{marker}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		target := make([]sqltype.Value, 1)
-		present, err = invocation.next(context.Background(), []BoundExpr{marker}, target, nil)
+		present, err = invocation.next(context.Background(), []expr.Expr{marker}, target, nil)
 		invocation.close()
 		if err != nil || !present || target[0].Type() != marker.ResultUsage().Type || target[0].IsNull() != (name == "json_array_elements_text") {
 			t.Fatal("scalar target slot", target, present, err)

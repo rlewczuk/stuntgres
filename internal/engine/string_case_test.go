@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,9 +32,9 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.String{
-			Info: expressionInfo{Usage: usage, CollationConflict: conflict},
+			Info: expr.Info{Usage: usage, CollationConflict: conflict},
 			Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-			Args: []BoundExpr{literalExpression{expressionInfo{Usage: usage}, sqltype.String(text, "ß")}},
+			Args: []expr.Expr{literalExpression{expr.Info{Usage: usage}, sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
@@ -82,11 +83,11 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	// Runtime once-only/Unicode assertions live in functions.TestStringCaseRuntimeDemand;
 	// this fixture retains the generic owner's nested collation authority.
 	node := functions.String{
-		Info: expressionInfo{Usage: usage, Property: ExprProperties{Volatility: Immutable, RowDependent: true}},
+		Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}},
 		Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-		Args: []BoundExpr{literalExpression{expressionInfo{Usage: usage}, sqltype.String(text, "İ")}},
+		Args: []expr.Expr{literalExpression{expr.Info{Usage: usage}, sqltype.String(text, "İ")}},
 	}
-	info, err := collatedInfo(New().CatalogRead(), expressionInfo{Usage: usage}, node)
+	info, err := collatedInfo(New().CatalogRead(), expr.Info{Usage: usage}, node)
 	if err != nil || info.Usage.Collation.ID != 811 || info.CollationConflict {
 		t.Fatal("nested authority", info, err)
 	}

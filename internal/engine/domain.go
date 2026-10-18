@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -41,13 +42,13 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	}
 	for _, c := range s.Constraints {
 		if c.Unique != nil {
-			return expressionError("42601", "unique constraints not possible for domains", c.Unique.Pos)
+			return expr.ErrorAt("42601", "unique constraints not possible for domains", c.Unique.Pos)
 		}
 		if c.ForeignKey != nil {
-			return expressionError("42601", "foreign key constraints not possible for domains", c.Pos)
+			return expr.ErrorAt("42601", "foreign key constraints not possible for domains", c.Pos)
 		}
 		if c.NotNull || c.Default != nil || c.Identity != nil || c.Generation != nil || c.Name.Text != "" && c.Check == nil {
-			return expressionError("0A000", "domain constraints and defaults are unsupported", c.Pos)
+			return expr.ErrorAt("0A000", "domain constraints and defaults are unsupported", c.Pos)
 		}
 	}
 	base, err := e.resolveAnnotationTypeMode(s.Base, op, false, true)

@@ -1,17 +1,19 @@
 package engine
 
-import "stuntgres/internal/sqltype"
-import "stuntgres/internal/engine/expr"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
 
 // View qualification is a relational guard, not a change to ordinary Boolean
 // expression evaluation. Unsafe user work never sees a row hidden by any layer.
 type viewQualificationExpression struct {
 	expr.Info
-	predicates []BoundExpr // outer-to-inner storage; evaluated inner-to-outer
-	user       BoundExpr
+	predicates []expr.Expr // outer-to-inner storage; evaluated inner-to-outer
+	user       expr.Expr
 }
 
-func (e viewQualificationExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -52,9 +54,9 @@ func (e viewQualificationExpression) Eval(ctx ExprContext) (sqltype.Value, error
 	}
 	return e.user.Eval(c)
 }
-func mapViewQualification(e viewQualificationExpression, mapper func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, bool, error) {
+func mapViewQualification(e viewQualificationExpression, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
 	changed := false
-	var private []BoundExpr
+	var private []expr.Expr
 	for i, x := range e.predicates {
 		next, different, err := mapper(x)
 		if err != nil {
@@ -62,7 +64,7 @@ func mapViewQualification(e viewQualificationExpression, mapper func(BoundExpr) 
 		}
 		if different {
 			if private == nil {
-				private = append([]BoundExpr(nil), e.predicates...)
+				private = append([]expr.Expr(nil), e.predicates...)
 			}
 			private[i] = next
 			changed = true

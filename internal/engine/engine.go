@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -111,7 +112,7 @@ type binding struct {
 	returning             *boundReturning
 	dependencies          []expressionDependency
 	parameters            ParameterInfo
-	expressions           [][]BoundExpr
+	expressions           [][]expr.Expr
 	insertRows            [][]parser.Expr
 	createColumns         []ColumnDescriptor
 	createNotNull         []notNullConstraint
@@ -122,13 +123,13 @@ type binding struct {
 	createOfType          *typeDescriptor
 	createInheritance     []createInheritanceInput
 	createLocalColumns    map[string]bool
-	defaults              []BoundExpr
+	defaults              []expr.Expr
 	identityDiscard       []bool
 	insertProjection      []int
 	conflict              *boundInsertConflict
 	temporals             []temporalConstant
 	composites            map[preparedCompositeKey]compositeOccurrence
-	predicate             BoundExpr
+	predicate             expr.Expr
 	sequenceConstants     []sequenceConstant
 	regclassConcat        bool
 	regclassInput         sqltype.RegclassResolver

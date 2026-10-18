@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			b.defaultConsumer = defaults
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: tc.args}
-			var node BoundExpr
+			var node expr.Expr
 			var err error
 			if tc.name == "substring" || tc.name == "bit_count" {
 				node, err = functions.BindBinary(b, raw, true)
@@ -45,7 +46,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 				t.Fatal(tc.name, defaults, err)
 			}
 			binary, ok := node.(functions.Binary)
-			if !ok || node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) || node.Properties().Volatility != Immutable {
+			if !ok || node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) || node.Properties().Volatility != expr.Immutable {
 				t.Fatal(tc.name, node)
 			}
 			if err := binary.Validate(); err != nil {
@@ -126,7 +127,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{Info: expressionInfo{Usage: sourceUsage}, value: sourceValue}
+		source := literalExpression{Info: expr.Info{Usage: sourceUsage}, value: sourceValue}
 		operands := []functions.Argument{{Expression: source, Usage: sourceUsage}}
 		if name == "overlay" || name == "position" {
 			operands = append(operands, operands[0])
@@ -137,7 +138,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			index := literalExpression{Info: expressionInfo{Usage: usage}, value: value}
+			index := literalExpression{Info: expr.Info{Usage: usage}, value: value}
 			operands = append(operands, functions.Argument{Expression: index, Usage: usage})
 		}
 		var types functions.BinaryTypes

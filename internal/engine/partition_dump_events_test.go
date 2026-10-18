@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 		f.view.state.bindName(descriptorNameKey(d), d.address)
 	}
 	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).typ
-	f.leaf.checkConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
+	f.leaf.checkConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
 	values := make([]sqltype.Value, len(f.leaf.columns))
 	for i, column := range f.leaf.columns {
 		values[i] = sqltype.Null(column.Usage.Type)

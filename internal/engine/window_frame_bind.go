@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -51,7 +52,7 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 		node = coercionExpression{b.info(usage, node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Implicit, false}
 	}
 	if expressionUsesFrame(node, b.frameID()) {
-		return bound, expressionError("42P10", "argument of RANGE must not contain variables", firstQueryBoundFrameVariable(node, b.frameID()))
+		return bound, expr.ErrorAt("42P10", "argument of RANGE must not contain variables", firstQueryBoundFrameVariable(node, b.frameID()))
 	}
 	bound.offset, bound.support = node, support
 	return bound, nil

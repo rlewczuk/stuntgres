@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 )
 
 // Definition/presentation paths retain written labels/order and omitted defaults;
 // execution and dependency walkers use declared slots, never this display order.
-func datetimeMakeSQL(e functions.DatetimeMake, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func datetimeMakeSQL(e functions.DatetimeMake, name string, render func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
 	if e.Count < 1 || e.Count > 7 || e.WrittenCount < 0 || e.WrittenCount > e.Count {
 		return "", fmt.Errorf("invalid stored datetime constructor")
 	}

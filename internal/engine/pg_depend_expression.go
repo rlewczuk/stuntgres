@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -46,7 +47,7 @@ func (r *pgDependRefs) add(address ids.ObjectAddress) {
 	r.addresses[address] = struct{}{}
 }
 
-func (r *pgDependRefs) expression(expr BoundExpr) {
+func (r *pgDependRefs) expression(expr expr.Expr) {
 	if expr == nil || r.err != nil {
 		return
 	}
@@ -140,7 +141,7 @@ func (r *pgDependRefs) query(node LogicalNode) {
 		}
 	}
 	if _, set := node.(*setNode); set {
-		queryExpressions(node, func(expr BoundExpr) {
+		queryExpressions(node, func(expr expr.Expr) {
 			// The set binder always installs an outer adaptation wrapper.
 			// An unchanged usage is not an analyzed cast dependency; genuine
 			// casts remain in its child and still take the ordinary path.
@@ -185,7 +186,7 @@ func (r *pgDependRefs) finish() ([]ids.ObjectAddress, error) {
 	return out, nil
 }
 
-func pgDependExpressionRefs(ctx context.Context, catalog CatalogRead, expression BoundExpr) ([]ids.ObjectAddress, error) {
+func pgDependExpressionRefs(ctx context.Context, catalog CatalogRead, expression expr.Expr) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog}
 	r.expression(expression)
 	return r.finish()

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -14,7 +15,7 @@ type domainCheckIdentity struct {
 // initialization. These are consumed call graphs with original actors/lifetimes,
 // not cached permission results. No CHECK truth is recorded or replayed.
 type domainCheckProgram struct {
-	expressions []BoundExpr
+	expressions []expr.Expr
 	phases      []domainCheckPhase
 }
 type domainCheckPhase struct {

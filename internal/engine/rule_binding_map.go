@@ -2,14 +2,15 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
 func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 	originalReturning := b.returning
-	expression := func(value BoundExpr) (BoundExpr, error) { next, _, err := mapper.expression(value); return next, err }
-	list := func(values []BoundExpr) ([]BoundExpr, bool, error) {
-		var copied []BoundExpr
+	expression := func(value expr.Expr) (expr.Expr, error) { next, _, err := mapper.expression(value); return next, err }
+	list := func(values []expr.Expr) ([]expr.Expr, bool, error) {
+		var copied []expr.Expr
 		for i, value := range values {
 			next, changed, err := mapper.expression(value)
 			if err != nil {
@@ -46,7 +47,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 			b.query = &query
 		}
 	}
-	var rows [][]BoundExpr
+	var rows [][]expr.Expr
 	for i, row := range b.expressions {
 		next, changed, err := list(row)
 		if err != nil {

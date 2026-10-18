@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -34,13 +35,13 @@ func indexBuiltinOperatorRoutines() map[builtinOperatorRoutineKey]*builtinRoutin
 	return byDeclaration
 }
 
-func (b *expressionBinder) builtinOperatorRoutineInfo(info expressionInfo, name string, left, right sqltype.ID) (expressionInfo, error) {
+func (b *expressionBinder) builtinOperatorRoutineInfo(info expr.Info, name string, left, right sqltype.ID) (expr.Info, error) {
 	if name == "!=" {
 		name = "<>"
 	}
 	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(left), ids.OID(right)}]
 	if declaration == nil {
-		return expressionInfo{}, fmt.Errorf("stuntgres: missing successful operator routine association for %s (%d,%d)", name, left, right)
+		return expr.Info{}, fmt.Errorf("stuntgres: missing successful operator routine association for %s (%d,%d)", name, left, right)
 	}
 	return b.selectedBuiltinRoutineInfo(info, declaration)
 }

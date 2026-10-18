@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -21,9 +22,9 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: v}
+	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v}
 	result := b.typ(sqltype.Numeric)
-	original, err := functions.NewRangeInspect(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable}), sqltype.RangeLower, []BoundExpr{arg})
+	original, err := functions.NewRangeInspect(b.info(result.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeLower, []expr.Expr{arg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +48,11 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 		t.Fatal("incorrect provider equivalence")
 	}
 	children := 0
-	boundExpressionChildren(next, func(BoundExpr) { children++ })
+	boundExpressionChildren(next, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("lost traversal", children)
 	}
-	if !generationImmutable(next) || plannedVolatility(next) != Immutable || !conditionalConstantInputs(next) {
+	if !generationImmutable(next) || plannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
 	folded, changed, err := preflightCoercions(&EvalContext{Context: ctx}, next)
@@ -80,7 +81,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: value}
+	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Pos: parser.Position{Character: 8}}
 	node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 	if err != nil {
@@ -118,7 +119,7 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		base := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: parser.Position{Character: 8}}}}, Args: []parser.Expr{literal}, Pos: parser.Position{Character: 8}}
 		for _, directString := range []bool{false, true} {
-			bind := func(raw parser.FunctionExpr) (BoundExpr, error) {
+			bind := func(raw parser.FunctionExpr) (expr.Expr, error) {
 				if directString {
 					return functions.BindString(b, raw, true)
 				}

@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	operands := make([]functions.Argument, len(raw.Args))
 	names := make([]string, len(raw.Args))
@@ -30,15 +30,15 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	}
 	switch {
 	case raw.Star:
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
 	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Window != nil:
-		return nil, expressionError("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
 	}
 	selected := selection.Descriptor
 	args, err := functions.CoerceEnumArguments(b, operands, selected.Usage(), name)
@@ -47,7 +47,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	}
 	properties := expr.IntrinsicProperties(functions.EnumIntrinsicRule())
 	for _, arg := range args {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if err := b.captureTypeDiagnosticInput(selected); err != nil {
 		return nil, err

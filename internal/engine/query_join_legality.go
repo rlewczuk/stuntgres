@@ -61,13 +61,13 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 
 // Mutation targets and RETURNING are planned even when their input selects no
 // rows. Walk only the execution-owned expressions that the binding consumes.
-func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]BoundExpr, catalog CatalogRead) error {
+func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]expr.Expr, catalog CatalogRead) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	validateTargets := func(targets []*arrayAssignmentTarget) error {
 		for _, target := range targets {
 			for path := target; path != nil; path = path.next {
-				var storage [13]BoundExpr
+				var storage [13]expr.Expr
 				for _, child := range subscriptChildren(path.node, &storage) {
 					if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
 						return err
@@ -119,7 +119,7 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]B
 	return nil
 }
 
-func validateExpressionJoinExecution(c *EvalContext, expression BoundExpr, catalog CatalogRead) error {
+func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catalog CatalogRead) error {
 	if expression == nil {
 		return nil
 	}
@@ -171,7 +171,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression BoundExpr, catal
 		return validateExpressionJoinExecution(c, logical.right, catalog)
 	}
 	var failure error
-	boundExpressionChildren(expression, func(child BoundExpr) {
+	boundExpressionChildren(expression, func(child expr.Expr) {
 		if failure == nil {
 			failure = validateExpressionJoinExecution(c, child, catalog)
 		}
@@ -190,7 +190,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 	// Eligible EXISTS retains their graph, but does not plan ignored output.
 	if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
 		var failure error
-		validate := func(expression BoundExpr) {
+		validate := func(expression expr.Expr) {
 			if failure == nil {
 				failure = validateExpressionJoinExecution(c, expression, catalog)
 			}
@@ -224,7 +224,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 					return err
 				}
 				if len(call.distinct) > 1 {
-					keys := [2]BoundExpr{call.argument, call.separator}
+					keys := [2]expr.Expr{call.argument, call.separator}
 					if err := admitQueryGroupings(c, call.distinct, keys[:len(call.distinct)]); err != nil {
 						return err
 					}
@@ -280,7 +280,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		set := querySetNode(node)
 		if len(set.grouping) != 0 {
 			groups := set.grouping
-			var cycleMark BoundExpr
+			var cycleMark expr.Expr
 			if recursive, ok := node.(*recursiveUnionNode); ok && recursive.cycle != nil {
 				// Seed expressions retain only user columns. CYCLE appends
 				// its mark grouping separately; ancestry uses its own executor.
@@ -291,7 +291,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 				return err
 			}
 			if cycleMark != nil {
-				keys := [1]BoundExpr{cycleMark}
+				keys := [1]expr.Expr{cycleMark}
 				if err := admitQueryGroupings(c, set.grouping[len(groups):], keys[:]); err != nil {
 					return err
 				}
@@ -418,7 +418,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 // Every key is an effective equality. Keep only its ordered, bound operands:
 // the original predicate/provider remains untouched, including under NOT.
 type fullJoinKey struct {
-	left, right BoundExpr
+	left, right expr.Expr
 }
 
 type fullJoinFacts struct {
@@ -431,7 +431,7 @@ type fullJoinFacts struct {
 // OR retains only structurally common keys in the same operand order. NOT is
 // pushed through Boolean nodes with SQL three-valued truth. At the resulting
 // match boundary, FALSE and UNKNOWN both reject a pair.
-func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate bool) (fullJoinFacts, error) {
+func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
 	if bound == nil {
 		return fullJoinFacts{constant: true, truth: True}, nil
 	}
@@ -439,7 +439,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate b
 	// Pruning preserves analyzed dependencies even on a physical literal.
 	// Those properties still govern metadata/ACLs, not its planning truth.
 	_, literal := bound.(literalExpression)
-	if literal || p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion {
+	if literal || p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion {
 		value, err := bound.Eval(c)
 		if err != nil {
 			return fullJoinFacts{}, err
@@ -524,7 +524,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate b
 		var test sqltype.Value
 		if e.test != nil {
 			p := e.test.Properties()
-			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
+			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
 				return fullJoinFacts{}, nil
 			}
 			var err error
@@ -535,7 +535,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate b
 		}
 		for _, arm := range e.arms {
 			p := arm.condition.Properties()
-			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
+			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
 				return fullJoinFacts{}, nil
 			}
 			condition, err := arm.condition.Eval(c)
@@ -574,7 +574,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate b
 	if e, ok := bound.(conditionalExpression); ok && e.kind == parser.Coalesce {
 		for _, arg := range e.args {
 			p := arg.Properties()
-			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
+			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
 				// Dropping preceding constant NULLs still leaves COALESCE,
 				// not a bare equality key, even with one remaining argument.
 				break
@@ -597,7 +597,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate b
 		if err != nil {
 			return fullJoinFacts{}, err
 		}
-		if e.left.Properties().Volatility != Volatile && e.right.Properties().Volatility != Volatile && (left == 1 && right == 2 || left == 2 && right == 1) {
+		if e.left.Properties().Volatility != expr.Volatile && e.right.Properties().Volatility != expr.Volatile && (left == 1 && right == 2 || left == 2 && right == 1) {
 			return fullJoinFacts{keys: []fullJoinKey{{left: e.left, right: e.right}}}, nil
 		}
 	}
@@ -629,7 +629,7 @@ func fullJoinComparisonOperator(operator string, negate bool) string {
 
 // Slots, including descendant synthetic merged slots, belong to child frames.
 // Physical origins are deliberately irrelevant to FULL path capability.
-func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, error) {
+func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, error) {
 	if node == nil {
 		return 0, nil
 	}
@@ -643,12 +643,12 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		return 2, nil
 	}
 	var result uint8
-	child := func(e BoundExpr) error {
+	child := func(e expr.Expr) error {
 		side, err := joinExpressionSides(e, leftWidth, rightWidth)
 		result |= side
 		return err
 	}
-	var children []BoundExpr
+	var children []expr.Expr
 	switch e := node.(type) {
 	case literalExpression, parameterExpression, identityExpression:
 		return 0, nil
@@ -664,7 +664,7 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 			return 0, err
 		}
 		for _, s := range e.subscripts {
-			for _, child := range [2]BoundExpr{s.lower, s.upper} {
+			for _, child := range [2]expr.Expr{s.lower, s.upper} {
 				if child == nil {
 					continue
 				}
@@ -683,9 +683,9 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	case selectedOperatorExpression:
 		return joinExpressionSides(e.provider, leftWidth, rightWidth)
 	case arithmeticExpression:
-		children = []BoundExpr{e.left, e.right}
+		children = []expr.Expr{e.left, e.right}
 	case bitwiseExpression:
-		children = []BoundExpr{e.left, e.right}
+		children = []expr.Expr{e.left, e.right}
 	case rowComparisonExpression:
 		var sides uint8
 		for _, pair := range e.comparisons {
@@ -721,13 +721,13 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		}
 		return sides, nil
 	case comparisonExpression:
-		children = []BoundExpr{e.left, e.right}
+		children = []expr.Expr{e.left, e.right}
 	case logicalExpression:
-		children = []BoundExpr{e.left, e.right}
+		children = []expr.Expr{e.left, e.right}
 	case distinctExpression:
-		children = []BoundExpr{e.left, e.right}
+		children = []expr.Expr{e.left, e.right}
 	case likeExpression:
-		children = []BoundExpr{e.left, e.right}
+		children = []expr.Expr{e.left, e.right}
 	case seriesExpression:
 		children = e.args
 	case subscriptsExpression:
@@ -735,9 +735,9 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	case unnestExpression:
 		children = e.args
 	case nullTestExpression:
-		children = []BoundExpr{e.child}
+		children = []expr.Expr{e.child}
 	case truthTestExpression:
-		children = []BoundExpr{e.child}
+		children = []expr.Expr{e.child}
 	case conditionalExpression:
 		children = e.args
 	case catalogUserNameExpression:
@@ -748,7 +748,7 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		if e.arg == nil {
 			return 0, nil
 		}
-		children = []BoundExpr{e.arg}
+		children = []expr.Expr{e.arg}
 	case commitTimestampExpression:
 		if e.arg == nil {
 			return 0, nil
@@ -775,13 +775,13 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	case installedCryptoFunctionExpression:
 		children = e.Args
 	case installedFunctionExpression:
-		children = []BoundExpr{e.Arg}
+		children = []expr.Expr{e.Arg}
 	case sqlJSONExpression:
 		children = e.args
 	case jsonPredicateExpression:
-		children = []BoundExpr{e.child}
+		children = []expr.Expr{e.child}
 	case currentSchemasExpression:
-		children = []BoundExpr{e.arg}
+		children = []expr.Expr{e.arg}
 	case objectAddressExpression:
 		children = e.args[:]
 	case aclValueExpression:
@@ -795,7 +795,7 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	case blockingInquiryExpression:
 		children = e.arguments()
 	case visibilityInquiryExpression:
-		children = []BoundExpr{e.arg}
+		children = []expr.Expr{e.arg}
 	case caseExpression:
 		if err := child(e.test); err != nil {
 			return 0, err

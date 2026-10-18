@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -21,7 +22,7 @@ func (b *expressionBinder) arrayMembershipError(left, right *sqltype.Descriptor,
 	return err
 }
 
-func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Args) != 2 {
 		return nil, fmt.Errorf("stuntgres: invalid membership arity")
 	}
@@ -36,7 +37,7 @@ func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (BoundEx
 	return b.finishArrayMembership(raw, operands)
 }
 
-func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operands [2]comparisonOperand) (BoundExpr, error) {
+func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operands [2]comparisonOperand) (expr.Expr, error) {
 	left, right := operands[0].descriptor(), operands[1].descriptor()
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
@@ -47,7 +48,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 	}
 	if left == nil && right == nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		d := expressionError("42725", "operator is not unique: unknown "+name+" unknown", raw.Pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42725", "operator is not unique: unknown "+name+" unknown", raw.Pos).(*sqlstate.Error)
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}
@@ -66,7 +67,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 				return nil, err
 			}
 			n.args[i] = arg
-			properties = mergeExpressionProperties(properties, arg.Properties())
+			properties = expr.MergeProperties(properties, arg.Properties())
 		}
 		if len(raw.Name.Parts) == 2 {
 			n.namespace = raw.Name.Parts[0].Text
@@ -89,7 +90,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		}
 		selected = base
 	}
-	args := make([]BoundExpr, 2)
+	args := make([]expr.Expr, 2)
 	for i, o := range operands {
 		args[i], err = b.coerceConditional(o, selected.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 		if err != nil {
@@ -101,13 +102,13 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 
 // This is the array branch of the existing || selector. Its children have
 // already been analyzed by bindStringConcat; no child is rebound here.
-func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [2]functions.Argument, visible bool) (BoundExpr, bool, error) {
+func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [2]functions.Argument, visible bool) (expr.Expr, bool, error) {
 	left, right := operands[0].Usage.Type, operands[1].Usage.Type
 	array := func(d *sqltype.Descriptor) bool { return d != nil && d.BaseType().IsArray() }
 	if !array(left) && !array(right) {
 		return nil, false, nil
 	}
-	signature := func() (BoundExpr, error) { return nil, b.arrayMembershipError(left, right, raw) }
+	signature := func() (expr.Expr, error) { return nil, b.arrayMembershipError(left, right, raw) }
 	if !visible {
 		e, err := signature()
 		return e, true, err

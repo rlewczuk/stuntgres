@@ -1,11 +1,14 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+)
 
 // Binding runs under engine.mu. Candidate identity and definition are immutable;
 // source capture revalidates them rather than reopening names or substituting
 // prepared values. All candidates have RelationClassID and SubID zero.
-func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query BoundExpr) *relationDescriptor {
+func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *relationDescriptor {
 	if b.queryAuth == nil {
 		return nil
 	}

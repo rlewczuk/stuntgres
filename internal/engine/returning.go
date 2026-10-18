@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ type returningAliases struct {
 }
 
 type boundReturning struct {
-	expressions        []BoundExpr
+	expressions        []expr.Expr
 	schema             []ColumnDescriptor
 	regclassOutput     bool
 	reads              []int
@@ -40,7 +41,7 @@ type returningColumnExpression struct {
 	merge       bool
 	side        mergeReturningSide
 	// A lowered logical view column can be an arbitrary physical expression.
-	value BoundExpr
+	value expr.Expr
 }
 
 func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, error) {
@@ -55,7 +56,7 @@ func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, err
 	return nil, fmt.Errorf("stuntgres: RETURNING row frame is missing")
 }
 
-func (e returningColumnExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
@@ -67,7 +68,7 @@ func (e returningColumnExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 	if e.absent || !e.merge && e.old && parent.OldRow == nil {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	value := BoundExpr(e.columnExpression)
+	value := expr.Expr(e.columnExpression)
 	if e.value != nil {
 		value = e.value
 	}
@@ -93,16 +94,16 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			seen, label = &seenNew, "NEW"
 		}
 		if *seen {
-			return nil, expressionError("42601", label+" cannot be specified multiple times", option.Pos)
+			return nil, expr.ErrorAt("42601", label+" cannot be specified multiple times", option.Pos)
 		}
 		*seen = true
 		if option.Alias.Text == visible {
-			return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
+			return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 		}
 		if b.queryNamespace != nil {
 			for _, qualifier := range b.queryNamespace.qualifiers {
 				if qualifier.name == option.Alias.Text {
-					return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
+					return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 				}
 			}
 		}
@@ -112,7 +113,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			aliases.old = option.Alias.Text
 		}
 		if seenOld && seenNew && aliases.old == aliases.new {
-			return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
+			return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 		}
 	}
 	// Explicit aliases take precedence over the other implicit namespace.
@@ -138,7 +139,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
 	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
 	output := &boundReturning{}
-	appendOutput := func(expr BoundExpr, name string) {
+	appendOutput := func(expr expr.Expr, name string) {
 		descriptor := ColumnDescriptor{Name: name, Usage: expr.ResultUsage()}
 		switch column := expr.(type) {
 		case columnExpression:
@@ -244,7 +245,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		if field, ok := raw.Targets[0].(parser.FieldExpr); ok && field.OpenPos.Character != 0 {
 			pos = field.OpenPos
 		}
-		return nil, expressionError("42601", "RETURNING must have at least one column", pos)
+		return nil, expr.ErrorAt("42601", "RETURNING must have at least one column", pos)
 	}
 	// Resolve output occurrences only after every target has constrained the
 	// shared parameter slots, matching ordinary scalar projection ordering.
@@ -287,14 +288,14 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 		}
 	}
 	if label == b.targetName && b.targetAlias != "" {
-		err := expressionError("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
+		err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
 		err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.targetAlias)
 		return false, err
 	}
-	return false, expressionError("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
+	return false, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
 }
 
-func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) BoundExpr {
+func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAt(slot, pos).(columnExpression)
 	if b.returningAliases.mode == returningMerge {
 		side := mergeOldSide
@@ -326,7 +327,7 @@ func (b *expressionBinder) returningPseudo(name parser.ObjectName) (newValues, p
 	return false, false
 }
 
-func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, error) {
+func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 	parts := raw.Name.Parts
 	if len(parts) == 0 || len(parts) > 3 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
@@ -365,15 +366,15 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, er
 	slot, ok := b.relation.index[name]
 	if !ok {
 		if len(parts) > 1 {
-			return nil, expressionError("42703", fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name), raw.Pos)
+			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name), raw.Pos)
 		}
-		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
+		return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
 	}
 	return b.returningColumnAt(slot, raw.Pos, newValues), nil
 }
 
 func preflightReturning(c *EvalContext, output *boundReturning) (*boundReturning, error) {
-	var expressions []BoundExpr
+	var expressions []expr.Expr
 	for i, bound := range output.expressions {
 		// Plan genuine SQL constants before importing frame coercions and before
 		// tuple/index demand. Row-dependent output still executes after insertion
@@ -389,7 +390,7 @@ func preflightReturning(c *EvalContext, output *boundReturning) (*boundReturning
 		}
 		if changed {
 			if expressions == nil {
-				expressions = append([]BoundExpr(nil), output.expressions...)
+				expressions = append([]expr.Expr(nil), output.expressions...)
 			}
 			expressions[i] = folded
 		}
@@ -442,7 +443,7 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 	return nil, false
 }
 
-func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) BoundExpr {
+func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAtOf(scope.relation, slot, pos).(columnExpression)
 	column.frame = scope.frame
 	if scope.returning.mode == returningMerge {
@@ -463,7 +464,7 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 
 // Scalar transition values and their default-row member projections share the
 // same saved column wrappers and owning frame as correlated qualified columns.
-func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos parser.Position, newValues bool) (BoundExpr, error) {
+func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos parser.Position, newValues bool) (expr.Expr, error) {
 	if scope.returning.mode == returningInsert || scope.returning.mode == returningMerge {
 		name := scope.returning.old
 		if newValues {
@@ -472,11 +473,11 @@ func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos 
 		expr, _, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, pos)
 		return expr, err
 	}
-	fields := make([]BoundExpr, len(scope.relation.columns))
-	props := ExprProperties{}
+	fields := make([]expr.Expr, len(scope.relation.columns))
+	props := expr.Properties{}
 	for i := range fields {
 		fields[i] = b.outerReturningColumnAt(scope, i, pos, newValues)
-		props = mergeExpressionProperties(props, fields[i].Properties())
+		props = expr.MergeProperties(props, fields[i].Properties())
 	}
 	typ, _ := b.bindingCatalog().LookupType(scope.relation.rowType)
 	return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: scope.returning.mode == returningDelete && newValues}, nil

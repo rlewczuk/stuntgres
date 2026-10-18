@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -36,11 +37,11 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 		for _, mode := range []string{"IS DISTINCT FROM", "IS NOT DISTINCT FROM"} {
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				var order []int
-				probe := func(id int, value sqltype.Value, failure error) BoundExpr {
-					return rowOperandEffect{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, value, &order, id, failure}
+				probe := func(id int, value sqltype.Value, failure error) expr.Expr {
+					return rowOperandEffect{expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, value, &order, id, failure}
 				}
-				row := rowComparisonExpression{Info: expressionInfo{Usage: boolean.Usage()}, operator: mode, comparisons: []comparisonExpression{{
-					Info: expressionInfo{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "=",
+				row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: mode, comparisons: []comparisonExpression{{
+					Info: expr.Info{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "=",
 				}}}
 				value, err := row.Eval(&EvalContext{Context: context.Background()})
 				truth, boolErr := value.Boolean()
@@ -51,7 +52,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				if err != nil || boolErr != nil || truth != want || !reflect.DeepEqual(order, []int{0, 1}) {
 					t.Fatal("single pair total result/demand", value, err, boolErr, order)
 				}
-				row.comparisons = append(row.comparisons, comparisonExpression{Info: expressionInfo{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, one, nil), predicate: predicate, operator: "="})
+				row.comparisons = append(row.comparisons, comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, one, nil), predicate: predicate, operator: "="})
 				order = nil
 				_, err = row.Eval(&EvalContext{Context: context.Background()})
 				if tc.distinct {
@@ -71,7 +72,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 		}
 	}
 	for _, mode := range []string{"IS DISTINCT FROM", "IS NOT DISTINCT FROM"} {
-		row := rowComparisonExpression{Info: expressionInfo{Usage: boolean.Usage()}, operator: mode}
+		row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: mode}
 		value, err := row.Eval(&EvalContext{Context: context.Background()})
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || truth != (mode == "IS NOT DISTINCT FROM") {
@@ -141,7 +142,7 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 		}
 		original := node.(rowComparisonExpression)
 		if width != 0 {
-			original.expansions[0] = map[int]compositeExpansionBinding{0: {base: original.comparisons[0].left, fields: []BoundExpr{original.comparisons[0].left}}}
+			original.expansions[0] = map[int]compositeExpansionBinding{0: {base: original.comparisons[0].left, fields: []expr.Expr{original.comparisons[0].left}}}
 		}
 		retained := func(old *sqltype.Descriptor) *sqltype.Descriptor { return eType(t, target, old.ID()) }
 		mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, retained)

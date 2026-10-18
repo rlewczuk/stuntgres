@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -46,7 +47,7 @@ type procedureDescriptor struct {
 	body                          []routineBodyEdge
 	owner                         authorization.PrincipalRef
 	result                        ids.OID
-	volatility                    Volatility
+	volatility                    expr.Volatility
 	strict                        bool
 	provider                      *unaccentProvider
 	queryCodec                    *intarrayProvider
@@ -218,7 +219,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.name)
-			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
+			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != expr.Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
 				return invalid()
 			}
 			break
@@ -229,7 +230,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		ext = d.extension
 		switch d.signature {
 		case unaccentTextSignature, unaccentDictionarySignature:
-			if d.name != "unaccent" || d.result != 25 || d.volatility != Stable || !d.strict {
+			if d.name != "unaccent" || d.result != 25 || d.volatility != expr.Stable || !d.strict {
 				return invalid()
 			}
 			if ext != (ids.ObjectAddress{}) {
@@ -239,11 +240,11 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				}
 			}
 		case unaccentInitSignature:
-			if d.name != "unaccent_init" || d.result != 2281 || d.volatility != Volatile || d.strict {
+			if d.name != "unaccent_init" || d.result != 2281 || d.volatility != expr.Volatile || d.strict {
 				return invalid()
 			}
 		case unaccentLexizeSignature:
-			if d.name != "unaccent_lexize" || d.result != 2281 || d.volatility != Volatile || d.strict {
+			if d.name != "unaccent_lexize" || d.result != 2281 || d.volatility != expr.Volatile || d.strict {
 				return invalid()
 			}
 		default:

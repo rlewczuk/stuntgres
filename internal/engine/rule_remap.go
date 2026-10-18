@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func remapRuleBinding(view CatalogRead, b binding, ref func(ids.ObjectRef) ids.O
 
 func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper, mapper *viewQueryRemapper) (binding, error) {
 	originalRef := b.ref
-	mapExpr := func(expr BoundExpr) (BoundExpr, error) {
+	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
 		if expr == nil {
 			return nil, nil
 		}
@@ -29,14 +30,14 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 		}
 		return remapBoundExpressionWithQuery(node, ref, nil, mapper.nested, nil)
 	}
-	mapTargetExpr := func(expr BoundExpr) (BoundExpr, bool, error) {
+	mapTargetExpr := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
 			return nil, false, nil
 		}
 		next, err := mapExpr(expr)
 		return next, true, err // Import remints the complete scalar identity tree.
 	}
-	mapList := func(list []BoundExpr) ([]BoundExpr, error) {
+	mapList := func(list []expr.Expr) ([]expr.Expr, error) {
 		if len(list) == 0 {
 			return list, nil
 		}

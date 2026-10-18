@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -35,7 +36,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			}
 			// Local child units own runtime order/error propagation; retain
 			// real owner remap and exact payload comparison here.
-			expr := functions.Binary{Info: expressionInfo{Usage: u}, Plan: p, Args: []BoundExpr{literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: value}}}
+			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}}}
 			got, err := expr.Eval(&EvalContext{Context: context.Background()})
 			if err != nil {
 				t.Fatal(err)

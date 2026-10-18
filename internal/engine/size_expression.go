@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -8,7 +9,7 @@ import (
 
 // Size overloads have no preferred numeric candidate. Analyze children before
 // resolving signatures, while retaining unknowns for occurrence-owned inference.
-func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var operand functions.Argument
 	var names []string
@@ -30,7 +31,7 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	var types functions.SizeTypes
 	demand := functions.NeededSizeTypes(name, visible, len(raw.Args), operand.Usage)

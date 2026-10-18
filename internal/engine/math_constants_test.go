@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	ctx := context.Background()
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	bind := func(text string) BoundExpr {
+	bind := func(text string) expr.Expr {
 		t.Helper()
 		raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 		x, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -25,14 +26,14 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	node := bind("pi()")
 	original, ok := node.(functions.Math)
-	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || plannedVolatility(node) != Immutable {
+	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || plannedVolatility(node) != expr.Immutable {
 		t.Fatal(node)
 	}
 	if !b.sameGroupExpression(node, bind("pg_catalog.pi()")) {
 		t.Fatal("zero-child grouping identity")
 	}
 	visits := 0
-	walkBoundExpression(node, func(BoundExpr) { visits++ })
+	walkBoundExpression(node, func(expr.Expr) { visits++ })
 	if visits != 1 {
 		t.Fatal("zero-child traversal", visits)
 	}
@@ -40,7 +41,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if err != nil || !b.sameGroupExpression(node, rewritten) {
 		t.Fatal("group rewrite", rewritten, err)
 	}
-	assert := func(x BoundExpr, owner *sqltype.Descriptor) {
+	assert := func(x expr.Expr, owner *sqltype.Descriptor) {
 		t.Helper()
 		value, err := x.Eval(&EvalContext{Context: ctx})
 		if err != nil || value.IsNull() || value.Type() != owner {
@@ -78,7 +79,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		t.Fatal("stored foreign provider accepted")
 	}
 	foreign = reminted
-	foreign.Args = []BoundExpr{literalExpression{Info: expressionInfo{Usage: reminted.Usage}, value: sqltype.Null(reminted.Usage.Type)}}
+	foreign.Args = []expr.Expr{literalExpression{Info: expr.Info{Usage: reminted.Usage}, value: sqltype.Null(reminted.Usage.Type)}}
 	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored pi argument accepted")
 	}

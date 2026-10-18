@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -85,12 +86,12 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, barrier := range []ExprProperties{
+		for _, barrier := range []expr.Properties{
 			{RowDependent: true}, {StageDependent: true},
-			{DomainDependent: true, RuntimeDomainConversion: true}, {Volatility: Volatile},
+			{DomainDependent: true, RuntimeDomainConversion: true}, {Volatility: expr.Volatile},
 		} {
 			recipe := original
-			recipe.Property = mergeExpressionProperties(recipe.Property, barrier)
+			recipe.Property = expr.MergeProperties(recipe.Property, barrier)
 			evaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}, planStaticOperators: true, specializeRuleParameters: true}
 			mapped, changed, err := preflightCoercions(&evaluation, recipe)
 			if err != nil || !changed {
@@ -111,9 +112,9 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		bad := preflightCast(t, "SELECT 1/0 FROM t")
 		good := preflightCast(t, "SELECT 7 FROM t")
 		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
-		child := &projectNode{querySchema: schema, child: &singletonNode{}, expressions: []BoundExpr{bad}, frame: 2}
+		child := &projectNode{querySchema: schema, child: &singletonNode{}, expressions: []expr.Expr{bad}, frame: 2}
 		derived := &derivedNode{querySchema: schema, query: &BoundQuery{Root: child}, scanFrame: 1}
-		outer := &projectNode{querySchema: schema, child: derived, expressions: []BoundExpr{good}, frame: 1}
+		outer := &projectNode{querySchema: schema, child: derived, expressions: []expr.Expr{good}, frame: 1}
 		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
 		prepared, err := preflightQuery(&evaluation, outer)
 		if err != nil {
@@ -128,8 +129,8 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			t.Fatal("derived template was mutated")
 		}
 		demanded := *outer
-		demanded.expressions = []BoundExpr{columnExpression{
-			Info:  expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
+		demanded.expressions = []expr.Expr{columnExpression{
+			Info:  expr.Info{Usage: bad.ResultUsage(), Property: expr.Properties{RowDependent: true}},
 			frame: 1, slot: 0,
 		}}
 		_, err = preflightQuery(&evaluation, &demanded)
@@ -142,15 +143,15 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if used {
 				// The mutation target owns slot zero; FROM starts at slot one.
 				expression = columnExpression{
-					Info:  expressionInfo{Usage: bad.ResultUsage(), Property: ExprProperties{RowDependent: true}},
+					Info:  expr.Info{Usage: bad.ResultUsage(), Property: expr.Properties{RowDependent: true}},
 					frame: 1, slot: 1,
 				}
 			}
 			if shape == "dead_case" {
-				expression, _, err = rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
+				expression, _, err = rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
 					if parameter, ok := node.(parameterExpression); ok {
 						info := parameter.Info
-						info.Property = ExprProperties{RowDependent: true}
+						info.Property = expr.Properties{RowDependent: true}
 						return columnExpression{Info: info, frame: 1, slot: 1}, true, nil
 					}
 					return node, false, nil
@@ -160,7 +161,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				}
 			}
 			original := binding{relation: &relationDescriptor{columns: []ColumnDescriptor{schema[0]}},
-				update: &boundUpdate{from: derived, sourceWidth: 1, assignments: []BoundExpr{expression}}}
+				update: &boundUpdate{from: derived, sourceWidth: 1, assignments: []expr.Expr{expression}}}
 			private, err := preflightUpdate(&evaluation, original.update, func(prepared *boundUpdate) (LogicalNode, error) {
 				current := original
 				current.update = prepared
@@ -267,7 +268,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				}
 			}
 			pseudoRetained := false
-			walkBoundExpression(childTemplate.expressions[0], func(node BoundExpr) {
+			walkBoundExpression(childTemplate.expressions[0], func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok && column.scope == rulePseudoScope {
 					pseudoRetained = true
 				}
@@ -281,12 +282,12 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 	t.Run("delete_dead_case_source_frontier", func(t *testing.T) {
 		bad := preflightCast(t, "SELECT 1/0 FROM t")
 		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
-		child := &projectNode{querySchema: schema, child: &singletonNode{}, expressions: []BoundExpr{bad}, frame: 2}
+		child := &projectNode{querySchema: schema, child: &singletonNode{}, expressions: []expr.Expr{bad}, frame: 2}
 		source := &derivedNode{querySchema: schema, query: &BoundQuery{Root: child}, scanFrame: 1}
-		predicate, _, err := rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
+		predicate, _, err := rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			if parameter, ok := node.(parameterExpression); ok {
 				info := parameter.Info
-				info.Property = ExprProperties{RowDependent: true}
+				info.Property = expr.Properties{RowDependent: true}
 				return columnExpression{Info: info, scope: 1, frame: 1, slot: 1}, true, nil
 			}
 			return node, false, nil

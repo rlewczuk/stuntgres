@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -21,8 +22,8 @@ type indexMetadata struct {
 	IndKey                                     []int16
 	IndClass, IndCollation                     []ids.OID
 	IndOption                                  []int16
-	IndexExpressions                           []BoundExpr
-	Predicate                                  BoundExpr
+	IndexExpressions                           []expr.Expr
+	Predicate                                  expr.Expr
 }
 
 type indexesMetadata struct {
@@ -77,7 +78,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		}
 		if node != nil {
 			if m.IndexExpressions == nil {
-				m.IndexExpressions = make([]BoundExpr, 0, n-i)
+				m.IndexExpressions = make([]expr.Expr, 0, n-i)
 			}
 			m.IndexExpressions = append(m.IndexExpressions, node)
 		} else {

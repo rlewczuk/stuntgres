@@ -12,7 +12,7 @@ func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
 	return &c.liveScope().op.session.random, nil
 }
 
-func randomLiteralNull(arg BoundExpr) bool {
+func randomLiteralNull(arg expr.Expr) bool {
 	switch e := arg.(type) {
 	case literalExpression:
 		return e.value.IsNull()

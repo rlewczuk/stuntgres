@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -140,7 +141,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				defer source.close()
 				project := b.query.Root.(*projectNode)
 				node := project.child
-				var expressions []BoundExpr
+				var expressions []expr.Expr
 				switch n := node.(type) {
 				case *distinctNode:
 					expressions = n.expressions

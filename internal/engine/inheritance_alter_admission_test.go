@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -512,7 +513,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression
 					composite, array := false, false
-					walkBoundExpression(expression, func(node BoundExpr) {
+					walkBoundExpression(expression, func(node expr.Expr) {
 						typ := node.ResultUsage().Type
 						if typ == nil {
 							return
@@ -544,7 +545,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				return
 			}
 			finalComposite, finalArray := false, false
-			walkBoundExpression(prepared.checks.next.checkConstraints[0].expression, func(node BoundExpr) {
+			walkBoundExpression(prepared.checks.next.checkConstraints[0].expression, func(node expr.Expr) {
 				typ := node.ResultUsage().Type
 				if typ == nil {
 					return

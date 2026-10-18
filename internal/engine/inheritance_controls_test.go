@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -160,7 +161,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		for _, table := range []*relationDescriptor{p, c} {
 			ref := owner.catalog.domain.Ref(owner.CatalogRead().Epoch(), table.address)
 			ref.Address.SubID = 1
-			table.checkConstraints = []checkConstraint{{OID: 23002 + table.address.ObjectID - p.address.ObjectID, Name: "ck", expression: columnExpression{Info: expressionInfo{Usage: usage}, origin: ref, scope: 1, frame: 1, slot: 0}}}
+			table.checkConstraints = []checkConstraint{{OID: 23002 + table.address.ObjectID - p.address.ObjectID, Name: "ck", expression: columnExpression{Info: expr.Info{Usage: usage}, origin: ref, scope: 1, frame: 1, slot: 0}}}
 		}
 		c.inheritance.columns[1] = inheritedColumn{origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}
 		c.inheritance.notNull[1] = inheritedConstraint{origins: []inheritanceOrigin{{parent: p.address, attribute: 1, constraint: p.notNullConstraints[0].OID}}}
@@ -218,7 +219,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 			table.index = map[string]int{"a": 0, "b": 1}
 			ref := owner.catalog.domain.Ref(owner.CatalogRead().Epoch(), table.address)
 			ref.Address.SubID = 2
-			table.checkConstraints = []checkConstraint{{OID: 23002 + table.address.ObjectID - p.address.ObjectID, Name: "ck", expression: columnExpression{Info: expressionInfo{Usage: table.columns[1].Usage}, origin: ref, scope: 1, frame: 1, slot: 1}}}
+			table.checkConstraints = []checkConstraint{{OID: 23002 + table.address.ObjectID - p.address.ObjectID, Name: "ck", expression: columnExpression{Info: expr.Info{Usage: table.columns[1].Usage}, origin: ref, scope: 1, frame: 1, slot: 1}}}
 		}
 		p.notNullConstraints = []notNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
 		c.notNullConstraints = []notNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -72,9 +73,9 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	b.queryFrame = 1
 	b.groupSets = [][]int{{0}, {}}
 	usage := b.typ(sqltype.Int4).Usage()
-	key := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	operation := groupingExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{StageDependent: true}}, frame: 1, args: []BoundExpr{key, key}}
-	expression, err := b.rewriteGrouping(operation, []BoundExpr{key})
+	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	operation := groupingExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, frame: 1, args: []expr.Expr{key, key}}
+	expression, err := b.rewriteGrouping(operation, []expr.Expr{key})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	if !reflect.DeepEqual(grouping.masks, []int32{0, 3}) || grouping.slot != 1 {
 		t.Fatal(grouping)
 	}
-	grouping.args = []BoundExpr{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+	grouping.args = []expr.Expr{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("GROUPING evaluated its argument")
 		return sqltype.Value{}, nil
 	})}

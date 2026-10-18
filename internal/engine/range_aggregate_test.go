@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -84,7 +85,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			child.rows = append(child.rows, []BoundExpr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return v, nil })})
+			child.rows = append(child.rows, []expr.Expr{queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return v, nil })})
 		}
 		argument := queryProbe(d.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 			(*calls)++
@@ -95,7 +96,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 		})
 		schema := querySchema{{Name: "i", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}
 		node := &aggregateNode{querySchema: schema, child: child, calls: []aggregateCall{{provider: p, argument: argument, operation: functions.AggregateRangeIntersection}}}
-		project := &projectNode{querySchema: schema, child: node, expressions: []BoundExpr{queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
+		project := &projectNode{querySchema: schema, child: node, expressions: []expr.Expr{queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
 		return project, &querySource{}, calls
 	}
 	root, source, calls := build(nil)

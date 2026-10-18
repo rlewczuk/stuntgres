@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -96,7 +97,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 }
 
 func compositeOpenError(relation *relationDescriptor, pos parser.Position) error {
-	d := expressionError("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), pos).(*sqlstate.Error)
+	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), pos).(*sqlstate.Error)
 	d.Detail = "This operation is not supported for composite types."
 	return d
 }

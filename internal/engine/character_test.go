@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -38,7 +39,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 	project := b.query.Root.(*projectNode)
 	filter := project.child.(*filterNode)
 	properties := filter.predicate.Properties()
-	if !properties.RowDependent || properties.ParameterDependent || properties.Volatility != Immutable {
+	if !properties.RowDependent || properties.ParameterDependent || properties.Volatility != expr.Immutable {
 		t.Fatal("right-column dependence was lost", properties)
 	}
 	if !project.expressions[0].Properties().RowDependent || project.expressions[0].ResultUsage().Typmod != 6 || project.expressions[0].ResultUsage().Type.ID() != sqltype.VarChar {
@@ -74,7 +75,7 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	if !ok || cast.child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.parameters[1] != source {
 		t.Fatal("cast retargeted known parameter", node, b.parameters[1])
 	}
-	if !cast.Properties().ParameterDependent || cast.Properties().RowDependent || cast.Properties().Volatility != Immutable {
+	if !cast.Properties().ParameterDependent || cast.Properties().RowDependent || cast.Properties().Volatility != expr.Immutable {
 		t.Fatal("cast properties", cast.Properties())
 	}
 	for _, id := range []sqltype.ID{sqltype.BPChar, sqltype.Text} {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -66,7 +67,7 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 	}, nil
 }
 
-func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) BoundExpr {
+func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) expr.Expr {
 	var origin ids.ObjectRef
 	var relation *relationDescriptor
 	if c.cteScan != nil {
@@ -92,7 +93,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) Bou
 			leaf.uses = append(leaf.uses, c.physical)
 		}
 	}
-	column := columnExpression{Info: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
+	column := columnExpression{Info: b.info(c.descriptor.Usage, pos, expr.Properties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
 	column.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(b.frameID())
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, c.physical, c.slot-c.physical)
@@ -112,7 +113,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			continue
 		}
 		if match != nil {
-			return nil, expressionError("42P09", fmt.Sprintf(`table reference "%s" is ambiguous`, label), pos)
+			return nil, expr.ErrorAt("42P09", fmt.Sprintf(`table reference "%s" is ambiguous`, label), pos)
 		}
 		match = q
 	}
@@ -134,7 +135,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 				continue
 			}
 			if match != nil {
-				return nil, expressionError("42P09", fmt.Sprintf(`table reference "%s" is ambiguous`, label), pos)
+				return nil, expr.ErrorAt("42P09", fmt.Sprintf(`table reference "%s" is ambiguous`, label), pos)
 			}
 			match = q
 		}
@@ -157,7 +158,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		if b.stringFromContext() && q.lateralForbidden {
 			return nil, stringLateralError(q, pos, true)
 		}
-		err := expressionError("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
+		err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
 		visibleAlias := false
 		if q.original == label && q.alias != "" && q.alias != label {
 			visibleAlias = b.queryAliasVisible(q.alias, q.ref)
@@ -172,9 +173,9 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		}
 		return nil, err
 	}
-	return nil, expressionError("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
+	return nil, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
 }
-func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error) {
+func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 	parts := raw.Name.Parts
 	if len(parts) == 0 || len(parts) > 3 {
 		return nil, fmt.Errorf("stuntgres: invalid query column name")
@@ -184,7 +185,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 			relation := scope.relation
 			slot, ok := relation.index[parts[1].Text]
 			if !ok {
-				return nil, expressionError("42703", fmt.Sprintf("column %s.%s does not exist", parts[0].Text, parts[1].Text), raw.Pos)
+				return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[0].Text, parts[1].Text), raw.Pos)
 			}
 			return b.outerReturningColumnAt(scope, slot, raw.Pos, newValues), nil
 		}
@@ -206,7 +207,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 			continue
 		}
 		if match != nil {
-			return nil, expressionError("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
+			return nil, expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
 		}
 		match = &columns[i]
 		if b.aggregateClause == "FROM" && b.stringFromForbidden {
@@ -225,7 +226,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 				continue
 			}
 			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.relationKind == tableRelation {
-				return nil, expressionError("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
+				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
 	}
@@ -241,7 +242,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 					continue
 				}
 				if match != nil {
-					return nil, expressionError("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
+					return nil, expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
 				}
 				match = c
 			}
@@ -307,7 +308,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	} else {
 		message = fmt.Sprintf(`column "%s" does not exist`, name)
 	}
-	missing := expressionError("42703", message, raw.Pos).(*sqlstate.Error)
+	missing := expr.ErrorAt("42703", message, raw.Pos).(*sqlstate.Error)
 	missing.Detail, missing.Hint = detail, hint
 	return nil, missing
 }
@@ -402,7 +403,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		if relation.relationKind == indexRelation {
 			if b.deleteUsingSources {
-				err := expressionError("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), n.Name.Parts[0].Pos).(*sqlstate.Error)
+				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), n.Name.Parts[0].Pos).(*sqlstate.Error)
 				err.Detail = "This operation is not supported for indexes."
 				return nil, queryNamespace{}, err
 			}
@@ -551,7 +552,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			dependent = true
 		}
 		if dependent && (n.Kind == parser.JoinRight || n.Kind == parser.JoinFull) {
-			e := expressionError("42P10", "invalid reference to FROM-clause entry for table "+quoteIdentifier(forbidden.name), forbidden.pos).(*sqlstate.Error)
+			e := expr.ErrorAt("42P10", "invalid reference to FROM-clause entry for table "+quoteIdentifier(forbidden.name), forbidden.pos).(*sqlstate.Error)
 			e.Detail = "The combining JOIN type must be INNER or LEFT for a LATERAL reference."
 			return nil, queryNamespace{}, e
 		}
@@ -620,7 +621,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				if join.predicate == nil {
 					join.predicate = eq
 				} else {
-					join.predicate = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), op: parser.LogicalAnd, left: join.predicate, right: eq}
+					join.predicate = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, expr.Properties{RowDependent: true}), op: parser.LogicalAnd, left: join.predicate, right: eq}
 				}
 				operands := []comparisonOperand{{node: le}, {node: re}}
 				usage, err := commonExpressionUsage(operands, b.typ(sqltype.Text).Usage(), "JOIN/USING")
@@ -636,7 +637,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 					chosen = re
 				}
 				if n.Kind == parser.JoinFull || column.descriptor.Usage != usage {
-					var value BoundExpr
+					var value expr.Expr
 					if n.Kind == parser.JoinFull {
 						lv, err := b.coerceConditional(comparisonOperand{node: le}, usage, "JOIN/USING")
 						if err != nil {
@@ -646,7 +647,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						value = conditionalExpression{Info: b.info(usage, pos, ExprProperties{RowDependent: true}), kind: parser.Coalesce, args: []BoundExpr{lv, rv}}
+						value = conditionalExpression{Info: b.info(usage, pos, expr.Properties{RowDependent: true}), kind: parser.Coalesce, args: []expr.Expr{lv, rv}}
 					} else {
 						value, err = b.coerceConditional(comparisonOperand{node: chosen}, usage, "JOIN/USING")
 						if err != nil {
@@ -863,12 +864,12 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 		copy.correlationPrefix = correlationPrefix
 		return &copy, nil
 	case *functionFromNode:
-		var rewrite func(BoundExpr) (BoundExpr, bool, error)
-		rewrite = func(bound BoundExpr) (BoundExpr, bool, error) {
+		var rewrite func(expr.Expr) (expr.Expr, bool, error)
+		rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
 			// Virtual owner recipes have their own frame. The lexical walker
 			// stops at their column, so only actual argument captures enter.
 			used := false
-			walkQueryArgumentExpression(bound, func(node BoundExpr) {
+			walkQueryArgumentExpression(bound, func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok && column.frame == frame {
 					used = true
 				}
@@ -878,7 +879,7 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 			}
 			return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query LogicalNode) (LogicalNode, error) {
 				return rewriteQueryExpressions(query, rewrite)
-			}, nil, func(node BoundExpr) (BoundExpr, bool, error) {
+			}, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 				column, ok := node.(columnExpression)
 				if !ok {
 					return node, false, nil
@@ -900,9 +901,9 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 		}
 		copy := *n
 		copy.captures = rebased
-		copy.calls = append([]BoundExpr(nil), n.calls...)
+		copy.calls = append([]expr.Expr(nil), n.calls...)
 		for i := range copy.calls {
-			var args []BoundExpr
+			var args []expr.Expr
 			for j, arg := range functionCallArguments(copy.calls[i]) {
 				next, changed, err := rewrite(arg)
 				if err != nil {
@@ -910,7 +911,7 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 				}
 				if changed {
 					if args == nil {
-						args = append([]BoundExpr(nil), functionCallArguments(copy.calls[i])...)
+						args = append([]expr.Expr(nil), functionCallArguments(copy.calls[i])...)
 					}
 					args[j] = next
 				}
@@ -931,7 +932,7 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 // Function resolution must succeed before rejecting a typed definition list.
 // Anonymous RECORD shapes belong to resolved OUT parameters; named composite
 // results (including domains) retain their distinct diagnostic.
-func functionColumnDefinitionMessage(call BoundExpr) string {
+func functionColumnDefinitionMessage(call expr.Expr) string {
 	typ := call.ResultUsage().Type.BaseType()
 	if typ.IsComposite() {
 		if typ.ID() == 2249 {
@@ -943,7 +944,7 @@ func functionColumnDefinitionMessage(call BoundExpr) string {
 }
 
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (LogicalNode, queryNamespace, error) {
-	calls := make([]BoundExpr, len(rawCalls))
+	calls := make([]expr.Expr, len(rawCalls))
 	schema := make([]ColumnDescriptor, 0, len(calls))
 	oldClause := b.aggregateClause
 	b.aggregateClause = "FROM"
@@ -988,7 +989,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		columns := raw.ColumnDefinitions
 		if len(definitions) != 0 {
 			if len(columns) != 0 {
-				return nil, queryNamespace{}, expressionError("42601", "multiple column definition lists are not allowed for the same function", definitions[0].Name.Pos)
+				return nil, queryNamespace{}, expr.ErrorAt("42601", "multiple column definition lists are not allowed for the same function", definitions[0].Name.Pos)
 			}
 			columns = definitions
 		}
@@ -997,7 +998,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 			return nil, queryNamespace{}, err
 		}
 		if !validFunctionSourceCall(node) {
-			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
+			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = node
 		if node.ResultUsage().Type.BaseType().IsComposite() {

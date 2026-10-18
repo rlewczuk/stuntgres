@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -18,7 +19,7 @@ func rangeSharedOperator(raw parser.OperatorExpr) bool {
 
 // Analyze shared symbolic operands once, then hand the existing binders their
 // analyzed occurrences. UNKNOWN inference remains occurrence-owned.
-func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, error) {
 	var operands [2]comparisonOperand
 	for i, arg := range raw.Args {
 		o, err := b.comparisonOperand(arg)
@@ -58,7 +59,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 		return nil, b.arrayMembershipError(left, right, raw)
 	}
 	if left == nil && right == nil {
-		d := expressionError("42725", "operator is not unique: unknown "+name+" unknown", raw.Pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42725", "operator is not unique: unknown "+name+" unknown", raw.Pos).(*sqlstate.Error)
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}
@@ -79,14 +80,14 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 	if result == nil {
 		return nil, b.arrayMembershipError(left, right, raw)
 	}
-	var args [2]BoundExpr
+	var args [2]expr.Expr
 	for i, target := range [2]*sqltype.Descriptor{lt, rt} {
 		args[i], err = b.coerceConditional(operands[i], target.Usage(), name)
 		if err != nil {
 			return nil, err
 		}
 	}
-	properties := mergeExpressionProperties(args[0].Properties(), args[1].Properties())
+	properties := expr.MergeProperties(args[0].Properties(), args[1].Properties())
 	namespace := ""
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
@@ -110,7 +111,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 	node.Info = info
 	return node, nil
 }
-func rangeOperatorSQL(e functions.RangeOperator, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+func rangeOperatorSQL(e functions.RangeOperator, child func(expr.Expr) (string, error), operator func(string, string) string) (string, error) {
 	left, err := child(e.Args[0])
 	if err != nil {
 		return "", err
@@ -121,7 +122,7 @@ func rangeOperatorSQL(e functions.RangeOperator, child func(BoundExpr) (string, 
 	}
 	return "(" + left + " " + operator(e.Namespace, e.Plan.Name()) + " " + right + ")", nil
 }
-func mapRangeOperatorChildren(e functions.RangeOperator, child func(BoundExpr) (BoundExpr, bool, error)) (functions.RangeOperator, bool, error) {
+func mapRangeOperatorChildren(e functions.RangeOperator, child func(expr.Expr) (expr.Expr, bool, error)) (functions.RangeOperator, bool, error) {
 	changed := false
 	for i, arg := range e.Args {
 		next, did, err := child(arg)

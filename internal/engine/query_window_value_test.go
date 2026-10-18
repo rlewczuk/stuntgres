@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -79,7 +80,7 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 	}
 	call := node.calls[1]
 	foundValue, foundOrdinal := false, false
-	queryExpressions(node, func(expr BoundExpr) {
+	queryExpressions(node, func(expr expr.Expr) {
 		foundValue = foundValue || expr == call.argument
 		foundOrdinal = foundOrdinal || expr == call.ordinal
 	})
@@ -87,7 +88,7 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 		t.Fatal("child missing from graph", foundValue, foundOrdinal)
 	}
 	replacement := node.calls[2].ordinal
-	next, err := rewriteQueryExpressions(node, func(expr BoundExpr) (BoundExpr, bool, error) {
+	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == call.ordinal {
 			return replacement, true, nil
 		}
@@ -216,7 +217,7 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 	node := mapped.(*projectNode).child.(*windowNode)
 	next := node.calls[0]
 	var ordinalDomain *sqltype.Descriptor
-	walkBoundExpression(next.ordinal, func(expr BoundExpr) {
+	walkBoundExpression(next.ordinal, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			ordinalDomain = expr.ResultUsage().Type
 		}

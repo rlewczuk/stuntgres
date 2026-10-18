@@ -42,17 +42,17 @@ type viewLiteralPath struct {
 	argument int
 }
 
-func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, target int) error {
+func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound expr.Expr, clause viewLiteralClause, target int) error {
 	path := viewLiteralPath{query: b.frameID(), clause: clause, target: target}
 	ordinal := 0
 	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
 }
 
-func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundExpr, path viewLiteralPath, ordinal *int) error {
+func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound expr.Expr, path viewLiteralPath, ordinal *int) error {
 	return b.captureNormalizedViewLiteralTree(b.normalizeStoredExpression(raw), bound, path, ordinal)
 }
 
-func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bound BoundExpr, path viewLiteralPath, ordinal *int) error {
+func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Expr, path viewLiteralPath, ordinal *int) error {
 	if raw == nil {
 		return nil
 	}
@@ -73,12 +73,12 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		bound = coercion.child
 	}
-	child := func(raw parser.Expr, bound BoundExpr) error {
+	child := func(raw parser.Expr, bound expr.Expr) error {
 		childPath := path
 		childPath.argument = 0
 		return b.captureNormalizedViewLiteralTree(raw, bound, childPath, ordinal)
 	}
-	children := func(raw []parser.Expr, bound []BoundExpr) error {
+	children := func(raw []parser.Expr, bound []expr.Expr) error {
 		if len(raw) != len(bound) {
 			return fmt.Errorf("stuntgres: mismatched view literal arguments")
 		}
@@ -89,7 +89,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		return nil
 	}
-	selectedArrayArguments := func(raw []parser.Expr, bound []BoundExpr) error {
+	selectedArrayArguments := func(raw []parser.Expr, bound []expr.Expr) error {
 		if len(raw) != len(bound) {
 			return fmt.Errorf("stuntgres: mismatched selected array arguments")
 		}
@@ -403,7 +403,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		// Domain casts retain top annotations outside their executable coercion.
 		// Capture their original syntactic paths by mirroring them around the
 		// coercion input, without changing the executable or frozen AST.
-		var annotations BoundExpr
+		var annotations expr.Expr
 		if _, annotated := r.Child.(parser.CollateExpr); annotated && bound.ResultUsage().Type.IsDomain() {
 			annotations = bound
 			for {
@@ -478,8 +478,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				b.viewOperatorRefs = make(map[viewLiteralPath]ids.ObjectRef)
 			}
 			b.viewOperatorRefs[path] = n.ref
-			var operands []BoundExpr
-			boundExpressionChildren(n.provider, func(arg BoundExpr) {
+			var operands []expr.Expr
+			boundExpressionChildren(n.provider, func(arg expr.Expr) {
 				if arg != nil {
 					operands = append(operands, arg)
 				}
@@ -598,7 +598,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			regexp = &n.RegexpCall
 		}
 		if regexp != nil {
-			written := make([]BoundExpr, len(regexp.Args))
+			written := make([]expr.Expr, len(regexp.Args))
 			for i, slot := range regexp.WrittenSlots[:len(written)] {
 				written[i] = regexp.Args[slot]
 			}
@@ -620,7 +620,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(installedFunctionExpression); ok {
-			return children(r.Args, []BoundExpr{n.Arg})
+			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(fieldExpression); ok && len(r.Args) == 1 {
 			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
@@ -648,7 +648,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				}
 				b.viewCastUsages[path] = coercion.Usage
 			}
-			return children(r.Args, []BoundExpr{n.Arg})
+			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(advisoryExpression); ok {
 			return children(r.Args, n.args)
@@ -773,9 +773,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		if n, ok := bound.(functions.Timezone); ok && n.Function {
 			if n.Local {
-				return children(r.Args, []BoundExpr{n.Value})
+				return children(r.Args, []expr.Expr{n.Value})
 			}
-			return children(r.Args, []BoundExpr{n.Zone, n.Value})
+			return children(r.Args, []expr.Expr{n.Zone, n.Value})
 		}
 		if n, ok := bound.(functions.DatetimeAgeFinite); ok {
 			return children(r.Args, n.Arguments())
@@ -1439,7 +1439,7 @@ func (b *expressionBinder) captureSubqueryLeft(raw parser.Expr, n subqueryExpres
 		}
 		path.node = *ordinal
 		(*ordinal)++
-		return b.captureConstructorFields(row, len(constructor.fields), func(i int) BoundExpr { return constructor.fields[i] }, constructor.expansions, true, path, ordinal)
+		return b.captureConstructorFields(row, len(constructor.fields), func(i int) expr.Expr { return constructor.fields[i] }, constructor.expansions, true, path, ordinal)
 	}
 	if row, ok := raw.(parser.RowExpr); ok {
 		(*ordinal)++
@@ -1471,7 +1471,7 @@ func (b *expressionBinder) captureRowComparison(raw []parser.Expr, n rowComparis
 
 func (b *expressionBinder) captureRowComparisonFields(row parser.RowExpr, pairs []comparisonExpression, side int, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
 	path.argument = 0
-	return b.captureConstructorFields(row, len(pairs), func(i int) BoundExpr {
+	return b.captureConstructorFields(row, len(pairs), func(i int) expr.Expr {
 		if side == 1 {
 			return pairs[i].right
 		}

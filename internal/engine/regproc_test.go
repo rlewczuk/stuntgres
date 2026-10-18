@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -66,7 +67,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: expr.Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace, second.signature = 90001, catalog, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
@@ -131,7 +132,7 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 	if id != 90001 || originalID != 90000 || fixedID != 1397 || unknownID != 4294967295 || !remapped.ArrayElement(3).IsNull() {
 		t.Fatal("remap identities/null/ownership")
 	}
-	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{Info: expressionInfo{Usage: array.Usage()}, value: original})
+	text, err := catalogLiteralSQL(context.Background(), view, literalExpression{Info: expr.Info{Usage: array.Usage()}, value: original})
 	if err != nil || !strings.Contains(text, "[-2:1]") || !strings.Contains(text, "pg_catalog.abs(integer)") || !strings.Contains(text, "::regprocedure::regproc") || !strings.Contains(text, "4294967295") {
 		t.Fatal("overload-safe recursive dump", text, err)
 	}

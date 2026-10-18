@@ -6,6 +6,7 @@ import (
 	"math"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -281,7 +282,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if binder.sameGroupExpression(key, reversed) {
 		t.Fatal("algebraic identity admitted")
 	}
-	first := parameterExpression{Info: expressionInfo{Usage: key.ResultUsage()}, number: 1}
+	first := parameterExpression{Info: expr.Info{Usage: key.ResultUsage()}, number: 1}
 	second := first
 	second.number = 2
 	if binder.sameGroupExpression(first, second) {

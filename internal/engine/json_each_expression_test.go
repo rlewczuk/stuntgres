@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -42,7 +43,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -64,12 +65,12 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("remapped provider", row, present, err)
 		}
 		walked := 0
-		walkBoundExpression(original, func(n BoundExpr) {
+		walkBoundExpression(original, func(n expr.Expr) {
 			if n == original.Args[0] {
 				walked++
 			}
 		})
-		if walked != 1 || plannedVolatility(original) != Immutable || !sameGroupExpression(original, original) {
+		if walked != 1 || plannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) {
 			t.Fatal("closed traversal", walked)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
@@ -89,8 +90,8 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonEachUnitMarker(t, b, name, `{"x":2}`)
-		root := &functionFromNode{calls: []BoundExpr{original}, querySchema: querySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, frame: 1}
-		rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+		root := &functionFromNode{calls: []expr.Expr{original}, querySchema: querySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, frame: 1}
+		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
 			}
@@ -122,7 +123,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		calls := []BoundExpr{series, marker}
+		calls := []expr.Expr{series, marker}
 		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: calls})
 		if err != nil {
 			t.Fatal(err)
@@ -151,12 +152,12 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal("exhausted source", present, err)
 		}
 		// The same invocation in a SELECT stage stores one record slot.
-		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []BoundExpr{marker}})
+		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []expr.Expr{marker}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		target := make([]sqltype.Value, 1)
-		present, err = invocation.next(context.Background(), []BoundExpr{marker}, target, nil)
+		present, err = invocation.next(context.Background(), []expr.Expr{marker}, target, nil)
 		invocation.close()
 		if err != nil || !present || target[0].CompositeLen() != 2 {
 			t.Fatal("target flattened", target, present, err)

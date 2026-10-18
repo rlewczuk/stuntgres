@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -63,7 +64,7 @@ func TestInsertSelectIntegratedExpressions(t *testing.T) {
 func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 	expression := preflightCast(t, "SELECT int4('42'::text) FROM t")
 	schema := []ColumnDescriptor{{Name: "column1", Usage: expression.ResultUsage()}}
-	original := &valuesNode{querySchema: schema, rows: [][]BoundExpr{{expression}, {expression}}}
+	original := &valuesNode{querySchema: schema, rows: [][]expr.Expr{{expression}, {expression}}}
 	for range 2 {
 		root, err := preflightQuery(&EvalContext{Context: context.Background()}, original)
 		if err != nil || root == original {
@@ -87,7 +88,7 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 			}
 		}
 	}
-	bad := &valuesNode{rows: [][]BoundExpr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
+	bad := &valuesNode{rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
 	_, err := preflightQuery(&EvalContext{Context: context.Background()}, bad)
 	state(t, err, "22P02")
 }

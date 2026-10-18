@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
 // VALUES ordinals follow structural source preorder, independent of physical
 // table occurrences and source offsets. Row/key indices are local to a source.
-func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, source, row, column int) error {
+func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound expr.Expr, clause viewLiteralClause, source, row, column int) error {
 	path := viewLiteralPath{query: b.frameID(), clause: clause, source: source, row: row, target: column}
 	if clause == viewValuesOrderLiteral {
 		if integer, ok := raw.(parser.LiteralExpr); ok && integer.Value.Kind == parser.IntegerValue {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -229,7 +230,7 @@ func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 }
 func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	expression := logicalExpression{Info: expressionInfo{Usage: f.predicate.Usage, Property: ExprProperties{RowDependent: true}}, op: parser.LogicalNot, left: f.predicate}
+	expression := logicalExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{RowDependent: true}}, op: parser.LogicalNot, left: f.predicate}
 	class, _ := sqltype.DefaultIndexClass(f.predicate.Usage.Type)
 	for i := range 2 {
 		index := *f.index

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				closes := 0
 				inner := indexedStage{source: input, schema: project.Schema(), expressions: project.expressions, evaluation: EvalContext{Scope: 1, Frame: 1}, finish: func() error { closes++; return cleanup }}
 				if primary {
-					inner.expressions = []BoundExpr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+					inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
 				bridge := &querySource{ref: input.ref, nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
 				var child LogicalNode = &sourceNode{querySchema: project.Schema(), ref: input.ref}

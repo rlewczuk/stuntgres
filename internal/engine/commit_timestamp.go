@@ -31,11 +31,11 @@ func (k commitTimestampKind) name() string {
 type commitTimestampExpression struct {
 	expr.Info
 	kind commitTimestampKind
-	arg  BoundExpr
+	arg  expr.Expr
 }
 
 func (n commitTimestampExpression) validate() error {
-	if n.kind > commitTimestampLast || !n.Usage.Valid() || n.Property.Volatility != Volatile {
+	if n.kind > commitTimestampLast || !n.Usage.Valid() || n.Property.Volatility != expr.Volatile {
 		return fmt.Errorf("stuntgres: invalid stored commit timestamp provider")
 	}
 	if (n.arg == nil) != (n.kind == commitTimestampLast) {
@@ -72,7 +72,7 @@ func (n commitTimestampExpression) validate() error {
 	return nil
 }
 
-func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := commitTimestampScalar
 	if name == "pg_xact_commit_timestamp_origin" {
@@ -130,16 +130,16 @@ func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (BoundEx
 		return nil, err
 	}
 	if raw.Star {
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
-	var arg BoundExpr
-	properties := ExprProperties{Volatility: Volatile}
+	var arg expr.Expr
+	properties := expr.Properties{Volatility: expr.Volatile}
 	if count == 1 {
 		arg, err = b.CoerceArgument(operand, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.typ(sqltype.Xid).Usage(), Label: name})
 		if err != nil {
 			return nil, err
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	usage := b.typ(sqltype.Timestamptz).Usage()
 	if kind != commitTimestampScalar {
@@ -163,7 +163,7 @@ func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (BoundEx
 	return commitTimestampExpression{info, kind, arg}, nil
 }
 
-func (n commitTimestampExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	var xid uint32
 	if n.arg != nil {

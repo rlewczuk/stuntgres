@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr, error) {
 	var small [2]functions.Argument
 	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
@@ -59,7 +59,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 	if kind == sqltype.NetworkAbbrev && operands[0].Usage.Type != nil && operands[0].Usage.Type.BaseType() == b.typ(sqltype.Cidr) {
 		formal = sqltype.Cidr
 	}
-	var args [2]BoundExpr
+	var args [2]expr.Expr
 	var formals [2]sqltype.ID
 	properties := expr.IntrinsicProperties(functions.NetworkFormatIntrinsicRule())
 	for i, arg := range operands {
@@ -68,7 +68,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 			return nil, err
 		}
 		formals[i] = formal
-		properties = mergeExpressionProperties(properties, args[i].Properties())
+		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties), networkRoutineProvider, name, formals[:kind.Arity()]...)
 	if err != nil {
@@ -77,7 +77,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 	return functions.NewNetworkFormat(info, kind, args)
 }
 
-func mapNetworkFormatChildren(e functions.NetworkFormat, mapChild func(BoundExpr) (BoundExpr, bool, error)) (functions.NetworkFormat, bool, error) {
+func mapNetworkFormatChildren(e functions.NetworkFormat, mapChild func(expr.Expr) (expr.Expr, bool, error)) (functions.NetworkFormat, bool, error) {
 	changed := false
 	for i, arg := range e.Args[:e.Kind.Arity()] {
 		next, did, err := mapChild(arg)

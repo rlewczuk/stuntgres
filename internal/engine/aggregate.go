@@ -11,11 +11,11 @@ import (
 type aggregateCall struct {
 	provider     functions.AggregateProvider
 	routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
-	argument     BoundExpr
-	separator    BoundExpr
-	direct       []BoundExpr
+	argument     expr.Expr
+	separator    expr.Expr
+	direct       []expr.Expr
 	order        []sortKey
-	filter       BoundExpr
+	filter       expr.Expr
 	distinct     []queryGrouping // Multi-key tuple equality is caller checked; single-key support is not.
 	stageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
 	operation    functions.AggregateOperation
@@ -26,7 +26,7 @@ type aggregateCall struct {
 
 // Every analyzed aggregate expression participates in ownership, dependence,
 // preflight and immutable query rewrites, not just the first value argument.
-func (call aggregateCall) expressions(visit func(BoundExpr)) {
+func (call aggregateCall) expressions(visit func(expr.Expr)) {
 	visit(call.argument)
 	visit(call.separator)
 	for _, direct := range call.direct {
@@ -44,7 +44,7 @@ type aggregateExpression struct {
 	frame uint32
 }
 
-func (e aggregateExpression) Eval(ExprContext) (sqltype.Value, error) {
+func (e aggregateExpression) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: aggregate occurrence not rewritten")
 }
 
@@ -56,7 +56,7 @@ type groupExpression struct {
 	frame uint32
 }
 
-func (e groupExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e groupExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

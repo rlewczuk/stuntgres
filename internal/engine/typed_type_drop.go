@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ func (e *Engine) stageDropCompositeLocked(op *Operation, auth AuthorizationView,
 			return err
 		}
 		if _, err := standaloneComposite(auth.catalog, typ, nil); err != nil {
-			return expressionError("0A000", "statement is unsupported", s.Pos)
+			return expr.ErrorAt("0A000", "statement is unsupported", s.Pos)
 		}
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), typ.Address())
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {

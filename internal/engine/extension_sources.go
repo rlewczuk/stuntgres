@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -71,9 +72,9 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			integer(4, procedureArity(d))
 			integer(5, int64(d.result))
 			vol := "v"
-			if d.volatility == Stable {
+			if d.volatility == expr.Stable {
 				vol = "s"
-			} else if d.volatility == Immutable {
+			} else if d.volatility == expr.Immutable {
 				vol = "i"
 			}
 			text(6, vol)

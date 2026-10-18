@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,7 +13,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	left := &valuesNode{querySchema: querySchema{{Usage: types[sqltype.Bool].Usage()}}}
 	right := &functionFromNode{querySchema: querySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, correlated: true, frame: 7}
 	join := &joinNode{querySchema: append(append(querySchema(nil), left.Schema()...), right.Schema()...), left: left, right: right, leftWidth: 1, rightWidth: 2, kind: parser.JoinInner, correlatedRight: true, frame: 7}
-	predicate := columnExpression{Info: expressionInfo{Usage: types[sqltype.Bool].Usage(), Property: ExprProperties{RowDependent: true}}, frame: 7, scope: 1, slot: 0}
+	predicate := columnExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, frame: 7, scope: 1, slot: 0}
 	moved := functionFromWhere(join, predicate)
 	if moved == nil || moved == join || moved.right != right || moved.frame != join.frame || moved.leftWidth != 1 || moved.rightWidth != 2 {
 		t.Fatal("incorrect copied join", moved)
@@ -21,7 +22,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	if !ok || filter.child != left || filter.predicate != predicate || len(filter.Schema()) != 1 || join.left != left {
 		t.Fatal("predicate duplicated or retained tree mutated", moved)
 	}
-	unchanged := func(label string, root LogicalNode, predicate BoundExpr) {
+	unchanged := func(label string, root LogicalNode, predicate expr.Expr) {
 		t.Helper()
 		if functionFromWhere(root, predicate) != nil {
 			t.Fatal("unsafe predicate moved", label)
@@ -36,12 +37,12 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	copy.correlatedRight = false
 	unchanged("uncorrelated", &copy, predicate)
 	copy = *join
-	copy.merges = []BoundExpr{predicate}
+	copy.merges = []expr.Expr{predicate}
 	unchanged("merged", &copy, predicate)
 	copy = *join
 	copy.right = &derivedNode{}
 	unchanged("subquery boundary", &copy, predicate)
-	for _, property := range []ExprProperties{{RowDependent: true, Volatility: Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}, {RowDependent: true, DomainDependent: true}} {
+	for _, property := range []expr.Properties{{RowDependent: true, Volatility: expr.Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}, {RowDependent: true, DomainDependent: true}} {
 		unsafe := predicate
 		unsafe.Info.Property = property
 		unchanged("expression barrier", join, unsafe)
@@ -52,7 +53,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	rhs := predicate
 	rhs.slot = 1
 	unchanged("right reference", join, rhs)
-	unsupported := &queryProbeExpression{Info: expressionInfo{Usage: types[sqltype.Bool].Usage()}, eval: func(*EvalContext) (sqltype.Value, error) {
+	unsupported := &queryProbeExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, eval: func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("placement evaluated predicate")
 		return sqltype.Value{}, nil
 	}}
@@ -66,13 +67,13 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	left := &valuesNode{querySchema: querySchema{{Usage: usage}}}
 	right := &functionFromNode{querySchema: querySchema{{Usage: usage}}, frame: 7}
 	join := &joinNode{querySchema: querySchema{{Usage: usage}, {Usage: usage}}, left: left, right: right, leftWidth: 1, rightWidth: 1, kind: parser.JoinInner, frame: 7}
-	column := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, frame: 7, scope: 1, slot: 0}
+	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, frame: 7, scope: 1, slot: 0}
 	calls := 0
-	volatile := &queryProbeExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{Volatility: Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
+	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, true), nil
 	}}
-	predicate := logicalExpression{Info: expressionInfo{Usage: usage, Property: mergeExpressionProperties(column.Properties(), volatile.Properties())}, op: parser.LogicalAnd, left: column, right: volatile}
+	predicate := logicalExpression{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(column.Properties(), volatile.Properties())}, op: parser.LogicalAnd, left: column, right: volatile}
 	root, ok := functionFromConjuncts(join, predicate).(*filterNode)
 	if !ok || root.predicate != volatile {
 		t.Fatal("volatile residual lost", root)
@@ -118,12 +119,12 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	left := &valuesNode{querySchema: querySchema{{Usage: usage}}}
 	right := &functionFromNode{querySchema: querySchema{{Usage: usage}}, frame: 7}
 	join := &joinNode{querySchema: querySchema{{Usage: usage}, {Usage: usage}}, left: left, right: right, leftWidth: 1, rightWidth: 1, kind: parser.JoinInner, frame: 7}
-	column := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, frame: 7, scope: 1, slot: 0}
-	and := func(a, b BoundExpr) logicalExpression {
-		return logicalExpression{Info: expressionInfo{Usage: usage, Property: mergeExpressionProperties(a.Properties(), b.Properties())}, op: parser.LogicalAnd, left: a, right: b}
+	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, frame: 7, scope: 1, slot: 0}
+	and := func(a, b expr.Expr) logicalExpression {
+		return logicalExpression{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(a.Properties(), b.Properties())}, op: parser.LogicalAnd, left: a, right: b}
 	}
-	var unsafe []BoundExpr
-	for _, properties := range []ExprProperties{{RowDependent: true, Volatility: Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, DomainDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}} {
+	var unsafe []expr.Expr
+	for _, properties := range []expr.Properties{{RowDependent: true, Volatility: expr.Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, DomainDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}} {
 		copy := column
 		copy.Property = properties
 		unsafe = append(unsafe, copy)
@@ -133,12 +134,12 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	rhs := column
 	rhs.slot = 1
 	virtual := column
-	virtual.virtual = literalExpression{Info: expressionInfo{Usage: usage}, value: sqltype.Boolean(usage.Type, true)}
+	virtual.virtual = literalExpression{Info: expr.Info{Usage: usage}, value: sqltype.Boolean(usage.Type, true)}
 	or := logicalExpression{Info: column.Info, op: parser.LogicalOr, left: column, right: column}
 	not := logicalExpression{Info: column.Info, op: parser.LogicalNot, left: column}
 	query := and(column, column)
 	query.queryRight = true
-	unsupported := &queryProbeExpression{Info: expressionInfo{Usage: usage}, eval: func(*EvalContext) (sqltype.Value, error) {
+	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("partition evaluated expression")
 		return sqltype.Value{}, nil
 	}}
@@ -160,7 +161,7 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 		}
 	}
 	copy := *join
-	copy.merges = []BoundExpr{column}
+	copy.merges = []expr.Expr{column}
 	if functionFromConjuncts(&copy, and(column, column)) != nil {
 		t.Fatal("merged join boundary crossed")
 	}

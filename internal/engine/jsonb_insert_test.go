@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 			t.Fatal("isolated formal inference", i, err)
 		}
 	}
-	if e.Count != 4 || e.WrittenCount != 4 || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable || plannedVolatility(node) != Immutable {
+	if e.Count != 4 || e.WrittenCount != 4 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || plannedVolatility(node) != expr.Immutable {
 		t.Fatal(e, node.Properties())
 	}
 	for _, tc := range []struct {
@@ -110,9 +111,9 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	base := jsonbSetUnitBind(t, b, `SELECT jsonb_insert('[0]','{0}','9',false)`).(functions.JSONBSet)
 	for slot := range 4 {
 		e := base
-		column := columnExpression{Info: expressionInfo{Usage: e.Args[slot].ResultUsage(), Property: ExprProperties{RowDependent: true}}}
+		column := columnExpression{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
 		e.Args[slot] = column
-		rewritten, err := b.rewriteGroup(e, []BoundExpr{column})
+		rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(slot, err)
 		}
@@ -124,7 +125,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 			t.Fatal("rewrite mutated source", slot)
 		}
 		seen := false
-		boundExpressionChildren(e, func(child BoundExpr) {
+		boundExpressionChildren(e, func(child expr.Expr) {
 			if sameGroupExpression(child, column) {
 				seen = true
 			}
@@ -145,7 +146,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.Properties().Volatility != Volatile || plannedVolatility(n) != Volatile || generationImmutable(n) {
+	if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 		t.Fatal("volatile flag child hidden", n.Properties())
 	}
 }

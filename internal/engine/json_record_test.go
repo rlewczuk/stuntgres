@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -32,7 +33,7 @@ func TestJSONRecordBinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	scalar := jsonRecordUnitCall(t, b, "json_to_record", false)
-	if isQuerySet(scalar) || !validFunctionSourceCall(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || plannedVolatility(scalar) != Stable {
+	if isQuerySet(scalar) || !validFunctionSourceCall(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || plannedVolatility(scalar) != expr.Stable {
 		t.Fatal("deferred scalar/set identity", scalar)
 	}
 	if _, err := scalar.Eval(&EvalContext{Context: context.Background()}); err == nil {
@@ -47,7 +48,7 @@ func TestJSONRecordBinding(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	set := jsonRecordUnitCall(t, b, "json_to_recordset", true)
-	if !isQuerySet(set) || !set.Properties().StageDependent || plannedVolatility(set) != Stable {
+	if !isQuerySet(set) || !set.Properties().StageDependent || plannedVolatility(set) != expr.Stable {
 		t.Fatal("set-stage classification", set)
 	}
 }
@@ -70,7 +71,7 @@ func TestJSONRecordRemap(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n BoundExpr) {
+	walkBoundExpression(original, func(n expr.Expr) {
 		if n == original.Args[0] {
 			walked++
 		}
@@ -87,7 +88,7 @@ func TestJSONRecordRemap(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	folded, _, err := simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
-	if err != nil || folded.ResultUsage() != original.ResultUsage() || plannedVolatility(folded) != Stable {
+	if err != nil || folded.ResultUsage() != original.ResultUsage() || plannedVolatility(folded) != expr.Stable {
 		t.Fatal("folded STABLE call", folded, err)
 	}
 }

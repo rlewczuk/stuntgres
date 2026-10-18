@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -45,7 +46,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	sized.Typmod = 8
 	sized.Collation.ID = 950
 	schema := querySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.typ.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
-	expressions := make([]BoundExpr, len(schema))
+	expressions := make([]expr.Expr, len(schema))
 	for i, column := range schema {
 		usage := column.Usage
 		expressions[i] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Null(usage.Type), nil })
@@ -111,8 +112,8 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			}
 			defer done()
 			usage := testUsage(e, sqltype.Text)
-			info := expressionInfo{Usage: usage, CollationConflict: tc.conflict}
-			project := &projectNode{querySchema: querySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, expressions: []BoundExpr{literalExpression{Info: info, value: sqltype.Null(usage.Type)}, literalExpression{Info: expressionInfo{Usage: usage}, value: sqltype.Null(usage.Type)}}}
+			info := expr.Info{Usage: usage, CollationConflict: tc.conflict}
+			project := &projectNode{querySchema: querySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, expressions: []expr.Expr{literalExpression{Info: info, value: sqltype.Null(usage.Type)}, literalExpression{Info: expr.Info{Usage: usage}, value: sqltype.Null(usage.Type)}}}
 			syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: tc.labels, Query: &parser.Select{}}
 			registry := queryCreateTypes(e)
 			e.mu.Lock()
@@ -256,7 +257,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			calls++
 			return sqltype.Null(usage.Type), nil
 		})
-		project := &projectNode{querySchema: querySchema{{Name: "tree", Usage: usage}}, expressions: []BoundExpr{probe}}
+		project := &projectNode{querySchema: querySchema{{Name: "tree", Usage: usage}}, expressions: []expr.Expr{probe}}
 		syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Query: &parser.Select{}, NoData: noData}
 		registry := queryCreateTypes(e)
 		beforeRow, beforeVersion, beforeFrontier := e.nextRow, e.nextVersion, e.commitSeq

@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func cteMapExpression(view CatalogRead, expr BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
+func cteMapExpression(view CatalogRead, expr expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
 	next, _, err := mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, leaf)
 	return next, err
 }
@@ -15,13 +16,13 @@ func cteMapExpression(view CatalogRead, expr BoundExpr, leaf func(BoundExpr) (Bo
 // are deliberately not commuted. The graph/schema and original expressions
 // remain immutable; each folded occurrence gets its own rewritten path.
 func foldCTERestrictions(view CatalogRead, root LogicalNode) (LogicalNode, error) {
-	var rewrite func(BoundExpr) (BoundExpr, bool, error)
-	rewrite = func(bound BoundExpr) (BoundExpr, bool, error) {
+	var rewrite func(expr.Expr) (expr.Expr, bool, error)
+	rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
 		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
 			return bound, false, nil
 		}
 		hasQuery := false
-		walkBoundExpression(bound, func(n BoundExpr) {
+		walkBoundExpression(bound, func(n expr.Expr) {
 			if _, ok := n.(subqueryExpression); ok {
 				hasQuery = true
 			}
@@ -72,10 +73,10 @@ func foldCTERestrictions(view CatalogRead, root LogicalNode) (LogicalNode, error
 	})
 }
 
-func moveCTEPredicates(view CatalogRead, child LogicalNode, predicate BoundExpr) (LogicalNode, BoundExpr, int, error) {
+func moveCTEPredicates(view CatalogRead, child LogicalNode, predicate expr.Expr) (LogicalNode, expr.Expr, int, error) {
 	moves := 0
-	var move func(BoundExpr) (BoundExpr, error)
-	move = func(predicate BoundExpr) (BoundExpr, error) {
+	var move func(expr.Expr) (expr.Expr, error)
+	move = func(predicate expr.Expr) (expr.Expr, error) {
 		if and, ok := predicate.(logicalExpression); ok && and.op == parser.LogicalAnd {
 			before := moves
 			left, err := move(and.left)
@@ -98,7 +99,7 @@ func moveCTEPredicates(view CatalogRead, child LogicalNode, predicate BoundExpr)
 			and.left, and.right = left, right
 			return and, nil
 		}
-		if predicate.Properties().Volatility == Volatile {
+		if predicate.Properties().Volatility == expr.Volatile {
 			return predicate, nil
 		}
 		next, moved, err := pushCTEOccurrence(view, child, predicate, 0)
@@ -116,7 +117,7 @@ func moveCTEPredicates(view CatalogRead, child LogicalNode, predicate BoundExpr)
 	return child, remaining, moves, err
 }
 
-func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate BoundExpr, offset int) (LogicalNode, bool, error) {
+func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate expr.Expr, offset int) (LogicalNode, bool, error) {
 	switch n := node.(type) {
 	case *derivedNode:
 		if n.cte == nil || !n.cte.folded() {
@@ -124,7 +125,7 @@ func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate BoundExpr, 
 		}
 		project := n.query.Root.(*projectNode)
 		found, safe := false, true
-		walkBoundExpression(predicate, func(expr BoundExpr) {
+		walkBoundExpression(predicate, func(expr expr.Expr) {
 			switch e := expr.(type) {
 			case columnExpression:
 				if e.frame != n.scanFrame || e.slot < offset || e.slot >= offset+len(n.Schema()) {
@@ -139,7 +140,7 @@ func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate BoundExpr, 
 		if !safe || !found {
 			return node, false, nil
 		}
-		mapped, err := cteMapExpression(view, predicate, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapped, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if col, ok := expr.(columnExpression); ok {
 				return project.expressions[col.slot-offset], true, nil
 			}
@@ -188,9 +189,9 @@ func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate BoundExpr, 
 	return node, false, nil
 }
 
-func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame uint32) (LogicalNode, bool, error) {
+func pushCTEInput(view CatalogRead, node LogicalNode, predicate expr.Expr, frame uint32) (LogicalNode, bool, error) {
 	unsafe := false
-	walkBoundExpression(predicate, func(expr BoundExpr) {
+	walkBoundExpression(predicate, func(expr expr.Expr) {
 		switch n := expr.(type) {
 		case subqueryExpression, cachedOrderExpression, aggregateExpression, groupingExpression, *windowExpression:
 			unsafe = true
@@ -223,7 +224,7 @@ func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame
 		copy.child = child
 		return &copy, true, nil
 	case *distinctNode:
-		mapped, err := cteMapExpression(view, predicate, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapped, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if c, ok := expr.(columnExpression); ok && c.frame == frame {
 				return n.expressions[c.slot], true, nil
 			}
@@ -245,7 +246,7 @@ func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame
 		if len(n.keys) == 0 || n.sets != nil && (len(n.sets) != 1 || len(n.sets[0]) != len(n.keys)) {
 			return node, false, nil
 		}
-		mapped, err := cteMapExpression(view, predicate, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapped, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if g, ok := expr.(groupExpression); ok && g.frame == frame {
 				return n.keys[g.slot], true, nil
 			}
@@ -262,7 +263,7 @@ func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame
 		copy.child = child
 		return &copy, true, nil
 	case *setNode:
-		leftPredicate, err := cteMapExpression(view, predicate, func(expr BoundExpr) (BoundExpr, bool, error) {
+		leftPredicate, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if c, ok := expr.(columnExpression); ok && c.frame == frame {
 				return n.leftExpressions[c.slot], true, nil
 			}
@@ -271,7 +272,7 @@ func pushCTEInput(view CatalogRead, node LogicalNode, predicate BoundExpr, frame
 		if err != nil {
 			return nil, false, err
 		}
-		rightPredicate, err := cteMapExpression(view, predicate, func(expr BoundExpr) (BoundExpr, bool, error) {
+		rightPredicate, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if c, ok := expr.(columnExpression); ok && c.frame == frame {
 				return n.rightExpressions[c.slot], true, nil
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -31,7 +32,7 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 				want = context.Canceled
 			}
 			usage := b.relation.columns[0].Usage
-			b.returning.expressions = []BoundExpr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+			b.returning.expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				if testExport(c.Row[0]).(int64) != testExport(c.OldRow[0]).(int64)+1 {
 					return sqltype.Value{}, fmt.Errorf("incorrect version frames: %v %v", c.Row, c.OldRow)

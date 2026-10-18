@@ -23,7 +23,7 @@ type defaultOrdinal struct {
 	cancel  context.CancelFunc
 }
 
-func (e *defaultOrdinal) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e *defaultOrdinal) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -45,7 +45,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
-			probe.Info = expressionInfo{Usage: old.columns[1].Usage}
+			probe.Info = expr.Info{Usage: old.columns[1].Usage}
 			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
@@ -135,7 +135,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		t.Fatal("CREATE evaluated deferred narrowing", err)
 	}
 	for i, d := range defaults {
-		if d.expression.ResultUsage() != b.createColumns[i-1].Usage || d.expression.Properties() != (ExprProperties{}) {
+		if d.expression.ResultUsage() != b.createColumns[i-1].Usage || d.expression.Properties() != (expr.Properties{}) {
 			t.Fatal(d)
 		}
 	}

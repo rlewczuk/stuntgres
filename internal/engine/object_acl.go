@@ -17,7 +17,7 @@ import (
 // No result, role read or catalog snapshot belongs to this immutable recipe.
 type objectACLExpression struct {
 	expr.Info
-	args   [3]BoundExpr
+	args   [3]expr.Expr
 	slots  [3]uint8
 	labels [3]string
 }
@@ -25,7 +25,7 @@ type objectACLExpression struct {
 var objectACLLabels = [3]string{"classid", "objid", "objsubid"}
 var objectACLTypes = [3]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4}
 
-func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operands [3]comparisonOperand
 	var small [3]string
 	names := small[:0]
@@ -54,19 +54,19 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 		return nil, err
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	issue := functions.FunctionLabels(raw)
 	switch {
 	case issue.Malformed:
 		return nil, fmt.Errorf("invalid function argument labels")
 	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", issue.Position)
 	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
 	}
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
@@ -103,7 +103,7 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 			}
 		}
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i := range n.args {
 		target := b.typ(objectACLTypes[n.slots[i]]).Usage()
 		arg, err := b.finalizeOperand(operands[i], target.Type)
@@ -118,15 +118,15 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		n.args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	switch {
 	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.ACLItemArray).Usage(), raw.Pos, properties), catalogRoutineProvider, "pg_get_acl", objectACLTypes[:]...)
 	if err != nil {
@@ -136,7 +136,7 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 	return n, nil
 }
 
-func (n objectACLExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -237,7 +237,7 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 
 func (n objectACLExpression) validateStored() error {
 	var seen [3]bool
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	named := false
 	for i, arg := range n.args {
 		slot := n.slots[i]
@@ -253,7 +253,7 @@ func (n objectACLExpression) validateStored() error {
 		} else if named || int(slot) != i {
 			return fmt.Errorf("stuntgres: invalid stored object ACL argument order")
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != sqltype.ACLItemArray || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored object ACL result")
@@ -261,7 +261,7 @@ func (n objectACLExpression) validateStored() error {
 	return nil
 }
 
-func (n objectACLExpression) sql(name string, render func(BoundExpr) (string, error)) (string, error) {
+func (n objectACLExpression) sql(name string, render func(expr.Expr) (string, error)) (string, error) {
 	if err := n.validateStored(); err != nil {
 		return "", err
 	}

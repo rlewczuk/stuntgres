@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -30,11 +31,11 @@ func subqueryTestExpression(t *testing.T, e *Engine, q *BoundQuery, kind parser.
 	if kind == parser.SubqueryScalar {
 		usage = q.Root.Schema()[0].Usage
 	}
-	return subqueryExpression{Info: expressionInfo{Usage: usage}, kind: kind, queryPlan: q, presenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
+	return subqueryExpression{Info: expr.Info{Usage: usage}, kind: kind, queryPlan: q, presenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
 }
 
 // Replace an actual scheduler-owned target rather than mocking a query result.
-func subqueryTestTarget(t *testing.T, project *projectNode, replacement BoundExpr) {
+func subqueryTestTarget(t *testing.T, project *projectNode, replacement expr.Expr) {
 	t.Helper()
 	for node := project.child; node != nil; {
 		switch n := node.(type) {
@@ -197,7 +198,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 				stage.produce = func(context.Context, *indexedStage) (bool, error) { return false, primary }
 			case "projection":
 				stage.schema = []ColumnDescriptor{{}}
-				stage.expressions = []BoundExpr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
+				stage.expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
 				stage.evaluation = EvalContext{Context: context.Background()}
 			case "close":
 				if err := stage.Close(); err != secondary {
@@ -407,9 +408,9 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound := subqueryExpression{Info: expressionInfo{Usage: boolean.Usage()}, operator: tc.text}
+			bound := subqueryExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: tc.text}
 			for i := range tc.right {
-				bound.comparisons = append(bound.comparisons, comparisonExpression{right: columnExpression{Info: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: 9, slot: i}, predicate: predicate})
+				bound.comparisons = append(bound.comparisons, comparisonExpression{right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: 9, slot: i}, predicate: predicate})
 				if tc.operator > sqltype.CompareNotEqual {
 					bound.ordering = append(bound.ordering, comparison)
 				}
@@ -435,7 +436,7 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 	}
 	leftCalls, targetCalls := 0, 0
 	project.expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
-	bound.comparisons = []comparisonExpression{{left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), right: columnExpression{Info: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+	bound.comparisons = []comparisonExpression{{left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
 	parent := queryState{source: source}
 	c := parent.evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {
@@ -544,8 +545,8 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 		if right != nil {
 			walk(right)
 		}
-		queryExpressions(node, func(bound BoundExpr) {
-			walkBoundExpression(bound, func(expr BoundExpr) {
+		queryExpressions(node, func(bound expr.Expr) {
+			walkBoundExpression(bound, func(expr expr.Expr) {
 				if child, ok := expr.(subqueryExpression); ok {
 					walk(child.queryPlan.Root)
 				}

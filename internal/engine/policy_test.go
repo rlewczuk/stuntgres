@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -59,7 +60,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if condition == "random()>=0" && expression.expression.Properties().Volatility != Volatile {
+			if condition == "random()>=0" && expression.expression.Properties().Volatility != expr.Volatile {
 				t.Fatal("policy binding lost volatile function behavior", expression.expression.Properties())
 			}
 			if err = validatePolicyExpression(e.CatalogRead(), d, expression); err != nil {

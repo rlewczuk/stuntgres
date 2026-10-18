@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -127,8 +128,8 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 	}
 	// The query mapper calls its callback on whole expressions. ROWS 1 has
 	// an assignment-coercion wrapper, so the callback owns child recursion.
-	var replaceLiteral func(BoundExpr) (BoundExpr, bool, error)
-	replaceLiteral = func(expr BoundExpr) (BoundExpr, bool, error) {
+	var replaceLiteral func(expr.Expr) (expr.Expr, bool, error)
+	replaceLiteral = func(expr expr.Expr) (expr.Expr, bool, error) {
 		switch e := expr.(type) {
 		case literalExpression:
 			value, err := sqltype.Integer(e.ResultUsage().Type, 2)
@@ -330,7 +331,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 	}
 	key := original.specs[0].order[0].expression.ResultUsage().Type
 	var offsetDomain *sqltype.Descriptor
-	walkBoundExpression(original.specs[0].frame.start.offset, func(expr BoundExpr) {
+	walkBoundExpression(original.specs[0].frame.start.offset, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			offsetDomain = expr.ResultUsage().Type
 		}
@@ -355,7 +356,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 		t.Fatal("domain/unit ownership", next)
 	}
 	var mappedDomain *sqltype.Descriptor
-	walkBoundExpression(next.specs[0].frame.start.offset, func(expr BoundExpr) {
+	walkBoundExpression(next.specs[0].frame.start.offset, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			mappedDomain = expr.ResultUsage().Type
 		}

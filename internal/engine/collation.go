@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 			}
 		}
 	}
-	return nil, expressionError("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, objectNameText(raw)), raw.Parts[0].Pos)
+	return nil, expr.ErrorAt("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, objectNameText(raw)), raw.Parts[0].Pos)
 }
 
 func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *Operation) (sqltype.Usage, error) {
@@ -59,7 +60,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	pos := raw.Parts[0].Pos
 	if u.Type.Usage().Collation.ID == 0 {
 		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-		return sqltype.Usage{}, expressionError("42804", "collations are not supported by type "+binder.diagnosticTypeName(u.Type), pos)
+		return sqltype.Usage{}, expr.ErrorAt("42804", "collations are not supported by type "+binder.diagnosticTypeName(u.Type), pos)
 	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -71,7 +72,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	}
 	ref, err := d.usage()
 	if err != nil {
-		return sqltype.Usage{}, expressionError("0A000", "collation is unsupported", pos)
+		return sqltype.Usage{}, expr.ErrorAt("0A000", "collation is unsupported", pos)
 	}
 	u.Collation = ref
 	return u, nil
@@ -87,7 +88,7 @@ func (e *Engine) lookupCollation(raw parser.ObjectName, op *Operation) (uint32, 
 		return 0, err
 	}
 	if _, err = d.usage(); err != nil {
-		return 0, expressionError("0A000", "collation is unsupported", raw.Parts[0].Pos)
+		return 0, expr.ErrorAt("0A000", "collation is unsupported", raw.Parts[0].Pos)
 	}
 	return uint32(d.oid), nil
 }

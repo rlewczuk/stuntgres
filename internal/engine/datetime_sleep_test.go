@@ -25,7 +25,7 @@ func TestDatetimeSleepBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := x.(functions.DatetimeSleep)
-		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != expr.Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			t.Fatalf("binding %s: %#v", tc.name, n)
 		}
 		if generationImmutable(n) {

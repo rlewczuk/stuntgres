@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 	for i, a := range assignments {
 		if len(a.Steps) != 0 {
 			if _, requested := a.Value.(parser.DefaultExpr); requested {
-				return expressionError("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
+				return expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
 			}
 		}
 		if slot, exists := b.relation.index[a.Target.Text]; exists {
@@ -37,7 +38,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if b.relation.relationKind == viewRelation {
 				continue // Rewrite diagnoses computed/generated destinations.
 			}
-			return expressionError("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
+			return expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
 		}
 		expected := sqltype.Usage{}
 		if slot, ok := b.relation.index[a.Target.Text]; ok {
@@ -57,9 +58,9 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		if !ok {
 			switch a.Target.Text {
 			case "ctid", "tableoid", "xmin", "xmax", "cmin", "cmax":
-				return expressionError("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
+				return expr.ErrorAt("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
 			}
-			diagnostic := expressionError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.name), a.Target.Pos).(*sqlstate.Error)
+			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.name), a.Target.Pos).(*sqlstate.Error)
 			visible := binder.targetName
 			if binder.targetAlias != "" {
 				visible = binder.targetAlias

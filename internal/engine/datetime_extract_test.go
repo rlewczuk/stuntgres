@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -50,11 +51,11 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if api == "date_part" {
 				result = sqltype.Float8
 			}
-			volatility := Immutable
+			volatility := expr.Immutable
 			if source == "timestamptz" {
-				volatility = Stable
+				volatility = expr.Stable
 			}
-			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || plannedVolatility(e) != volatility || generationImmutable(e) != (volatility == Immutable) || !b.sameGroupExpression(e, e) {
+			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || plannedVolatility(e) != volatility || generationImmutable(e) != (volatility == expr.Immutable) || !b.sameGroupExpression(e, e) {
 				t.Fatal(source, api, e.Properties())
 			}
 			replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -138,10 +139,10 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		condition  parser.Expr
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{"stable", parser.CastExpr{Child: parser.CurrentDateTimeExpr{Kind: parser.CurrentDate}, TypeName: parser.TypeName{Name: "text"}}, Stable},
-		{"volatile", datetimeMakeRaw("random"), Volatile},
+		{"stable", parser.CastExpr{Child: parser.CurrentDateTimeExpr{Kind: parser.CurrentDate}, TypeName: parser.TypeName{Name: "text"}}, expr.Stable},
+		{"volatile", datetimeMakeRaw("random"), expr.Volatile},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), engine, input, nil)

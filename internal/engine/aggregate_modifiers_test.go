@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -95,7 +96,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := b.aggregates[bound.(aggregateExpression).slot]
-	if call.order[0].slot != 0 || call.order[1].slot != 0 || bound.Properties().Volatility != Volatile {
+	if call.order[0].slot != 0 || call.order[1].slot != 0 || bound.Properties().Volatility != expr.Volatile {
 		t.Fatal(call, bound.Properties())
 	}
 	altered := call
@@ -284,12 +285,12 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	defer source.close()
 	node := query.Root.(*projectNode).child.(*aggregateNode)
 	original := node.calls[0]
-	rewritten, err := rewriteQueryExpressions(node, func(bound BoundExpr) (BoundExpr, bool, error) {
+	rewritten, err := rewriteQueryExpressions(node, func(bound expr.Expr) (expr.Expr, bool, error) {
 		column, ok := bound.(columnExpression)
 		if !ok || column.slot != 2 {
 			return bound, false, nil
 		}
-		return literalExpression{Info: expressionInfo{Usage: column.ResultUsage()}, value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
+		return literalExpression{Info: expr.Info{Usage: column.ResultUsage()}, value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
 	})
 	if err != nil || rewritten == node {
 		t.Fatal("FILTER rewrite not copied", rewritten, err)

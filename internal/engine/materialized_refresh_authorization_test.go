@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -115,7 +116,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if current != "refresh_unit_owner" || session != "refresh_unit_caller" {
 				t.Fatal(current, session)
 			}
-			value, err := (identityExpression{Info: expressionInfo{Usage: name.Usage()}, kind: identityCurrentSchema}).Eval(c)
+			value, err := (identityExpression{Info: expr.Info{Usage: name.Usage()}, kind: identityCurrentSchema}).Eval(c)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -139,9 +140,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		converted := coercionExpression{Info: expressionInfo{Usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
+		converted := coercionExpression{Info: expr.Info{Usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
 		definition := *d.view
-		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []BoundExpr{converted}}}
+		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []expr.Expr{converted}}}
 		d.view = &definition
 		e.mu.Lock()
 		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.domain.Ref(e.catalog.state.epoch, d.address), d)

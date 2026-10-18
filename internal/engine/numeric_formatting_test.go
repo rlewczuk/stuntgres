@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 			t.Fatal(c, err)
 		}
 		n, ok := bound.(functions.NumericFormatting)
-		if !ok || n.Args[0].ResultUsage().Type.ID() != c.id || n.ResultUsage().Type.ID() != sqltype.Text || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
+		if !ok || n.Args[0].ResultUsage().Type.ID() != c.id || n.ResultUsage().Type.ID() != sqltype.Text || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != expr.Stable {
 			t.Fatal("overload authority", c, bound)
 		}
 	}
@@ -37,7 +38,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, ok := bound.(functions.NumericFormatting); !ok || n.ResultUsage().Type.ID() != sqltype.Numeric || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
+	if n, ok := bound.(functions.NumericFormatting); !ok || n.ResultUsage().Type.ID() != sqltype.Numeric || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != expr.Stable {
 		t.Fatal(bound)
 	}
 	// An invalid constant mask belongs to demanded execution, not binding.
@@ -56,9 +57,9 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	}
 	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
 	// genuine STABLE/group/retag owner invariants with executable literals.
-	n := functions.NumericFormatting{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: [2]BoundExpr{
-		literalExpression{Info: expressionInfo{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
-		literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, mask)},
+	n := functions.NumericFormatting{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: [2]expr.Expr{
+		literalExpression{Info: expr.Info{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
+		literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, mask)},
 	}}
 	simplified, _, err := simplifyConditional(&EvalContext{Context: ctx}, n, false)
 	if err != nil {
@@ -67,11 +68,11 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if _, ok := simplified.(functions.NumericFormatting); !ok {
 		t.Fatal("STABLE demand lost through NULL folding", simplified)
 	}
-	if plannedVolatility(n) != Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
+	if plannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n
-	other.Args[1] = literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "FM99")}
+	other.Args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "FM99")}
 	if b.sameGroupExpression(n, other) {
 		t.Fatal("mask omitted from group identity")
 	}
@@ -108,7 +109,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 		numeric, ok := node.(functions.NumericFormatting)
-		if !ok || numeric.Properties().Volatility != Volatile {
+		if !ok || numeric.Properties().Volatility != expr.Volatile {
 			t.Fatal("numeric wrapper lost UUID child volatility", node)
 		}
 		if !closedUUIDDefault(numeric.Args[0]) {
@@ -117,10 +118,10 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		if !closedUUIDDefault(numeric) {
 			t.Error("numeric wrapper rejected otherwise admitted closed UUID DEFAULT", raw)
 		}
-		for _, property := range []ExprProperties{
-			{Volatility: Volatile, RowDependent: true},
-			{Volatility: Volatile, ParameterDependent: true},
-			{Volatility: Volatile, StageDependent: true},
+		for _, property := range []expr.Properties{
+			{Volatility: expr.Volatile, RowDependent: true},
+			{Volatility: expr.Volatile, ParameterDependent: true},
+			{Volatility: expr.Volatile, StageDependent: true},
 		} {
 			dependent := numeric
 			dependent.Property = property

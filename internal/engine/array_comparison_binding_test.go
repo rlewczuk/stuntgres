@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +35,7 @@ func TestArrayCompareBinding(t *testing.T) {
 			if batch != tc.batch {
 				t.Fatalf("lowering=%T batch=%t", node, tc.batch)
 			}
-			if node.ResultUsage().Type.ID() != 16 || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation.ID != 0 || node.Properties().RowDependent || !node.Properties().ParameterDependent || node.Properties().StageDependent || node.Properties().Volatility != Immutable {
+			if node.ResultUsage().Type.ID() != 16 || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation.ID != 0 || node.Properties().RowDependent || !node.Properties().ParameterDependent || node.Properties().StageDependent || node.Properties().Volatility != expr.Immutable {
 				t.Fatal(node.ResultUsage(), node.Properties())
 			}
 			manifest, err := b.finish()
@@ -99,7 +100,7 @@ func TestArrayCompareCommonType(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	integer := func(id sqltype.ID) comparisonOperand {
-		return comparisonOperand{node: parameterExpression{Info: b.info(b.typ(id).Usage(), parser.Position{}, ExprProperties{}), number: 1}}
+		return comparisonOperand{node: parameterExpression{Info: b.info(b.typ(id).Usage(), parser.Position{}, expr.Properties{}), number: 1}}
 	}
 	unknown := comparisonOperand{node: parameterExpression{number: 1}}
 	common, err := commonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.typ(sqltype.Text).Usage(), "")
@@ -113,10 +114,10 @@ func TestArrayCompareCommonType(t *testing.T) {
 	_, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
-	local := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), frame: b.frameID()}
+	local := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), frame: b.frameID()}
 	other := local
 	other.frame++
-	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{Info: expressionInfo{Property: ExprProperties{RowDependent: true}}}) {
+	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}) {
 		t.Fatal("IN Var classification lost lexical identity")
 	}
 }

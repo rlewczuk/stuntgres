@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -9,7 +10,7 @@ import (
 // A persisted predicate keeps original dependencies even when planning removes
 // an arm. Both trees use the immutable parent attribute layout.
 type indexPredicate struct {
-	definition, execution BoundExpr
+	definition, execution expr.Expr
 	dependencies          []ids.ObjectRef
 	attributes            []int32
 }
@@ -18,8 +19,8 @@ type indexPredicate struct {
 // descriptor, logical root, hash binding, lock key or prepared statement.
 // These bits describe executable preparation, not a retained rights decision.
 type indexExecutionPreparation struct {
-	predicate                                          BoundExpr
-	ordinary                                           []BoundExpr // Only ordinary validation without an existing ordering/hash programme.
+	predicate                                          expr.Expr
+	ordinary                                           []expr.Expr // Only ordinary validation without an existing ordering/hash programme.
 	admission                                          routineAdmissionProgram
 	constantsPrepared, predicatePrepared, keysPrepared bool
 }
@@ -33,7 +34,7 @@ func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ids.ObjectRef
 	return local
 }
 
-func prepareIndexRecipe(evaluation *EvalContext, expression BoundExpr, dependencies []ids.ObjectRef, parent *relationDescriptor, admission *routineAdmissionProgram, executable bool) (BoundExpr, error) {
+func prepareIndexRecipe(evaluation *EvalContext, expression expr.Expr, dependencies []ids.ObjectRef, parent *relationDescriptor, admission *routineAdmissionProgram, executable bool) (expr.Expr, error) {
 	local := indexRecipeEvaluation(evaluation, dependencies, parent)
 	local.routineProgram = admission
 	prepared, _, err := preflightCoercionsWithPolicy(&local, expression, true)
@@ -73,7 +74,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 			ordering.derived[i] = prepared
 		} else {
 			if p.ordinary == nil {
-				p.ordinary = make([]BoundExpr, len(definition.keys))
+				p.ordinary = make([]expr.Expr, len(definition.keys))
 			}
 			p.ordinary[i] = prepared
 		}
@@ -82,7 +83,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 	return nil
 }
 
-func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, hash *hashIndexBinding) BoundExpr {
+func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, hash *hashIndexBinding) expr.Expr {
 	if hash != nil {
 		return hash.expression
 	}
@@ -138,7 +139,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err != nil {
 		return nil, err
 	}
-	if plannedVolatility(execution) != Immutable {
+	if plannedVolatility(execution) != expr.Immutable {
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
@@ -212,7 +213,7 @@ func newLogicalIndexRoot(d *indexDefinition, entries []logicalIndexEntry) *logic
 // Strong exact implication on unresolved typed trees, not runtime values. Only
 // AND is decomposed; an independent fixed conjunct can survive parameters in
 // other query atoms. Existing structural identity owns provider/origin semantics.
-func partialPredicateImpliedBy(query, predicate BoundExpr) bool {
+func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
 	if predicate == nil {
 		return true
 	}
@@ -222,15 +223,15 @@ func partialPredicateImpliedBy(query, predicate BoundExpr) bool {
 	if p, ok := predicate.(logicalExpression); ok && p.op == parser.LogicalAnd {
 		return partialPredicateImpliedBy(query, p.left) && partialPredicateImpliedBy(query, p.right)
 	}
-	if predicate.Properties().ParameterDependent || plannedVolatility(predicate) != Immutable {
+	if predicate.Properties().ParameterDependent || plannedVolatility(predicate) != expr.Immutable {
 		return false
 	}
 	return partialPredicateAtom(query, predicate)
 }
 
-func partialPredicateAtom(query, predicate BoundExpr) bool {
+func partialPredicateAtom(query, predicate expr.Expr) bool {
 	if q, ok := query.(logicalExpression); ok && q.op == parser.LogicalAnd {
 		return partialPredicateAtom(q.left, predicate) || partialPredicateAtom(q.right, predicate)
 	}
-	return !query.Properties().ParameterDependent && plannedVolatility(query) == Immutable && sameGroupExpression(query, predicate)
+	return !query.Properties().ParameterDependent && plannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
 }

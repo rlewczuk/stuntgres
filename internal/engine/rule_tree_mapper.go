@@ -1,16 +1,20 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+
+	"stuntgres/internal/engine/expr"
+)
 
 type ruleTreeMapper struct {
 	query      func(LogicalNode) (LogicalNode, error)
-	expression func(BoundExpr) (BoundExpr, bool, error)
+	expression func(expr.Expr) (expr.Expr, bool, error)
 	definition func(*cteDefinition) (*cteDefinition, error)
 }
 
 type ruleTreeMapping struct {
 	ownerFrame func(uint32) uint32
-	leaf       func(BoundExpr) (BoundExpr, bool, error)
+	leaf       func(expr.Expr) (expr.Expr, bool, error)
 	boundary   func(LogicalNode) (LogicalNode, bool)
 	finish     func(LogicalNode) (LogicalNode, error)
 	mutation   func(*cteDefinition) (binding, error)
@@ -77,8 +81,8 @@ func newRuleTreeMapper(view CatalogRead, frame func(uint32) uint32, offset int, 
 		}
 		return &copy, nil
 	}
-	mapper.expression = func(bound BoundExpr) (BoundExpr, bool, error) {
-		return rewriteViewExpression(view, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+	mapper.expression = func(bound expr.Expr) (expr.Expr, bool, error) {
+		return rewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if mapping.leaf != nil {
 				next, changed, err := mapping.leaf(expr)
 				if changed || err != nil {
@@ -134,7 +138,7 @@ func newRuleTreeMapper(view CatalogRead, frame func(uint32) uint32, offset int, 
 				}
 			}
 			return expr, false, nil
-		}, func(root LogicalNode, _ func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error) {
+		}, func(root LogicalNode, _ func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
 			return mapper.query(root)
 		})
 	}

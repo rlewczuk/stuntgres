@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -47,7 +48,7 @@ func validateCollationProvider(view CatalogRead, ref ids.ObjectRef) error {
 // Catalog-valued REGCOLLATION constants retain identity, not a comparison
 // capability. Other expressions and any actual use of this collation keep the
 // existing provider validation, even if the same OID also appears as an alias.
-func validateStoredCollationDependency(view CatalogRead, ref ids.ObjectRef, node BoundExpr) error {
+func validateStoredCollationDependency(view CatalogRead, ref ids.ObjectRef, node expr.Expr) error {
 	err := validateCollationProvider(view, ref)
 	if err == nil {
 		return nil
@@ -59,7 +60,7 @@ func validateStoredCollationDependency(view CatalogRead, ref ids.ObjectRef, node
 		return err
 	}
 	identity, comparison := false, false
-	walkBoundExpression(node, func(child BoundExpr) {
+	walkBoundExpression(node, func(child expr.Expr) {
 		usage := child.ResultUsage()
 		if ids.OID(usage.Collation.ID) == ref.Address.ObjectID {
 			comparison = true

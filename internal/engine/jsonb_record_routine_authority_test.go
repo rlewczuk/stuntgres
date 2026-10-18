@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -73,7 +74,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || isQuerySet(call) != tc.set || !validFunctionSourceCall(call) || binder.queryHasTargetSet != tc.set {
 				t.Fatal("physical/source/project contract", call)
 			}
-			if call.Properties().Volatility != Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {
+			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {
 				t.Fatal("stable/domain/stage properties", call.Properties())
 			}
 			if call.Args[arity-1].ResultUsage().Type.ID() != sqltype.JSONB {
@@ -93,10 +94,10 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			d := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("released identity", captured)
 			}
-			if d.kind != functionRoutine || d.result != tc.result || d.strict != tc.strict || d.volatility != Stable || d.parallel != 's' || d.returnsSet != tc.set || d.variadic != 0 || d.defaults != 0 || d.providers&jsonRoutineProvider == 0 {
+			if d.kind != functionRoutine || d.result != tc.result || d.strict != tc.strict || d.volatility != expr.Stable || d.parallel != 's' || d.returnsSet != tc.set || d.variadic != 0 || d.defaults != 0 || d.providers&jsonRoutineProvider == 0 {
 				t.Fatal("released full declaration", d)
 			}
 			if evaluation.catalog.Get(address) != captured {
@@ -118,7 +119,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("original selected manifest cardinality", selected)
 			}
 			before := call
-			before.Args = append([]BoundExpr(nil), call.Args...)
+			before.Args = append([]expr.Expr(nil), call.Args...)
 			rebuilt, err := call.Reconstruct(call.Info, call.Args)
 			if err != nil || !reflect.DeepEqual(rebuilt, call) {
 				t.Fatal("reconstruct lost physical metadata", err)
@@ -150,7 +151,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("actual FROM completion", err)
 				}
 				next := completed.(functions.JSONBRecord)
-				if !next.Definitions || next.Unresolved || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Name != call.Name || !reflect.DeepEqual(next.Args, call.Args) || next.RecordUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != Stable || next.Properties().StageDependent != tc.set {
+				if !next.Definitions || next.Unresolved || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Name != call.Name || !reflect.DeepEqual(next.Args, call.Args) || next.RecordUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != expr.Stable || next.Properties().StageDependent != tc.set {
 					t.Fatal("completion lost authority/layout/properties", next)
 				}
 				reconstructed, err := next.Reconstruct(next.Info, next.Args)
@@ -293,7 +294,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, retained := range []BoundExpr{grafted, finished, rebuilt, retagged} {
+	for i, retained := range []expr.Expr{grafted, finished, rebuilt, retagged} {
 		next := retained.(functions.JSONBRecord)
 		if next.Info.RoutineReference != captured || next.Info.RoutineRecipeReference != recipe || next.SourcePosition() != call.SourcePosition() || next.Definitions != (i != 0) || next.Unresolved != (i == 0) || next.Name != call.Name || len(next.Args) != len(call.Args) || next.Args[0].ResultUsage() != call.Args[0].ResultUsage() {
 			t.Fatal("stored chain lost original authority/arguments", next)
@@ -338,7 +339,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 
 func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
-	var nodes []BoundExpr
+	var nodes []expr.Expr
 	var evaluations []EvalContext
 	for _, expression := range []string{
 		"jsonb_populate_record(NULL::strict_null_rows,NULL::jsonb)",

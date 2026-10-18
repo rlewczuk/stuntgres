@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ type viewWriteOccurrence struct {
 
 // Only transplanted, demanded subqueries acquire an execution source slot.
 // Frozen view layouts are bridged by capture, not by re-resolving SQL names.
-func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, rewrite func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error) {
+func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
 	project, ok := root.(*projectNode)
 	if !ok {
 		return rewriteQueryExpressions(root, rewrite)
@@ -72,7 +73,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 		ownFrames(right)
 	}
 	ownFrames(root)
-	translate := func(n BoundExpr) (BoundExpr, bool, error) {
+	translate := func(n expr.Expr) (expr.Expr, bool, error) {
 		column, ok := n.(columnExpression)
 		if !ok || column.origin == (ids.ObjectRef{}) || !frames[column.frame] {
 			return n, false, nil
@@ -94,7 +95,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 		column.origin = use
 		return column, changed, nil
 	}
-	return rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+	return rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		next, translated, err := mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
 			return nil, false, err

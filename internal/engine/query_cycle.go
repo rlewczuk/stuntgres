@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,7 @@ type cycleRecipe struct {
 	keys           []int
 	grouping       []sqltype.Grouping
 	record, path   *sqltype.Descriptor
-	mark, fallback BoundExpr
+	mark, fallback expr.Expr
 	// Typed introducers retain their analyzed source Usage before common-output
 	// coercion, so replay reconstructs the original input conversion.
 	typedConstants [2]sqltype.Usage

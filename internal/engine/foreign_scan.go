@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -136,7 +137,7 @@ func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int3
 			return nil, fmt.Errorf("stuntgres: invalid foreign required attribute")
 		}
 		if generation, ok := relation.generations[relation.attributes[slot]]; ok && generation.kind == generationVirtual {
-			walkBoundExpression(generation.planned, func(node BoundExpr) {
+			walkBoundExpression(generation.planned, func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok {
 					add(column.slot)
 				}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -55,11 +56,11 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			}
 			declaration := outer.builtin
 			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, "27,27"}
-			if declaration.identity != wantIdentity || declaration.result != 16 || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
+			if declaration.identity != wantIdentity || declaration.result != 16 || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.Get(address) != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
+			if auth.catalog.Get(address) != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != expr.Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.body) != 0 {

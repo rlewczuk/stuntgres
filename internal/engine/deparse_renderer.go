@@ -22,7 +22,7 @@ type pgRenderer struct {
 	showImplicit       bool
 	unknownTextLiteral bool
 	columnSQL          func(columnExpression) (string, error)
-	nodeSQL            func(BoundExpr) (string, bool, error)
+	nodeSQL            func(expr.Expr) (string, bool, error)
 }
 
 func pgIdentifier(name string) string {
@@ -65,7 +65,7 @@ func validateDeparseIdentity(n identityExpression) error {
 		typ = sqltype.Text
 	}
 	if n.Usage.Type == nil || n.Usage.Type.ID() != typ || n.Usage != n.Usage.Type.Usage() ||
-		n.Property != (ExprProperties{Volatility: Stable}) || n.UnknownNull {
+		n.Property != (expr.Properties{Volatility: expr.Stable}) || n.UnknownNull {
 		return fmt.Errorf("stuntgres: invalid deparse identity metadata")
 	}
 	return nil
@@ -354,7 +354,7 @@ func pgOperatorGrouped(op string, binary bool, parent pgRenderParent) bool {
 	return childPriority == 0 || childPriority < parentPriority || childPriority == parentPriority && parent.right
 }
 
-func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderParent) (string, error) {
+func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -368,8 +368,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	}
 	showImplicit := r.showImplicit
 	r.showImplicit = false
-	child := func(n BoundExpr) (string, error) { return r.sql(ctx, n, pgRenderParent{}) }
-	function := func(name string, args []BoundExpr, implicit bool) (string, error) {
+	child := func(n expr.Expr) (string, error) { return r.sql(ctx, n, pgRenderParent{}) }
+	function := func(name string, args []expr.Expr, implicit bool) (string, error) {
 		if r.output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
 			name = r.identifier(name)
 		}
@@ -385,7 +385,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	}
-	unary := func(n BoundExpr, suffix string) (string, error) {
+	unary := func(n expr.Expr, suffix string) (string, error) {
 		text, err := r.sql(ctx, n, pgRenderParent{precedence: 5})
 		if err != nil {
 			return "", err
@@ -399,7 +399,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	// Numeric comparison providers accept mixed scalar types without storing
 	// coercion nodes. Reconstruct the contextual Const cast that PostgreSQL
 	// records for integer operands of numeric/floating comparisons.
-	comparisonChild := func(node, other BoundExpr) (string, error) {
+	comparisonChild := func(node, other expr.Expr) (string, error) {
 		text, err := r.sql(ctx, node, pgRenderParent{precedence: 5})
 		if err != nil {
 			return "", err
@@ -413,7 +413,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return text, nil
 	}
-	binary := func(left, right BoundExpr, op string, precedence int, enclosing pgRenderParent) (string, error) {
+	binary := func(left, right expr.Expr, op string, precedence int, enclosing pgRenderParent) (string, error) {
 		var a, b string
 		var err error
 		if precedence == 4 {
@@ -636,9 +636,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing selected operator namespace")
 		}
 		op := "OPERATOR(" + quoteIdentifier(namespace.name) + "." + d.name + ")"
-		var operands [2]BoundExpr
+		var operands [2]expr.Expr
 		count := 0
-		boundExpressionChildren(n.provider, func(arg BoundExpr) {
+		boundExpressionChildren(n.provider, func(arg expr.Expr) {
 			if arg != nil && count < len(operands) {
 				operands[count] = arg
 				count++
@@ -751,13 +751,13 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return renderRowComparison(n, child, spelling)
 	case functions.Regexp:
-		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.RegexpSet:
-		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
@@ -953,7 +953,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.ArrayTransform:
 		inputRenderer := r
 		inputRenderer.showImplicit = true
-		return functions.ArrayTransformSQL(n, func(child BoundExpr) (string, error) {
+		return functions.ArrayTransformSQL(n, func(child expr.Expr) (string, error) {
 			return inputRenderer.sql(ctx, child, pgRenderParent{functionArgument: true})
 		}, operator)
 	case functions.ArrayInspect:
@@ -979,7 +979,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return function(n.Plan.Name(), n.Args, true)
 	case catalogUserNameExpression:
-		args := [1]BoundExpr{n.arg}
+		args := [1]expr.Expr{n.arg}
 		return function("pg_get_userbyid", args[:], true)
 	case catalogForeignKeysExpression:
 		return function("pg_get_catalog_foreign_keys", nil, true)
@@ -987,16 +987,16 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.arg == nil {
 			return function(n.kind.name(), nil, true)
 		}
-		args := [1]BoundExpr{n.arg}
+		args := [1]expr.Expr{n.arg}
 		return function(n.kind.name(), args[:], true)
 	case commitTimestampExpression:
 		if n.arg == nil {
 			return function(n.kind.name(), nil, true)
 		}
-		args := [1]BoundExpr{n.arg}
+		args := [1]expr.Expr{n.arg}
 		return function(n.kind.name(), args[:], true)
 	case functions.UUIDExtract:
-		args := [1]BoundExpr{n.Arg}
+		args := [1]expr.Expr{n.Arg}
 		return function(n.Kind.Name(), args[:], true)
 	case functions.NetworkFormat:
 		return function(n.Kind.Name(), n.Args[:n.Kind.Arity()], true)
@@ -1042,55 +1042,55 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.DatetimeAgeFinite:
 		return function(n.Plan.Name(), n.Arguments(), true)
 	case functions.JSONStripNulls:
-		return functions.JSONStripNullsSQL(n, "json_strip_nulls", func(arg BoundExpr) (string, error) {
+		return functions.JSONStripNullsSQL(n, "json_strip_nulls", func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONExtract:
-		return functions.JSONExtractSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return functions.JSONExtractSQL(n, n.Plan.Name(), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathQueryArray:
-		return functions.JSONBPathQueryArraySQL(n, "jsonb_path_query_array", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathQueryArraySQL(n, "jsonb_path_query_array", func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathExists:
-		return functions.JSONBPathExistsSQL(n, "jsonb_path_exists", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathExistsSQL(n, "jsonb_path_exists", func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathMatch:
-		return functions.JSONBPathMatchSQL(n, "jsonb_path_match", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathMatchSQL(n, "jsonb_path_match", func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathQueryFirst:
-		return functions.JSONBPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathQuery:
-		return functions.JSONBPathQuerySQL(n, "jsonb_path_query", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathQuerySQL(n, "jsonb_path_query", func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBSet:
-		return functions.JSONBSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return functions.JSONBSetSQL(n, n.Plan.Name(), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.DatetimeMake:
-		return datetimeMakeSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return datetimeMakeSQL(n, n.Plan.Name(), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
@@ -1188,7 +1188,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
 		}
-		return function(n.Kind.Name(), []BoundExpr{n.Arg}, true)
+		return function(n.Kind.Name(), []expr.Expr{n.Arg}, true)
 	case advisoryExpression:
 		return function(n.name, n.args, true)
 	case functions.UUIDGeneration:
@@ -1237,7 +1237,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.Arg}, true)
+		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []expr.Expr{n.Arg}, true)
 	case sqlJSONExpression:
 		return r.sqlJSON(ctx, n, sqltype.Usage{})
 	case jsonPredicateExpression:
@@ -1307,7 +1307,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.Properties() != properties {
 			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
 		}
-		return function(n.kind.name(), []BoundExpr{n.arg}, true)
+		return function(n.kind.name(), []expr.Expr{n.arg}, true)
 	case commentInquiryExpression:
 		name := "obj_description"
 		if n.kind == columnDescription {
@@ -1318,21 +1318,21 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return function(name, n.args, true)
 	case currentSchemasExpression:
-		return function("current_schemas", []BoundExpr{n.arg}, true)
+		return function("current_schemas", []expr.Expr{n.arg}, true)
 	case objectAddressExpression:
-		return n.sql(r.identifier(n.op.name()), func(arg BoundExpr) (string, error) {
+		return n.sql(r.identifier(n.op.name()), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		})
 	case aclValueExpression:
-		return n.sql(func(arg BoundExpr) (string, error) {
+		return n.sql(func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		})
 	case objectACLExpression:
-		return n.sql(r.identifier("pg_get_acl"), func(arg BoundExpr) (string, error) {
+		return n.sql(r.identifier("pg_get_acl"), func(arg expr.Expr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})

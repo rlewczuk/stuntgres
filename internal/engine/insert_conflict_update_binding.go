@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
@@ -37,7 +38,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	}
 	binder.queryNamespace = &namespace
 	binder.aggregateClause = "UPDATE"
-	action := &boundUpdate{assignments: make([]BoundExpr, len(s.Conflict.Assignments))}
+	action := &boundUpdate{assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
 	actionBinding := *b
 	actionBinding.targets = nil
 	if err := e.bindUpdateAssignments(&actionBinding, binder, s.Conflict.Assignments, action); err != nil {

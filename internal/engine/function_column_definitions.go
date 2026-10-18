@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -9,18 +10,18 @@ import (
 
 // Completion follows ordinary call/signature/SRF analysis, but precedes source
 // schema expansion. Explicit definitions are occurrence authorities, not aliases.
-func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, call BoundExpr, definitions []parser.FunctionColumnDefinition) (BoundExpr, error) {
+func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, call expr.Expr, definitions []parser.FunctionColumnDefinition) (expr.Expr, error) {
 	record, isRecord := call.(functions.JSONRecord)
 	jsonb, isJSONB := call.(functions.JSONBRecord)
 	anonymous := (isRecord || isJSONB) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
 		if isRecord && anonymous || jsonbRecordUnresolved(call) {
-			return nil, expressionError("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
+			return nil, expr.ErrorAt("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
 	}
 	if !anonymous {
-		return nil, expressionError("42601", functionColumnDefinitionMessage(call), definitions[0].Name.Pos)
+		return nil, expr.ErrorAt("42601", functionColumnDefinitionMessage(call), definitions[0].Name.Pos)
 	}
 	if isJSONB {
 		usage, err := b.bindJSONBRecordDefinition(definitions)
@@ -76,14 +77,14 @@ func (b *expressionBinder) resolveFunctionColumnUsage(definition parser.Function
 }
 
 func functionDefinitionError(message, hint string, pos parser.Position) error {
-	err := expressionError("42601", message, pos).(*sqlstate.Error)
+	err := expr.ErrorAt("42601", message, pos).(*sqlstate.Error)
 	err.Hint = hint
 	return err
 }
 
 func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumnDefinition) (sqltype.Usage, error) {
 	if len(raw) > 1600 {
-		return sqltype.Usage{}, expressionError("54011", "column definition lists can have at most 1600 entries", raw[0].Name.Pos)
+		return sqltype.Usage{}, expr.ErrorAt("54011", "column definition lists can have at most 1600 entries", raw[0].Name.Pos)
 	}
 	members := make([]sqltype.CompositeMember, len(raw))
 	names := make(map[string]bool, len(raw))
@@ -99,7 +100,7 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 		}
 		// Definition-only members remain dependencies even for empty/NULL calls
 		// and when their output is not projected by the surrounding query.
-		b.info(u, definition.Name.Pos, ExprProperties{})
+		b.info(u, definition.Name.Pos, expr.Properties{})
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: definition.Name.Text, Usage: u}
 	}
 	if duplicate != "" {
@@ -112,7 +113,7 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 	return shape.Usage(), nil
 }
 
-func jsonbRecordUnresolved(expr BoundExpr) bool {
+func jsonbRecordUnresolved(expr expr.Expr) bool {
 	call, ok := expr.(functions.JSONBRecord)
 	return ok && call.Unresolved && call.ResultUsage().Type.ID() == 2249
 }

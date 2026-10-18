@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{Info: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{Info: expr.Info{Usage: foreignType.Usage()}, value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32

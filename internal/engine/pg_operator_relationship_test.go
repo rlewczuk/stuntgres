@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 	"testing"
 )
 
-func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, right *sqltype.Descriptor) (BoundExpr, error) {
+func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, right *sqltype.Descriptor) (expr.Expr, error) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, attributes: []int32{1, 2}, index: map[string]int{"l": 0, "r": 1}}
@@ -78,8 +79,8 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 			if array != tc.array || text == tc.array {
 				t.Fatalf("wrong actual dispatch %T, want array=%t", bound, tc.array)
 			}
-			var operands []BoundExpr
-			boundExpressionChildren(bound, func(child BoundExpr) {
+			var operands []expr.Expr
+			boundExpressionChildren(bound, func(child expr.Expr) {
 				if child != nil {
 					operands = append(operands, child)
 				}

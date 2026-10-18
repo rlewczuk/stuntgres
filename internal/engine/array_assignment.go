@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -47,7 +48,7 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 func (b *expressionBinder) bindArrayTarget(column ColumnDescriptor, raw []parser.ArraySubscript, pos parser.Position) (*arrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
 	if !usage.Type.IsArray() {
-		return nil, expressionError("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.diagnosticTypeName(usage.Type)), pos)
+		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.diagnosticTypeName(usage.Type)), pos)
 	}
 	subs, slice, err := b.bindArrayBounds(raw)
 	if err != nil {
@@ -95,11 +96,11 @@ func (t *arrayAssignmentTarget) apply(c *EvalContext, current, rhs sqltype.Value
 	return t.applyPath(c, current, nil, rhs)
 }
 
-func (t *arrayAssignmentTarget) applyExpression(c *EvalContext, current sqltype.Value, rhs BoundExpr) (sqltype.Value, error) {
+func (t *arrayAssignmentTarget) applyExpression(c *EvalContext, current sqltype.Value, rhs expr.Expr) (sqltype.Value, error) {
 	return t.applyPath(c, current, rhs, sqltype.Value{})
 }
 
-func (t *arrayAssignmentTarget) applyPath(c *EvalContext, current sqltype.Value, expression BoundExpr, rhs sqltype.Value) (sqltype.Value, error) {
+func (t *arrayAssignmentTarget) applyPath(c *EvalContext, current sqltype.Value, expression expr.Expr, rhs sqltype.Value) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -207,7 +208,7 @@ func preflightAssignmentTarget(c *EvalContext, target *arrayAssignmentTarget, pl
 	if target == nil {
 		return nil, nil
 	}
-	node, changed, err := mapSubscript(target.node, func(old BoundExpr) (BoundExpr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
+	node, changed, err := mapSubscript(target.node, func(old expr.Expr) (expr.Expr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +272,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column ColumnDescriptor, ste
 	if field := steps[0].Field; field != nil {
 		shape := column.Usage.Type.BaseType()
 		if !shape.IsComposite() {
-			return nil, expressionError("42804", fmt.Sprintf("cannot assign to field %q of column %q because its type %s is not a composite type", field.Text, column.Name, b.diagnosticTypeName(shape)), pos)
+			return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot assign to field %q of column %q because its type %s is not a composite type", field.Text, column.Name, b.diagnosticTypeName(shape)), pos)
 		}
 		for i := range shape.CompositeLen() {
 			member := shape.CompositeMember(i)
@@ -292,7 +293,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column ColumnDescriptor, ste
 			}
 			return target, nil
 		}
-		return nil, expressionError("42703", fmt.Sprintf("cannot assign to field %q of column %q because there is no such column in data type %s", field.Text, column.Name, b.diagnosticTypeName(shape)), pos)
+		return nil, expr.ErrorAt("42703", fmt.Sprintf("cannot assign to field %q of column %q because there is no such column in data type %s", field.Text, column.Name, b.diagnosticTypeName(shape)), pos)
 	}
 	var storage [6]parser.ArraySubscript
 	count := 0

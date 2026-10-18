@@ -2,13 +2,14 @@ package engine
 
 import (
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Identities are analysis targets, not structural expression cache identities.
-func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, projection []BoundExpr, names []string) ([]sortKey, []queryGrouping, error) {
+func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, projection []expr.Expr, names []string) ([]sortKey, []queryGrouping, error) {
 	for i := range order {
 		if err := bindOnOrdering(&order[i]); err != nil {
 			return nil, nil, err
@@ -23,7 +24,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	if err != nil {
 		return nil, nil, err
 	}
-	targets := append([]BoundExpr(nil), projection...)
+	targets := append([]expr.Expr(nil), projection...)
 	identify := func(key *sortKey) {
 		if key.outputOrdinal != 0 {
 			key.targetIdentity = key.outputOrdinal
@@ -59,7 +60,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 		for i, k := range on {
 			if key.targetIdentity == k.targetIdentity {
 				if gap {
-					return nil, nil, expressionError("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", raw[i].Pos)
+					return nil, nil, expr.ErrorAt("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", raw[i].Pos)
 				}
 				matched[i] = true
 				found = true
@@ -72,7 +73,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	if gap {
 		for i, found := range matched {
 			if !found {
-				return nil, nil, expressionError("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", raw[i].Pos)
+				return nil, nil, expr.ErrorAt("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", raw[i].Pos)
 			}
 		}
 	}
@@ -107,7 +108,7 @@ func bindOnOrdering(key *sortKey) error {
 	return err
 }
 
-func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKey, families []queryGrouping, projection []BoundExpr) (LogicalNode, error) {
+func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKey, families []queryGrouping, projection []expr.Expr) (LogicalNode, error) {
 	// Deduplicate only resolved ORDER targets. Keep raw entries for capture.
 	effective := make([]sortKey, 0, len(order))
 	seen := make(map[int]bool)
@@ -127,7 +128,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	if sorted != nil {
 		cacheWidth = sorted.cacheWidth
 	}
-	var extra []BoundExpr
+	var extra []expr.Expr
 	required := make([]sortKey, len(effective)+len(on))
 	copy(required, effective)
 	copy(required[len(effective):], on)
@@ -193,12 +194,12 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		root = b.scheduleQueryProjection(root, projection, false)
 		cacheWidth = sorted.cacheWidth
 	} else {
-		early := make([]BoundExpr, 0)
+		early := make([]expr.Expr, 0)
 		for i, e := range projection {
 			if querySetDepth(e) != 0 {
 				continue
 			}
-			if e.Properties().Volatility == Volatile || e.ResultUsage().Type == nil {
+			if e.Properties().Volatility == expr.Volatile || e.ResultUsage().Type == nil {
 				continue
 			}
 			switch e.(type) {
@@ -213,7 +214,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 			cacheWidth += len(early)
 		}
 	}
-	expressions := make([]BoundExpr, 0, len(on))
+	expressions := make([]expr.Expr, 0, len(on))
 	grouping := make([]queryGrouping, 0, len(on))
 	clear(seen)
 	for i, k := range required[len(effective):] {
@@ -237,8 +238,8 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	return &distinctOnNode{querySchema: root.Schema(), child: root, expressions: expressions, grouping: grouping}, nil
 }
 
-func distinctOnCached(expression BoundExpr, slot int) cachedOrderExpression {
-	info := boundExpressionInfo(expression)
+func distinctOnCached(expression expr.Expr, slot int) cachedOrderExpression {
+	info := expr.InfoOf(expression)
 	info.Property.StageDependent = true
 	return cachedOrderExpression{Info: info, slot: slot}
 }

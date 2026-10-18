@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -48,7 +49,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	expected.IndClass = []ids.OID{3126, 1978, 1978}
 	expected.IndCollation = []ids.OID{100, 0, 0}
 	expected.IndOption = []int16{0, 0, 1}
-	expected.IndexExpressions = []BoundExpr{ei.sqlIndex.keys[0].derived.definition, ei.sqlIndex.keys[1].derived.definition}
+	expected.IndexExpressions = []expr.Expr{ei.sqlIndex.keys[0].derived.definition, ei.sqlIndex.keys[1].derived.definition}
 	if !reflect.DeepEqual(expressions, expected) || names.IndexDef != "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + (2 - 1))), n DESC NULLS LAST)" {
 		t.Fatal("derived metadata lost original trees/providers", expressions, names, expected)
 	}

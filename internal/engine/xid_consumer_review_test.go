@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			}
 			calls := 0
 			node.Info.Property.RowDependent = true
-			node.args = []BoundExpr{conditionalSpy{Info: expressionInfo{Usage: node.Usage, Property: ExprProperties{RowDependent: true}}, value: sqltype.Null(node.Usage.Type), calls: &calls, failure: errors.New("argument demanded")}, node.args[1]}
+			node.args = []expr.Expr{conditionalSpy{Info: expr.Info{Usage: node.Usage, Property: expr.Properties{RowDependent: true}}, value: sqltype.Null(node.Usage.Type), calls: &calls, failure: errors.New("argument demanded")}, node.args[1]}
 			evaluation := &EvalContext{Context: ctx}
 			assert := func(err error) {
 				t.Helper()
@@ -67,7 +68,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: value}
+		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
 		for _, pretty := range []bool{false, true} {
 			renderer := pgRenderer{view: view, pretty: pretty}
 			got, err := renderer.literal(ctx, node)

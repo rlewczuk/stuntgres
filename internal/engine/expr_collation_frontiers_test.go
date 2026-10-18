@@ -18,7 +18,7 @@ type rowOperandEffect struct {
 	failure error
 }
 
-func (e rowOperandEffect) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e rowOperandEffect) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -56,12 +56,12 @@ func TestExprCollationRowOperandDemand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var order []int
-			probe := func(id int, value sqltype.Value, err error) BoundExpr {
-				return rowOperandEffect{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, value, &order, id, err}
+			probe := func(id int, value sqltype.Value, err error) expr.Expr {
+				return rowOperandEffect{expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, value, &order, id, err}
 			}
-			row := rowComparisonExpression{Info: expressionInfo{Usage: boolean.Usage()}, operator: "<", ordering: []sqltype.Comparison{comparison, comparison}, comparisons: []comparisonExpression{
-				{Info: expressionInfo{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "<"},
-				{Info: expressionInfo{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, two, errors.New("later right operand")), predicate: predicate, operator: "<"},
+			row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, operator: "<", ordering: []sqltype.Comparison{comparison, comparison}, comparisons: []comparisonExpression{
+				{Info: expr.Info{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "<"},
+				{Info: expr.Info{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, two, errors.New("later right operand")), predicate: predicate, operator: "<"},
 			}}
 			value, err := row.Eval(&EvalContext{Context: context.Background()})
 			if !reflect.DeepEqual(order, tc.want) {
@@ -103,7 +103,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		if !ok {
 			t.Fatal("selected payload was not scheduled", tc.name)
 		}
-		producer := func(root LogicalNode, slot int) BoundExpr {
+		producer := func(root LogicalNode, slot int) expr.Expr {
 			for root != nil {
 				switch n := root.(type) {
 				case *sortNode:
@@ -151,7 +151,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		// A retained alias of the same real cache slot keeps its provider,
 		// even when the first output spelling of that slot is unreferenced.
 		shared := *project
-		shared.expressions = append([]BoundExpr(nil), project.expressions...)
+		shared.expressions = append([]expr.Expr(nil), project.expressions...)
 		shared.expressions[2] = unused
 		demanded, err = storedProjectionDemand(&shared, []int{0, 2})
 		if err != nil {
@@ -164,21 +164,21 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		// Retain the actual scheduler layout but make the later producer
 		// consume an earlier slot. This exercises transitive cache authority,
 		// not only directly referenced final projection slots.
-		identity := func(expression BoundExpr) (BoundExpr, bool, error) { return expression, false, nil }
+		identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
 		chained, err := rewriteQueryExpressions(project.child, identity, func(node LogicalNode) (LogicalNode, error) {
 			switch n := node.(type) {
 			case *sortNode:
 				base := n.cacheWidth - len(n.outputs)
 				if selected.slot >= base && selected.slot < base+len(n.outputs) {
 					copy := *n
-					copy.outputs = append([]BoundExpr(nil), n.outputs...)
+					copy.outputs = append([]expr.Expr(nil), n.outputs...)
 					copy.outputs[selected.slot-base] = unused
 					return &copy, nil
 				}
 			case *evaluationNode:
 				if selected.slot >= n.base && selected.slot < n.base+len(n.expressions) {
 					copy := *n
-					copy.expressions = append([]BoundExpr(nil), n.expressions...)
+					copy.expressions = append([]expr.Expr(nil), n.expressions...)
 					copy.expressions[selected.slot-n.base] = unused
 					return &copy, nil
 				}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -45,7 +46,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("missing original declaration", outer, err)
 			}
 			d := outer.builtin
-			if d.identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
+			if d.identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != expr.Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}

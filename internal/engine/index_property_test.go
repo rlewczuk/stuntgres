@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -63,11 +64,11 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 	oidType, _ := view.LookupType(sqltype.Oid)
 	textType, _ := view.LookupType(sqltype.Text)
 	regType, _ := view.LookupType(sqltype.Regclass)
-	literal := func(v sqltype.Value) BoundExpr {
-		return literalExpression{Info: expressionInfo{Usage: v.Type().Usage()}, value: v}
+	literal := func(v sqltype.Value) expr.Expr {
+		return literalExpression{Info: expr.Info{Usage: v.Type().Usage()}, value: v}
 	}
 	oid, _ := sqltype.OIDValue(oidType, 403)
-	n := indexPropertyExpression{Info: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: accessMethodProperty, args: [3]BoundExpr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
+	n := indexPropertyExpression{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: accessMethodProperty, args: [3]expr.Expr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
 	value, err := n.Eval(&EvalContext{Context: context.Background()})
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +88,7 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 	for _, change := range []func(*indexPropertyExpression){
 		func(n *indexPropertyExpression) { n.kind = 255 }, func(n *indexPropertyExpression) { n.args[0] = nil },
 		func(n *indexPropertyExpression) { n.args[2] = literal(oid) }, func(n *indexPropertyExpression) { n.Usage = textType.Usage() },
-		func(n *indexPropertyExpression) { n.args[0] = literal(sqltype.String(textType, "403")) }, func(n *indexPropertyExpression) { n.Property.Volatility = Immutable },
+		func(n *indexPropertyExpression) { n.args[0] = literal(sqltype.String(textType, "403")) }, func(n *indexPropertyExpression) { n.Property.Volatility = expr.Immutable },
 		func(n *indexPropertyExpression) { n.oidUsage = oidType.Usage() },
 	} {
 		broken := n
@@ -96,7 +97,7 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 			t.Fatal("accepted corrupt index property node", broken)
 		}
 	}
-	index := indexPropertyExpression{Info: n.Info, kind: wholeIndexProperty, args: [3]BoundExpr{literal(sqltype.String(regType, "0")), literal(sqltype.String(textType, "index_scan"))}, oidUsage: oidType.Usage()}
+	index := indexPropertyExpression{Info: n.Info, kind: wholeIndexProperty, args: [3]expr.Expr{literal(sqltype.String(regType, "0")), literal(sqltype.String(textType, "index_scan"))}, oidUsage: oidType.Usage()}
 	index.oidPlan, err = sqltype.PlanCoercion(regType.Usage(), oidType.Usage(), sqltype.Implicit)
 	if err != nil {
 		t.Fatal(err)

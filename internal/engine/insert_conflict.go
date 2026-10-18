@@ -12,13 +12,13 @@ import (
 
 type conflictKey struct {
 	attribute  int32
-	expression BoundExpr
+	expression expr.Expr
 	collation  uint32
 	class      sqltype.IndexClass
 }
 type boundInsertConflict struct {
 	keys          []conflictKey
-	predicate     BoundExpr
+	predicate     expr.Expr
 	constraint    ids.ObjectAddress
 	namedIndex    ids.ObjectAddress
 	reads         []int
@@ -60,7 +60,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		return nil
 	}
 	if raw.Update && len(raw.Keys) == 0 && raw.Constraint.Text == "" {
-		d := expressionError("42601", "ON CONFLICT DO UPDATE requires inference specification or constraint name", raw.OnPos).(*sqlstate.Error)
+		d := expr.ErrorAt("42601", "ON CONFLICT DO UPDATE requires inference specification or constraint name", raw.OnPos).(*sqlstate.Error)
 		d.Hint = "For example, ON CONFLICT (column_name)."
 		return d
 	}
@@ -127,10 +127,10 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	c.keys = make([]conflictKey, len(raw.Keys))
 	for i, key := range raw.Keys {
 		if key.DirectionExplicit {
-			return expressionError("42P10", "ASC/DESC is not allowed in ON CONFLICT clause", raw.Pos)
+			return expr.ErrorAt("42P10", "ASC/DESC is not allowed in ON CONFLICT clause", raw.Pos)
 		}
 		if key.Nulls != parser.NullsDefault {
-			return expressionError("42P10", "NULLS FIRST/LAST is not allowed in ON CONFLICT clause", raw.Pos)
+			return expr.ErrorAt("42P10", "NULLS FIRST/LAST is not allowed in ON CONFLICT clause", raw.Pos)
 		}
 		node := key.Expression
 		if node == nil {
@@ -230,7 +230,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 		if !matches {
 			continue
 		}
-		var predicate BoundExpr
+		var predicate expr.Expr
 		if def.predicate != nil {
 			predicate = def.predicate.definition
 		}

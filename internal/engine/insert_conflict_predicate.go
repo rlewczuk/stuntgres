@@ -1,13 +1,14 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // This consumer deliberately does not change SELECT's exact-conjunction mask.
 // It proves SQL TRUE => TRUE with the owned immutable comparison providers.
-func conflictPredicateImpliedBy(ctx *EvalContext, a, b BoundExpr) (bool, error) {
+func conflictPredicateImpliedBy(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 	if b == nil {
 		return true, nil
 	}
@@ -24,18 +25,18 @@ func conflictPredicateImpliedBy(ctx *EvalContext, a, b BoundExpr) (bool, error) 
 	}
 	return conflictPredicateProof(ctx, a, b)
 }
-func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, error) {
+func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
 	p := node.Properties()
-	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && plannedVolatility(node) == Immutable {
+	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && plannedVolatility(node) == expr.Immutable {
 		value, err := node.Eval(ctx)
 		if err != nil {
 			return nil, err
 		}
-		info := boundExpressionInfo(node)
-		info.Property = ExprProperties{}
+		info := expr.InfoOf(node)
+		info.Property = expr.Properties{}
 		return literalExpression{Info: info, value: value}, nil
 	}
 	switch n := node.(type) {
@@ -129,7 +130,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 	}
 	return node, nil
 }
-func conflictLiteralTruth(node BoundExpr) (Truth, bool) {
+func conflictLiteralTruth(node expr.Expr) (Truth, bool) {
 	literal, ok := node.(literalExpression)
 	if !ok || literal.value.Type() == nil || literal.value.Type().ID() != sqltype.Bool {
 		return Unknown, false
@@ -137,7 +138,7 @@ func conflictLiteralTruth(node BoundExpr) (Truth, bool) {
 	truth, err := TruthOf(literal.value)
 	return truth, err == nil
 }
-func negateConflictPredicate(n logicalExpression) BoundExpr {
+func negateConflictPredicate(n logicalExpression) expr.Expr {
 	switch child := n.left.(type) {
 	case logicalExpression:
 		if child.op == parser.LogicalNot {
@@ -156,8 +157,8 @@ func negateConflictPredicate(n logicalExpression) BoundExpr {
 	}
 	return n
 }
-func conflictPredicateProof(ctx *EvalContext, a, b BoundExpr) (bool, error) {
-	if plannedVolatility(a) != Immutable || plannedVolatility(b) != Immutable {
+func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
+	if plannedVolatility(a) != expr.Immutable || plannedVolatility(b) != expr.Immutable {
 		return false, nil
 	}
 	if truth, ok := conflictLiteralTruth(b); ok && truth == True {
@@ -205,7 +206,7 @@ func conflictPredicateProof(ctx *EvalContext, a, b BoundExpr) (bool, error) {
 	}
 	return conflictComparisonProof(ctx, a, b)
 }
-func conflictStrictFor(node, subject BoundExpr) bool {
+func conflictStrictFor(node, subject expr.Expr) bool {
 	if sameGroupExpression(node, subject) {
 		return node.ResultUsage().Type.ID() == sqltype.Bool
 	}
@@ -252,7 +253,7 @@ func conflictCommuted(op string) string {
 
 // A negated comparison view is proof-only: never replace an executable node's
 // operator while retaining its original evaluator.
-func conflictProofComparison(node BoundExpr) (comparisonExpression, bool) {
+func conflictProofComparison(node expr.Expr) (comparisonExpression, bool) {
 	if comparison, ok := node.(comparisonExpression); ok {
 		return comparison, true
 	}
@@ -282,7 +283,7 @@ func conflictProofComparison(node BoundExpr) (comparisonExpression, bool) {
 	}
 	return comparison, true
 }
-func conflictComparisonProof(ctx *EvalContext, a, b BoundExpr) (bool, error) {
+func conflictComparisonProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 	x, ok := conflictProofComparison(a)
 	if !ok {
 		return false, nil
@@ -320,7 +321,7 @@ func conflictComparisonProof(ctx *EvalContext, a, b BoundExpr) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	for _, expression := range [4]BoundExpr{x.left, x.right, y.left, y.right} {
+	for _, expression := range [4]expr.Expr{x.left, x.right, y.left, y.right} {
 		class, ok := sqltype.DefaultIndexClass(expression.ResultUsage().Type)
 		if !ok || class.Family != family.Family {
 			return false, nil

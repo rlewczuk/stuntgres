@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -105,7 +106,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.extension)
-			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != expr.Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -123,7 +124,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if !found {
 				t.Fatal("missing original manifest")
 			}
-			admit := func(c *EvalContext, n BoundExpr, r ids.ObjectRef) error {
+			admit := func(c *EvalContext, n expr.Expr, r ids.ObjectRef) error {
 				if aggregate {
 					return admitRoutineReference(c, r, "aggregate")
 				}
@@ -139,7 +140,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			}
 			before := node
 			if enum, ok := node.(unnestExpression); ok {
-				enum.args = append([]BoundExpr(nil), enum.args...)
+				enum.args = append([]expr.Expr(nil), enum.args...)
 				before = enum
 			}
 			for _, mode := range []string{"nil", "empty", "missing", "epoch", "revision", "foreign_ref"} {
@@ -212,7 +213,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				if err := admitRoutineCall(&graftProbe, grafted, false, false); err != nil {
 					t.Fatal("graft did not select actual owning manifest", err)
 				}
-				if boundExpressionInfo(grafted).RoutineRecipeReference != recipe || boundExpressionInfo(node).RoutineRecipeReference != nil {
+				if expr.InfoOf(grafted).RoutineRecipeReference != recipe || expr.InfoOf(node).RoutineRecipeReference != nil {
 					t.Fatal("graft ancestry lost or mutated source")
 				}
 				if tc.name == "enum_parameter" {

@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -49,7 +50,7 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 	if frame == 0 {
 		frame = 1
 	}
-	safe := func(expr BoundExpr) bool { return parallelQueryExpression(expr, frame, len(project.child.Schema())) }
+	safe := func(expr expr.Expr) bool { return parallelQueryExpression(expr, frame, len(project.child.Schema())) }
 	for _, expr := range project.expressions {
 		if !safe(expr) {
 			return nil, nil, false
@@ -94,7 +95,7 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 // This is deliberately not a volatility classifier. Unknown evaluators, virtual
 // recipes, subqueries and session/sequence functions fall back to serial. Basic
 // scalar providers below operate on immutable datums and worker-local frames.
-func parallelQueryExpression(bound BoundExpr, frame uint32, width int) bool {
+func parallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 	if bound == nil {
 		return true
 	}
@@ -111,11 +112,11 @@ func parallelQueryExpression(bound BoundExpr, frame uint32, width int) bool {
 	default:
 		return false
 	}
-	if bound.Properties().Volatility == Volatile {
+	if bound.Properties().Volatility == expr.Volatile {
 		return false
 	}
 	safe := true
-	boundExpressionChildren(bound, func(child BoundExpr) { safe = safe && parallelQueryExpression(child, frame, width) })
+	boundExpressionChildren(bound, func(child expr.Expr) { safe = safe && parallelQueryExpression(child, frame, width) })
 	return safe
 }
 

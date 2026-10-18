@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -58,7 +59,7 @@ type indexOrdering struct {
 	slots       []int
 	comparisons []sqltype.IndexComparison
 	keys        []indexKey
-	derived     []BoundExpr
+	derived     []expr.Expr
 }
 
 func indexColumnLabel(name string, suffix int) string {
@@ -90,7 +91,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 				return o, fmt.Errorf("stuntgres: missing derived index expression")
 			}
 			if o.derived == nil {
-				o.derived = make([]BoundExpr, len(definition.keys))
+				o.derived = make([]expr.Expr, len(definition.keys))
 			}
 			o.slots[i], o.derived[i] = -1, key.derived.execution
 			usage, err := indexKeyUsage(parent, key)
@@ -166,7 +167,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return err
 	}
 	if p := d.predicate; p != nil {
-		if p.definition == nil || p.execution == nil || p.definition.ResultUsage() != p.execution.ResultUsage() || p.execution.ResultUsage().Type == nil || p.execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.execution) != Immutable || !slices.Equal(p.attributes, parent.attributes) {
+		if p.definition == nil || p.execution == nil || p.definition.ResultUsage() != p.execution.ResultUsage() || p.execution.ResultUsage().Type == nil || p.execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.execution) != expr.Immutable || !slices.Equal(p.attributes, parent.attributes) {
 			return fmt.Errorf("stuntgres: invalid index predicate")
 		}
 		if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, p.definition); err != nil {
@@ -176,7 +177,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	for i, key := range d.keys {
 		if key.derived != nil {
 			derived := key.derived
-			if key.attribute != 0 || derived.definition == nil || derived.execution == nil || derived.definition.ResultUsage() != derived.execution.ResultUsage() || plannedVolatility(derived.execution) != Immutable {
+			if key.attribute != 0 || derived.definition == nil || derived.execution == nil || derived.definition.ResultUsage() != derived.execution.ResultUsage() || plannedVolatility(derived.execution) != expr.Immutable {
 				return fmt.Errorf("stuntgres: invalid derived index key")
 			}
 			if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, derived.definition); err != nil {
@@ -248,7 +249,7 @@ func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int
 }
 func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *EvalContext) error {
 	for i, slot := range o.slots {
-		var expression BoundExpr
+		var expression expr.Expr
 		if slot < 0 {
 			expression = o.derived[i]
 		}

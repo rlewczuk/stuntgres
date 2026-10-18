@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -150,7 +151,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	}
 	project := bound.query.Root.(*projectNode)
 	for _, expression := range project.expressions {
-		if p := expression.Properties(); p.Volatility != Immutable || !p.RowDependent || p.ParameterDependent || p.StageDependent {
+		if p := expression.Properties(); p.Volatility != expr.Immutable || !p.RowDependent || p.ParameterDependent || p.StageDependent {
 			t.Fatal(p)
 		}
 	}

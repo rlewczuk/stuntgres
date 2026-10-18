@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -33,7 +34,7 @@ func bodyErrorContext(outer *procedureDescriptor, constant bool) routineBodyCont
 	if !constant || outer.address.ObjectID == 3935 || outer.address.ObjectID == 3936 {
 		return routineBodyContext{}
 	}
-	return routineBodyContext{outer: outer, statement: outer.volatility == Immutable}
+	return routineBodyContext{outer: outer, statement: outer.volatility == expr.Immutable}
 }
 func inquiryRoutine(outer *procedureDescriptor) bool {
 	switch outer.address.ObjectID {
@@ -93,7 +94,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	return current, nil
 }
 
-func validateInquiryBodyLifetime(c *EvalContext, node BoundExpr, outer *procedureDescriptor) error {
+func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *procedureDescriptor) error {
 	auth, dependencies, err := c.routineAdmissionAuthority()
 	if err != nil || auth.engine == nil {
 		return err
@@ -104,7 +105,7 @@ func validateInquiryBodyLifetime(c *EvalContext, node BoundExpr, outer *procedur
 	})
 }
 
-func bodyEdgeDemanded(node BoundExpr, outer *procedureDescriptor, edge routineBodyEdge) bool {
+func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBodyEdge) bool {
 	switch edge.demand {
 	case bodyBooleanText, bodyNetworkText:
 		argument := polymorphicBodyArgument(node, outer.address.ObjectID)
@@ -123,7 +124,7 @@ func bodyEdgeDemanded(node BoundExpr, outer *procedureDescriptor, edge routineBo
 	return true
 }
 
-func admitRoutineBody(c *EvalContext, node BoundExpr, outer *procedureDescriptor, constant bool) error {
+func admitRoutineBody(c *EvalContext, node expr.Expr, outer *procedureDescriptor, constant bool) error {
 	if len(outer.body) == 0 || inquiryRoutine(outer) {
 		return nil
 	}
@@ -135,7 +136,7 @@ func admitRoutineBody(c *EvalContext, node BoundExpr, outer *procedureDescriptor
 		// Imported immutable scalar parameters are execution-frame constants.
 		// Classify their SQL-body diagnostics without evaluating arguments again.
 		p := node.Properties()
-		constant = p.ParameterDependent && p.Volatility == Immutable &&
+		constant = p.ParameterDependent && p.Volatility == expr.Immutable &&
 			!p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion
 	}
 	local := *c

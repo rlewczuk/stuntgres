@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -31,11 +32,11 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 				t.Fatal(tc.q, b.parameters)
 			}
 		}
-		if node.Properties().Volatility != Immutable || !node.Properties().ParameterDependent || plannedVolatility(node) != Immutable {
+		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {
 			t.Fatal(node.Properties())
 		}
 		count := 0
-		boundExpressionChildren(node, func(BoundExpr) { count++ })
+		boundExpressionChildren(node, func(expr.Expr) { count++ })
 		if count != len(tc.ids) {
 			t.Fatal("lost children", tc.q, count)
 		}
@@ -78,15 +79,15 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" || n.Plan.Name() != "jsonb_extract_path_text" {
 		t.Fatal("lost call provenance", n)
 	}
-	rendered, err := functions.JSONExtractSQL(original, original.Plan.Name(), func(BoundExpr) (string, error) { return "value", nil }, func(s string) string { return s })
+	rendered, err := functions.JSONExtractSQL(original, original.Plan.Name(), func(expr.Expr) (string, error) { return "value", nil }, func(s string) string { return s })
 	if err != nil || !strings.Contains(rendered, "VARIADIC path_elems => value") {
 		t.Fatal(rendered, err)
 	}
-	copied, did, err := functions.MapJSONExtractChildren(original, func(arg BoundExpr) (BoundExpr, bool, error) { return arg, false, nil })
+	copied, did, err := functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
 	if err != nil || did || &copied.Args[0] != &original.Args[0] {
 		t.Fatal("unchanged mapper copied", err)
 	}
-	copied, did, err = functions.MapJSONExtractChildren(original, func(arg BoundExpr) (BoundExpr, bool, error) { return arg, true, nil })
+	copied, did, err = functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, true, nil })
 	if err != nil || !did || &copied.Args[0] == &original.Args[0] {
 		t.Fatal("changed mapper aliased source", err)
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -63,7 +64,7 @@ func TestQueryWindowRangeNamedFrameCloneIdentity(t *testing.T) {
 	if a.slot != b.slot || a.slot == c.slot {
 		t.Fatal("same-name/distinct-name call slots", a, b, c)
 	}
-	copied, err := rewriteQueryExpressions(query.Root, func(expr BoundExpr) (BoundExpr, bool, error) {
+	copied, err := rewriteQueryExpressions(query.Root, func(expr expr.Expr) (expr.Expr, bool, error) {
 		literal, ok := expr.(literalExpression)
 		if !ok {
 			return expr, false, nil

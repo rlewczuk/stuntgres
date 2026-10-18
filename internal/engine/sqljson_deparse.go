@@ -3,13 +3,14 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // sqlJSONResult retains enclosing casts at the constructor's representation boundary.
 // RETURNING ownership comes from the conversion plan, never its assignment mode.
-func sqlJSONResult(node BoundExpr) bool {
+func sqlJSONResult(node expr.Expr) bool {
 	if conversion, ok := node.(coercionExpression); ok && conversion.plan.IsJSONReturning() {
 		node = conversion.child
 	}
@@ -17,7 +18,7 @@ func sqlJSONResult(node BoundExpr) bool {
 	return ok
 }
 
-func sqlJSONSource(arg BoundExpr) BoundExpr {
+func sqlJSONSource(arg expr.Expr) expr.Expr {
 	if conversion, ok := arg.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
 		return conversion.child
 	}

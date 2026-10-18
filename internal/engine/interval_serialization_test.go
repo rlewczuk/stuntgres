@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -20,7 +21,7 @@ func TestIntervalGenericStoredLiteralSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	literal, err := literalSQL(ctx, literalExpression{b.info(u, parser.Position{}, ExprProperties{}), value})
+	literal, err := literalSQL(ctx, literalExpression{b.info(u, parser.Position{}, expr.Properties{}), value})
 	if err != nil || literal != "INTERVAL '+12 months +0 days +0 microseconds' YEAR" {
 		t.Fatal(literal, err)
 	}

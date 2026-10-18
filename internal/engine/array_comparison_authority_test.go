@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -63,21 +64,21 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	oid, boolean := b.typ(sqltype.Oid), b.typ(sqltype.Bool)
-	left := literalExpression{Info: b.info(oid.Usage(), parser.Position{}, ExprProperties{}), value: sqltype.Null(oid)}
-	late := tableOIDExpression{Info: b.info(oid.Usage(), parser.Position{}, ExprProperties{RowDependent: true})}
+	left := literalExpression{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{}), value: sqltype.Null(oid)}
+	late := tableOIDExpression{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, node := range []scalarArrayComparisonExpression{
-		{Info: b.info(boolean.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), left: left, items: []BoundExpr{left, late}, predicate: predicate, operator: "="},
-		{Info: b.info(boolean.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), left: left, array: arrayExpression{Info: b.info(b.typ(oid.AssociatedArray()).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), elements: []BoundExpr{left, late}}, predicate: predicate, operator: "="},
+		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), left: left, items: []expr.Expr{left, late}, predicate: predicate, operator: "="},
+		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), left: left, array: arrayExpression{Info: b.info(b.typ(oid.AssociatedArray()).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), elements: []expr.Expr{left, late}}, predicate: predicate, operator: "="},
 	} {
 		if !generationHasTableOID(node) || !generationImmutable(node) {
 			t.Fatal("late RHS owner-dependent generation lost", node)
 		}
 		seen := false
-		walkBoundExpression(node, func(child BoundExpr) {
+		walkBoundExpression(node, func(child expr.Expr) {
 			if _, ok := child.(tableOIDExpression); ok {
 				seen = true
 			}

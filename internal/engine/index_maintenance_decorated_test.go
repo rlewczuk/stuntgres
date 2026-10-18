@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -149,7 +150,7 @@ func TestIndexMaintenanceMetadataAliasAndPatternClasses(t *testing.T) {
 				want.IndCollation = c.collations
 				want.IndOption = c.options
 				if c.name == "mixed" {
-					want.IndexExpressions = []BoundExpr{index.sqlIndex.keys[0].derived.definition}
+					want.IndexExpressions = []expr.Expr{index.sqlIndex.keys[0].derived.definition}
 				}
 				got, names := indexMaintenanceMetadata(t, e, e.CatalogRead(), c.name)
 				if !reflect.DeepEqual(got, want) || names.IndexDef != c.definition || names.Tablespace != nil {

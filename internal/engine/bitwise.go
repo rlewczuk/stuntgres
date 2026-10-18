@@ -12,7 +12,7 @@ import (
 
 type bitwiseExpression struct {
 	expr.Info
-	left, right BoundExpr
+	left, right expr.Expr
 	provider    sqltype.Bitwise
 	bits        sqltype.BitStringBitwise
 	network     sqltype.NetworkBitwise
@@ -20,7 +20,7 @@ type bitwiseExpression struct {
 	namespace   string
 }
 
-func (e bitwiseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e bitwiseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	a, err := e.left.Eval(c)
 	if err != nil {
@@ -51,7 +51,7 @@ func (e bitwiseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 // Only a physical SQL constant NULL is decisive after complete analysis and
 // child planning. Imported parameter values and row-owned NULLs are not planning
 // facts; conservative row/stage dependence on an already-pruned literal remains.
-func bitwiseConstantNull(node BoundExpr) bool {
+func bitwiseConstantNull(node expr.Expr) bool {
 	literal, ok := node.(literalExpression)
 	return ok && !literal.Property.ParameterDependent && literal.value.IsNull()
 }
@@ -79,7 +79,7 @@ func selectedBitwiseName(name string) bool {
 	return false
 }
 
-func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
 	}
@@ -102,7 +102,7 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	return b.finishBitwise(raw, left, right, visible)
 }
 
-func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right comparisonOperand, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right comparisonOperand, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	lt, rt := left.descriptor(), right.descriptor()
 	if lt != nil {
@@ -227,7 +227,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			rightTarget = target
 		}
 	}
-	finish := func(o comparisonOperand, t *sqltype.Descriptor) (BoundExpr, error) {
+	finish := func(o comparisonOperand, t *sqltype.Descriptor) (expr.Expr, error) {
 		n, err := b.finalizeOperand(o, t)
 		if err != nil {
 			return nil, err
@@ -245,7 +245,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	if err != nil {
 		return nil, err
 	}
-	var r BoundExpr
+	var r expr.Expr
 	p := l.Properties()
 	if len(raw.Args) == 2 {
 		r, err = finish(right, rightTarget)
@@ -298,12 +298,12 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 
 // Only network signatures opt into imported-parameter Execute planning.
 // Conservative properties survive folding; availability is not SQL constness.
-func networkOperatorExecutionConstant(node BoundExpr, c *EvalContext) bool {
+func networkOperatorExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	if node == nil {
 		return false
 	}
 	p := node.Properties()
-	if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion {
+	if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion {
 		return false
 	}
 	switch n := node.(type) {
@@ -315,7 +315,7 @@ func networkOperatorExecutionConstant(node BoundExpr, c *EvalContext) bool {
 		return false
 	}
 	found, constant := false, true
-	boundExpressionChildren(node, func(child BoundExpr) {
+	boundExpressionChildren(node, func(child expr.Expr) {
 		// Lexical enumeration includes absent optional operands (for example
 		// unary operators); they contribute neither demand nor readiness.
 		if child == nil {

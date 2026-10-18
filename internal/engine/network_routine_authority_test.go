@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -56,7 +57,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			}
 			declaration := outer.builtin
 			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, procedureSignature(test.formals)}
-			if declaration.identity != wantIdentity || declaration.result != test.result || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
+			if declaration.identity != wantIdentity || declaration.result != test.result || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			want := map[ids.OID]bool{test.id: true}

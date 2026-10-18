@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -127,14 +128,14 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 // their ownership. Only material literal payloads or an owner-sensitive result,
 // not Type/Domain/Procedure/Collation address renumbering, change that recipe's
 // retained-row inputs. Compare literals before any identity normalization.
-func partitionCheckRecipeAffected(ctx context.Context, before, after BoundExpr, ownerChanged bool) (bool, error) {
+func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, ownerChanged bool) (bool, error) {
 	if ownerChanged && generationHasTableOID(before) {
 		return true, ctx.Err()
 	}
 	var local [16]sqltype.Value
 	literals := local[:0]
 	var err error
-	walkBoundExpression(before, func(node BoundExpr) {
+	walkBoundExpression(before, func(node expr.Expr) {
 		if err != nil {
 			return
 		}
@@ -150,7 +151,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after BoundExpr, 
 		return false, err
 	}
 	position, affected := 0, false
-	walkBoundExpression(after, func(node BoundExpr) {
+	walkBoundExpression(after, func(node expr.Expr) {
 		if err != nil {
 			return
 		}

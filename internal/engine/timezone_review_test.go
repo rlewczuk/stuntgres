@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,7 +25,7 @@ func TestTimezoneReviewConditionalProperties(t *testing.T) {
 			}
 			// Immutable is the optimizer's constant-evaluation admission criterion;
 			// these literal-only trees must not qualify across session changes.
-			if got := node.Properties(); got != (ExprProperties{Volatility: Stable}) {
+			if got := node.Properties(); got != (expr.Properties{Volatility: expr.Stable}) {
 				t.Fatalf("properties = %+v, want session-dependent Stable without other dependencies", got)
 			}
 			if _, ok := node.(conditionalExpression); ok {
@@ -45,10 +46,10 @@ func TestTimezoneReviewATVolatility(t *testing.T) {
 	for _, suffix := range []string{"AT LOCAL", "AT TIME ZONE 'UTC'"} {
 		for _, tc := range []struct {
 			operand string
-			want    ExprProperties
+			want    expr.Properties
 		}{
-			{"TIMESTAMP '2004-10-19 00:00'", ExprProperties{Volatility: Stable}},
-			{"CASE WHEN nextval($1)>0 THEN TIMESTAMP '2004-10-19 00:00' ELSE TIMESTAMP 'epoch' END", ExprProperties{Volatility: Volatile, ParameterDependent: true}},
+			{"TIMESTAMP '2004-10-19 00:00'", expr.Properties{Volatility: expr.Stable}},
+			{"CASE WHEN nextval($1)>0 THEN TIMESTAMP '2004-10-19 00:00' ELSE TIMESTAMP 'epoch' END", expr.Properties{Volatility: expr.Volatile, ParameterDependent: true}},
 		} {
 			t.Run(tc.operand+" "+suffix, func(t *testing.T) {
 				binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)

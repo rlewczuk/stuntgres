@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -56,8 +57,8 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			failure = preflightACLItemValue(ctx, output, value)
 		}
 	}
-	expression := func(node BoundExpr) {
-		walkBoundExpression(node, func(child BoundExpr) {
+	expression := func(node expr.Expr) {
+		walkBoundExpression(node, func(child expr.Expr) {
 			if literal, ok := child.(literalExpression); ok {
 				check(literal.value)
 			}

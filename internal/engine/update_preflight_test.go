@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -104,7 +105,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	}
 	// A harmless assignment cannot mask a missing WHERE preflight traversal.
 	whereOnly := *original
-	whereOnly.assignments = []BoundExpr{column}
+	whereOnly.assignments = []expr.Expr{column}
 	bad, err := source.Input(context.Background(), "oops", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +116,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	if failed != nil {
 		t.Fatal("failed WHERE preflight returned a partially prepared update")
 	}
-	unchanged := &boundUpdate{assignments: []BoundExpr{column}}
+	unchanged := &boundUpdate{assignments: []expr.Expr{column}}
 	evaluation := EvalContext{Context: context.Background()}
 	same, err := preflightUpdate(&evaluation, unchanged)
 	if err != nil || same != unchanged {

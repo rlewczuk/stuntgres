@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -35,7 +36,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			generator := *e.sequences[seed.address]
 			var call sequenceCallExpression
 			calls := 0
-			walkBoundExpression(old.expression, func(node BoundExpr) {
+			walkBoundExpression(old.expression, func(node expr.Expr) {
 				if n, ok := node.(sequenceCallExpression); ok {
 					call = n
 					calls++
@@ -164,7 +165,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	seed := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
 	generator := *e.sequences[seed.address]
 	var call sequenceCallExpression
-	walkBoundExpression(old.expression, func(node BoundExpr) {
+	walkBoundExpression(old.expression, func(node expr.Expr) {
 		if n, ok := node.(sequenceCallExpression); ok {
 			call = n
 		}
@@ -222,7 +223,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
-	row := columnExpression{Info: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, origin: e.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}), scope: 1, frame: 1, slot: 0}
+	row := columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, origin: e.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}), scope: 1, frame: 1, slot: 0}
 	if _, err := (scalarRenderer{provenance: destination}).sql(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -80,7 +81,7 @@ func (e *Engine) initializeBuiltinRoutineBodies() {
 	}
 }
 
-func polymorphicBodyArgument(node BoundExpr, id ids.OID) BoundExpr {
+func polymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {
 	switch n := node.(type) {
 	case functions.StringVariadic:
 		if (id == 1285 || id == 1290) && len(n.Args) == 1 {
@@ -97,7 +98,7 @@ func polymorphicBodyArgument(node BoundExpr, id ids.OID) BoundExpr {
 	return nil
 }
 
-func bodyCastMatches(edge routineBodyEdge, argument BoundExpr) bool {
+func bodyCastMatches(edge routineBodyEdge, argument expr.Expr) bool {
 	if argument == nil {
 		return false
 	}
@@ -108,7 +109,7 @@ func bodyCastMatches(edge routineBodyEdge, argument BoundExpr) bool {
 // Capture at binding, before descriptors can be remapped or published with a new
 // ACL. Optional polymorphic casts are selected from the real argument, not all
 // possible casts and not ordinary I/O helper identities.
-func (b *expressionBinder) capturePolymorphicBody(node BoundExpr) error {
+func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 	outer, err := expressionRoutineDescriptor(node)
 	if err != nil || outer == nil {
 		return err
@@ -141,7 +142,7 @@ func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error 
 
 // Lifetime capture is conservative even where strict NULL later removes actual
 // invocation. Only instance-selected polymorphic cast identities participate.
-func walkRoutineBody(outer *procedureDescriptor, node BoundExpr, visit func(*procedureDescriptor) error) error {
+func walkRoutineBody(outer *procedureDescriptor, node expr.Expr, visit func(*procedureDescriptor) error) error {
 	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
 	for _, edge := range outer.body {
 		if (edge.demand == bodyBooleanText || edge.demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {

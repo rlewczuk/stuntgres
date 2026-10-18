@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -36,14 +37,14 @@ func virtualDestination(column ColumnDescriptor) error {
 	return nil
 }
 
-func virtualGenerationSecurity(node BoundExpr) error {
+func virtualGenerationSecurity(node expr.Expr) error {
 	var failure error
-	walkBoundExpression(node, func(n BoundExpr) {
+	walkBoundExpression(node, func(n expr.Expr) {
 		if failure != nil {
 			return
 		}
 		if _, user := virtualTypeRestriction(n.ResultUsage().Type); user {
-			err := expressionError("0A000", "generation expression uses user-defined type", n.SourcePosition()).(*sqlstate.Error)
+			err := expr.ErrorAt("0A000", "generation expression uses user-defined type", n.SourcePosition()).(*sqlstate.Error)
 			err.Detail = "Virtual generated columns that make use of user-defined types are not yet supported."
 			failure = err
 		}
@@ -100,7 +101,7 @@ func (e columnExpression) admitVirtualGeneration(c *EvalContext, catalog Catalog
 // CHECK recipes belong to the completed destination, not a copied source.
 func refreshGenerationChecks(d *relationDescriptor, catalog CatalogRead) error {
 	for i := range d.checkConstraints {
-		next, changed, err := mapBoundExpression(catalog, d.checkConstraints[i].expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node BoundExpr) (BoundExpr, bool, error) {
+		next, changed, err := mapBoundExpression(catalog, d.checkConstraints[i].expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(columnExpression)
 			if !ok || column.origin.Address.ClassID != d.address.ClassID || column.origin.Address.ObjectID != d.address.ObjectID {
 				return node, false, nil
@@ -136,7 +137,7 @@ func logicalColumnValue(d *relationDescriptor, slot int, row []sqltype.Value, c 
 	if definition, ok := d.generations[d.attributes[slot]]; !ok || definition.kind != generationVirtual {
 		return row[slot], nil
 	}
-	column := columnExpression{Info: expressionInfo{Usage: d.columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
+	column := columnExpression{Info: expr.Info{Usage: d.columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
 	local := *c
 	local.Scope, local.Frame, local.Row = 1, 1, row
 	return column.Eval(&local)
@@ -146,7 +147,7 @@ func logicalColumnValue(d *relationDescriptor, slot int, row []sqltype.Value, c 
 // Physical child identity belongs to tableoid/provenance, not recipe selection.
 // Rechecks borrow the complete latest logical tuple without rereading a source
 // whose inheritance mapping scratch may still hold that same tuple.
-func (e columnExpression) capturedGeneration(source *querySource, index int, current []sqltype.Value, c *EvalContext) (BoundExpr, []sqltype.Value, error) {
+func (e columnExpression) capturedGeneration(source *querySource, index int, current []sqltype.Value, c *EvalContext) (expr.Expr, []sqltype.Value, error) {
 	data := source.view.data.Load()
 	if data == nil {
 		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")

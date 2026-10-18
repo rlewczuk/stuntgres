@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
@@ -110,7 +110,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
 	case "age", "isfinite":
-		return functions.BindDatetimeAgeFinite(b, raw, visible, func(arg BoundExpr) (BoundExpr, error) {
+		return functions.BindDatetimeAgeFinite(b, raw, visible, func(arg expr.Expr) (expr.Expr, error) {
 			return b.identityExpression(raw, identityAge, arg)
 		})
 	case "overlaps":
@@ -137,18 +137,18 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	}
 	// Over-limit calls still transform every child before resolution, but never
 	// need retained executable argument storage.
-	var args []BoundExpr
+	var args []expr.Expr
 	if len(raw.Args) <= 100 {
-		args = make([]BoundExpr, len(raw.Args))
+		args = make([]expr.Expr, len(raw.Args))
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	for i, rawArg := range raw.Args {
 		analyzed, issue, err := functions.AnalyzeNullCountArgument(b, rawArg)
 		if err != nil {
 			return nil, err
 		}
 		if issue.UnsupportedArithmetic {
-			return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", issue.Position)
+			return nil, expr.ErrorAt("0A000", "arithmetic in null-count arguments is unsupported", issue.Position)
 		}
 		rawArg, arg := analyzed.Raw, analyzed.Expression
 		if unknownNullSyntax(rawArg) {
@@ -176,7 +176,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	if !functions.NullCountAllowed(visible, raw.Variadic, len(args)) {
 		types := make([]string, len(args))
@@ -189,7 +189,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 				types[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
 		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 		return nil, d
 	}
@@ -197,9 +197,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	// VARIADIC array expansion remains outside this provider's capability.
 	if raw.Variadic {
 		if functions.NullCountVariadicArray(args[len(args)-1].ResultUsage()) {
-			return nil, expressionError("0A000", "VARIADIC arrays in null-count arguments are unsupported", raw.Args[len(raw.Args)-1].SourcePosition())
+			return nil, expr.ErrorAt("0A000", "VARIADIC arrays in null-count arguments are unsupported", raw.Args[len(raw.Args)-1].SourcePosition())
 		}
-		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
+		return nil, expr.ErrorAt("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), variadicRoutineProvider, name, sqltype.ID(2276))
 	if err != nil {
@@ -210,10 +210,10 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 
 type currentSchemasExpression struct {
 	expr.Info
-	arg BoundExpr
+	arg expr.Expr
 }
 
-func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e currentSchemasExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	v, err := e.arg.Eval(c)
 	if err != nil {
@@ -282,7 +282,7 @@ func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExp
 				return err
 			}
 		}
-		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	names, _, err := b.functionArgumentTypeNames(raw)
 	if err != nil {
@@ -315,7 +315,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 					return err
 				}
 			}
-			return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+			return expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 		}
 	}
 	names, composite, err := b.functionArgumentTypeNames(raw)
@@ -323,7 +323,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 		return err
 	}
 	if raw.CompositeCandidate && !composite {
-		return expressionError("0A000", "functions are unsupported", raw.Pos)
+		return expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
@@ -347,7 +347,7 @@ func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([
 	return names, composite, nil
 }
 
-func functionArgumentTypeName(raw parser.Expr, arg BoundExpr) string {
+func functionArgumentTypeName(raw parser.Expr, arg expr.Expr) string {
 	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 		return "unknown"
 	}
@@ -377,7 +377,7 @@ func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectNam
 // Temporary alias: the pure builder moved to functions (F4/F5 math).
 var functionResolutionErrorForTypes = functions.ResolutionError
 
-func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (expr.Expr, error) {
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
 		return nil, err
@@ -394,8 +394,8 @@ func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExp
 	}
 	typ := b.typ(sqltype.NameArray)
 	p := arg.Properties()
-	if p.Volatility < Stable {
-		p.Volatility = Stable
+	if p.Volatility < expr.Stable {
+		p.Volatility = expr.Stable
 	}
 	info, err := b.builtinRoutineInfo(b.info(typ.Usage(), raw.Pos, p), catalogRoutineProvider, "current_schemas", sqltype.Bool)
 	if err != nil {

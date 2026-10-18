@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -57,7 +58,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 				return old, sqlError("XX000", fmt.Sprintf(`option "%s" not recognized`, option.Name))
 			}
 			if option.Name == "as" || option.Name == "owned" {
-				return old, expressionError("42601", fmt.Sprintf(`sequence option "%s" not supported here`, option.Name), option.Pos)
+				return old, expr.ErrorAt("42601", fmt.Sprintf(`sequence option "%s" not supported here`, option.Name), option.Pos)
 			}
 		}
 		if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {

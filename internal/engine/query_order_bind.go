@@ -30,16 +30,16 @@ func orderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) 
 	}
 	ordinal, ok := constant.Ordinal()
 	if !ok {
-		return 0, false, expressionError("42601", "non-integer constant in "+clause, raw.SourcePosition())
+		return 0, false, expr.ErrorAt("42601", "non-integer constant in "+clause, raw.SourcePosition())
 	}
 	if ordinal < 1 || ordinal > int64(width) {
-		return 0, false, expressionError("42P10", fmt.Sprintf("%s position %d is not in select list", clause, ordinal), raw.SourcePosition())
+		return 0, false, expr.ErrorAt("42P10", fmt.Sprintf("%s position %d is not in select list", clause, ordinal), raw.SourcePosition())
 	}
 	return int(ordinal) - 1, true, nil
 }
 
 // ORDER references source-type outputs, before INSERT destination assignment.
-func (b *expressionBinder) orderOutput(expression BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) orderOutput(expression expr.Expr) (expr.Expr, error) {
 	if unknown, ok := expression.(unknownOutput); ok {
 		var err error
 		expression, err = b.bind(unknown.raw, expressionPolicy{context: projectionContext})
@@ -50,7 +50,7 @@ func (b *expressionBinder) orderOutput(expression BoundExpr) (BoundExpr, error) 
 	return b.finalizeProjection(expression)
 }
 
-func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr, names []string, clause string) ([]sortKey, error) {
+func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr, names []string, clause string) ([]sortKey, error) {
 	if order == nil {
 		return nil, nil
 	}
@@ -73,7 +73,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 						return nil, err
 					}
 					if output >= 0 && !b.sameQueryTarget(projection[output], projection[j]) {
-						return nil, expressionError("42702", fmt.Sprintf(`%s "%s" is ambiguous`, clause, name), raw.Pos)
+						return nil, expr.ErrorAt("42702", fmt.Sprintf(`%s "%s" is ambiguous`, clause, name), raw.Pos)
 					}
 					if output < 0 {
 						output = j
@@ -81,7 +81,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 				}
 			}
 		}
-		var expression BoundExpr
+		var expression expr.Expr
 		if output >= 0 {
 			expression, err = b.orderOutput(projection[output])
 		} else {
@@ -108,7 +108,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 		}
 		if expression.CollationIndeterminate() {
 			left, right, position := expression.ImplicitCollationConflict()
-			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
+			d := expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
 			d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
 			return nil, d
 		}
@@ -134,7 +134,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 
 // finishOrder runs after grouped rewriting and output typing. Equivalent ORDER
 // targets share a datum; unrelated visible outputs remain occurrence-sensitive.
-func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, projection []BoundExpr) (LogicalNode, error) {
+func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, projection []expr.Expr) (LogicalNode, error) {
 	if len(keys) == 0 {
 		return root, nil
 	}
@@ -209,7 +209,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 			key.output = true
 			properties := output.Properties()
 			properties.StageDependent = true
-			info := boundExpressionInfo(output)
+			info := expr.InfoOf(output)
 			info.Property = properties
 			projection[j] = cachedOrderExpression{Info: info, slot: key.cache}
 		}
@@ -222,7 +222,7 @@ type cachedOrderExpression struct {
 	slot int
 }
 
-func (e cachedOrderExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -12,7 +13,7 @@ func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 	typ := d.columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
-	column := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0, rowWidth: 1, queryOccurrence: 1, virtual: generatedOccurrenceProbe{Info: expressionInfo{Usage: typ.Usage()}, calls: &calls, value: one}}
+	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0, rowWidth: 1, queryOccurrence: 1, virtual: generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}}
 	for _, state := range []*queryState{nil, {}, {source: &querySource{occurrence: 4}}, {source: &querySource{sources: []*querySource{nil}}}} {
 		c := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, query: state}
 		if _, err := column.Eval(&c); err == nil || calls != 0 {
@@ -34,14 +35,14 @@ func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
 	typ := d.columns[0].Usage.Type
-	column := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, virtual: literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}, queryOccurrence: 1}
-	query := &BoundQuery{Root: &projectNode{expressions: []BoundExpr{column}}}
-	edge := subqueryExpression{Info: expressionInfo{Usage: typ.Usage()}, queryPlan: query}
-	if !boundHasVirtualReads(caseExpression{Info: expressionInfo{Usage: typ.Usage()}, otherwise: edge}) {
+	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, virtual: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}, queryOccurrence: 1}
+	query := &BoundQuery{Root: &projectNode{expressions: []expr.Expr{column}}}
+	edge := subqueryExpression{Info: expr.Info{Usage: typ.Usage()}, queryPlan: query}
+	if !boundHasVirtualReads(caseExpression{Info: expr.Info{Usage: typ.Usage()}, otherwise: edge}) {
 		t.Fatal("executable scalar query demand was not found")
 	}
 	edge.cteDefinition = true
-	if boundHasVirtualReads(edge) || queryHasVirtualReads(&projectNode{analysisExpressions: []BoundExpr{edge}}) {
+	if boundHasVirtualReads(edge) || queryHasVirtualReads(&projectNode{analysisExpressions: []expr.Expr{edge}}) {
 		t.Fatal("unused WITH definition acquired runtime demand")
 	}
 	column.queryOccurrence = 0
@@ -85,8 +86,8 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	for _, present := range []bool{false, true} {
 		calls := 0
-		probe := generatedOccurrenceProbe{Info: expressionInfo{Usage: typ.Usage()}, calls: &calls, value: one}
-		column := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
+		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
+		column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
 		index := absentQueryIndex
 		wantCalls := 0
 		if present {
@@ -95,7 +96,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 		}
 		joined := &querySource{materialized: true, flatWidth: 2, flatCount: 1, anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, occurrence: 4, occurrences: []int{4}, provenance: []int{index}}
 		state := &queryState{source: joined, virtualReads: true}
-		node := &evaluationNode{querySchema: d.columns, child: &sourceNode{querySchema: d.columns, occurrence: 0}, expressions: []BoundExpr{caseExpression{Info: expressionInfo{Usage: typ.Usage()}, otherwise: column}}}
+		node := &evaluationNode{querySchema: d.columns, child: &sourceNode{querySchema: d.columns, occurrence: 0}, expressions: []expr.Expr{caseExpression{Info: expr.Info{Usage: typ.Usage()}, otherwise: column}}}
 		stage, err := openEvaluationNode(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
@@ -123,10 +124,10 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 			index, wantCalls = 0, 1
 		}
 		input := &querySource{materialized: true, flatWidth: 2, flatCount: 1, anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, occurrence: 4, occurrences: []int{4}, provenance: []int{index}}
-		probe := generatedOccurrenceProbe{Info: expressionInfo{Usage: typ.Usage()}, calls: &calls, value: one}
-		column := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, rowWidth: 2, queryOccurrence: 1, virtual: probe}
+		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
+		column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, rowWidth: 2, queryOccurrence: 1, virtual: probe}
 		schema := querySchema{d.columns[1]}
-		project := &projectNode{querySchema: schema, frame: 1, child: &sourceNode{querySchema: d.columns, occurrence: 0}, expressions: []BoundExpr{column}}
+		project := &projectNode{querySchema: schema, frame: 1, child: &sourceNode{querySchema: d.columns, occurrence: 0}, expressions: []expr.Expr{column}}
 		view := &querySource{materialized: true, flatWidth: 1, nestedRoot: project, nestedInputs: input}
 		state := &queryState{source: view}
 		stage, err := openSourceStage(context.Background(), state, view, schema)
@@ -151,8 +152,8 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	typ := d.columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
-	probe := generatedOccurrenceProbe{Info: expressionInfo{Usage: typ.Usage()}, calls: &calls, value: one}
-	column := columnExpression{Info: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
+	probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
+	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, virtual: probe, rowWidth: 2, queryOccurrence: 1}
 	source := &querySource{
 		materialized: true, flatWidth: 2, flatCount: 3, occurrence: 4,
 		anonymous: [][]sqltype.Value{
@@ -165,7 +166,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	state := &queryState{source: source, virtualReads: true}
 	stage := indexedStage{
 		source: source, schema: []ColumnDescriptor{d.columns[1]},
-		expressions: []BoundExpr{column}, retain: true,
+		expressions: []expr.Expr{column}, retain: true,
 		permutation: []int{2, 0, 1},
 		evaluation:  EvalContext{Scope: 1, Frame: 1, query: state},
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,7 +32,7 @@ type ruleDefinition struct {
 	Name                  string
 	event                 string
 	instead               bool
-	condition             BoundExpr
+	condition             expr.Expr
 	conditionPresentation *viewDefinition
 	conditionBinding      *binding
 	actions               []ruleAction
@@ -74,7 +75,7 @@ func ruleEventCode(event string) string {
 	return ""
 }
 
-func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (BoundExpr, bool, error) {
+func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
 	if b.ruleNamespace == nil || len(raw.Name.Parts) == 0 {
 		return nil, false, nil
 	}
@@ -108,7 +109,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (BoundExpr, bool, e
 	name := raw.Name.Parts[1].Text
 	slot, ok := ns.relation.index[name]
 	if !ok {
-		return nil, true, expressionError("42703", fmt.Sprintf(`column %s.%s does not exist`, side, name), raw.Pos)
+		return nil, true, expr.ErrorAt("42703", fmt.Sprintf(`column %s.%s does not exist`, side, name), raw.Pos)
 	}
 	ref := ns.ref
 	ref.Address.SubID = ns.relation.attributes[slot]
@@ -117,7 +118,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (BoundExpr, bool, e
 		frame = 2
 	}
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: ns.relation.revision})
-	return columnExpression{Info: b.info(ns.relation.columns[slot].Usage, raw.Pos, ExprProperties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
+	return columnExpression{Info: b.info(ns.relation.columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 
 func ruleResultCheck(d *relationDescriptor, schema []ColumnDescriptor, selectRule bool) error {
@@ -207,7 +208,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{s.Condition}}
-		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []BoundExpr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, viewColumns: binder.viewColumns, viewLiterals: binder.viewLiterals, viewCastUsages: binder.viewCastUsages, viewComposites: binder.viewComposites, viewCollations: binder.viewCollations, viewNamespaces: binder.viewNamespaces, sequenceConstants: binder.sequenceConstants, regtypeConstants: binder.regtypeConstants}
+		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, viewColumns: binder.viewColumns, viewLiterals: binder.viewLiterals, viewCastUsages: binder.viewCastUsages, viewComposites: binder.viewComposites, viewCollations: binder.viewCollations, viewNamespaces: binder.viewNamespaces, sequenceConstants: binder.sequenceConstants, regtypeConstants: binder.regtypeConstants}
 		b.viewIntaggRefs = binder.viewIntaggRefs
 		b.viewOperatorRefs = binder.viewOperatorRefs
 		for i := range b.querySources {

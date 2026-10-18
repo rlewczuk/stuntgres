@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,7 +12,7 @@ import (
 type distinctOnNode struct {
 	querySchema
 	child        LogicalNode
-	expressions  []BoundExpr
+	expressions  []expr.Expr
 	grouping     []queryGrouping
 	presenceOnly bool
 }
@@ -93,7 +94,7 @@ func preflightDistinctOn(c *EvalContext, n *distinctOnNode) (LogicalNode, error)
 	if err != nil {
 		return nil, err
 	}
-	var expressions []BoundExpr
+	var expressions []expr.Expr
 	if !n.presenceOnly {
 		for i, expression := range n.expressions {
 			folded, changed, err := preflightCoercions(c, expression)
@@ -102,7 +103,7 @@ func preflightDistinctOn(c *EvalContext, n *distinctOnNode) (LogicalNode, error)
 			}
 			if changed {
 				if expressions == nil {
-					expressions = append([]BoundExpr(nil), n.expressions...)
+					expressions = append([]expr.Expr(nil), n.expressions...)
 				}
 				expressions[i] = folded
 			}

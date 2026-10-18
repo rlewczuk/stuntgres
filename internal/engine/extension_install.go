@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -104,7 +105,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	seen := map[string]bool{}
 	for _, option := range s.Options {
 		if seen[option.Name] {
-			return nil, expressionError("42601", "conflicting or redundant options", option.Pos)
+			return nil, expr.ErrorAt("42601", "conflicting or redundant options", option.Pos)
 		}
 		seen[option.Name] = true
 		switch option.Name {
@@ -208,18 +209,18 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		name := "unaccent"
 		result := ids.OID(25)
-		vol := Stable
+		vol := expr.Stable
 		strict := true
 		if i == 2 {
 			name = "unaccent_init"
 			result = 2281
-			vol = Volatile
+			vol = expr.Volatile
 			strict = false
 		}
 		if i == 3 {
 			name = "unaccent_lexize"
 			result = 2281
-			vol = Volatile
+			vol = expr.Volatile
 			strict = false
 		}
 		proc := &procedureDescriptor{address: ext.members[i], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: vol, strict: strict, provider: p}

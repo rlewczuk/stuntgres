@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -144,11 +145,11 @@ func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 	node := query.Root.(*projectNode).child.(*windowNode)
 	argument := node.calls[0].argument
 	found := false
-	queryExpressions(node, func(expr BoundExpr) { found = found || expr == argument })
+	queryExpressions(node, func(expr expr.Expr) { found = found || expr == argument })
 	if !found {
 		t.Fatal("argument absent from graph")
 	}
-	next, err := rewriteQueryExpressions(node, func(expr BoundExpr) (BoundExpr, bool, error) {
+	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == argument {
 			return node.specs[0].order[0].expression, true, nil
 		}
@@ -395,7 +396,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	root := description.query.Root
 	original := root.(*projectNode).child.(*windowNode)
 	var domain *sqltype.Descriptor
-	walkBoundExpression(original.calls[0].argument, func(expr BoundExpr) {
+	walkBoundExpression(original.calls[0].argument, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			domain = expr.ResultUsage().Type
 		}
@@ -418,7 +419,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	}
 	next := mapped.(*projectNode).child.(*windowNode)
 	var mappedDomain *sqltype.Descriptor
-	walkBoundExpression(next.calls[0].argument, func(expr BoundExpr) {
+	walkBoundExpression(next.calls[0].argument, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			mappedDomain = expr.ResultUsage().Type
 		}

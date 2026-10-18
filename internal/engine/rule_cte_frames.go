@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+)
 
 func isolateRuleCTEFrames(view CatalogRead, original, action binding, syntax parser.Statement) (binding, error) {
 	if len(original.ctes) == 0 {
@@ -12,7 +15,7 @@ func isolateRuleCTEFrames(view CatalogRead, original, action binding, syntax par
 			if project, ok := node.(*projectNode); ok && project.cteOwner {
 				local = true
 			}
-		}, func(BoundExpr) {}, true)
+		}, func(expr.Expr) {}, true)
 	}
 	if action.query != nil {
 		visit(action.query.Root)
@@ -21,27 +24,27 @@ func isolateRuleCTEFrames(view CatalogRead, original, action binding, syntax par
 		visit(action.update.from)
 		visit(&projectNode{expressions: action.update.assignments})
 		if action.update.predicate != nil {
-			visit(&projectNode{expressions: []BoundExpr{action.update.predicate}})
+			visit(&projectNode{expressions: []expr.Expr{action.update.predicate}})
 		}
 	}
 	visit(action.deleteUsing)
 	for _, row := range action.expressions {
 		for _, bound := range row {
-			visit(&projectNode{expressions: []BoundExpr{bound}})
+			visit(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
 	for _, bound := range action.defaults {
-		visit(&projectNode{expressions: []BoundExpr{bound}})
+		visit(&projectNode{expressions: []expr.Expr{bound}})
 	}
 	if action.returning != nil {
 		visit(&projectNode{expressions: action.returning.expressions})
 	}
 	if action.predicate != nil {
-		visit(&projectNode{expressions: []BoundExpr{action.predicate}})
+		visit(&projectNode{expressions: []expr.Expr{action.predicate}})
 	}
 	if action.conflict != nil {
 		if action.conflict.predicate != nil {
-			visit(&projectNode{expressions: []BoundExpr{action.conflict.predicate}})
+			visit(&projectNode{expressions: []expr.Expr{action.conflict.predicate}})
 		}
 		if action.conflict.update != nil {
 			visit(&projectNode{expressions: action.conflict.update.assignments})

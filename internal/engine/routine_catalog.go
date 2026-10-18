@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -82,10 +83,10 @@ func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inpu
 	return declaration, nil
 }
 
-func (b *expressionBinder) builtinRoutineInfo(info expressionInfo, provider routineProvider, name string, inputs ...sqltype.ID) (expressionInfo, error) {
+func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider routineProvider, name string, inputs ...sqltype.ID) (expr.Info, error) {
 	declaration, err := lookupBuiltinRoutineDeclaration(provider, name, inputs)
 	if err != nil {
-		return expressionInfo{}, err
+		return expr.Info{}, err
 	}
 	return b.selectedBuiltinRoutineInfo(info, declaration)
 }
@@ -99,10 +100,10 @@ func (b *expressionBinder) builtinRoutineReference(provider routineProvider, nam
 	return ref, err
 }
 
-func (b *expressionBinder) selectedBuiltinRoutineInfo(info expressionInfo, declaration *builtinRoutineDeclaration) (expressionInfo, error) {
+func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaration *builtinRoutineDeclaration) (expr.Info, error) {
 	d, _, err := b.captureBuiltinRoutineDeclaration(declaration)
 	if err != nil {
-		return expressionInfo{}, err
+		return expr.Info{}, err
 	}
 	info.RoutineReference = d
 	return info, nil

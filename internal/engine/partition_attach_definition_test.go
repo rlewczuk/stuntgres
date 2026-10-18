@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -113,7 +114,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	view := inheritanceUnitView(e, parent, child)
 	ref := e.catalog.domain.Ref(view.Epoch(), child.address)
 	ref.Address.SubID = 1
-	key := columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	boolean := testUsage(e, sqltype.Bool)
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(usage.Type, n)
@@ -122,19 +123,19 @@ func TestPartitionAttachProof(t *testing.T) {
 		}
 		return v
 	}
-	cmp := func(operator string, n int64) BoundExpr {
+	cmp := func(operator string, n int64) expr.Expr {
 		operators := map[string]sqltype.ComparisonOperator{"<": sqltype.CompareLess, ">=": sqltype.CompareGreaterEqual}
 		predicate, err := sqltype.BindComparisonPredicate(operators[operator], usage.Type, usage.Type, boolean.Type, usage.Collation, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{Info: expressionInfo{Usage: boolean, Property: ExprProperties{RowDependent: true}}, left: key, right: literalExpression{Info: expressionInfo{Usage: usage}, value: value(n)}, predicate: predicate, operator: operator}
+		return comparisonExpression{Info: expr.Info{Usage: boolean, Property: expr.Properties{RowDependent: true}}, left: key, right: literalExpression{Info: expr.Info{Usage: usage}, value: value(n)}, predicate: predicate, operator: operator}
 	}
-	and := func(a, b BoundExpr) BoundExpr {
-		return logicalExpression{Info: expressionInfo{Usage: boolean}, left: a, right: b, op: parser.LogicalAnd}
+	and := func(a, b expr.Expr) expr.Expr {
+		return logicalExpression{Info: expr.Info{Usage: boolean}, left: a, right: b, op: parser.LogicalAnd}
 	}
-	or := func(a, b BoundExpr) BoundExpr {
-		return logicalExpression{Info: expressionInfo{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
+	or := func(a, b expr.Expr) expr.Expr {
+		return logicalExpression{Info: expr.Info{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
 	bound := &partitionMembership{parent: parent.address, lower: []partitionDatum{{value: value(1)}}, upper: []partitionDatum{{value: value(3)}}}
@@ -153,7 +154,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	child.notNullConstraints[0].NotValid = true
 	check(false, false)
 	child.notNullConstraints = nil
-	child.checkConstraints[0].expression = and(nullTestExpression{Info: expressionInfo{Usage: boolean}, child: key, not: true}, bounds)
+	child.checkConstraints[0].expression = and(nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, bounds)
 	check(false, true)
 	child.checkConstraints[0].NotValid = true
 	check(false, false)

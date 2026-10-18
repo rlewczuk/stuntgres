@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -219,7 +220,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 // PostgreSQL looks_like_function accepts func_expr_windowless, including its
 // SQL-special COALESCE/NULLIF/MinMax and SQL-value forms, not only FuncExpr.
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
-func pgIndexFunctionExpression(node BoundExpr) bool {
+func pgIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
 	case functions.String:
 		return n.Plan.Name() != "||"

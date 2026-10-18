@@ -18,14 +18,14 @@ type selectedOperatorExpression struct {
 	expr.Info
 	operator *operatorDescriptor
 	ref      ids.ObjectRef
-	provider BoundExpr
+	provider expr.Expr
 }
 
-func (e selectedOperatorExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e selectedOperatorExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.provider.Eval(ctx)
 }
 
-func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy expressionPolicy) (BoundExpr, error) {
+func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy expressionPolicy) (expr.Expr, error) {
 	if r.SQLSimilar {
 		return functions.BindSimilar(b, r)
 	}
@@ -152,12 +152,12 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 
 func requireBuiltinComparison(d *operatorDescriptor, pos parser.Position) error {
 	if !d.seeded() {
-		return expressionError("0A000", "custom operators are unsupported in this comparison context", pos)
+		return expr.ErrorAt("0A000", "custom operators are unsupported in this comparison context", pos)
 	}
 	return nil
 }
 
-func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy expressionPolicy) (BoundExpr, error) {
+func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy expressionPolicy) (expr.Expr, error) {
 	if len(raw.Name.Parts) == 0 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid operator expression")
 	}
@@ -207,7 +207,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if len(operands) == 2 {
 		targets = []ids.OID{d.left, d.right}
 	}
-	args := make([]BoundExpr, len(operands))
+	args := make([]expr.Expr, len(operands))
 	for i, o := range operands {
 		target := b.typ(sqltype.ID(targets[i]))
 		if target.Concrete() {
@@ -221,7 +221,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 				}
 			}
 			if source == nil {
-				return nil, expressionError("42804", "could not determine polymorphic type because input has type unknown", raw.Pos)
+				return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", raw.Pos)
 			}
 			args[i], err = b.finalizeOperand(o, source)
 		}
@@ -252,7 +252,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	}
 	ref := b.engine.catalog.domain.Ref(set.catalog.Epoch(), d.address)
 	b.dependency(ref, d.revision)
-	info := boundExpressionInfo(provider)
+	info := expr.InfoOf(provider)
 	info.Pos = raw.Pos
 	// Admission belongs to the actual provider only, not twice to the wrapper.
 	info.RoutineReference = nil
@@ -262,7 +262,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 // Provider dispatch is constrained by the selected routine's exact declaration.
 // Synthetic argument slots are binder-local, cannot occur in parsed SQL, and
 // are restored even if the selected provider rejects an unsupported signature.
-func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, args []BoundExpr, pos parser.Position) (BoundExpr, error) {
+func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
 	previous := b.selectedOperatorArgs
 	b.selectedOperatorArgs = args
 	defer func() { b.selectedOperatorArgs = previous }()
@@ -270,7 +270,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 	for i := range args {
 		rawArgs[i] = parser.ParameterExpr{Number: -i - 1, Pos: args[i].SourcePosition()}
 	}
-	var node BoundExpr
+	var node expr.Expr
 	var err error
 	if d.builtin != nil && d.builtin.providers&operatorRoutineProvider != 0 {
 		found := false

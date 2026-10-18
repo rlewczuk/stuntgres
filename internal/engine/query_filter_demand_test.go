@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,10 +24,10 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			calls := 0
-			producer := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: plan, Args: []BoundExpr{enumCapturedArgument{Info: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: plan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			project := *query.Root.(*projectNode)
 			project.querySchema = []ColumnDescriptor{{Name: "v", Usage: mood.Usage()}}
-			project.expressions = []BoundExpr{producer}
+			project.expressions = []expr.Expr{producer}
 			bridge := &querySource{ref: input.ref, nestedRoot: &project, nestedInputs: input, materialized: true, flatWidth: 1}
 			if name == "semanticFalse" || name == "identityFalse" {
 				// A real captured occurrence below a consuming owner, not merely
@@ -46,9 +47,9 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			} else if name == "literalNull" || name == "parameterNull" {
 				value = sqltype.Null(boolean)
 			}
-			var predicate BoundExpr = literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: value}
+			var predicate expr.Expr = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: value}
 			if name == "parameterFalse" || name == "parameterNull" || name == "parameterTrue" {
-				predicate = parameterExpression{Info: expressionInfo{Usage: boolean.Usage()}, number: 1}
+				predicate = parameterExpression{Info: expr.Info{Usage: boolean.Usage()}, number: 1}
 				state.parameters = []sqltype.Value{value}
 			}
 			node := &filterNode{querySchema: project.Schema(), child: &sourceNode{querySchema: project.Schema(), ref: input.ref}, predicate: predicate}
@@ -78,7 +79,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 
 func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 	c := &EvalContext{Context: context.Background()}
-	for _, expression := range []BoundExpr{columnExpression{}, &windowExpression{}, subqueryExpression{}} {
+	for _, expression := range []expr.Expr{columnExpression{}, &windowExpression{}, subqueryExpression{}} {
 		if rejects, err := queryPredicateRejectsAll(c, expression); rejects || err != nil {
 			t.Fatal("row/stage/subquery expression used as empty-input proof", expression, rejects, err)
 		}
@@ -92,13 +93,13 @@ func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 	if rejects, err := queryPredicateRejectsAll(c, dynamic); rejects || err != nil || calls != 0 {
 		t.Fatal("arbitrary expression evaluated as proof", rejects, calls, err)
 	}
-	parameter := parameterExpression{Info: expressionInfo{Usage: boolean.Usage()}, number: 1}
+	parameter := parameterExpression{Info: expr.Info{Usage: boolean.Usage()}, number: 1}
 	if rejects, err := queryPredicateRejectsAll(c, parameter); rejects || err == nil {
 		t.Fatal("invalid imported frame was suppressed", rejects, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := openQueryNode(ctx, &queryState{}, &filterNode{predicate: literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}})
+	_, err := openQueryNode(ctx, &queryState{}, &filterNode{predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("empty-input gate erased cancellation", err)
 	}
@@ -109,9 +110,9 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, false), sqltype.Null(boolean), sqltype.Boolean(boolean, true)} {
 		for _, parameter := range []bool{false, true} {
 			c := &EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}}
-			var user BoundExpr = literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: value}
+			var user expr.Expr = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: value}
 			if parameter {
-				user = parameterExpression{Info: expressionInfo{Usage: boolean.Usage()}, number: 1}
+				user = parameterExpression{Info: expr.Info{Usage: boolean.Usage()}, number: 1}
 			}
 			var order []string
 			outer := queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) {
@@ -125,7 +126,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 				c.Parameters[0] = sqltype.Boolean(boolean, false)
 				return sqltype.Boolean(boolean, true), nil
 			})
-			expression := viewQualificationExpression{Info: expressionInfo{Usage: boolean.Usage()}, predicates: []BoundExpr{outer, inner}, user: user}
+			expression := viewQualificationExpression{Info: expr.Info{Usage: boolean.Usage()}, predicates: []expr.Expr{outer, inner}, user: user}
 			got, err := expression.Eval(c)
 			truth, truthErr := TruthOf(value)
 			if err != nil || truthErr != nil || !sqltype.SameDatum(got, value) {
@@ -149,7 +150,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 		order = append(order, "user")
 		return sqltype.Boolean(boolean, true), nil
 	})
-	expression := viewQualificationExpression{Info: expressionInfo{Usage: boolean.Usage()}, predicates: []BoundExpr{hidden}, user: user}
+	expression := viewQualificationExpression{Info: expr.Info{Usage: boolean.Usage()}, predicates: []expr.Expr{hidden}, user: user}
 	got, err := expression.Eval(&EvalContext{Context: context.Background()})
 	truth, truthErr := TruthOf(got)
 	if err != nil || truthErr != nil || truth != False || len(order) != 1 || order[0] != "hidden" {
@@ -157,7 +158,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	expression.user = literalExpression{Info: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
+	expression.user = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
 	if _, err := expression.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) || len(order) != 1 {
 		t.Fatal("empty user input erased cancellation", order, err)
 	}

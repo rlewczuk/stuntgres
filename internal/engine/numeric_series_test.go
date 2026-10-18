@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -13,13 +14,13 @@ import (
 
 func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seriesExpression {
 	t.Helper()
-	e := seriesExpression{Info: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}}
+	e := seriesExpression{Info: expr.Info{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: expr.Properties{StageDependent: true}}}
 	for _, s := range args {
 		v, err := d.Input(context.Background(), s, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.args = append(e.args, literalExpression{Info: expressionInfo{Usage: d.Usage()}, value: v})
+		e.args = append(e.args, literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v})
 	}
 	return e
 }
@@ -143,7 +144,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 			t.Fatal("rendered expression", err)
 		}
 	}
-	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 		if n == original.args[0] {
 			return numericSeriesUnit(t, d, "0.20", "0.3", "0.10").args[0], true, nil
 		}
@@ -155,11 +156,11 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	if got := numericSeriesUnitRead(t, rewritten.(seriesExpression)); !reflect.DeepEqual(got, want[1:]) {
 		t.Fatal("copy-on-change", got)
 	}
-	for _, fold := range []func() (BoundExpr, bool, error){
-		func() (BoundExpr, bool, error) {
+	for _, fold := range []func() (expr.Expr, bool, error){
+		func() (expr.Expr, bool, error) {
 			return preflightCoercions(&EvalContext{Context: context.Background()}, original)
 		},
-		func() (BoundExpr, bool, error) {
+		func() (expr.Expr, bool, error) {
 			return simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
 		},
 	} {

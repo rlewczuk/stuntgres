@@ -13,10 +13,10 @@ import (
 // fresh bounds-only state in the shared arithmetic function cursor.
 type subscriptsExpression struct {
 	expr.Info
-	args []BoundExpr
+	args []expr.Expr
 }
 
-func (e subscriptsExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e subscriptsExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -24,7 +24,7 @@ func (e subscriptsExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_subscripts set call")
 }
 
-func (e subscriptsExpression) mapChildren(mapper func(BoundExpr) (BoundExpr, bool, error)) (subscriptsExpression, bool, error) {
+func (e subscriptsExpression) mapChildren(mapper func(expr.Expr) (expr.Expr, bool, error)) (subscriptsExpression, bool, error) {
 	changed := false
 	for i, arg := range e.args {
 		next, did, err := mapper(arg)
@@ -33,7 +33,7 @@ func (e subscriptsExpression) mapChildren(mapper func(BoundExpr) (BoundExpr, boo
 		}
 		if did {
 			if !changed {
-				e.args = append([]BoundExpr(nil), e.args...)
+				e.args = append([]expr.Expr(nil), e.args...)
 			}
 			e.args[i] = next
 			changed = true
@@ -42,7 +42,7 @@ func (e subscriptsExpression) mapChildren(mapper func(BoundExpr) (BoundExpr, boo
 	return e, changed, nil
 }
 
-func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	var storage [100]comparisonOperand
 	for i, arg := range raw.Args {
 		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{context: projectionContext})
@@ -54,7 +54,7 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 		}
 	}
 	if len(raw.Args) > len(storage) {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	operands := storage[:len(raw.Args)]
 	signature := func() error {
@@ -92,8 +92,8 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if targets[0].Type == nil {
 		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
 	}
-	args := make([]BoundExpr, len(operands))
-	properties := ExprProperties{Volatility: Immutable, StageDependent: true}
+	args := make([]expr.Expr, len(operands))
+	properties := expr.Properties{Volatility: expr.Immutable, StageDependent: true}
 	for i, o := range operands {
 		arg, err := b.coerceConditional(o, targets[i], "generate_subscripts")
 		if err != nil {
@@ -117,16 +117,16 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 		decoration, message = "OVER", "not a window function nor an aggregate function"
 	}
 	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but generate_subscripts is "+message, raw.Pos)
+		return nil, expr.ErrorAt("42809", decoration+" specified, but generate_subscripts is "+message, raw.Pos)
 	}
 	if b.executeParameters {
-		return nil, expressionError("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
 	if b.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if b.aggregateClause == "INSERT VALUES" {
-		return nil, expressionError("0A000", "generate_subscripts is unsupported in INSERT VALUES", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "generate_subscripts is unsupported in INSERT VALUES", raw.Pos)
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err

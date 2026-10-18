@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,14 +19,14 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 		catalog.state.setDescriptor(pgDependUnitAddress(1247, ids.OID(49501+i), 0), &typeDescriptor{typ: domain})
 		domains = append(domains, domain)
 	}
-	literal := literalExpression{Info: expressionInfo{Usage: integer.Usage()}}
+	literal := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
 	// The ordinary project arms contain no unpinned references. Both targets
 	// exist solely in the set's analyzed coercion expression arrays.
-	left := &projectNode{expressions: []BoundExpr{literal}}
-	right := &projectNode{expressions: []BoundExpr{literal}}
+	left := &projectNode{expressions: []expr.Expr{literal}}
+	right := &projectNode{expressions: []expr.Expr{literal}}
 	node := &setNode{operation: "union", all: true, left: left, right: right,
-		leftExpressions:  []BoundExpr{coercionExpression{Info: expressionInfo{Usage: domains[0].Usage()}, child: literal}},
-		rightExpressions: []BoundExpr{coercionExpression{Info: expressionInfo{Usage: domains[1].Usage()}, child: literal}}}
+		leftExpressions:  []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[0].Usage()}, child: literal}},
+		rightExpressions: []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[1].Usage()}, child: literal}}}
 	got, err := pgDependQueryRefs(context.Background(), catalog, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)

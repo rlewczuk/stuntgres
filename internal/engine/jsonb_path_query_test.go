@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -36,7 +37,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if uint32(call.ResultUsage().Type.ID()) != tc.result || call.Properties().Volatility != Immutable || isQuerySet(call) != tc.set {
+			if uint32(call.ResultUsage().Type.ID()) != tc.result || call.Properties().Volatility != expr.Immutable || isQuerySet(call) != tc.set {
 				t.Fatal("typed immutable consumer contract", call)
 			}
 			captured, err := expressionRoutineDescriptor(call)
@@ -45,7 +46,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			}
 			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, "3802,4072,3802,16"}
 			d := captured.builtin
-			if d.identity != identity || d.kind != functionRoutine || uint32(d.result) != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet != tc.set || d.defaults != 2 || d.variadic != 0 || d.providers != jsonRoutineProvider {
+			if d.identity != identity || d.kind != functionRoutine || uint32(d.result) != tc.result || !d.strict || d.volatility != expr.Immutable || d.parallel != 's' || d.returnsSet != tc.set || d.defaults != 2 || d.variadic != 0 || d.providers != jsonRoutineProvider {
 				t.Fatal("released full-IN declaration", d)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
@@ -53,8 +54,8 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || uint32(captured.result) != tc.result || captured.revision == 0 || view.Get(address) != captured {
 				t.Fatal("declaration is not engine-owned", captured)
 			}
-			var args []BoundExpr
-			boundExpressionChildren(call, func(arg BoundExpr) { args = append(args, arg) })
+			var args []expr.Expr
+			boundExpressionChildren(call, func(arg expr.Expr) { args = append(args, arg) })
 			if len(args) != 4 {
 				t.Fatal("missing declared formals", args)
 			}
@@ -114,7 +115,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	literal := func(value string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: value}}
 	}
-	bind := func(doc, path string) BoundExpr {
+	bind := func(doc, path string) expr.Expr {
 		t.Helper()
 		call, err := b.bindFunctionProvider(parser.FunctionExpr{
 			Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "jsonb_path_query"}}},
@@ -164,7 +165,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	if failed, err := openFunctionCall(c, bad); err == nil || failed.owned != nil {
 		t.Fatal("late failure exposed prefix", failed, err)
 	}
-	invocation, err := openFunctionInvocation(c, &functionFromNode{calls: []BoundExpr{call, bad}})
+	invocation, err := openFunctionInvocation(c, &functionFromNode{calls: []expr.Expr{call, bad}})
 	if err == nil || invocation.cursors != nil {
 		t.Fatal("partial sibling open published invocation", invocation, err)
 	}

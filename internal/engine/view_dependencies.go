@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -625,7 +626,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		case *limitNode:
-			for _, expr := range []BoundExpr{n.offset, n.count} {
+			for _, expr := range []expr.Expr{n.offset, n.count} {
 				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expressionUsesFrame(expr, frame)) {
 					return fmt.Errorf("stuntgres: invalid stored view bound")
 				}
@@ -765,11 +766,11 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}
 		var expressionError error
-		validateExpression := func(bound BoundExpr, contextual bool) {
+		validateExpression := func(bound expr.Expr, contextual bool) {
 			if expressionError != nil {
 				return
 			}
-			walkBoundExpression(bound, func(expr BoundExpr) {
+			walkBoundExpression(bound, func(expr expr.Expr) {
 				if expressionError != nil {
 					return
 				}
@@ -830,7 +831,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		} else {
-			queryExpressions(node, func(expr BoundExpr) { validateExpression(expr, false) })
+			queryExpressions(node, func(expr expr.Expr) { validateExpression(expr, false) })
 		}
 		if expressionError != nil {
 			return expressionError

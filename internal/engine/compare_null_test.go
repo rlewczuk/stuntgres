@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,10 +20,10 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	boolType := b.typ(sqltype.Bool)
 	intType := b.typ(sqltype.Int4)
 	evalContext := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
-	boolInfo := b.info(boolType.Usage(), parser.Position{Character: 8}, ExprProperties{})
+	boolInfo := b.info(boolType.Usage(), parser.Position{Character: 8}, expr.Properties{})
 	integer, _ := sqltype.Integer(intType, 1)
 	for _, v := range []sqltype.Value{sqltype.Null(intType), integer, sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
-		child := literalExpression{b.info(v.Type().Usage(), parser.Position{}, ExprProperties{}), v}
+		child := literalExpression{b.info(v.Type().Usage(), parser.Position{}, expr.Properties{}), v}
 		for _, not := range []bool{false, true} {
 			node := nullTestExpression{boolInfo, child, not, false}
 			got, err := node.Eval(evalContext)
@@ -53,8 +54,8 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	for i, a := range values {
 		for j, c := range values {
-			left := literalExpression{b.info(intType.Usage(), parser.Position{}, ExprProperties{}), a}
-			right := literalExpression{b.info(intType.Usage(), parser.Position{}, ExprProperties{}), c}
+			left := literalExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), a}
+			right := literalExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), c}
 			for _, not := range []bool{false, true} {
 				node := distinctExpression{boolInfo, left, right, equality, not}
 				got, err := node.Eval(evalContext)
@@ -69,9 +70,9 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	if err != nil || strict.Type() != boolType || !strict.IsNull() {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}
-	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: 0}
-	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), 1}
-	nodes := []BoundExpr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
+	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), scope: 1, frame: 1, slot: 0}
+	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), 1}
+	nodes := []expr.Expr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
 	invalid := []*EvalContext{nil, {Context: evalContext.Context, Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}, {Context: evalContext.Context, Scope: 1, Frame: 1, Row: []sqltype.Value{{}}, Parameters: []sqltype.Value{integer}}, {Context: evalContext.Context, Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}, Parameters: []sqltype.Value{integer}}}
 	for _, node := range nodes {
 		for _, frame := range invalid {
@@ -126,10 +127,10 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "v", Usage: b.typ(sqltype.Int4).Usage()}}, index: map[string]int{"v": 0}, attributes: []int32{1}}
 		s := statement(t, tc.q).(*parser.Select)
-		targets := []BoundExpr{}
+		targets := []expr.Expr{}
 		var err error
 		for _, raw := range s.Targets {
-			var node BoundExpr
+			var node expr.Expr
 			node, err = b.bind(raw, expressionPolicy{context: projectionContext})
 			if err != nil {
 				break
@@ -240,7 +241,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if node.Properties() != (ExprProperties{Volatility: Immutable}) {
+		if node.Properties() != (expr.Properties{Volatility: expr.Immutable}) {
 			t.Fatal("constant dependency", node.Properties())
 		}
 	}
@@ -250,7 +251,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if node.Properties().RowDependent || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable {
+	if node.Properties().RowDependent || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node.Properties())
 	}
 	boolType := b.typ(sqltype.Bool)
@@ -328,9 +329,9 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		if b.parameters.Count != 0 {
 			t.Fatal(b.parameters)
 		}
-		for _, node := range []BoundExpr{project.expressions[0], filter.predicate} {
+		for _, node := range []expr.Expr{project.expressions[0], filter.predicate} {
 			p := node.Properties()
-			if !p.RowDependent || p.ParameterDependent || p.StageDependent || p.Volatility != Immutable || node.ResultUsage() != boolean.Usage() {
+			if !p.RowDependent || p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || node.ResultUsage() != boolean.Usage() {
 				t.Fatal(tc.expr, p, node.ResultUsage())
 			}
 			for i, row := range rows {
@@ -362,7 +363,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	}
 	filter := b.query.Root.(*projectNode).child.(*sortNode).child.(*filterNode)
 	p := filter.predicate.Properties()
-	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != Immutable || filter.predicate.ResultUsage() != boolean.Usage() {
+	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || filter.predicate.ResultUsage() != boolean.Usage() {
 		t.Fatal(p, filter.predicate.ResultUsage())
 	}
 	column := ref

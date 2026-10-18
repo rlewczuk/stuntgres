@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -37,13 +38,13 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != expr.Immutable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.kind != functionRoutine || declaration.result != 1700 || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || !declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers&seriesRoutineProvider == 0 {
+			if declaration.kind != functionRoutine || declaration.result != 1700 || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || !declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers&seriesRoutineProvider == 0 {
 				t.Fatal("independent released declaration flags", declaration)
 			}
-			if carrier.ResultUsage().Type.ID() != sqltype.Numeric || carrier.ResultUsage() != carrier.ResultUsage().Type.Usage() || carrier.Properties().Volatility != Immutable {
+			if carrier.ResultUsage().Type.ID() != sqltype.Numeric || carrier.ResultUsage() != carrier.ResultUsage().Type.Usage() || carrier.Properties().Volatility != expr.Immutable {
 				t.Fatal("unconstrained immutable NUMERIC result", carrier)
 			}
 			owned, ok := evaluation.catalog.Procedure(address)
@@ -66,7 +67,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("selected declaration absent from original manifest")
 			}
 			before := carrier
-			before.args = append([]BoundExpr(nil), carrier.args...)
+			before.args = append([]expr.Expr(nil), carrier.args...)
 			// false is the real source/project admission mode. Scalar planning
 			// intentionally skips SRFs and cannot prove any negative below.
 			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {

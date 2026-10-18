@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -32,7 +33,7 @@ func TestJSONBExistsBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			node, ok := bound.(functions.Binary)
-			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != Immutable || b.parameters[1].Type.ID() != sqltype.JSONB {
+			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable || b.parameters[1].Type.ID() != sqltype.JSONB {
 				t.Fatal(bound, b.parameters)
 			}
 			right := sqltype.Text
@@ -71,11 +72,11 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		args := []BoundExpr{
-			literalExpression{Info: expressionInfo{Usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
-			literalExpression{Info: expressionInfo{Usage: right.Usage()}, value: key},
+		args := []expr.Expr{
+			literalExpression{Info: expr.Info{Usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
+			literalExpression{Info: expr.Info{Usage: right.Usage()}, value: key},
 		}
-		expr, err := functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, ExprProperties{}), name, args, parser.OrdinaryFunctionSyntax)
+		expr, err := functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{}), name, args, parser.OrdinaryFunctionSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}

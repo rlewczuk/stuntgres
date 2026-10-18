@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -104,7 +105,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.name}}}, Args: args})
 	if err == nil {
-		selected := boundExpressionInfo(node).RoutineReference
+		selected := expr.InfoOf(node).RoutineReference
 		if selected == nil || selected.RoutineOID() != oid {
 			err = sqlError("0A000", fmt.Sprintf("function \"%s\" is not executable via fastpath interface", d.name))
 		}

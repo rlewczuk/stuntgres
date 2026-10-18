@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -47,7 +48,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 // Called during serial planning admission, never by per-row Eval. Retset calls
 // have their separate source/project demand point: a pruned FROM source must not
 // acquire EXECUTE merely because its arguments were inspected during planning.
-func admitRoutineCall(c *EvalContext, node BoundExpr, scalarPlanning, constantComputation bool) error {
+func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantComputation bool) error {
 	recipe, recipeErr := expressionRecipeDescriptor(node)
 	if recipeErr != nil {
 		return recipeErr
@@ -97,7 +98,7 @@ func admitRoutineCall(c *EvalContext, node BoundExpr, scalarPlanning, constantCo
 	}
 	if strictScalarRoutine(captured) {
 		null := false
-		strictRoutineArguments(node, func(child BoundExpr) {
+		strictRoutineArguments(node, func(child expr.Expr) {
 			if child != nil && randomLiteralNull(child) {
 				null = true
 			}
@@ -234,9 +235,9 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 // Child folds have already discarded non-invocations and cleared their carrier;
 // still-live callable children must be admitted before an enclosing Eval can
 // invoke them. No permission lookup is added to row evaluation.
-func evaluatePlanningExpression(c *EvalContext, node BoundExpr) (sqltype.Value, error) {
+func evaluatePlanningExpression(c *EvalContext, node expr.Expr) (sqltype.Value, error) {
 	var failure error
-	walkBoundExpression(node, func(call BoundExpr) {
+	walkBoundExpression(node, func(call expr.Expr) {
 		if failure == nil {
 			failure = admitRoutineCall(c, call, true, true)
 		}
@@ -249,7 +250,7 @@ func evaluatePlanningExpression(c *EvalContext, node BoundExpr) (sqltype.Value, 
 
 // Query equality is caller-checked; index/hash support and native semantic-tree
 // grouping are deliberately not callable PostgreSQL routines.
-func admitQueryGroupings(c *EvalContext, groups []queryGrouping, keys []BoundExpr) error {
+func admitQueryGroupings(c *EvalContext, groups []queryGrouping, keys []expr.Expr) error {
 	if len(groups) != len(keys) {
 		return fmt.Errorf("stuntgres: missing query grouping identity")
 	}

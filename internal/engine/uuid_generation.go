@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 )
 
@@ -36,7 +37,7 @@ func (c *EvalContext) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.R
 // Only selected UUID leaves may introduce volatility into a closed DEFAULT.
 // Shift arguments themselves must be closed Immutable/Stable trees. This does
 // not extend the separate fixed-nextval allowance or admit random()/setseed().
-func closedUUIDDefault(node BoundExpr) bool {
+func closedUUIDDefault(node expr.Expr) bool {
 	if node == nil {
 		return true
 	}
@@ -49,22 +50,22 @@ func closedUUIDDefault(node BoundExpr) bool {
 		return n.validShape()
 	case functions.UUIDGeneration:
 		for _, arg := range n.Args {
-			if arg.Properties().Volatility > Stable || !closedUUIDDefault(arg) {
+			if arg.Properties().Volatility > expr.Stable || !closedUUIDDefault(arg) {
 				return false
 			}
 		}
 		return true
 	case rowExpression, fieldExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case functions.DatetimeTrunc, functions.DatetimeBin:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case functions.Posix, functions.PosixSubstring, functions.Similar, functions.SimilarEscape, functions.SimilarSubstring, functions.Regexp:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case functions.UUIDExtract:
 		return closedUUIDDefault(n.Arg)
@@ -77,29 +78,29 @@ func closedUUIDDefault(node BoundExpr) bool {
 		return true
 	case functions.ArrayRandom:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case functions.ArrayTransform, functions.RangeOperator, functions.RangeInspect, functions.Enum, functions.ArraySearch, functions.ArrayInspect:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case scalarArrayComparisonExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case sqlJSONExpression, jsonPredicateExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case functions.JSONBPathExists, functions.JSONBPathMatch, functions.JSONBPathQueryFirst, functions.JSONBPathQueryArray, functions.JSONBSet, functions.JSONStripNulls, functions.JSONExtract:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary, functions.DatetimeJustify, functions.DatetimeAgeFinite, functions.DatetimeZoneCalendar, functions.DatetimeMake, functions.DatetimeFormatting, functions.NumericFormatting, functions.String, functions.Timezone, functions.Math, functions.NullCount, functions.Format, functions.StringVariadic, functions.JSONCreate, caseExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	default:
-		return p.Volatility <= Stable
+		return p.Volatility <= expr.Stable
 	}
 }

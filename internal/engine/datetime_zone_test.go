@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -55,11 +56,11 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		if err != nil {
 			t.Fatal(signature, err)
 		}
-		want := Immutable
+		want := expr.Immutable
 		if signature.name != "timezone" && signature.count == 2 || signature.name == "timezone" && (signature.count == 1 || signature.args[0] == sqltype.Text && signature.args[1] == sqltype.Timetz) {
-			want = Stable
+			want = expr.Stable
 		}
-		if node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || plannedVolatility(node) != want || generationImmutable(node) != (want == Immutable) {
+		if node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || plannedVolatility(node) != want || generationImmutable(node) != (want == expr.Immutable) {
 			t.Fatal(signature, node.Properties())
 		}
 		if !b.sameGroupExpression(node, node) {
@@ -78,7 +79,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 			t.Fatal("remapped provider", signature, value, err)
 		}
 		seen := 0
-		boundExpressionChildren(rebound, func(BoundExpr) { seen++ })
+		boundExpressionChildren(rebound, func(expr.Expr) { seen++ })
 		if seen != signature.count {
 			t.Fatal("closed children", signature, seen)
 		}
@@ -125,7 +126,7 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := node.(functions.DatetimeZoneCalendar)
-	expression.Args[0] = literalExpression{boundExpressionInfo(expression.Args[0]), sqltype.Null(expression.Args[0].ResultUsage().Type)}
+	expression.Args[0] = literalExpression{expr.InfoOf(expression.Args[0]), sqltype.Null(expression.Args[0].ResultUsage().Type)}
 	ctx := &EvalContext{Context: context.Background()}
 	simplified, changed, err := preflightCoercions(ctx, expression)
 	if err != nil || !changed {

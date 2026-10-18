@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -110,8 +111,8 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			grafted, err = rewriteQueryExpressions(grafted, func(bound BoundExpr) (BoundExpr, bool, error) {
-				return rewriteViewExpression(e.CatalogRead(), bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+			grafted, err = rewriteQueryExpressions(grafted, func(bound expr.Expr) (expr.Expr, bool, error) {
+				return rewriteViewExpression(e.CatalogRead(), bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if occurrence, ok := expr.(*windowExpression); ok && occurrence.frame == project.frame {
 						copy := *occurrence
 						copy.slot = slots[occurrence.slot]

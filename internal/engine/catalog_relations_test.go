@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func catalogRelationsUnitBind(t *testing.T, e *Engine, name string, args ...parser.Expr) BoundExpr {
+func catalogRelationsUnitBind(t *testing.T, e *Engine, name string, args ...parser.Expr) expr.Expr {
 	t.Helper()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.aggregateClause = "SELECT"
@@ -31,14 +32,14 @@ func TestCatalogRelationsBinding(t *testing.T) {
 		t.Fatal("invalid bound signature")
 	}
 	for _, sample := range []struct {
-		node BoundExpr
+		node expr.Expr
 		oid  uint32
 	}{{scalar, 1642}, {set, 6159}} {
-		reference := boundExpressionInfo(sample.node).RoutineReference
+		reference := expr.InfoOf(sample.node).RoutineReference
 		if reference == nil || reference.RoutineOID() != sample.oid {
 			t.Fatal("wrong original declaration", reference)
 		}
-		if plannedVolatility(sample.node) != Stable || generationImmutable(sample.node) || conditionalConstantInputs(sample.node) {
+		if plannedVolatility(sample.node) != expr.Stable || generationImmutable(sample.node) || conditionalConstantInputs(sample.node) {
 			t.Fatal("catalog inquiry lost STABLE symbolic semantics")
 		}
 	}
@@ -51,7 +52,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 	}
 	for _, declaration := range builtinRoutineDeclarations {
 		if declaration.identity.id == 1642 || declaration.identity.id == 6159 {
-			if !declaration.strict || declaration.volatility != Stable || declaration.parallel != 's' || declaration.returnsSet != (declaration.identity.id == 6159) {
+			if !declaration.strict || declaration.volatility != expr.Stable || declaration.parallel != 's' || declaration.returnsSet != (declaration.identity.id == 6159) {
 				t.Fatal("release declaration flags", declaration)
 			}
 		}
@@ -68,12 +69,12 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	scalar := catalogRelationsUnitBind(t, e, "pg_get_userbyid", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}})
 	set := catalogRelationsUnitBind(t, e, "pg_get_catalog_foreign_keys")
 	for _, sample := range []struct {
-		node     BoundExpr
+		node     expr.Expr
 		name     string
 		children int
 	}{{scalar, "pg_get_userbyid", 1}, {set, "pg_get_catalog_foreign_keys", 0}} {
 		count := 0
-		boundExpressionChildren(sample.node, func(BoundExpr) { count++ })
+		boundExpressionChildren(sample.node, func(expr.Expr) { count++ })
 		if count != sample.children {
 			t.Fatal("typed child traversal", sample.name, count)
 		}
@@ -98,7 +99,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	// Target-list record expansion must identify the same selected occurrence
 	// while constructing both the call slots and their execution schedule.
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	requests := []BoundExpr{set}
+	requests := []expr.Expr{set}
 	root, err := binder.lowerQuerySets(&singletonNode{}, requests, nil, false)
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +178,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := catalogUserNameExpression{Info: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{Info: expressionInfo{Usage: oidType.Usage()}, value: input}}
+		node := catalogUserNameExpression{Info: expr.Info{Usage: nameType.Usage()}, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 		value, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 		if err != nil {
 			t.Fatal(err)
@@ -215,7 +216,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	saved := current.commentRoles
 	current.commentRoles = foreign.roles.root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
-	node := catalogUserNameExpression{Info: expressionInfo{Usage: nameType.Usage()}, arg: literalExpression{Info: expressionInfo{Usage: oidType.Usage()}, value: input}}
+	node := catalogUserNameExpression{Info: expr.Info{Usage: nameType.Usage()}, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}

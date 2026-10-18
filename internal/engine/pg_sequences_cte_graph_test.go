@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -38,7 +39,7 @@ func TestPGSequencesCTEStoredGraph(t *testing.T) {
 	}
 	// The query graph walk also reaches a previously bound CTE or an unused
 	// nested definition, whose stored source is not a newly bound query leaf.
-	root := &projectNode{child: &singletonNode{}, analysisExpressions: []BoundExpr{
+	root := &projectNode{child: &singletonNode{}, analysisExpressions: []expr.Expr{
 		subqueryExpression{queryPlan: &BoundQuery{Root: &sourceNode{ref: catalogRef(t, e, catalog, "nested")}}, cteDefinition: true},
 	}}
 	if volatile, err := cteStoredViewVolatile(catalog, root); err != nil || !volatile {

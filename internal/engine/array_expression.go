@@ -15,11 +15,11 @@ import (
 // replacing the expression with opaque array input text.
 type arrayExpression struct {
 	expr.Info
-	elements         []BoundExpr
+	elements         []expr.Expr
 	multidimensional bool
 }
 
-func (n arrayExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n arrayExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -39,7 +39,7 @@ func (n arrayExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 // target is supplied only by explicit array casts, never ordinary assignment.
-func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage) (BoundExpr, error) {
+func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Expr, error) {
 	operands := make([]comparisonOperand, len(raw.Elements))
 	var selected sqltype.Usage
 	explicit := target.Type != nil && target.Type.BaseType().IsArray()
@@ -69,7 +69,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 		}
 	}
 	if len(operands) == 0 && !explicit {
-		err := expressionError("42P18", "cannot determine type of empty array", raw.Pos).(*sqlstate.Error)
+		err := expr.ErrorAt("42P18", "cannot determine type of empty array", raw.Pos).(*sqlstate.Error)
 		err.Hint = "Explicitly cast to the desired type, for example ARRAY[]::integer[]."
 		return nil, err
 	}
@@ -81,13 +81,13 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 		}
 		if multidimensional {
 			if !selected.Type.IsArray() {
-				return nil, expressionError("42804", "ARRAY types cannot be matched", raw.Pos)
+				return nil, expr.ErrorAt("42804", "ARRAY types cannot be matched", raw.Pos)
 			}
 			target = selected
 		} else {
 			array, ok := b.definitionArray(selected.Type)
 			if !ok || !array.Concrete() {
-				return nil, expressionError("0A000", "unsupported array element type", raw.Pos)
+				return nil, expr.ErrorAt("0A000", "unsupported array element type", raw.Pos)
 			}
 			target = selected
 			target.Type = array
@@ -97,16 +97,16 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	if multidimensional {
 		childUsage = target
 	}
-	elements := make([]BoundExpr, len(operands))
-	properties := ExprProperties{}
+	elements := make([]expr.Expr, len(operands))
+	properties := expr.Properties{}
 	for i, o := range operands {
-		var node BoundExpr
+		var node expr.Expr
 		var err error
 		if explicit {
 			node, err = b.finalizeOperand(o, childUsage.Type)
 			if err == nil && node.ResultUsage() != childUsage {
 				input, annotations := domainCoercionInput(node, childUsage)
-				var info expressionInfo
+				var info expr.Info
 				info, err = b.coercionInfo(b.info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
 					var plan sqltype.CoercionPlan
@@ -124,7 +124,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 			return nil, err
 		}
 		elements[i] = node
-		properties = mergeExpressionProperties(properties, node.Properties())
+		properties = expr.MergeProperties(properties, node.Properties())
 	}
 	info, err := b.collatedInfo(b.info(target, raw.Pos, properties), elements...)
 	if err != nil {
@@ -154,17 +154,17 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view CatalogRead, n arrayE
 }
 
 type boundArraySubscript struct {
-	lower, upper BoundExpr
+	lower, upper expr.Expr
 	slice        bool
 }
 type subscriptExpression struct {
 	expr.Info
-	base       BoundExpr
+	base       expr.Expr
 	subscripts []boundArraySubscript
 	slice      bool
 }
 
-func (n subscriptExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n subscriptExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -232,7 +232,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 		subs = make([]boundArraySubscript, len(raw))
 	}
 	slice := false
-	bind := func(raw parser.Expr) (BoundExpr, error) {
+	bind := func(raw parser.Expr) (expr.Expr, error) {
 		if raw == nil {
 			return nil, nil
 		}
@@ -249,7 +249,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 		}
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Assignment)
 		if err != nil {
-			return nil, expressionError("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
+			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
 		}
 		return coercionExpression{b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Assignment, false}, nil
 	}
@@ -268,19 +268,19 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 		slice = slice || s.Slice
 	}
 	if len(raw) > 6 {
-		return nil, false, expressionError("54000", fmt.Sprintf("number of array dimensions (%d) exceeds the maximum allowed (6)", len(raw)), parser.Position{})
+		return nil, false, expr.ErrorAt("54000", fmt.Sprintf("number of array dimensions (%d) exceeds the maximum allowed (6)", len(raw)), parser.Position{})
 	}
 	return subs, slice, nil
 }
 
-func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
 	base, err := b.bind(raw.Base, expressionPolicy{context: projectionContext})
 	if err != nil {
 		return nil, err
 	}
 	usage := base.ResultUsage().BaseUsage()
 	if !usage.Type.IsArray() {
-		return nil, expressionError("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", usage.Type.DiagnosticName()), parser.ExpressionStart(raw.Base))
+		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", usage.Type.DiagnosticName()), parser.ExpressionStart(raw.Base))
 	}
 	subs, slice, err := b.bindArrayBounds(raw.Subscripts)
 	if err != nil {
@@ -288,9 +288,9 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (BoundExpr, e
 	}
 	properties := base.Properties()
 	for _, s := range subs {
-		for _, child := range [2]BoundExpr{s.lower, s.upper} {
+		for _, child := range [2]expr.Expr{s.lower, s.upper} {
 			if child != nil {
-				properties = mergeExpressionProperties(properties, child.Properties())
+				properties = expr.MergeProperties(properties, child.Properties())
 			}
 		}
 	}
@@ -334,7 +334,7 @@ func (r scalarRenderer) subscriptSQL(ctx context.Context, view CatalogRead, n su
 	return text, nil
 }
 
-func subscriptChildren(n subscriptExpression, storage *[13]BoundExpr) []BoundExpr {
+func subscriptChildren(n subscriptExpression, storage *[13]expr.Expr) []expr.Expr {
 	count := 0
 	if n.base != nil {
 		storage[count] = n.base
@@ -354,7 +354,7 @@ func subscriptChildren(n subscriptExpression, storage *[13]BoundExpr) []BoundExp
 }
 
 // Only actual changed child lists are copied; shared plans remain immutable.
-func mapSubscript(n subscriptExpression, rewrite func(BoundExpr) (BoundExpr, bool, error)) (subscriptExpression, bool, error) {
+func mapSubscript(n subscriptExpression, rewrite func(expr.Expr) (expr.Expr, bool, error)) (subscriptExpression, bool, error) {
 	base, changed, err := rewrite(n.base)
 	if err != nil {
 		return n, false, err

@@ -40,7 +40,7 @@ func (k transactionIdentityKind) name() string {
 type transactionIdentityExpression struct {
 	expr.Info
 	kind transactionIdentityKind
-	arg  BoundExpr
+	arg  expr.Expr
 }
 
 func (n transactionIdentityExpression) validate() error {
@@ -76,25 +76,25 @@ func (n transactionIdentityExpression) validate() error {
 	}
 	return nil
 }
-func (b *expressionBinder) identityExpression(raw parser.FunctionExpr, kind transactionIdentityKind, arg BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) identityExpression(raw parser.FunctionExpr, kind transactionIdentityKind, arg expr.Expr) (expr.Expr, error) {
 	usage := b.typ(sqltype.Int4).Usage()
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	if arg != nil {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	switch kind {
 	case identityCurrent, identityAssigned:
 		usage = b.typ(sqltype.Xid8).Usage()
 	case identityStatus:
 		usage = b.typ(sqltype.Text).Usage()
-		properties.Volatility = Volatile
+		properties.Volatility = expr.Volatile
 	case identityMembers:
 		shape, err := sqltype.RecordShape([]sqltype.CompositeMember{{Attribute: 1, Name: "xid", Usage: b.typ(sqltype.Xid).Usage()}, {Attribute: 2, Name: "mode", Usage: b.typ(sqltype.Text).Usage()}})
 		if err != nil {
 			return nil, err
 		}
 		usage = shape.Usage()
-		properties.Volatility = Volatile
+		properties.Volatility = expr.Volatile
 	}
 	formal := [1]sqltype.ID{sqltype.Xid}
 	count := 1
@@ -114,7 +114,7 @@ func (b *expressionBinder) identityExpression(raw parser.FunctionExpr, kind tran
 	}
 	return transactionIdentityExpression{info, kind, arg}, nil
 }
-func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := identityMultiAge
 	for candidate := identityMultiAge; candidate <= identityMembers; candidate++ {
@@ -168,9 +168,9 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 		return nil, err
 	}
 	if raw.Star {
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
-	var arg BoundExpr
+	var arg expr.Expr
 	if count == 1 {
 		arg, err = b.CoerceArgument(operand, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.typ(formal).Usage(), Label: name})
 		if err != nil {
@@ -179,7 +179,7 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 	}
 	return b.identityExpression(raw, kind, arg)
 }
-func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n transactionIdentityExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

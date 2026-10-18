@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -78,10 +79,10 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			failure := errors.New("VALUES cell failure")
-			cells := make([][]BoundExpr, 3)
+			cells := make([][]expr.Expr, 3)
 			for i := range cells {
 				index := i
-				cells[i] = []BoundExpr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				cells[i] = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls[index]++
 					if index == 1 && mode == "cancel" {
 						cancel()
@@ -98,14 +99,14 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 			join := &joinNode{querySchema: schema, left: project.child, right: values, leftWidth: width, rightWidth: 1}
 			project.child = join
 			project.querySchema = querySchema{{Name: "n", Usage: usage}}
-			project.expressions = []BoundExpr{columnExpression{Info: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: width}}
+			project.expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: width}}
 			if mode == "limit0" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 				zero, err := sqltype.Integer(typ, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
-				project.child = &limitNode{querySchema: schema, child: join, count: literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: zero}}
+				project.child = &limitNode{querySchema: schema, child: join, count: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: zero}}
 			}
 			rows, count, err := finalizeQuery(ctx, project, source, nil)
 			if mode == "cancel" || mode == "error" {
@@ -138,7 +139,7 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	usage := typ.Usage()
 	calls := 0
-	values := &valuesNode{querySchema: querySchema{{Name: "column1", Usage: usage}}, rows: [][]BoundExpr{{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
+	values := &valuesNode{querySchema: querySchema{{Name: "column1", Usage: usage}}, rows: [][]expr.Expr{{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
 	physical := &sourceNode{querySchema: querySchema{{Name: "n", Usage: usage}}, occurrence: 0}
 	join := &joinNode{querySchema: append(append(querySchema(nil), physical.Schema()...), values.Schema()...), left: physical, right: values, leftWidth: 1, rightWidth: 1}
 	integer := func(n int64) sqltype.Value {

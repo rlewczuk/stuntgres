@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/expr"
 )
 
 // The shared extraction program owns keys, not an ordering. No comparator is
@@ -25,7 +27,7 @@ func bindLogicalExclusionKeys(parent *relationDescriptor, d *indexDefinition) (i
 				return o, fmt.Errorf("stuntgres: missing logical GiST expression")
 			}
 			if o.derived == nil {
-				o.derived = make([]BoundExpr, len(d.keys))
+				o.derived = make([]expr.Expr, len(d.keys))
 			}
 			o.slots[i], o.derived[i] = -1, key.derived.execution
 		} else {

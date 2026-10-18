@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +45,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			if typesOnly {
 				changed := false
 				for _, check := range domain.domainChecks {
-					walkQueryArgumentExpression(check.expression, func(node BoundExpr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
+					walkQueryArgumentExpression(check.expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
 				}
 				if !changed {
 					continue

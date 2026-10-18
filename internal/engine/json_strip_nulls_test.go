@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -10,7 +11,7 @@ import (
 	"testing"
 )
 
-func jsonStripUnitBind(t *testing.T, b *expressionBinder, q string) BoundExpr {
+func jsonStripUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -30,7 +31,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 			t.Fatal("formal inference", i)
 		}
 	}
-	if !node.Properties().ParameterDependent || node.Properties().Volatility != Stable || plannedIntrinsicVolatility(node) != Stable {
+	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Stable || plannedIntrinsicVolatility(node) != expr.Stable {
 		t.Fatal(node.Properties())
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
@@ -41,13 +42,13 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		q          string
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{`SELECT json_strip_nulls('{}')`, Stable}, {`SELECT json_strip_nulls(NULL,NULL)`, Stable},
+		{`SELECT json_strip_nulls('{}')`, expr.Stable}, {`SELECT json_strip_nulls(NULL,NULL)`, expr.Stable},
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		n := jsonStripUnitBind(t, binder, tc.q)
-		if n.Properties().Volatility != tc.volatility || plannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != Stable {
+		if n.Properties().Volatility != tc.volatility || plannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Stable {
 			t.Fatal(tc.q, n.Properties(), plannedVolatility(n))
 		}
 	}
@@ -60,7 +61,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if volatile.Properties().Volatility != Volatile || plannedVolatility(volatile) != Volatile || plannedIntrinsicVolatility(volatile) != Stable || generationImmutable(volatile) {
+	if volatile.Properties().Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Stable || generationImmutable(volatile) {
 		t.Fatal("volatile Boolean child lost", volatile.Properties(), plannedVolatility(volatile))
 	}
 }
@@ -82,7 +83,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 			t.Fatal("retag lost authority", i)
 		}
 	}
-	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || plannedVolatility(n) != Stable {
+	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || plannedVolatility(n) != expr.Stable {
 		t.Fatal("retag lost presentation/volatility")
 	}
 	got, err := n.Eval(&EvalContext{Context: ctx})
@@ -94,16 +95,16 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(e, mapped) || plannedVolatility(mapped) != Stable {
+	if err != nil || !sameGroupExpression(e, mapped) || plannedVolatility(mapped) != expr.Stable {
 		t.Fatal(mapped, err)
 	}
 	different := e
-	different.Args[1] = literalExpression{b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), sqltype.Boolean(b.typ(sqltype.Bool), false)}
+	different.Args[1] = literalExpression{b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), sqltype.Boolean(b.typ(sqltype.Bool), false)}
 	if sameGroupExpression(e, different) {
 		t.Fatal("group identity ignored Boolean formal")
 	}
-	var children []BoundExpr
-	boundExpressionChildren(e, func(child BoundExpr) { children = append(children, child) })
+	var children []expr.Expr
+	boundExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
 	if len(children) != 2 || !sameGroupExpression(children[0], e.Args[0]) || !sameGroupExpression(children[1], e.Args[1]) {
 		t.Fatal("formal traversal", children)
 	}

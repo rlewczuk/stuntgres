@@ -9,7 +9,7 @@ import (
 // simplifyCompositeNode simplifies a protocol node's children in order and
 // applies its strict-NULL and fold hooks. done reports that the result skips
 // the shared constant fold.
-func simplifyCompositeNode(c *EvalContext, node expr.Composite, decisiveDefaults bool) (result BoundExpr, changed, done bool, err error) {
+func simplifyCompositeNode(c *EvalContext, node expr.Composite, decisiveDefaults bool) (result expr.Expr, changed, done bool, err error) {
 	strict := expr.StrictNone
 	if hook, ok := node.(expr.StrictFolding); ok {
 		strict = hook.StrictNull()
@@ -17,7 +17,7 @@ func simplifyCompositeNode(c *EvalContext, node expr.Composite, decisiveDefaults
 	if strict == expr.StrictBefore && anyRandomLiteralNull(node.Children()) {
 		return strictNullLiteral(node, strict), true, true, nil
 	}
-	next, changed, err := expr.Map(node, func(child BoundExpr) (BoundExpr, bool, error) {
+	next, changed, err := expr.Map(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		return simplifyConditional(c, child, decisiveDefaults)
 	})
 	if err != nil {
@@ -41,14 +41,14 @@ func simplifyCompositeNode(c *EvalContext, node expr.Composite, decisiveDefaults
 	return next, changed, false, nil
 }
 
-func planningFold(node BoundExpr) expr.Fold {
+func planningFold(node expr.Expr) expr.Fold {
 	if hook, ok := node.(expr.Folding); ok {
 		return hook.PlanningFold()
 	}
 	return expr.FoldConstant
 }
 
-func anyRandomLiteralNull(children []BoundExpr) bool {
+func anyRandomLiteralNull(children []expr.Expr) bool {
 	for _, child := range children {
 		if randomLiteralNull(child) {
 			return true
@@ -57,10 +57,10 @@ func anyRandomLiteralNull(children []BoundExpr) bool {
 	return false
 }
 
-func strictNullLiteral(node BoundExpr, strict expr.Strict) BoundExpr {
+func strictNullLiteral(node expr.Expr, strict expr.Strict) expr.Expr {
 	usage := node.ResultUsage()
 	if strict == expr.StrictAfterBare {
-		return literalExpression{Info: expressionInfo{Usage: usage, Pos: node.SourcePosition()}, value: sqltype.Null(usage.Type)}
+		return literalExpression{Info: expr.Info{Usage: usage, Pos: node.SourcePosition()}, value: sqltype.Null(usage.Type)}
 	}
 	return literalExpression{foldedExpressionInfo(node), sqltype.Null(usage.Type)}
 }

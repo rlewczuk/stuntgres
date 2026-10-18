@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -121,7 +122,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	for _, query := range []string{"SELECT pg_get_acl($1,$2,$3)", "SELECT pg_get_acl(objsubid => $1,classid => $2,objid => $3)", "SELECT pg_get_acl(NULL,NULL,NULL)"} {
 		q := domainUnitBindSelect(t, e, op, query)
 		n, ok := q.Root.(*projectNode).expressions[0].(objectACLExpression)
-		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != Stable || n.validateStored() != nil {
+		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != expr.Stable || n.validateStored() != nil {
 			t.Fatal("typed STABLE recipe", n)
 		}
 		for i, arg := range n.args {
@@ -130,7 +131,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			}
 		}
 		children := 0
-		boundExpressionChildren(n, func(BoundExpr) { children++ })
+		boundExpressionChildren(n, func(expr.Expr) { children++ })
 		if children != 3 {
 			t.Fatal("lexical children", children)
 		}
@@ -140,7 +141,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("accepted duplicate formal slot")
 		}
 		bad = n
-		bad.Property.Volatility = Immutable
+		bad.Property.Volatility = expr.Immutable
 		if bad.validateStored() == nil {
 			t.Fatal("accepted immutable inquiry")
 		}
@@ -156,9 +157,9 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	oid, _ := view.LookupType(sqltype.Oid)
 	integer, _ := view.LookupType(sqltype.Int4)
-	n := objectACLExpression{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, slots: [3]uint8{0, 1, 2}}
+	n := objectACLExpression{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, slots: [3]uint8{0, 1, 2}}
 	for i, typ := range []*sqltype.Descriptor{oid, oid, integer} {
-		n.args[i] = literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}
+		n.args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}
 	}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -181,7 +182,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	if err != nil || remapped.(objectACLExpression).validateStored() != nil {
 		t.Fatal("stored remap", err)
 	}
-	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 		if literal, ok := child.(literalExpression); ok && literal.value.Type().ID() == sqltype.Oid {
 			literal.value, _ = sqltype.OIDValue(oid, 42)
 			return literal, true, nil
@@ -193,8 +194,8 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	}
 	// Named recipes must render their NULL children in written order.
 	n.slots, n.labels = [3]uint8{2, 0, 1}, [3]string{"objsubid", "classid", "objid"}
-	n.args = [3]BoundExpr{n.args[2], n.args[0], n.args[1]}
-	text, err := n.sql("pg_catalog.pg_get_acl", func(arg BoundExpr) (string, error) {
+	n.args = [3]expr.Expr{n.args[2], n.args[0], n.args[1]}
+	text, err := n.sql("pg_catalog.pg_get_acl", func(arg expr.Expr) (string, error) {
 		if !arg.(literalExpression).value.IsNull() {
 			t.Fatal("named render changed a NULL child")
 		}

@@ -49,20 +49,20 @@ func (k aclValueKind) types() []sqltype.ID {
 type aclValueExpression struct {
 	expr.Info
 	kind      aclValueKind
-	args      [4]BoundExpr
+	args      [4]expr.Expr
 	named     bool
 	namespace string // Explicit operator qualification, if present.
 }
 
-func (n *aclValueExpression) arguments() []BoundExpr { return n.args[:aclValueArity[n.kind]] }
-func (n aclValueExpression) baseProperties() ExprProperties {
-	p := ExprProperties{}
+func (n *aclValueExpression) arguments() []expr.Expr { return n.args[:aclValueArity[n.kind]] }
+func (n aclValueExpression) baseProperties() expr.Properties {
+	p := expr.Properties{}
 	if n.kind == aclExplode {
-		p.Volatility = Stable
+		p.Volatility = expr.Stable
 	}
 	return p
 }
-func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := aclDefault
 	if strings.EqualFold(name, "makeaclitem") {
@@ -130,7 +130,7 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, err
 	}
 	if raw.Star {
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
 	n := aclValueExpression{kind: kind, named: named}
 	p := n.baseProperties()
@@ -140,7 +140,7 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, err
 			return nil, err
 		}
 		n.args[i] = arg
-		p = mergeExpressionProperties(p, arg.Properties())
+		p = expr.MergeProperties(p, arg.Properties())
 	}
 	result := b.typ(sqltype.ACLItemArray).Usage()
 	if kind == aclMake {
@@ -177,7 +177,7 @@ func (n aclValueExpression) values(c *EvalContext) ([4]sqltype.Value, bool, erro
 	}
 	return values, null, nil
 }
-func (n aclValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n aclValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	values, null, err := n.values(c)
 	if err != nil {
@@ -406,7 +406,7 @@ func (n aclValueExpression) validateStored() error {
 		if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != t {
 			return fmt.Errorf("stuntgres: invalid stored ACL signature")
 		}
-		p = mergeExpressionProperties(p, arg.Properties())
+		p = expr.MergeProperties(p, arg.Properties())
 	}
 	if n.Property != p {
 		return fmt.Errorf("stuntgres: invalid stored ACL properties")
@@ -444,7 +444,7 @@ func (n aclValueExpression) validateStored() error {
 	}
 	return nil
 }
-func (n aclValueExpression) sql(render func(BoundExpr) (string, error)) (string, error) {
+func (n aclValueExpression) sql(render func(expr.Expr) (string, error)) (string, error) {
 	if err := n.validateStored(); err != nil {
 		return "", err
 	}

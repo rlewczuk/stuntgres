@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -33,10 +34,10 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	literal := func(value sqltype.Value) BoundExpr {
-		return literalExpression{Info: expressionInfo{Usage: value.Type().Usage()}, value: value}
+	literal := func(value sqltype.Value) expr.Expr {
+		return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
 	}
-	bound := functions.Enum{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
+	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := bound.Eval(&EvalContext{Context: ctx})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +85,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal("provider equality")
 	}
 	var children int
-	boundExpressionChildren(bound, func(BoundExpr) { children++ })
+	boundExpressionChildren(bound, func(expr.Expr) { children++ })
 	if children != 2 {
 		t.Fatal("lost children", children)
 	}
@@ -96,7 +97,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || !projection.Concrete() || projection.Element() != wrapped {
 		t.Fatal("domain-over-enum projection regressed", err)
 	}
-	if plannedVolatility(bound) != Stable {
+	if plannedVolatility(bound) != expr.Stable {
 		t.Fatal("intrinsic volatility")
 	}
 	for _, signature := range []struct {
@@ -114,7 +115,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 			result = array.Usage()
 		}
 		usages := make([]sqltype.Usage, signature.arity)
-		arguments := make([]BoundExpr, signature.arity)
+		arguments := make([]expr.Expr, signature.arity)
 		for i := range usages {
 			usages[i] = mood.Usage()
 			arguments[i] = literal(sqltype.Null(mood))
@@ -123,8 +124,8 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := functions.Enum{Info: expressionInfo{Usage: result}, Plan: provider, Args: arguments, EnumName: "mood"}
-		if generationImmutable(call) || plannedVolatility(call) != Stable {
+		call := functions.Enum{Info: expr.Info{Usage: result}, Plan: provider, Args: arguments, EnumName: "mood"}
+		if generationImmutable(call) || plannedVolatility(call) != expr.Stable {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
 	}
@@ -140,10 +141,10 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	}
 	var order []int
 	first, _ := sqltype.BindEnumSupport("enum_first", mood.Usage(), mood.Usage())
-	unary := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: first, Args: []BoundExpr{mathObservedArgument{Info: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
+	unary := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: first, Args: []expr.Expr{mathObservedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
 	volatile := unary
-	volatile.Args = []BoundExpr{mathObservedArgument{Info: expressionInfo{Usage: mood.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(mood), order: &order}}
-	if plannedVolatility(volatile) != Volatile {
+	volatile.Args = []expr.Expr{mathObservedArgument{Info: expr.Info{Usage: mood.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.Null(mood), order: &order}}
+	if plannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("child volatility lost")
 	}
 }

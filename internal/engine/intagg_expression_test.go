@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -130,7 +131,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	count := 0
-	n.args = []BoundExpr{queryProbe(n.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
+	n.args = []expr.Expr{queryProbe(n.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
 	first, err := openFunctionCall(c, n)
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +167,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	for _, wholeNull := range []bool{false, true} {
 		empty := intaggUnitEnum(t, e, "{}")
 		if wholeNull {
-			empty.args = []BoundExpr{literalExpression{Info: boundExpressionInfo(empty.args[0]), value: sqltype.Null(empty.args[0].ResultUsage().Type)}}
+			empty.args = []expr.Expr{literalExpression{Info: expr.InfoOf(empty.args[0]), value: sqltype.Null(empty.args[0].ResultUsage().Type)}}
 		}
 		cursor, err := openFunctionCall(c, empty)
 		if err != nil {
@@ -178,8 +179,8 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 			t.Fatal("whole NULL/empty yielded row", present, err)
 		}
 	}
-	mapped, changed, err := n.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
-		return literalExpression{Info: boundExpressionInfo(arg), value: input}, true, nil
+	mapped, changed, err := n.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
+		return literalExpression{Info: expr.InfoOf(arg), value: input}, true, nil
 	})
 	if err != nil || !changed || mapped.procedure != n.procedure || mapped.ref != n.ref {
 		t.Fatal("child rewrite lost installation", err)

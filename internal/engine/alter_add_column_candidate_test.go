@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -87,9 +88,9 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, volatility := range []Volatility{Immutable, Stable} {
+	for _, volatility := range []expr.Volatility{expr.Immutable, expr.Stable} {
 		calls := 0
-		expression := queryProbeExpression{Info: expressionInfo{Usage: u, Property: ExprProperties{Volatility: volatility}}, eval: func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil }}
+		expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: volatility}}, eval: func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil }}
 		additions := []addedColumn{{attribute: 4, expression: expression, value: sqltype.Null(u.Type)}}
 		fills, volatile, err := planAddedColumns(scope, additions)
 		if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].value != value {
@@ -118,7 +119,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	next.index = map[string]int{"a": 0, "b": 1}
 	next.attributeHighWater = 4
 	calls := 0
-	expression := queryProbeExpression{Info: expressionInfo{Usage: u, Property: ExprProperties{Volatility: Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(u.Type, int64(calls)) }}
+	expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(u.Type, int64(calls)) }}
 	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "b"}, expression: expression, value: sqltype.Null(u.Type)}}
 	fills, volatile, err := planAddedColumns(scope, additions)
 	if err != nil || !volatile || calls != 0 || len(fills) != 0 {
@@ -137,7 +138,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	transform := queryProbeExpression{Info: expressionInfo{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
+	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		transformCalls++
 		if len(ec.Row) != 1 || ec.Row[0] != one {
 			t.Fatal("TYPE did not read original frame", ec.Row)

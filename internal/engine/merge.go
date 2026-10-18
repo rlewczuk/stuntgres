@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,7 +12,7 @@ import (
 
 type boundMerge struct {
 	source        LogicalNode
-	on            BoundExpr
+	on            expr.Expr
 	arms          []boundMergeArm
 	hasInsert     bool
 	hasDelete     bool
@@ -27,7 +28,7 @@ type boundMerge struct {
 type boundMergeArm struct {
 	match     parser.MergeMatch
 	action    parser.MergeAction
-	condition BoundExpr
+	condition expr.Expr
 	input     binding
 	syntax    []parser.Expr
 }
@@ -121,7 +122,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	switch on.ResultUsage().Type.BaseType().ID() {
 	case sqltype.Bool, sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Text:
 	default:
-		return expressionError("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
+		return expr.ErrorAt("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
 	}
 	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms)), targetWidth: len(target.frame), sourceWidth: len(source.frame)}
 	var outputParameters map[int]sqltype.Usage
@@ -192,7 +193,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			merge.hasDelete = true
 		case parser.MergeUpdateAction:
 			binder.aggregateClause = "UPDATE"
-			u := &boundUpdate{assignments: make([]BoundExpr, len(raw.Assignments))}
+			u := &boundUpdate{assignments: make([]expr.Expr, len(raw.Assignments))}
 			if err := e.bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
 				return err
 			}
@@ -325,7 +326,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 		var err error
 		properties := merge.on.Properties()
 		_, literal := merge.on.(literalExpression)
-		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent && !properties.RuntimeDomainConversion) {
+		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == expr.Immutable && !properties.RowDependent && !properties.StageDependent && !properties.RuntimeDomainConversion) {
 			// MERGE admits integer/TEXT carriers independently of Boolean JOIN
 			// predicates. Preserve that truth contract in constant capability facts
 			// without replacing the expression or its analyzed dependencies.

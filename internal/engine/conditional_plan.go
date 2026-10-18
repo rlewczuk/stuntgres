@@ -26,7 +26,7 @@ func decisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
 
 // Searched CASE has a physical-literal decision requiring no expression,
 // conversion, provider or domain evaluation. Demand and simplification share it.
-func literalSearchedCaseMatch(condition BoundExpr) (known, match bool, err error) {
+func literalSearchedCaseMatch(condition expr.Expr) (known, match bool, err error) {
 	literal, ok := condition.(literalExpression)
 	if !ok {
 		return false, false, nil
@@ -41,12 +41,12 @@ func literalSearchedCaseMatch(condition BoundExpr) (known, match bool, err error
 // This walk discovers payload reads without advancing any scalar preflight
 // frontier. Unknown branches retain conservative demand; only the canonical
 // physical literal policies exclude children.
-func walkDemandedBoundExpression(node BoundExpr, visit func(BoundExpr)) {
+func walkDemandedBoundExpression(node expr.Expr, visit func(expr.Expr)) {
 	if node == nil {
 		return
 	}
 	visit(node)
-	walk := func(child BoundExpr) { walkDemandedBoundExpression(child, visit) }
+	walk := func(child expr.Expr) { walkDemandedBoundExpression(child, visit) }
 	switch e := node.(type) {
 	case caseExpression:
 		if e.test != nil {
@@ -88,7 +88,7 @@ func walkDemandedBoundExpression(node BoundExpr, visit func(BoundExpr)) {
 // Conditional planning folds immutable SQL constants; the common post-child
 // strict-NULL rule can additionally eliminate a call using an execution-known
 // parameter. It neither substitutes parameters generally nor runs domain truth.
-func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
+func simplifyConditional(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	node, changed, err := simplifyConditionalNode(c, expression, decisiveDefaults)
 	if err != nil {
 		return nil, false, err
@@ -97,7 +97,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 	return node, changed || folded, err
 }
 
-func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
+func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	if expression == nil {
 		return nil, false, nil
 	}
@@ -118,7 +118,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		defer func() { parent.preparedDomainChecks = c.preparedDomainChecks }()
 	}
 	changed := false
-	child := func(old BoundExpr) (BoundExpr, error) {
+	child := func(old expr.Expr) (expr.Expr, error) {
 		node, did, err := simplifyConditional(c, old, decisiveDefaults)
 		changed = changed || did
 		return node, err
@@ -127,7 +127,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 	switch e := expression.(type) {
 	case rowExpression:
 		var did bool
-		e, did, err = mapRow(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}
@@ -152,7 +152,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case arrayExpression:
-		var elements []BoundExpr
+		var elements []expr.Expr
 		for i, old := range e.elements {
 			next, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -161,7 +161,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				changed = true
 				if elements == nil {
-					elements = append([]BoundExpr(nil), e.elements...)
+					elements = append([]expr.Expr(nil), e.elements...)
 				}
 				elements[i] = next
 			}
@@ -172,7 +172,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		expression = e
 	case subscriptExpression:
 		var did bool
-		e, did, err = mapSubscript(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = mapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}
@@ -258,7 +258,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		if err := e.extremaError(); err != nil {
 			return nil, false, err
 		}
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.args {
 			node, err := child(old)
 			if err != nil {
@@ -268,7 +268,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 				if literal, ok := node.(literalExpression); ok {
 					if literal.value.IsNull() {
 						if args == nil {
-							args = append([]BoundExpr{}, e.args[:i]...)
+							args = append([]expr.Expr{}, e.args[:i]...)
 						}
 						changed = true
 						continue
@@ -277,14 +277,14 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 						return plannedConditionalResult(e.Info, literal), true, nil
 					}
 					if args == nil {
-						args = append([]BoundExpr{}, e.args[:i]...)
+						args = append([]expr.Expr{}, e.args[:i]...)
 					}
 					e.args = append(args, node)
 					return e, true, nil
 				}
 			}
 			if changed && args == nil {
-				args = append([]BoundExpr{}, e.args[:i]...)
+				args = append([]expr.Expr{}, e.args[:i]...)
 			}
 			if args != nil {
 				args = append(args, node)
@@ -348,21 +348,21 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		expression = e
 	case scalarArrayComparisonExpression:
 		var replaced bool
-		e, replaced, err = mapScalarArrayChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+		e, replaced, err = mapScalarArrayChildren(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
 		})
 		changed = changed || replaced
 		expression = e
 	case seriesExpression:
-		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
 	case subscriptsExpression:
-		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
 	case unnestExpression:
-		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
 	case comparisonExpression:
@@ -395,7 +395,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case sequenceCallExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -403,7 +403,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.args...)
 				}
 				args[i] = node
 				changed = true
@@ -444,7 +444,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case advisoryExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -452,7 +452,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.args...)
 				}
 				args[i] = node
 				changed = true
@@ -486,7 +486,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case objectAddressExpression:
-		e.Property = ExprProperties{Volatility: Stable}
+		e.Property = expr.Properties{Volatility: expr.Stable}
 		for i, arg := range e.args {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -495,7 +495,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
 		// PostgreSQL eliminates strict scalar calls with a constant NULL,
 		// but leaves RECORD calls and nonconstant NULL inputs intact.
@@ -518,11 +518,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case objectACLExpression:
-		e.Property = ExprProperties{Volatility: Stable}
+		e.Property = expr.Properties{Volatility: expr.Stable}
 		for i, arg := range e.args {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -531,11 +531,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case accessInquiryExpression:
-		e.Property = ExprProperties{Volatility: Stable}
+		e.Property = expr.Properties{Volatility: expr.Stable}
 		for i, arg := range e.arguments() {
 			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
 			if failure != nil {
@@ -544,7 +544,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			if did {
 				e.args[i], changed = node, true
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case namespaceInquiryExpression:
@@ -567,10 +567,10 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.arg, changed = node, true
 		}
 		e.Property = e.arg.Properties()
-		e.Property.Volatility = Volatile
+		e.Property.Volatility = expr.Volatile
 		expression = e
 	case indexPropertyExpression:
-		e.Property = ExprProperties{Volatility: Stable}
+		e.Property = expr.Properties{Volatility: expr.Stable}
 		for i, old := range e.children() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -580,11 +580,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 				e.args[i] = node
 				changed = true
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
 		expression = e
 	case deparseExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -592,7 +592,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.args...)
 				}
 				args[i] = node
 				changed = true
@@ -603,7 +603,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case commentInquiryExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -611,7 +611,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.args...)
 				}
 				args[i] = node
 				changed = true
@@ -622,7 +622,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case installedSoundexFunctionExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -630,7 +630,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i], changed = node, true
 			}
@@ -644,7 +644,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case installedMetaphoneFunctionExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -652,7 +652,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i], changed = node, true
 			}
@@ -666,7 +666,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case installedLevenshteinFunctionExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -674,7 +674,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i], changed = node, true
 			}
@@ -690,7 +690,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 	case installedUUIDOsspFunctionExpression:
 		expression = e
 	case installedCryptoFunctionExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -698,7 +698,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
@@ -721,7 +721,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		changed = changed || did
 		expression = e
 	case sqlJSONExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range e.args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -729,7 +729,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.args...)
 				}
 				args[i], changed = node, true
 			}
@@ -765,7 +765,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		return nil, false, err
 	}
 	p := expression.Properties()
-	if _, literal := expression.(literalExpression); !literal && p.Volatility == Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
+	if _, literal := expression.(literalExpression); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
 		value, err := evaluatePlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err
@@ -778,7 +778,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 // Keep the analyzed usage, position and conservative dependence even when a
 // decisive constant eliminates runtime branches. Nonliteral selection uses the
 // existing CASE control node with no tests, not a second evaluator or a cast.
-func plannedConditionalResult(info expressionInfo, node BoundExpr) BoundExpr {
+func plannedConditionalResult(info expr.Info, node expr.Expr) expr.Expr {
 	if literal, ok := node.(literalExpression); ok {
 		literal.Info = info
 		return literal
@@ -790,11 +790,11 @@ func plannedConditionalResult(info expressionInfo, node BoundExpr) BoundExpr {
 // pruning identify ordinary immutable constants. A runtime domain barrier is
 // different: its literal physical child has not consumed CHECK truth. Neither
 // checked conversions nor enclosing barriers belong in this foldable set.
-func conditionalConstantInputs(node BoundExpr) bool {
+func conditionalConstantInputs(node expr.Expr) bool {
 	if node.Properties().RuntimeDomainConversion {
 		return false
 	}
-	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
+	literal := func(child expr.Expr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
 	case collationExpression:
 		return literal(e.child)
@@ -879,9 +879,9 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		}
 		return true
 	case installedFunctionExpression:
-		return e.procedure != nil && e.procedure.volatility == Immutable && literal(e.Arg)
+		return e.procedure != nil && e.procedure.volatility == expr.Immutable && literal(e.Arg)
 	case sqlJSONExpression:
-		if e.Property.Volatility != Immutable {
+		if e.Property.Volatility != expr.Immutable {
 			return false
 		}
 		for _, arg := range e.args {

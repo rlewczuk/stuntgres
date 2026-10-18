@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -105,7 +106,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			calls++
 			return variable.Eval(c)
 		}).(queryProbeExpression)
-		probe.Property.Volatility = Volatile
+		probe.Property.Volatility = expr.Volatile
 		original.expressions[0] = probe
 		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
 		prepared, err := preflightQuery(&evaluation, original)

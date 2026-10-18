@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -100,7 +101,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		stage.domainBases = append(stage.domainBases, parent)
 		if pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 			existing := auth.catalog.MustRelation(parent.partition.defaultChild)
-			return nil, expressionError("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.name), syntax.PartitionOf.Bound.Pos)
+			return nil, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.name), syntax.PartitionOf.Bound.Pos)
 		}
 		if !pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 			defaultRelation := auth.catalog.MustRelation(parent.partition.defaultChild)
@@ -307,7 +308,7 @@ func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error
 		if err != nil {
 			return err
 		}
-		d := expressionError("42P17", fmt.Sprintf(`empty range bound specified for partition "%s"`, p.child.name), p.bound.lower[deciding].pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42P17", fmt.Sprintf(`empty range bound specified for partition "%s"`, p.child.name), p.bound.lower[deciding].pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("Specified lower bound (%s) is greater than or equal to upper bound (%s).", lower, upper)
 		return d
 	}
@@ -430,5 +431,5 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		}
 		position = p.bound.upper[component].pos
 	}
-	return expressionError("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.name, next.relation.name), position)
+	return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.name, next.relation.name), position)
 }

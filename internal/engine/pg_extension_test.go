@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -104,7 +105,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	root := &projectNode{querySchema: querySchema(d.columns), child: &sourceNode{querySchema: querySchema(d.columns), ref: ref}}
 	for i, c := range d.columns {
-		root.expressions = append(root.expressions, columnExpression{Info: expressionInfo{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
+		root.expressions = append(root.expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
 	}
 	executable, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, d)
 	if err != nil {

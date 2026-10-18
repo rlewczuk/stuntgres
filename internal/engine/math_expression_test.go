@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 func TestMathBinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	bind := func(query string) BoundExpr {
+	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})

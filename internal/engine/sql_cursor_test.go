@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -154,7 +155,7 @@ func TestSQLCursorNoLookaheadAndFailedBatch(t *testing.T) {
 	original := cursor.root.expressions[0]
 	draws := 0
 	sentinel := errors.New("cursor projected failure")
-	cursor.root.expressions = []BoundExpr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+	cursor.root.expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		draws++
 		if draws == 3 {
 			return sqltype.Value{}, sentinel
@@ -206,7 +207,7 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			cursor := s.cursors.entries["c"]
 			// Observe the expressions actually demanded by each consumer. Set
 			// arms use their common-type expressions, not the project targets.
-			var expressions []BoundExpr
+			var expressions []expr.Expr
 			if route == "union" {
 				expressions = cursor.root.child.(*setNode).rightExpressions
 			} else {
@@ -259,7 +260,7 @@ func TestSQLCursorCancellationClearsAuthority(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	original := cursor.stage.expressions[0]
-	cursor.stage.expressions = []BoundExpr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
+	cursor.stage.expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
 	result, err := cursorUnitExecute(t, s, ctx, "FETCH 1 FROM c")
 	if !errors.Is(err, context.Canceled) || result.Rows != nil || result.Count != 0 || cursor.authority.scope != nil || cursor.source != nil || cursor.position != cursorFailed {
 		t.Fatal(result, err, cursor)

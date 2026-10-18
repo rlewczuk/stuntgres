@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -57,7 +58,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		}
 	}
 	attribute := func(relation ids.ObjectAddress, sub int32) ids.ObjectAddress { relation.SubID = sub; return relation }
-	expression := func(owner ids.ObjectAddress, expr BoundExpr, parent ids.ObjectAddress, localFlavor byte) error {
+	expression := func(owner ids.ObjectAddress, expr expr.Expr, parent ids.ObjectAddress, localFlavor byte) error {
 		refs, err := pgDependExpressionRefs(ctx, catalog, expr)
 		if err != nil {
 			return err

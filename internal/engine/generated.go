@@ -15,9 +15,9 @@ import (
 type columnGeneration struct {
 	OID        ids.OID
 	kind       generationKind
-	expression BoundExpr
+	expression expr.Expr
 	// Retain analyzed syntax for dependencies/deparse and its physical plan for writes.
-	planned         BoundExpr
+	planned         expr.Expr
 	dependencies    []ids.ObjectRef
 	catalogSnapshot bool
 }
@@ -41,7 +41,7 @@ type tableOIDExpression struct {
 	owner ids.ObjectRef
 }
 
-func (n tableOIDExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n tableOIDExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -180,13 +180,13 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 }
 
 // Walk surviving providers, not conservative properties retained on CASE wrappers.
-func generationImmutable(node BoundExpr) bool {
+func generationImmutable(node expr.Expr) bool {
 	if node == nil {
 		return true
 	}
 	one := generationImmutable
-	both := func(a, b BoundExpr) bool { return one(a) && one(b) }
-	args := func(nodes []BoundExpr) bool {
+	both := func(a, b expr.Expr) bool { return one(a) && one(b) }
+	args := func(nodes []expr.Expr) bool {
 		for _, child := range nodes {
 			if !one(child) {
 				return false
@@ -202,7 +202,7 @@ func generationImmutable(node BoundExpr) bool {
 	case arrayExpression:
 		return args(n.elements)
 	case subscriptExpression:
-		var storage [13]BoundExpr
+		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
@@ -270,24 +270,24 @@ func generationImmutable(node BoundExpr) bool {
 	case installedUUIDOsspFunctionExpression:
 		return false
 	case installedCryptoFunctionExpression:
-		return n.procedure != nil && n.procedure.volatility == Immutable && args(n.Args)
+		return n.procedure != nil && n.procedure.volatility == expr.Immutable && args(n.Args)
 	case installedFunctionExpression:
-		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.Arg})
+		return n.procedure != nil && n.procedure.volatility == expr.Immutable && args([]expr.Expr{n.Arg})
 	case sqlJSONExpression:
-		return n.Property.Volatility == Immutable && args(n.args)
+		return n.Property.Volatility == expr.Immutable && args(n.args)
 	case jsonPredicateExpression:
-		return args([]BoundExpr{n.child})
+		return args([]expr.Expr{n.child})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. A
 		// provider is admitted by its own volatility and its children.
 		if intrinsic, ok := n.(expr.Intrinsic); ok {
-			return intrinsic.IntrinsicVolatility() == Immutable && args(n.Children())
+			return intrinsic.IntrinsicVolatility() == expr.Immutable && args(n.Children())
 		}
 	}
-	return node.Properties().Volatility == Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
+	return node.Properties().Volatility == expr.Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
 }
 
-func generationRecipeExpression(definition columnGeneration) BoundExpr {
+func generationRecipeExpression(definition columnGeneration) expr.Expr {
 	if definition.expression != nil {
 		return definition.expression
 	}
@@ -299,7 +299,7 @@ func generationRecipeExpression(definition columnGeneration) BoundExpr {
 // One execution owner uses one fixed generation program for this descriptor.
 // ALTER borrows its existing selected-slot vector; ordinary writes demand all
 // stored slots. Neither path admits unused recipes or checks rights per row.
-func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []int, consumer *relationDescriptor) ([]BoundExpr, error) {
+func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []int, consumer *relationDescriptor) ([]expr.Expr, error) {
 	program, prepared := c.preparedGenerations[d]
 	if prepared {
 		return program, nil
@@ -334,7 +334,7 @@ func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []
 		}
 		if changed {
 			if program == nil {
-				program = make([]BoundExpr, len(d.columns))
+				program = make([]expr.Expr, len(d.columns))
 				for i, attribute := range d.attributes {
 					program[i] = generationRecipeExpression(d.generations[attribute])
 				}
@@ -344,7 +344,7 @@ func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []
 	}
 	if stored {
 		if c.preparedGenerations == nil {
-			c.preparedGenerations = make(map[*relationDescriptor][]BoundExpr)
+			c.preparedGenerations = make(map[*relationDescriptor][]expr.Expr)
 		}
 		c.preparedGenerations[d] = program
 	}
@@ -394,13 +394,13 @@ func (d *relationDescriptor) indexForAttribute(attribute int32) int {
 	return -1
 }
 
-func generationHasTableOID(node BoundExpr) bool {
+func generationHasTableOID(node expr.Expr) bool {
 	if node == nil {
 		return false
 	}
 	one := generationHasTableOID
-	both := func(a, b BoundExpr) bool { return one(a) || one(b) }
-	args := func(nodes []BoundExpr) bool {
+	both := func(a, b expr.Expr) bool { return one(a) || one(b) }
+	args := func(nodes []expr.Expr) bool {
 		for _, child := range nodes {
 			if one(child) {
 				return true
@@ -416,7 +416,7 @@ func generationHasTableOID(node BoundExpr) bool {
 	case arrayExpression:
 		return args(n.elements)
 	case subscriptExpression:
-		var storage [13]BoundExpr
+		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case tableOIDExpression:
 		return true
@@ -486,11 +486,11 @@ func generationHasTableOID(node BoundExpr) bool {
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
-		return args([]BoundExpr{n.Arg})
+		return args([]expr.Expr{n.Arg})
 	case sqlJSONExpression:
 		return args(n.args)
 	case jsonPredicateExpression:
-		return args([]BoundExpr{n.child})
+		return args([]expr.Expr{n.child})
 	case expr.Composite:
 		return args(n.Children())
 	default:
@@ -660,7 +660,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 
 // The analyzed tree supplies provider-signature validation. The physical tree
 // independently validates its concrete usages and row/owner identities.
-func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundExpr) error {
+func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node expr.Expr) error {
 	if node == nil {
 		return nil
 	}
@@ -674,14 +674,14 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	if err := validateUsageCollation(view, usage); err != nil {
 		return err
 	}
-	child := func(n BoundExpr) error { return validateGenerationPlan(view, d, n) }
-	pair := func(a, b BoundExpr) error {
+	child := func(n expr.Expr) error { return validateGenerationPlan(view, d, n) }
+	pair := func(a, b expr.Expr) error {
 		if err := child(a); err != nil {
 			return err
 		}
 		return child(b)
 	}
-	args := func(nodes []BoundExpr) error {
+	args := func(nodes []expr.Expr) error {
 		for _, n := range nodes {
 			if err := child(n); err != nil {
 				return err
@@ -714,7 +714,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case arrayExpression:
 		return args(n.elements)
 	case subscriptExpression:
-		var storage [13]BoundExpr
+		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case columnExpression:
 		if _, generated := d.generations[n.origin.Address.SubID]; generated || n.virtual != nil {
@@ -829,11 +829,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
-		return args([]BoundExpr{n.Arg})
+		return args([]expr.Expr{n.Arg})
 	case sqlJSONExpression:
 		return args(n.args)
 	case jsonPredicateExpression:
-		return args([]BoundExpr{n.child})
+		return args([]expr.Expr{n.child})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		stored, ok := n.(expr.StoredProvider)

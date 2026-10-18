@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -33,7 +34,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 			args[1] = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 3}}
 		}
 		raw := bitOperatorRaw(tc.name, args...)
-		var node BoundExpr
+		var node expr.Expr
 		var err error
 		if tc.name == "||" {
 			node, err = b.bindStringConcat(raw)
@@ -47,7 +48,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if tc.name == "||" {
 			id = sqltype.VarBit
 		}
-		if node.ResultUsage() != b.typ(id).Usage() || node.Properties() != (ExprProperties{}) {
+		if node.ResultUsage() != b.typ(id).Usage() || node.Properties() != (expr.Properties{}) {
 			t.Fatal(tc.name, node.ResultUsage(), node.Properties())
 		}
 		got, err := node.Eval(&EvalContext{Context: ctx})
@@ -182,7 +183,7 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 			calls = append(calls, "error")
 			return sqltype.Value{}, &sqlstate.Error{Code: "22026", Message: "cannot AND bit strings of different sizes"}
 		})
-		root := bitwiseExpression{Info: expressionInfo{Usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
+		root := bitwiseExpression{Info: expr.Info{Usage: bit.Usage()}, left: null, right: failure, bits: provider, operator: sqltype.BitwiseAnd}
 		if reverse {
 			root.left, root.right = root.right, root.left
 		}
@@ -206,7 +207,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{Info: expressionInfo{Usage: usage}, value: value}
+		source := literalExpression{Info: expr.Info{Usage: usage}, value: value}
 		operands := []functions.Argument{{Expression: source, Usage: usage}, {Expression: source, Usage: usage}}
 		var types functions.BinaryTypes
 		node, err := functions.FinishBinary(b, "||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

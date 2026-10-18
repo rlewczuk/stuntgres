@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -37,7 +38,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 			foreign := New()
 			typ, _ := foreign.CatalogRead().LookupType(sqltype.Int4)
 			value, _ := sqltype.Integer(typ, 1)
-			n.left = literalExpression{Info: expressionInfo{Usage: typ.Usage()}, value: value}
+			n.left = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
 			return n
 		},
 	} {
@@ -118,7 +119,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(rebound, changed, err)
 		}
-		for _, node := range []BoundExpr{original, rebound} {
+		for _, node := range []expr.Expr{original, rebound} {
 			value, err := node.Eval(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -170,17 +171,17 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowInfo := expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}
+	rowInfo := expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}
 	column := columnExpression{Info: rowInfo, scope: 1, frame: 1, slot: 0}
-	conversion := coercionExpression{Info: expressionInfo{Usage: integer.Usage(), Property: rowInfo.Property}, child: column, plan: plan, mode: sqltype.Explicit}
-	null := literalExpression{Info: expressionInfo{Usage: integer.Usage()}, value: sqltype.Null(integer)}
-	info := expressionInfo{Usage: integer.Usage(), Pos: parser.Position{Offset: 7}, Property: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
+	conversion := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: rowInfo.Property}, child: column, plan: plan, mode: sqltype.Explicit}
+	null := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: sqltype.Null(integer)}
+	info := expr.Info{Usage: integer.Usage(), Pos: parser.Position{Offset: 7}, Property: expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
 	bad, err := text.Input(context.Background(), "bad", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{bad}}
-	for _, simplify := range []func(*EvalContext, BoundExpr, bool) (BoundExpr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
+	for _, simplify := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
 		for _, reverse := range []bool{false, true} {
 			root := bitwiseExpression{Info: info, left: null, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
 			if reverse {
@@ -231,8 +232,8 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 		}
 		// Imported NULL parameters may become physical literals during cast
 		// preflight, but their conservative parameter ownership is retained.
-		parameter := parameterExpression{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}
-		parameterCast := coercionExpression{Info: expressionInfo{Usage: integer.Usage(), Property: parameter.Property}, child: parameter, plan: plan, mode: sqltype.Explicit}
+		parameter := parameterExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, number: 1}
+		parameterCast := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: parameter.Property}, child: parameter, plan: plan, mode: sqltype.Explicit}
 		root := bitwiseExpression{Info: info, left: parameterCast, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
 		valid, err := text.Input(ctx.Context, "3", -1)
 		if err != nil {
@@ -254,8 +255,8 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 		// An immutable bad conversion still fails during child planning, even
 		// though a constant NULL makes the operator itself unnecessary.
 		constantBad := conversion
-		constantBad.Property = ExprProperties{}
-		constantBad.child = literalExpression{Info: expressionInfo{Usage: text.Usage()}, value: bad}
+		constantBad.Property = expr.Properties{}
+		constantBad.child = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: bad}
 		root.left, root.right = null, constantBad
 		if _, _, err := simplify(ctx, root, false); err == nil {
 			t.Fatal("immutable bad conversion hidden")

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -39,7 +40,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(err)
 			}
 			node, ok := bound.(identityExpression)
-			if !ok || node.kind != tc.kind || node.ordinaryCall != tc.call || node.Properties() != (ExprProperties{Volatility: Stable}) {
+			if !ok || node.kind != tc.kind || node.ordinaryCall != tc.call || node.Properties() != (expr.Properties{Volatility: expr.Stable}) {
 				t.Fatal(bound)
 			}
 			id := sqltype.Name
@@ -112,7 +113,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 		e := New()
 		name, _ := e.CatalogRead().LookupType(sqltype.Name)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		valid := identityExpression{Info: expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: identityCurrentUser}
+		valid := identityExpression{Info: expr.Info{Usage: name.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: identityCurrentUser}
 		for _, tc := range []struct {
 			name   string
 			mutate func(*identityExpression)
@@ -126,8 +127,8 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			{"system type", func(n *identityExpression) { n.kind = identitySystemUser }},
 			{"missing type", func(n *identityExpression) { n.Usage.Type = nil }},
 			{"typmod", func(n *identityExpression) { n.Usage.Typmod = 3 }},
-			{"immutable", func(n *identityExpression) { n.Property.Volatility = Immutable }},
-			{"volatile", func(n *identityExpression) { n.Property.Volatility = Volatile }},
+			{"immutable", func(n *identityExpression) { n.Property.Volatility = expr.Immutable }},
+			{"volatile", func(n *identityExpression) { n.Property.Volatility = expr.Volatile }},
 			{"row", func(n *identityExpression) { n.Property.RowDependent = true }},
 			{"parameter", func(n *identityExpression) { n.Property.ParameterDependent = true }},
 			{"stage", func(n *identityExpression) { n.Property.StageDependent = true }},

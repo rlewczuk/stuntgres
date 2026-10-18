@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,17 +14,17 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text := b.typ(sqltype.Text)
 	usage := text.Usage()
-	operand := func(id uint32, position int) BoundExpr {
+	operand := func(id uint32, position int) expr.Expr {
 		u := usage
 		u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
-		return literalExpression{Info: b.info(u, parser.Position{Character: position}, ExprProperties{}), value: sqltype.Null(text)}
+		return literalExpression{Info: b.info(u, parser.Position{Character: position}, expr.Properties{}), value: sqltype.Null(text)}
 	}
-	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, ExprProperties{}), operand(950, 59), operand(951, 64))
+	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, expr.Properties{}), operand(950, 59), operand(951, 64))
 	if err != nil {
 		t.Fatal(err)
 	}
 	base := literalExpression{Info: info, value: sqltype.Null(text)}
-	assert := func(name string, expression BoundExpr) {
+	assert := func(name string, expression expr.Expr) {
 		t.Helper()
 		left, right, position := expression.ImplicitCollationConflict()
 		if !expression.CollationIndeterminate() || left.ID != 950 || right.ID != 951 || position.Character != 64 {
@@ -41,7 +42,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("folded coercion", folded)
-	grouped, err := b.rewriteGroup(base, []BoundExpr{base})
+	grouped, err := b.rewriteGroup(base, []expr.Expr{base})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("retained descriptor", retagged)
-	projection := []BoundExpr{coerced}
+	projection := []expr.Expr{coerced}
 	_, err = b.finishOrder(&valuesNode{querySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{expression: coerced, cache: -1, slot: -1}}, projection)
 	if err != nil {
 		t.Fatal(err)
@@ -61,15 +62,15 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	}
 	assert("cache", projection[0])
 	order := statement(t, "VALUES('a') ORDER BY 1 LIMIT 0").(*parser.Select).Values.Order
-	for _, expression := range []BoundExpr{base, coerced, grouped, projection[0], retagged} {
-		_, err := b.bindOrder(order, []BoundExpr{expression}, []string{"n"}, "ORDER BY")
+	for _, expression := range []expr.Expr{base, coerced, grouped, projection[0], retagged} {
+		_, err := b.bindOrder(order, []expr.Expr{expression}, []string{"n"}, "ORDER BY")
 		var diagnostic *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P21", Message: `collation mismatch between implicit collations "C" and "POSIX"`, Hint: "You can choose the collation by applying the COLLATE clause to one or both expressions.", Position: "64"}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatal(err, diagnostic, want)
 		}
 	}
-	defaultC, err := b.collatedInfo(b.info(usage, parser.Position{}, ExprProperties{}), operand(100, 1), operand(950, 2))
+	defaultC, err := b.collatedInfo(b.info(usage, parser.Position{}, expr.Properties{}), operand(100, 1), operand(950, 2))
 	if err != nil || defaultC.CollationConflict || defaultC.Usage.Collation.ID != 950 {
 		t.Fatal(defaultC, err)
 	}
@@ -80,7 +81,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(overridden, err)
 	}
 	b.queryNamespace = &queryNamespace{}
-	if _, err := b.bindOrder(order, []BoundExpr{literalExpression{Info: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
+	if _, err := b.bindOrder(order, []expr.Expr{literalExpression{Info: overridden, value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}
 }

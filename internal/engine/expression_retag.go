@@ -11,7 +11,7 @@ import (
 // Replacement can retain TEMP sequence builtin generations. Rebind persisted
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
-func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (BoundExpr, bool, error) {
+func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
 		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
@@ -21,16 +21,16 @@ func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltyp
 	}, collations...)
 }
 
-func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func retagBoundTypesWithQuery(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
 }
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func mapBoundExpression(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
 }
-func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -49,7 +49,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		return node, false, nil
 	}
-	info := boundExpressionInfo(node)
+	info := expr.InfoOf(node)
 	if leaf != nil {
 		info.Property = rewrittenIntrinsicProperties(node)
 	}
@@ -117,7 +117,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return nil, false, err
 		}
-		oldInfo := boundExpressionInfo(node)
+		oldInfo := expr.InfoOf(node)
 		changed = changed || info.CollationLeft != oldInfo.CollationLeft || info.CollationRight != oldInfo.CollationRight
 	}
 	comparisonCollation := func(ref sqltype.CollationRef) sqltype.CollationRef {
@@ -129,24 +129,24 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		changed = changed || next != ref
 		return next
 	}
-	mapChild := func(old BoundExpr) (BoundExpr, bool, error) {
+	mapChild := func(old expr.Expr) (expr.Expr, bool, error) {
 		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
-			info.Property = mergeExpressionProperties(info.Property, next.Properties())
+			info.Property = expr.MergeProperties(info.Property, next.Properties())
 		}
 		return next, replaced, failure
 	}
-	child := func(old BoundExpr) BoundExpr {
+	child := func(old expr.Expr) expr.Expr {
 		if err != nil {
 			return old
 		}
-		var next BoundExpr
+		var next expr.Expr
 		next, _, err = mapChild(old)
 		return next
 	}
-	children := func(old []BoundExpr) []BoundExpr {
-		var args []BoundExpr
+	children := func(old []expr.Expr) []expr.Expr {
+		var args []expr.Expr
 		for i, arg := range old {
 			next, replaced, failure := mapChild(arg)
 			if failure != nil {
@@ -155,7 +155,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 			if replaced {
 				if args == nil {
-					args = append([]BoundExpr(nil), old...)
+					args = append([]expr.Expr(nil), old...)
 				}
 				args[i] = next
 			}
@@ -165,7 +165,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		return old
 	}
-	var rebound BoundExpr
+	var rebound expr.Expr
 	switch n := node.(type) {
 	case assignmentValueExpression:
 		n.base, n.value = child(n.base), child(n.value)
@@ -341,7 +341,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.Info = info
 		rebound = n
 	case arrayExpression:
-		var elements []BoundExpr
+		var elements []expr.Expr
 		for i, old := range n.elements {
 			next, replaced, failure := mapChild(old)
 			if failure != nil {
@@ -350,7 +350,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if replaced {
 				changed = true
 				if elements == nil {
-					elements = append([]BoundExpr(nil), n.elements...)
+					elements = append([]expr.Expr(nil), n.elements...)
 				}
 				elements[i] = next
 			}
@@ -403,7 +403,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				n.queryPlan = &copy
 				changed = true
 				if leaf != nil {
-					visitCTEQuery(root, func(LogicalNode) {}, func(expr BoundExpr) {
+					visitCTEQuery(root, func(LogicalNode) {}, func(expr expr.Expr) {
 						properties := expr.Properties()
 						info.Property.Volatility = max(info.Property.Volatility, properties.Volatility)
 						info.Property.ParameterDependent = info.Property.ParameterDependent || properties.ParameterDependent
@@ -510,11 +510,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.columnExpression = column
 		rebound = n
 	case returningWholeRowExpression:
-		var members []BoundExpr
+		var members []expr.Expr
 		for i, member := range n.members {
 			next := child(member)
 			if changed && members == nil {
-				members = append([]BoundExpr(nil), n.members...)
+				members = append([]expr.Expr(nil), n.members...)
 			}
 			if members != nil {
 				members[i] = next
@@ -535,7 +535,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.Info = info
 		rebound = n
 	case groupingExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, arg := range n.args {
 			next, replaced, failure := mapChild(arg)
 			if failure != nil {
@@ -544,7 +544,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if replaced {
 				changed = true
 				if args == nil {
-					args = append([]BoundExpr(nil), n.args...)
+					args = append([]expr.Expr(nil), n.args...)
 				}
 				args[i] = next
 			}
@@ -714,11 +714,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case conditionalExpression:
 		ref, conflict := n.comparison.InputCollation()
 		ref = comparisonCollation(ref)
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range n.args {
 			next := child(old)
 			if changed && args == nil {
-				args = append([]BoundExpr(nil), n.args...)
+				args = append([]expr.Expr(nil), n.args...)
 			}
 			if args != nil {
 				args[i] = next
@@ -847,8 +847,8 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, err
 		}
 		if err == nil {
-			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{Usage: n.left.ResultUsage(), Pos: info.Pos}, n.left, n.right)
+			var collation expr.Info
+			collation, err = collatedInfo(view, expr.Info{Usage: n.left.ResultUsage(), Pos: info.Pos}, n.left, n.right)
 			if err == nil {
 				n.provider, err = sqltype.BindLike(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.Usage, collation.CollationConflict)
 			}
@@ -977,7 +977,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		rebound = n
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
-		var mapped []BoundExpr
+		var mapped []expr.Expr
 		mapped, err = mapCompositeChildren(n, mapChild)
 		if err != nil {
 			return node, false, err
@@ -1001,9 +1001,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 
 // mapCompositeChildren maps a protocol node's children, copying the slice only
 // when a child is replaced.
-func mapCompositeChildren(node expr.Composite, mapChild func(BoundExpr) (BoundExpr, bool, error)) ([]BoundExpr, error) {
+func mapCompositeChildren(node expr.Composite, mapChild func(expr.Expr) (expr.Expr, bool, error)) ([]expr.Expr, error) {
 	children := node.Children()
-	var mapped []BoundExpr
+	var mapped []expr.Expr
 	for i, old := range children {
 		next, replaced, err := mapChild(old)
 		if err != nil {
@@ -1011,7 +1011,7 @@ func mapCompositeChildren(node expr.Composite, mapChild func(BoundExpr) (BoundEx
 		}
 		if replaced {
 			if mapped == nil {
-				mapped = append([]BoundExpr(nil), children...)
+				mapped = append([]expr.Expr(nil), children...)
 			}
 			mapped[i] = next
 		}
@@ -1032,7 +1032,7 @@ func retagEnvironment(view CatalogRead, retainedType func(*sqltype.Descriptor) *
 	return expr.Retag{
 		Type:      retainedType,
 		Collation: remap,
-		Collated: func(info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+		Collated: func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
 			return collatedInfo(view, info, inputs...)
 		},
 	}

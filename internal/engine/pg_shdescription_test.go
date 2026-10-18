@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -67,7 +68,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	}
 	for i, column := range d.columns {
 		root.expressions = append(root.expressions, columnExpression{
-			Info:   expressionInfo{Usage: column.Usage},
+			Info:   expr.Info{Usage: column.Usage},
 			origin: ref, scope: 1, frame: 1, slot: i,
 		})
 	}
@@ -126,9 +127,9 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := commentInquiryExpression{Info: expressionInfo{Usage: textUsage}, kind: sharedDescription, args: []BoundExpr{
-		literalExpression{Info: expressionInfo{Usage: oidUsage}, value: oid},
-		literalExpression{Info: expressionInfo{Usage: nameUsage}, value: sqltype.String(nameUsage.Type, "pg_authid")},
+	expr := commentInquiryExpression{Info: expr.Info{Usage: textUsage}, kind: sharedDescription, args: []expr.Expr{
+		literalExpression{Info: expr.Info{Usage: oidUsage}, value: oid},
+		literalExpression{Info: expr.Info{Usage: nameUsage}, value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
 	value, err := expr.Eval(&EvalContext{Context: context.Background(), statementScope: &StatementScope{commentRoles: roles, commentCatalog: catalog}})
 	if err != nil {

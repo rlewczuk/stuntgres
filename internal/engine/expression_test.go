@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -53,7 +54,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	if column.origin.Domain() != e.catalog.domain || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
-	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != Immutable || !project.expressions[0].Properties().ParameterDependent {
+	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != expr.Immutable || !project.expressions[0].Properties().ParameterDependent {
 		t.Fatal("dependence metadata")
 	}
 	refs := map[ids.ObjectRef]bool{}
@@ -226,7 +227,7 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 
 func TestExpressionInvalidValuesRemainInvariantErrors(t *testing.T) {
 	ctx := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{{}}, Parameters: []sqltype.Value{{}}}
-	for _, expression := range []BoundExpr{
+	for _, expression := range []expr.Expr{
 		literalExpression{},
 		columnExpression{scope: 1, frame: 1, slot: 0},
 		parameterExpression{number: 1},

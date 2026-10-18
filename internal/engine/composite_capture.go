@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -91,7 +92,7 @@ func (captured compositeOccurrence) validate(catalog CatalogRead) error {
 	}
 	return nil
 }
-func (b *expressionBinder) captureViewComposite(path viewLiteralPath, kind compositeOccurrenceKind, base BoundExpr, attributes []int32) {
+func (b *expressionBinder) captureViewComposite(path viewLiteralPath, kind compositeOccurrenceKind, base expr.Expr, attributes []int32) {
 	if b.viewComposites == nil {
 		b.viewComposites = make(map[viewLiteralPath]compositeOccurrence)
 	}
@@ -115,7 +116,7 @@ func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion 
 	}
 }
 
-func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedCompositeKey) (BoundExpr, error) {
+func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedCompositeKey) (expr.Expr, error) {
 	node, err := b.bindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{raw.Field}}, Args: []parser.Expr{raw.Base}, Pos: raw.Pos})
 	if err != nil {
 		return nil, err
