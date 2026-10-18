@@ -68,7 +68,8 @@ SQL behavior and native limits are described in
 
 - **Publication:** the record holding the current `Root`, revision headroom,
   cancellation fences, journals and savepoints, and principal allocation.
-- **Pairing:** each `Read` is captured together with its exact `CatalogRead`;
+- **Pairing:** each `Read` is captured together with its exact catalog `Read`
+  (`catalog.Read`, the engine's `CatalogRead`);
   a stamp reads that captured pair, not later engine state. There is no cached
   ACL decision.
 - **Catalog data:** ACL fields on descriptors, default-privilege records and
