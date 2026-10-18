@@ -110,13 +110,39 @@ Added for the JSON/JSONB function calls (F4/F5); JSON creation also uses
 - `CaptureTypeInput`: the diagnostic-name, ACL and catalog-identifier input
   that a record result type needs (also used by function column definitions).
 
+Added for the datetime, LIKE/SIMILAR/regex and string families (F4/F5),
+which also use `CollatedInfo`, `Literal` (`make_*` zero defaults, the default
+SIMILAR escape), `Context` (bind-time template compilation for `to_char`,
+`to_date`, `to_timestamp` and `to_number`), `BuiltinOperatorRoutineInfo`
+(POSIX, SIMILAR TO, LIKE), `AdmitSetReturning` (`string_to_table`),
+`RetainUntypedParameter` and `NoteCatalogText` (the variadic string family):
+
+- `ConstantValue`: reads the value of the analyzer's literal node, the
+  counterpart of `Literal`; constant formatting templates compile once at
+  bind time.
+- `BuiltinOperatorVisible`: whether operator lookup reaches `pg_catalog`
+  under the current `search_path` (POSIX and LIKE operators).
+- `CallSignatureError`: the analyzer's whole-call 42883 (argument
+  re-analysis for diagnostic names, composite-candidate 0A000, the note),
+  used by `like_escape` and `similar_to_escape` for malformed calls.
+  Reimplementing it here would duplicate the engine's diagnostic routing.
+- `FinishBinary` (**leak**): string bytea/bit overloads finish in the binary
+  family, which the engine still binds. The binary port removes it.
+
 Argument analysis intents are values, not methods: `ThresholdArrayArgument`
 is the comparison operand whose unknown-NULL annotation may name an enum
-array, as `width_bucket`'s threshold array may. `RecordBaseArgument` is a
+array, as `width_bucket`'s threshold array may. `ZoneArgument` is a
+`timezone`/`date_add`/`date_subtract` operand, whose explicit casts admit the
+zone family's temporal targets. `RecordBaseArgument` is a
 populate-record base: named casts to user-defined composites keep their
 occurrence identity. The coercion intent `RecordFormalArgument` finalizes a
 fixed RECORD formal: a parameter keeps its inferred record type, other
 operands get an anonymous record.
+
+Engine state that bind code needs at a single point is passed as a value
+instead of a method: `age(xid)` receives the engine's transaction-identity
+node builder, `regexp_*` its set-placement check, and the variadic string
+binder its query frame.
 
 Prefer passing values to adding methods. A new method needs a reason here:
 either a genuine analyzer capability or a leak that a later step removes.
@@ -165,6 +191,35 @@ Registered families:
 | Range inspection | `range_inspect_bind.go` | `rangeInspectNames` | none |
 | JSON/JSONB calls | `json_call_bind.go` | `jsonCallNames` | `Claims` |
 | `json_object`, `jsonb_object` | `json_call_bind.go` | `textObjectNames` | `ExactSpelling`, `SharedGates` |
+| Datetime | `datetime_bind.go`, `datetime_*_bind.go` | `datetimeNames` | `ExactSpelling`, `SharedGates` |
+| `make_*` | `datetime_make_bind.go` | `datetimeMakeNames` | `ExactSpelling`, `SharedGates`, `OwnsLabels` |
+| `like_escape` | `like_escape_bind.go` | `like_escape` | `ExactSpelling`, `SharedGates` |
+| Scalar strings | `string_bind.go` | `stringNames`, `string_to_table` | `ExactSpelling`, `SharedGates` |
+| `parse_ident`, `lower`/`upper` | `string_bind.go` | `parse_ident`, `lower`, `upper` | none |
+
+`datetimeNames` covers extract/date_part, date_trunc, date_bin,
+timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
+`stringNames` is the final switch's string list, including the
+argument-analyzing `trim`, which PostgreSQL does not have as a function.
+
+Calls of these families that keep an engine dispatch branch over an exported
+entry point, because they need engine state the registry cannot express:
+
+- `age`/`isfinite` (`BindDatetimeAgeFinite`): `age(xid)` is a Tier C
+  transaction-identity node.
+- `overlaps` (`BindDatetimeOverlaps`): the engine sets `WrapperContext` from
+  inline safety, an engine node walk that F2 replaces.
+- `regexp_*` (`BindRegexpCall`): set placement and Regexp/RegexpSet wrapping.
+- `similar_to_escape` (`BindSimilarEscape`): claimed by call syntax, not name.
+- concat, concat_ws, quote_*, pg_client_encoding (`BindStringVariadic`):
+  polymorphic body capture and the query frame.
+- Not name dispatch: AT TIME ZONE (`BindTimeZone`), the POSIX and SIMILAR TO
+  operators (`BindPosix`, `BindSimilar`), the binary family's substring routes
+  (`BindPosixSubstring`, `BindSimilarSubstring`, `FinishString`) and `||`/`^@`
+  (`StringNode`).
+
+The LIKE operator binder is ported onto `Binder` but stays in the engine,
+because its node (`likeExpression`) is engine-private.
 
 `BindUUIDGeneration` is exported because pgcrypto's `gen_random_uuid`, which
 still binds in the engine, uses it when `pg_catalog` wins the path.
@@ -188,8 +243,14 @@ label part alone, for families that analyze no FILTER), `CallDecorationError`
 `resolution_error.go` holds `ResolutionError` (the pure 42883/42725 builder;
 it notes nothing, so missing signatures still go through `SignatureError`),
 `DirectResolutionError` (overload failure over `AnalyzeDirectArguments`
-results; random and deparse inquiry use it too) and `ArrayTypeName` (array
-signature spelling by leaf name).
+results; random and deparse inquiry use it too), `ArrayTypeName` (array
+signature spelling by leaf name), `NotedResolutionError` (42883 through
+`SignatureError`, 42725 unnoted) and `DiagnosticNameOrUnknown` (the
+unqualified argument spelling, `unknown` for deferred literals).
+`operator_error.go`'s `OperatorError` is the operator form of both
+diagnostics. Pure supply helpers serve bind code in and out of the engine:
+`TemporalTypesFor`, `SupplyBinaryTypes` and `NumericFormattingOperands`
+(shared by numeric `to_char` and the engine's `to_number`).
 
 To add or port a builtin family:
 
@@ -205,10 +266,13 @@ To add or port a builtin family:
    (and `ExactSpelling` if it sat in the final switch, `OwnsLabels` if the
    label gate exempted it), because `Lookup` runs first. Check that no
    earlier chain predicate claims its names.
-4. An installed extension family resolves its procedure through
+4. Some engine 42883 paths used the unnoted builder (regexp, string
+   variadics). Keep them on `ResolutionError(..., false)`; noting them would
+   change the composite fallback decision.
+5. An installed extension family resolves its procedure through
    `InstalledRoutine` (add its `Extension` and the engine's handle). The
    engine's wrapper node, its validation and its switch cases stay until F2.
-5. Helpers that engine switches still call (retag, conditional planning) are
+6. Helpers that engine switches still call (retag, conditional planning) are
    exported until F2 converts those switches.
 
 ## Node protocol
@@ -392,6 +456,18 @@ its switches; reference tests in both modes):
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestArray|TestRangeInspect|TestRangeMore)'
 make check RUN='^TestReference(Array|RangeInspect|RangeMore|Multirange)'
 make check REFERENCE=1 RUN='^TestReference(Array|RangeInspect|RangeMore|Multirange)'
+```
+
+Datetime, LIKE/SIMILAR/regex and string families. Their binders are
+unit-tested through the engine analyzer (`TestDatetime*`, `TestPosix*`,
+`TestSimilar*`, `TestRegexp*`, `TestLike*`, `TestString*`), because those
+tests exercise grouping identity, retag, remap and preflight switches.
+Reference selections (add `REFERENCE=1` for the PostgreSQL run):
+
+```sh
+make check RUN='^TestReference(Datetime(AgeFinite|Bin|Extract|Justify|Make|Overlaps|Trunc|Zone|Formatting)|Timezone|NumericFormatting)'
+make check RUN='^TestReference(Like|Similar|Posix|Regexp)'
+make check RUN='^TestReferenceString(Core|Case|Encoding|Ident|Length|Numeric|Pad|Replace|Slice|Split|Variadic)'
 ```
 
 Focused private state/demand examples:

@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `7cb919447`.
+Last verified against `master` at `d73e70d4c`.
 
 ## Next ready sub-steps
 
@@ -62,9 +62,13 @@ must not run alongside each other or another broad rewrite or alias removal
   - [ ] F4/F5 Tier A — port in place, then move
     - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs `96e11f662`)
       *(racecheck skipped at user request)*
-    - [ ] string
-    - [ ] LIKE/SIMILAR/regex
-    - [ ] datetime
+    - [x] string (`69133565c`, `7c28e5c79`, `76d0201d9`, `db9694a8f`, then
+      the docs commit) *(racecheck skipped at user request)*
+    - [x] LIKE/SIMILAR/regex (`ba236a2b8`, `1807e7ee9`, `34f7300d1`, then the
+      docs commit; the LIKE operator binder stays in the engine until F2)
+      *(racecheck skipped at user request)*
+    - [x] datetime (`5c5928497`, `5a293c0b3`, `4acb5e42b`, then the docs
+      commit; pg_sleep is Tier B) *(racecheck skipped at user request)*
     - [ ] JSON/JSONB/SQL-JSON *(function calls done: `059a86924`, `94b71bb40`,
       `a6c399c2b`, `b1099500b`, then the docs commit; operators, SQL/JSON
       constructors and `IS JSON` remain; racecheck skipped at user request)*
