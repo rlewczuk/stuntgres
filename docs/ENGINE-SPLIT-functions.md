@@ -153,7 +153,10 @@ Tier C has a refined plan.
   `functionInfo`, docs `937962c4f`)
 - [ ] F2 — Switches converted: [x] retag [x] remap [x] volatility
   [ ] deparse [ ] node tree [x] generated admission [x] conditional plan
-  [x] join legality (session 1: COMMITS_PLACEHOLDER)
+  [x] join legality (session 1: `c6de24e8f` members, `144458647` join,
+  `5d7935b7d` volatility, `4c54eaf54` conditional, `1fa051e96` generated,
+  `1e6bd8aec` retag, `c703fd8d9` remap, `09fc24b0a` math helpers, docs
+  `ec2fba8bd`)
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
@@ -611,7 +614,7 @@ Notes for later steps (datetime, pattern, string):
 - LIKE's binder and node move together once F2 has converted the switches
   that name `likeExpression`.
 
-F4/F5 follow-up (regexp, variadic string, `to_number`), on `7af01d85b`. A
+F4/F5 follow-up (regexp, variadic string, `to_number`), on `ec3fcadd4`. A
 second session (`split/functions-string-regex-datetime`) ported the same three
 families in parallel; after the tier-a merge it rebased only what master still
 dispatched by name chain onto a new branch and dropped the rest:
@@ -724,7 +727,28 @@ Tests in F2 session 1: added `functions/composite_derived_test.go`
 `TestInstalledUUIDOsspRebuildKeepsWrapper`. No test moved, was adapted or was
 deleted.
 
-VERIFY_PLACEHOLDER
+Verification: `make quickcheck` passed after each commit and after each
+rebase (44 packages; final base `ec3fcadd4`, where the regexp, string and
+view-replace selections below were rerun with `REFERENCE=1`); `make deps` lists only module
+paths; `expr` and `functions` import only `ids`, `parser`, `sqlstate` and
+`sqltype`. `REFERENCE=1` selections passed on the stuntgres side:
+`^TestReferenceView`, `^TestReferenceGenerated`,
+`^TestReference(Default|Check)`, `^TestReferenceDeparseConstraints`,
+Dump/Restore names, `StoredConsumers` names and
+`^TestReference(Datetime|Regexp|Regex|Similar|Posix|Timezone|AtTimeZone|String)`.
+Their only failures are the `/postgres` subtests already listed as 18.6 drift
+(the two `CheckReview` connection tests, `UUIDGenerationStoredConsumersAndControls`,
+`DatetimeExtractCanonicalDefinitions`, `DatetimeFormattingReviewCollationDemand`,
+`StringCaseReviewSigma`, `StringCoreNormalization`,
+`StringCoreValuesSourceConsumerRoutes`, `StringSplitLocking`; the last two
+were rechecked on master with the same failing subtests). A throwaway probe
+compared master and the branch on generated-column admission (immutable,
+STABLE, volatile, set-returning, `unicode_version()`, `pi()`, dead CASE arms)
+and the AT TIME ZONE ordering cases: identical output. Bench: medians
+1.70 ms/op on master and 1.77 ms/op on the branch, 7,769 allocs/op on both
+(the 2c note on allocating `Children` did not bite: these switches are
+plan-time; startup is still above the 1 ms target as on master). Racecheck
+skipped at the user's request.
 
 Notes for later steps (F2):
 

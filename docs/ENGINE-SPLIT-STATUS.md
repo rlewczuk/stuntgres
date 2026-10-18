@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `7af01d85b`.
+Last verified against `master` at `ec3fcadd4`.
 
 ## Next ready sub-steps
 
@@ -48,15 +48,15 @@ must not run alongside each other or another broad rewrite or alias removal
   - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)
   - [ ] F2 — Switches converted to the node protocol *(broad rewrite; needs
     2c)*
-    - [x] retag (`H_RETAG`)
-    - [x] remap (`H_REMAP`)
-    - [x] volatility (`H_VOLATILITY`)
+    - [x] retag (`1e6bd8aec`)
+    - [x] remap (`c703fd8d9`)
+    - [x] volatility (`5d7935b7d`)
     - [ ] deparse
     - [ ] node tree
-    - [x] generated admission (`H_GENERATED`)
-    - [x] conditional plan (`H_CONDITIONAL`)
-    - [x] join legality (`H_JOIN`; protocol membership `H_MEMBERS`, docs
-      `H_DOCS`)
+    - [x] generated admission (`1fa051e96`)
+    - [x] conditional plan (`4c54eaf54`)
+    - [x] join legality (`144458647`; protocol membership `c6de24e8f`, docs
+      `ec2fba8bd`)
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
