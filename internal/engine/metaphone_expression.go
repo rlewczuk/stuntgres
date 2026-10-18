@@ -99,7 +99,7 @@ func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (Boun
 	if err != nil {
 		return nil, err
 	}
-	ref := ObjectRef{owner: b.engine.domain, Epoch: auth.catalog.Epoch(), Address: proc.address}
+	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
 	return installedMetaphoneFunctionExpression{Metaphone: call, procedure: proc, ref: ref}, nil
 }

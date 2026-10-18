@@ -44,10 +44,10 @@ func TestMergeNothingRowAdmission(t *testing.T) {
 	workerAdmission := false
 	if entry != nil {
 		for ticket := range entry.holders {
-			workerAdmission = workerAdmission || ticket.ref.session == worker.token
+			workerAdmission = workerAdmission || ticket.ref.Session() == worker.token
 		}
 		for _, request := range entry.pending {
-			workerAdmission = workerAdmission || !request.terminal && request.ticket.ref.session == worker.token
+			workerAdmission = workerAdmission || !request.terminal && request.ticket.ref.Session() == worker.token
 		}
 	}
 	e.locks.mu.Unlock()

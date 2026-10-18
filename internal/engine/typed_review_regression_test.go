@@ -120,7 +120,7 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 			called, granted := false, false
 			e.providers[RelationClassID] = alterDropProvider{original, func() {
 				called = true
-				ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: source.address}
+				ref := e.domain.Ref(e.CatalogRead().Epoch(), source.address)
 				e.locks.mu.Lock()
 				if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
 					for _, holder := range entry.holders {
@@ -235,7 +235,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ObjectAdd
 	roleExecute(t, e, admin, "CREATE USER typed_reader")
 	roleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
 	roleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
-	ns := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	ns := e.domain.Ref(e.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}

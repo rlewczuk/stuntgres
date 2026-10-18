@@ -72,7 +72,7 @@ func TestTransactionControlsChainIdentity(t *testing.T) {
 				controlsRequire(t, a, q)
 				next := a.transactions.ref
 				fresh := a.transactions.ticket
-				if next.ID() == 0 || next.ID() <= old.ID() || next.epoch != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.ref != next || a.TransactionState() != TxActive || a.transactions.command != 0 || a.transactions.writes != nil || len(fresh.resources) != 0 {
+				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.ref != next || a.TransactionState() != TxActive || a.transactions.command != 0 || a.transactions.writes != nil || len(fresh.resources) != 0 {
 					t.Fatal("chain did not create independent empty authority", next, a.transactions)
 				}
 				e.locks.mu.Lock()
@@ -335,7 +335,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	controlsRequire(t, a, "ROLLBACK AND CHAIN")
-	if a.transactions.ref.epoch != e.CatalogRead().Epoch() {
+	if a.transactions.ref.Epoch() != e.CatalogRead().Epoch() {
 		t.Fatal("stale chained epoch")
 	}
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")

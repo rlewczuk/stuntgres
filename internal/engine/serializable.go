@@ -58,7 +58,7 @@ func serializableError(detail string) error {
 }
 
 func (e *Engine) enrollSerializableLocked(ref TxRef, isolation Isolation) {
-	if ref.id == 0 || ref.epoch != e.state.epoch {
+	if ref.ID() == 0 || ref.Epoch() != e.state.epoch {
 		return
 	}
 	node := e.serializable.nodes[ref]
@@ -89,7 +89,7 @@ func serializableReadOnly(node *serializableTransaction) bool {
 func serializableOverlap(a, b *serializableTransaction) bool {
 	// Preparation orders dangerous structures but does not end overlap. A
 	// snapshot taken while an entry is prepared still overlaps its later commit.
-	return serializableRelevant(a) && serializableRelevant(b) && a != b && a.ref.epoch == b.ref.epoch && (!a.committed || a.commitOrder > b.snapshotOrder) && (!b.committed || b.commitOrder > a.snapshotOrder)
+	return serializableRelevant(a) && serializableRelevant(b) && a != b && a.ref.Epoch() == b.ref.Epoch() && (!a.committed || a.commitOrder > b.snapshotOrder) && (!b.committed || b.commitOrder > a.snapshotOrder)
 }
 
 // REL_18_0 OnConflict_CheckForSerializationFailure. Finalized nodes are immune;

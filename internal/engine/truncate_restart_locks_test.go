@@ -197,7 +197,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			{holderTicket, resetTicket, p, "AccessShareLock"},
 			{resetTicket, holderTicket, ps, "AccessExclusiveLock"},
 		} {
-			expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.ref.id, edge.waiter.ref.session.id, edge.waiter.ref.epoch, edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.ref.id, edge.blocker.ref.session.id, edge.blocker.ref.epoch)] = true
+			expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.ref.ID(), edge.waiter.ref.Session().ID(), edge.waiter.ref.Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.ref.ID(), edge.blocker.ref.Session().ID(), edge.blocker.ref.Epoch())] = true
 		}
 		for _, line := range strings.Split(diagnostic.Detail, "\n") {
 			if !expected[line] {

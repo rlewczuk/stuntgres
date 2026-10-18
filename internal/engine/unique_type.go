@@ -52,7 +52,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			next = &clone
 		}
 		c := &next.uniqueConstraints[i]
-		ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: old.Index}
+		ref := e.domain.Ref(stage.base.Epoch(), old.Index)
 		if err := stage.removeObjectLocked(ref, false); err != nil {
 			return nil, err
 		}

@@ -15,7 +15,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	if scope.lockedRef.owner == nil {
+	if scope.lockedRef.Domain() == nil {
 		op.session.mu.Lock()
 		err := publicationOperationLocked(e, op)
 		op.session.mu.Unlock()
@@ -36,14 +36,14 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	defaultAddress := parent.partition.defaultChild
 	if defaultAddress != (ObjectAddress{}) {
-		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: defaultAddress}
+		ref := e.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.observePartitionRelationLocked(e, ref); err != nil {
 			return fail(err)
 		}
 	}
 	e.mu.Unlock()
 	if defaultAddress != (ObjectAddress{}) {
-		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: defaultAddress}
+		ref := e.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.acquirePartitionLock(ref, accessExclusive); err != nil {
 			return Result{}, err
 		}

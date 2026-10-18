@@ -24,7 +24,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 		return nil, err
 	}
 	e.mu.Lock()
-	if ref.epoch != e.state.epoch {
+	if ref.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		e.endLockOwner(ticket)
 		return nil, ErrCatalogReplaced
@@ -41,7 +41,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 }
 
 func (e *Engine) visibilityWriteLocked(ref TxRef) error {
-	if ref.domain != domainOf(e) || ref.epoch != e.state.epoch {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
@@ -61,7 +61,7 @@ func (e *Engine) visibilityWriteLocked(ref TxRef) error {
 }
 
 func (e *Engine) visibilitySnapshotLocked(ref TxRef, safeBuilder bool) (uint64, error) {
-	if ref.domain != domainOf(e) || ref.epoch != e.state.epoch {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return 0, ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
@@ -73,7 +73,7 @@ func (e *Engine) visibilitySnapshotLocked(ref TxRef, safeBuilder bool) (uint64, 
 	}
 	xmin := e.visibilityXID + 1
 	for other, state := range e.visibility {
-		if other.epoch == ref.epoch && state.xid != 0 && state.xid < xmin {
+		if other.Epoch() == ref.Epoch() && state.xid != 0 && state.xid < xmin {
 			xmin = state.xid
 		}
 	}
@@ -129,7 +129,7 @@ func (e *Engine) resetVisibilityPhaseLocked(ref TxRef) {
 func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ObjectAddress) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	if s.txRef.epoch != e.state.epoch {
+	if s.txRef.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
@@ -137,7 +137,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ObjectAddres
 	e.resetVisibilityPhaseLocked(s.txRef)
 	var refs []TxRef
 	for ref, v := range e.visibility {
-		if ref != s.txRef && ref.epoch == s.txRef.epoch && v.snapshot && !v.safeBuilder && v.xmin <= xmin {
+		if ref != s.txRef && ref.Epoch() == s.txRef.Epoch() && v.snapshot && !v.safeBuilder && v.xmin <= xmin {
 			refs = append(refs, ref)
 		}
 	}

@@ -60,7 +60,7 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 			t.Fatal(v)
 		}
 	}
-	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: 23}}
+	ref := e.domain.Ref(view.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: 23})
 	other := New()
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign type ref")

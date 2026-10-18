@@ -88,7 +88,7 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
-	target := ObjectRef{owner: authority.owner.domain, Epoch: authority.Epoch(), Address: destination.address}
+	target := authority.owner.domain.Ref(authority.Epoch(), destination.address)
 	return func(ref ObjectRef) ObjectRef {
 		address := ref.Address
 		address.SubID = 0
@@ -188,7 +188,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 							continue
 						}
 						sourceNamespace := auth.catalog.state.descriptors[in.source.namespace].(*namespaceDescriptor)
-						if temporary == (SessionToken{}) || temporary != sourceNamespace.temporary || temporary.domain != domainOf(e) {
+						if temporary == (SessionToken{}) || temporary != sourceNamespace.temporary || temporary.Domain() != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
 					}

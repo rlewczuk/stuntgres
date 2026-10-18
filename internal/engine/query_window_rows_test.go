@@ -377,7 +377,7 @@ func TestQueryWindowRowsColumnAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.rows_acl(id INT,k INT)")
-	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: table.address}
+	ref := e.domain.Ref(e.state.epoch, table.address)
 	reader := e.authorizationDomain.Principal(1000000)
 	roles := cloneRoleFixture(e.roles)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "rows_unit_reader"})

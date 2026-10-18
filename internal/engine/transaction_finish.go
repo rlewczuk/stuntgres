@@ -132,7 +132,7 @@ func (s *StatementScope) Finish(err error) error {
 				e.mu.Lock()
 				session.mu.Lock()
 				err = publicationOperationLocked(e, s.op)
-				if err == nil && t.ref.epoch != e.state.epoch {
+				if err == nil && t.ref.Epoch() != e.state.epoch {
 					err = ErrCatalogReplaced
 				}
 				if err == nil && s.catalog != nil {

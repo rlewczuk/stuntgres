@@ -19,7 +19,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	var resources [2]lockResource
 	for i, name := range []string{"cycle_left", "cycle_right"} {
 		d := domainUnitType(t, e.CatalogRead(), name)
-		resources[i] = lockResource{ObjectRef: ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.Address()}}
+		resources[i] = lockResource{ObjectRef: e.domain.Ref(e.state.epoch, d.Address())}
 	}
 	sessions := [2]*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	var refs [2]TxRef
@@ -64,7 +64,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for i, ticket := range tickets {
 		blocker := tickets[1-i]
 		resource := resources[1-i]
-		want[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for ExclusiveLock on type %d (class 1247, sub-ID 0, epoch %d); blocked by transaction %d (session %d, epoch %d).", ticket.ref.id, ticket.ref.session.id, ticket.ref.epoch, resource.Address.ObjectID, resource.Epoch, blocker.ref.id, blocker.ref.session.id, blocker.ref.epoch)] = true
+		want[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for ExclusiveLock on type %d (class 1247, sub-ID 0, epoch %d); blocked by transaction %d (session %d, epoch %d).", ticket.ref.ID(), ticket.ref.Session().ID(), ticket.ref.Epoch(), resource.Address.ObjectID, resource.Epoch, blocker.ref.ID(), blocker.ref.Session().ID(), blocker.ref.Epoch())] = true
 	}
 	for _, line := range strings.Split(d.Detail, "\n") {
 		if !want[line] {

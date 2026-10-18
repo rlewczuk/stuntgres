@@ -8,7 +8,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if raw == nil {
 		return nil, nil
 	}
-	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: d.address}
+	ref := e.domain.Ref(auth.catalog.Epoch(), d.address)
 	columns := make([]queryColumn, len(d.columns))
 	for i, c := range d.columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
@@ -60,7 +60,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		whole := address
 		whole.SubID = 0
 		frozen.dependencies = append(frozen.dependencies, expressionDependency{
-			ref:      ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: address},
+			ref:      e.domain.Ref(auth.catalog.Epoch(), address),
 			revision: auth.catalog.state.descriptors[whole].Revision(),
 		})
 	}

@@ -55,7 +55,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 			next = &copy
 		}
 		c := &next.exclusionConstraints[i]
-		if err := stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: old.Index}, false); err != nil {
+		if err := stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
 			return nil, err
 		}
 		c.OID, err = e.allocateOIDLocked()

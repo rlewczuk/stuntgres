@@ -13,7 +13,7 @@ import (
 
 func availableUnitSource(e *Engine, oid OID) (*relationDescriptor, ObjectRef) {
 	a := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-	return e.state.descriptors[a].(*relationDescriptor), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
+	return e.state.descriptors[a].(*relationDescriptor), e.domain.Ref(e.state.epoch, a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {

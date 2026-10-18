@@ -48,14 +48,14 @@ type pgLockRecord struct {
 }
 
 func publicLockOwner(domain *Domain, ref TxRef, prepared bool) (pgLockOwner, bool, error) {
-	token := ref.session
-	if ref.domain != domain || token.domain != domain || privateSessionOf(token) != nil || token.id == 0 {
+	token := ref.Session()
+	if ref.Domain() != domain || token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0 {
 		return pgLockOwner{}, false, nil
 	}
-	if !prepared && token.id > math.MaxInt32 {
+	if !prepared && token.ID() > math.MaxInt32 {
 		return pgLockOwner{}, false, fmt.Errorf("stuntgres: lock session identity exceeds integer range")
 	}
-	return pgLockOwner{session: token.id, local: ref.id, prepared: prepared}, true, nil
+	return pgLockOwner{session: token.ID(), local: ref.ID(), prepared: prepared}, true, nil
 }
 
 func (m *relationLockManager) pgLockOwner(t *relationTicket) (pgLockOwner, bool, error) {
@@ -81,7 +81,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 	// registered incarnation, whose VXID is already genuinely owned.
 	var active map[SessionID]pgLockOwner
 	for _, ticket := range m.owners {
-		if ticket.ref.epoch != epoch {
+		if ticket.ref.Epoch() != epoch {
 			continue
 		}
 		owner, visible, err := m.pgLockOwner(ticket)
@@ -129,7 +129,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 				var visible bool
 				var err error
 				if ticket.persistent {
-					owner, visible, err = publicLockOwner(m.domain, TxRef{domain: m.domain, session: ticket.session}, false)
+					owner, visible, err = publicLockOwner(m.domain, m.domain.Tx(ticket.session, 0, 0, nil, 0), false)
 					if current, ok := active[owner.session]; ok {
 						owner = current
 					}
@@ -166,7 +166,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 			}
 		}
 		for _, request := range entry.pending {
-			if !m.validInquiryRequest(request, entry, resource) || request.provenance.epoch != epoch {
+			if !m.validInquiryRequest(request, entry, resource) || request.provenance.Epoch() != epoch {
 				continue
 			}
 			identity, visible := identities[m.owners[request.provenance]]
@@ -217,7 +217,7 @@ func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relati
 		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !lockConflict(request.mode, hold.mode) {
 			continue
 		}
-		if target == nil || ticket.ref.diagnostic < target.ref.diagnostic {
+		if target == nil || ticket.ref.Diagnostic() < target.ref.Diagnostic() {
 			target = ticket
 		}
 	}

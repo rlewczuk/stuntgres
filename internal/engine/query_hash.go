@@ -112,7 +112,7 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 		probe = predicate.left
 	}
 	evaluation := state.evaluation(ctx)
-	if !ok || column.scope != evaluation.Scope || column.frame != evaluation.Frame || column.origin.owner != source.ref.owner || column.origin.Epoch != source.ref.Epoch || column.origin.Address.ClassID != source.ref.Address.ClassID || column.origin.Address.ObjectID != source.ref.Address.ObjectID {
+	if !ok || column.scope != evaluation.Scope || column.frame != evaluation.Frame || column.origin.Domain() != source.ref.Domain() || column.origin.Epoch != source.ref.Epoch || column.origin.Address.ClassID != source.ref.Address.ClassID || column.origin.Address.ObjectID != source.ref.Address.ObjectID {
 		return nil, nil
 	}
 	switch probe.(type) {

@@ -83,7 +83,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	}
 	run(t, e, "CREATE TABLE a(other TEXT)")
 	replacement := roleTableRef(t, e, "a")
-	if replacement.Address.ObjectID <= a.Address.ObjectID || replacement.Epoch != a.Epoch || replacement.owner != a.owner {
+	if replacement.Address.ObjectID <= a.Address.ObjectID || replacement.Epoch != a.Epoch || replacement.Domain() != a.Domain() {
 		t.Fatal(a, replacement)
 	}
 }
@@ -92,7 +92,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	run(t, e, "CREATE TABLE a(id INT)")
 	base := e.CatalogRead()
 	ref := roleTableRef(t, e, "a")
-	for _, bad := range []ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, {owner: New().domain, Epoch: ref.Epoch, Address: ref.Address}, {owner: ref.owner, Epoch: ref.Epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}}, {owner: ref.owner, Epoch: ref.Epoch, Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}, {owner: ref.owner, Epoch: ref.Epoch - 1, Address: ref.Address}} {
+	for _, bad := range []ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
 		s := e.BeginCatalogStage(base)
 		if err := s.Remove(bad); err == nil {
 			t.Fatal("invalid ref accepted", bad)
@@ -293,7 +293,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 	base = e.CatalogRead()
 	for _, address := range []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, {ClassID: TypeClassID, ObjectID: 23}, custom.address} {
 		stage = e.BeginCatalogStage(base)
-		if err = stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: address}); err == nil {
+		if err = stage.Remove(e.domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)
 		}
 		if len(stage.removals) != 0 || e.CatalogRead().state != base.state {

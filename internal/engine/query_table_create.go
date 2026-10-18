@@ -101,7 +101,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		if dependencyType.IsUserDefined() {
 			address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(dependencyType.ID())}
-			if err = auth.CanUse(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: address}); err != nil {
+			if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}
 			descriptor := auth.catalog.state.descriptors[address]

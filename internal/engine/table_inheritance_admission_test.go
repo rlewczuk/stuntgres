@@ -23,7 +23,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if err := holder.gate(&parser.CreateTable{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: parent.address}
+	ref := e.domain.Ref(e.CatalogRead().Epoch(), parent.address)
 	if err := holder.acquireSequence(ref, accessExclusive, true); err != nil {
 		t.Fatal(err)
 	}

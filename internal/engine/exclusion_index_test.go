@@ -21,7 +21,7 @@ func TestExclusionIndexRoots(t *testing.T) {
 			if root == nil || index.sqlIndex.unique || !index.sqlIndex.isExclusion() || !backingConstraintPresent(parent, index) {
 				t.Fatal("exclusion does not own a real nonunique enforcement root")
 			}
-			metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: index.address})
+			metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.domain.Ref(e.state.epoch, index.address))
 			if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || !metadata.IndImmediate || !metadata.IndIsReady || !metadata.IndIsValid || !metadata.IndIsLive || len(metadata.IndKey) != 1 || metadata.IndKey[0] != 0 {
 				t.Fatal("incorrect native exclusion index metadata", metadata, err)
 			}
@@ -72,7 +72,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	original := e.state.descriptors[ref.Address].(*relationDescriptor)
 	old := original.exclusionConstraints[0]
 	oldRoot := e.indexRoots[old.Index]
-	metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: old.Index})
+	metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.domain.Ref(e.state.epoch, old.Index))
 	if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || metadata.IndImmediate || len(metadata.IndKey) != 2 || metadata.IndKey[0] != 0 || metadata.IndKey[1] != int16(original.attributes[2]) {
 		t.Fatal("incorrect deferred definition/INCLUDE metadata", metadata, err)
 	}

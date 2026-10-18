@@ -23,7 +23,7 @@ type rowPublication struct {
 
 func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
 	owner := txOwnerOf(ref)
-	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.domain != domainOf(e) || ref.session != op.session.token || owner != op.session.transactions || ref.id == 0 || ref != owner.ref {
+	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.session.token || owner != op.session.transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
 	if owner.state != TxActive && owner.state != TxImplicit {
@@ -85,7 +85,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			e.mu.Lock()
 			op.session.mu.Lock()
 			err := publicationOperationLocked(e, op)
-			if err == nil && ref.epoch != e.state.epoch {
+			if err == nil && ref.Epoch() != e.state.epoch {
 				err = ErrCatalogReplaced
 			}
 			if err == nil {
@@ -134,14 +134,14 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		var nextCatalog *catalogState
 		var err error
 		if c != nil {
-			nextCatalog, err = e.preparePrivateCatalog(op.Context(), c, ref.epoch)
+			nextCatalog, err = e.preparePrivateCatalog(op.Context(), c, ref.Epoch())
 			if err != nil {
 				return err
 			}
 		}
 		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
 		e.mu.Lock()
-		if ref.epoch != e.state.epoch {
+		if ref.Epoch() != e.state.epoch {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}
@@ -326,7 +326,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		e.mu.Lock()
 		session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		if err == nil && ref.epoch != e.state.epoch {
+		if err == nil && ref.Epoch() != e.state.epoch {
 			err = ErrCatalogReplaced
 		}
 		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
@@ -476,7 +476,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
 func publicationOperationLocked(e *Engine, op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.domain != domainOf(e) {
+	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	if op.done || op.session.state != live {

@@ -166,19 +166,19 @@ func newRelationLockManager(domain *Domain) *relationLockManager {
 func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	owner, private := txOwnerOf(ref), privateSessionOf(ref.session)
-	if ref.domain != m.domain || ref.id == 0 || ref.epoch == 0 || owner == nil || ref.session.domain != m.domain ||
-		ref.session.id == 0 && (private == nil || owner.session != private || private.token != ref.session) ||
-		ref.session.id != 0 && private != nil {
+	owner, private := txOwnerOf(ref), privateSessionOf(ref.Session())
+	if ref.Domain() != m.domain || ref.ID() == 0 || ref.Epoch() == 0 || owner == nil || ref.Session().Domain() != m.domain ||
+		ref.Session().ID() == 0 && (private == nil || owner.session != private || private.token != ref.Session()) ||
+		ref.Session().ID() != 0 && private != nil {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
-	if ref.epoch < m.epoch {
+	if ref.Epoch() < m.epoch {
 		return nil, ErrCatalogReplaced
 	}
 	if _, ok := m.owners[ref]; ok {
 		return nil, errors.New("stuntgres: duplicate lock owner")
 	}
-	t := &relationTicket{manager: m, ref: ref, session: ref.session, resources: make(map[lockResource]struct{})}
+	t := &relationTicket{manager: m, ref: ref, session: ref.Session(), resources: make(map[lockResource]struct{})}
 	m.owners[ref] = t
 	return t, nil
 }
@@ -466,7 +466,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		}
 		if t.persistent {
 			source := m.owners[policy.provenance]
-			if source == nil || source.detached || source.session != t.session || policy.provenance.epoch < m.epoch {
+			if source == nil || source.detached || source.session != t.session || policy.provenance.Epoch() < m.epoch {
 				m.mu.Unlock()
 				return nil, ErrCatalogReplaced
 			}
@@ -479,7 +479,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		// Advisory tags have no catalog ObjectRef, for either lifetime.
 	} else if ref.completion != nil {
 		owner := ref.completion
-		if mode != transactionCompletion || owner == t || owner.manager != m || owner.ref.epoch != t.ref.epoch {
+		if mode != transactionCompletion || owner == t || owner.manager != m || owner.ref.Epoch() != t.ref.Epoch() {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid transaction completion request")
 		}
@@ -488,11 +488,11 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 			return nil, nil
 		}
 	} else if ref.Address.ClassID == TypeClassID {
-		if ref.owner != m.domain || ref.Epoch != t.ref.epoch || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
+		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
-	} else if ref.owner != m.domain || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
+	} else if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}
@@ -654,7 +654,7 @@ func (m *relationLockManager) fence(epoch CatalogEpoch) {
 		m.retireMultiXactsLocked()
 		m.epoch = epoch
 		for ref := range m.owners {
-			if ref.epoch < epoch {
+			if ref.Epoch() < epoch {
 				m.owners[ref].retireOwnership()
 				clear(m.owners[ref].resources)
 				delete(m.owners, ref)
@@ -663,12 +663,12 @@ func (m *relationLockManager) fence(epoch CatalogEpoch) {
 		for ref, e := range m.entries {
 			if ref.kind != ordinaryResource {
 				for ticket := range e.holders {
-					if !ticket.persistent && ticket.ref.epoch < epoch {
+					if !ticket.persistent && ticket.ref.Epoch() < epoch {
 						delete(e.holders, ticket)
 					}
 				}
 				for _, r := range e.pending {
-					if !r.terminal && r.provenance.epoch < epoch {
+					if !r.terminal && r.provenance.Epoch() < epoch {
 						terminalRequest(r, ErrCatalogReplaced, &notify)
 					}
 				}
@@ -676,7 +676,7 @@ func (m *relationLockManager) fence(epoch CatalogEpoch) {
 				m.retire(ref, e)
 				continue
 			}
-			if ref.Epoch < epoch && (ref.completion == nil || ref.completion.ref.epoch < epoch) {
+			if ref.Epoch < epoch && (ref.completion == nil || ref.completion.ref.Epoch() < epoch) {
 				for _, r := range e.pending {
 					if !r.terminal {
 						terminalRequest(r, ErrCatalogReplaced, &notify)

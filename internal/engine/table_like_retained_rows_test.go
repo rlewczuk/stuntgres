@@ -71,7 +71,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("retained row-expression copy", err)
 			}
 			local := func(attribute int32) ObjectRef {
-				return ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute}}
+				return e.domain.Ref(stage.base.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute})
 			}
 			assertTree := func(node BoundExpr) {
 				t.Helper()
@@ -80,7 +80,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					t.Fatal("fixture lost row reference")
 				}
 				for _, ref := range refs {
-					if ref.owner != e.domain || ref.Epoch != stage.base.Epoch() || ref.Address.ObjectID != destination.address.ObjectID {
+					if ref.Domain() != e.domain || ref.Epoch != stage.base.Epoch() || ref.Address.ObjectID != destination.address.ObjectID {
 						t.Fatal("mapped row lacks fresh destination authority", ref)
 					}
 				}
@@ -190,7 +190,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	sessionSQL(t, owner, "CREATE INDEX source_partial ON src(a) WHERE active AND ('pg_temp.anchor'::regclass IS NOT NULL)")
 	source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 	anchor := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "anchor")
-	oldRef := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: anchor.address}
+	oldRef := e.domain.Ref(e.CatalogRead().Epoch(), anchor.address)
 	oldGeneration := source.generations[2]
 	oldCheck := source.checkConstraints[0]
 	oldIndex := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")
@@ -220,7 +220,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		walkBoundExpression(node, func(node BoundExpr) {
 			switch n := node.(type) {
 			case columnExpression:
-				if n.origin.owner != e.domain || n.origin.Epoch != stage.base.Epoch() || n.origin.Address.ObjectID != destination.address.ObjectID {
+				if n.origin.Domain() != e.domain || n.origin.Epoch != stage.base.Epoch() || n.origin.Address.ObjectID != destination.address.ObjectID {
 					t.Fatal("local row authority not current", n.origin)
 				}
 			case literalExpression:

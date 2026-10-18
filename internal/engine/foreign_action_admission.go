@@ -32,7 +32,7 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ObjectRef) e
 	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.ref != s.txRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
-	if ref.owner != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
+	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	current, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
@@ -86,7 +86,7 @@ func (s *StatementScope) admitForeignAction(ref ObjectRef, job *foreignKeyJob, w
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.owner != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch || ref.Address != job.child.address {
+	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.address {
 		return ErrCatalogReplaced
 	}
 	if !held {

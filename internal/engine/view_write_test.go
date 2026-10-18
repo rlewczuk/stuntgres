@@ -26,7 +26,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
-	baseRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: base.address}
+	baseRef := e.domain.Ref(e.state.epoch, base.address)
 	column := func(slot int) BoundExpr {
 		ref := baseRef
 		ref.Address.SubID = base.attributes[slot]
@@ -36,7 +36,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []BoundExpr{column(1), column(0)}}
 	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
-	viewRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: view.address}
+	viewRef := e.domain.Ref(e.state.epoch, view.address)
 	e.state.descriptors[base.address] = base
 	e.state.descriptors[view.address] = view
 	e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: base.name}] = base.address

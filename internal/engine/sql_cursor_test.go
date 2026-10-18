@@ -333,7 +333,7 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows")
 	cursor := s.cursors.entries["c"]
-	foreign := SessionToken{domain: s.Engine().domain, id: s.token.id + 1}
+	foreign := s.Engine().domain.Session(s.token.ID() + 1)
 	if err := s.cursors.EndSession(foreign, CleanClose); err == nil || s.cursors.entries["c"] != cursor {
 		t.Fatal("foreign cleanup consumed cursor", err)
 	}

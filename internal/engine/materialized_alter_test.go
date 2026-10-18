@@ -152,7 +152,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			roots := append([]ObjectAddress{ext.address}, ext.members[:]...)
 			for _, a := range roots {
-				if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}); err != nil {
+				if err := stage.Remove(e.domain.Ref(stage.base.Epoch(), a)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -173,7 +173,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		defer e.DiscardCatalogStage(stage)
 		roots := append([]ObjectAddress{ext.address}, ext.members[:]...)
 		for _, a := range roots {
-			if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}); err != nil {
+			if err := stage.Remove(e.domain.Ref(stage.base.Epoch(), a)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -240,7 +240,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	for _, roots := range [][]ObjectAddress{{member, ext.address}, {ext.address, member}} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		for _, a := range providerRoots {
-			if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}); err != nil {
+			if err := stage.Remove(e.domain.Ref(stage.base.Epoch(), a)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -277,7 +277,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	for _, a := range providerRoots {
-		if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}); err != nil {
+		if err := stage.Remove(e.domain.Ref(stage.base.Epoch(), a)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -424,7 +424,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	defer target.DiscardCatalogStage(stage)
 	roots := append([]ObjectAddress{importedExt.address}, importedExt.members[:]...)
 	for _, address := range roots {
-		if err := stage.Remove(ObjectRef{owner: target.domain, Epoch: stage.base.Epoch(), Address: address}); err != nil {
+		if err := stage.Remove(target.domain.Ref(stage.base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}

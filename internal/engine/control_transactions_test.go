@@ -60,7 +60,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 							t.Fatal("replacement/end mutated identity/private writes/frontier")
 						}
 						if chain {
-							if a.TransactionState() != TxActive || a.transactions.ref.epoch != e.CatalogRead().Epoch() || a.transactions.ref.ID() <= old.ID() {
+							if a.TransactionState() != TxActive || a.transactions.ref.Epoch() != e.CatalogRead().Epoch() || a.transactions.ref.ID() <= old.ID() {
 								t.Fatal("rollback chain not current")
 							}
 							controlsRequire(t, a, "ROLLBACK")

@@ -333,7 +333,7 @@ func TestRelationLockLifecycle(t *testing.T) {
 		ra := transactionBegin(t, a)
 		sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 		bad := ra
-		bad.id++
+		bad = withTxID(bad, bad.ID()+1)
 		op := transactionOperation(t, a)
 		if _, err := e.Rollback(op, bad); err == nil {
 			t.Fatal("stale ref accepted")

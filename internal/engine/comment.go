@@ -103,10 +103,10 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}
-		ref = ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: a}
+		ref = e.domain.Ref(auth.catalog.Epoch(), a)
 	case parser.CommentTable, parser.CommentColumn:
 		ref = scope.lockedRef
-		if ref.owner == nil {
+		if ref.Domain() == nil {
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
 		}
 		relation := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -117,7 +117,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := tableKind(relation, operation); err != nil {
 			return nil, err
 		}
-		if err := auth.CanUse(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: relation.namespace}); err != nil {
+		if err := auth.CanUse(e.domain.Ref(ref.Epoch, relation.namespace)); err != nil {
 			return nil, err
 		}
 		if s.Kind == parser.CommentColumn {

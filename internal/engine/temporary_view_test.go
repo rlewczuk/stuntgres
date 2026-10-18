@@ -79,7 +79,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	removal := e.BeginCatalogStage(catalog)
 	defer e.DiscardCatalogStage(removal)
-	if err := removal.Remove(ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: view.address}); err != nil {
+	if err := removal.Remove(e.domain.Ref(catalog.Epoch(), view.address)); err != nil {
 		t.Fatal(err)
 	}
 	retired := e.stageRead(removal)
@@ -107,7 +107,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	writes := map[ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
-	_, _, next, err := e.prepareTemporaryCommit(op, TxRef{epoch: e.state.epoch}, writes, nil, changes)
+	_, _, next, err := e.prepareTemporaryCommit(op, (*Domain)(nil).Tx(SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,13 +183,13 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
-	for _, bad := range []ObjectRef{{owner: New().domain, Epoch: ref.Epoch, Address: ref.Address}, {owner: e.domain, Epoch: next.epoch + 1, Address: ref.Address}, {owner: e.domain, Epoch: ref.Epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: table.address.ObjectID, SubID: 99}}} {
+	for _, bad := range []ObjectRef{New().domain.Ref(ref.Epoch, ref.Address), e.domain.Ref(next.epoch+1, ref.Address), e.domain.Ref(ref.Epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
 		if storedViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}
 	}
 	peerNamespace := *next.descriptors[table.namespace].(*namespaceDescriptor)
-	peerNamespace.temporary.id++
+	peerNamespace.temporary = withSessionID(peerNamespace.temporary, peerNamespace.temporary.ID()+1)
 	next.descriptors[table.namespace] = &peerNamespace
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("peer namespace accepted")

@@ -72,7 +72,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
-				if foreign { stale.ref.owner = New().domain } else { stale.ref.Epoch++ }
+				if foreign { stale.ref = New().domain.Ref(stale.ref.Epoch, stale.ref.Address) } else { stale.ref.Epoch++ }
 				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil { t.Fatal("foreign/stale reference") }
 			}
 			retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })

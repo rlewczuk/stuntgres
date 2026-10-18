@@ -9,7 +9,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return mutationRowIdentity{}, missingSQLCursor(b.currentOf)
 	}
-	if c.epoch != s.txRef.epoch {
+	if c.epoch != s.txRef.Epoch() {
 		return mutationRowIdentity{}, ErrCatalogReplaced
 	}
 	if c.position == cursorFailed || c.root == nil {

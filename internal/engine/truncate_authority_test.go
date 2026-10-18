@@ -166,7 +166,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	if ownAddress == (ObjectAddress{}) || peerAddress == (ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
 	}
-	peerRef := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: peerAddress}
+	peerRef := e.domain.Ref(catalog.Epoch(), peerAddress)
 	oldPeer := e.storage[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.versions, oldPeer.ends, oldPeer.generation
 	scope := truncateUnitStage(t, e, owner, "p")
@@ -177,7 +177,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	excluded = excluded && !journaledPeer && e.locks.entries[lockResource{ObjectRef: peerRef}] == nil
 	admitted := true
 	for _, address := range []ObjectAddress{parent.Address, ownAddress, persistent.Address} {
-		ref := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
+		ref := e.domain.Ref(catalog.Epoch(), address)
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
 		if entry == nil {
 			admitted = false
@@ -222,7 +222,7 @@ func TestTruncateLocks(t *testing.T) {
 		_, prefixJournal := ticket.resources[lockResource{ObjectRef: p}]
 		_, pendingJournal := ticket.resources[lockResource{ObjectRef: q}]
 		grant, held := prefix.holders[ticket]
-		valid = held && grant.mode == accessExclusive && request.mode == accessExclusive && request.ref == (lockResource{ObjectRef: q}) && request.provenance.session == waiter.token && e.locks.owners[request.provenance] == ticket && prefixJournal && pendingJournal
+		valid = held && grant.mode == accessExclusive && request.mode == accessExclusive && request.ref == (lockResource{ObjectRef: q}) && request.provenance.Session() == waiter.token && e.locks.owners[request.provenance] == ticket && prefixJournal && pendingJournal
 	}
 	e.locks.mu.Unlock()
 	if !valid {

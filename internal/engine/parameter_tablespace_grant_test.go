@@ -178,7 +178,7 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 				t.Fatal("noncanonical pg_tablespace column order", i, source.columns[i].Name)
 			}
 		}
-		ref := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
+		ref := e.domain.Ref(catalog.Epoch(), address)
 		e.mu.Lock()
 		rows, err := e.capturePGTablespace(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, source)
 		e.mu.Unlock()

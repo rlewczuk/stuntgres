@@ -19,7 +19,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			target.SubID = old.Address.SubID
 			old.Address = target
 		}
-		old.owner = e.domain
+		old = e.domain.Ref(old.Epoch, old.Address)
 		old.Epoch = next.epoch
 		return old
 	}

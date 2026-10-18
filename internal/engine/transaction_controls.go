@@ -21,7 +21,7 @@ const (
 // Context remains a separate check: an accepted Go commit canceled after
 // admission must retain its existing failed-end/discard disposition.
 func (e *Engine) transactionAuthority(op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.domain != domainOf(e) {
+	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	session := op.session
@@ -155,7 +155,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		if err == nil {
 			t.next++
 			e.diagnosticTx++
-			next = TxRef{domain: e.domain, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
+			next = e.domain.Tx(t.session.token, t.next, e.state.epoch, t, e.diagnosticTx)
 			e.enrollSerializableLocked(next, isolation)
 		}
 		op.session.mu.Unlock()
@@ -200,7 +200,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 			e.replacementMu.RLock()
 			chainFence = true
 			e.mu.Lock()
-			if err == nil && next.epoch != e.state.epoch {
+			if err == nil && next.Epoch() != e.state.epoch {
 				err = ErrCatalogReplaced
 			}
 			e.mu.Unlock()
@@ -215,7 +215,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		// Replacement also fences SQL recovery commits of aborted blocks.
 		if err == nil && commit {
 			e.mu.Lock()
-			if ref.epoch != e.state.epoch {
+			if ref.Epoch() != e.state.epoch {
 				err = ErrCatalogReplaced
 			}
 			e.mu.Unlock()
@@ -235,7 +235,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 			e.replacementMu.RLock()
 			chainFence = true
 			e.mu.Lock()
-			if cleanupErr == nil && next.epoch != e.state.epoch {
+			if cleanupErr == nil && next.Epoch() != e.state.epoch {
 				cleanupErr = ErrCatalogReplaced
 			}
 			e.mu.Unlock()

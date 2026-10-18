@@ -86,7 +86,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	input.EnumMemberSafe = b.enumMemberSafe
 	for _, column := range b.createColumns {
-		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}}
+		ref := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())})
 		if b.createOfType == nil {
 			if err := auth.CanUse(ref); err != nil {
 				return err
@@ -258,7 +258,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	if _, domain := stmt.(*parser.CreateDomain); domain {
 		for address, descriptor := range stage.descriptors {
 			if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.IsDomain() && stage.base.state.descriptors[address] == nil {
-				created = ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: address}
+				created = e.domain.Ref(stage.base.Epoch(), address)
 				break
 			}
 		}
@@ -307,7 +307,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
 		if r, ok := stage.base.state.descriptors[a].(*relationDescriptor); ok && r.relationKind == sequenceRelation {
-			if err := scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}, accessExclusive, true); err != nil {
+			if err := scope.acquireSequence(e.domain.Ref(stage.base.Epoch(), a), accessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}
@@ -365,7 +365,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
-		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress}
+		ref := e.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
 			return err
@@ -392,7 +392,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return d, nil
 	}
 	own := func(d *namespaceDescriptor) error {
-		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: d.address}
+		ref := e.domain.Ref(auth.catalog.Epoch(), d.address)
 		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	}
 	switch s := stmt.(type) {
@@ -648,12 +648,12 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 		}
 		for _, r := range dependent {
-			if err = stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: r.address}, false); err != nil {
+			if err = stage.removeObjectLocked(e.domain.Ref(auth.catalog.Epoch(), r.address), false); err != nil {
 				return nil, err
 			}
 		}
 		for _, d := range schemas {
-			if err = stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: d.address}, true); err != nil {
+			if err = stage.removeObjectLocked(e.domain.Ref(auth.catalog.Epoch(), d.address), true); err != nil {
 				return nil, err
 			}
 		}

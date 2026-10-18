@@ -12,7 +12,7 @@ import (
 
 func TestAlterTablespacePreparation(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: old.address}
+	ref := e.domain.Ref(auth.catalog.Epoch(), old.address)
 	prepare := func(actions []parser.AlterTableAction) (alterTablePreparation, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -85,7 +85,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	before, roles, store, revision, epoch := e.state, e.roles, e.storage[old.address], old.revision, e.state.epoch
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
 	e.mu.Lock()
-	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: old.address}, actions)
+	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.domain.Ref(auth.catalog.Epoch(), old.address), actions)
 	e.mu.Unlock()
 	work, destination := prepared.actions, prepared.destination
 	if err != nil || len(work) != 0 || e.state != before || e.roles != roles || e.storage[old.address] != store || old.revision != revision || e.state.epoch != epoch {
@@ -118,7 +118,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 
 func TestAlterTablespaceTypeCapture(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: old.address}
+	ref := e.domain.Ref(auth.catalog.Epoch(), old.address)
 	before, roles, revision := e.state, e.roles, old.revision
 	prepare := func(query string) (alterTablePreparation, error) {
 		statements, err := parser.Parse(query)

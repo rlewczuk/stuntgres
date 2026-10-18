@@ -249,7 +249,7 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.temporary != (SessionToken{}) && (ns.temporary.domain != domainOf(v.owner) || ns.temporary.id == 0 || privateSessionOf(ns.temporary) != nil) {
+	if ns.temporary != (SessionToken{}) && (ns.temporary.Domain() != domainOf(v.owner) || ns.temporary.ID() == 0 || privateSessionOf(ns.temporary) != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()
@@ -915,7 +915,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.owningRelation).(*relationDescriptor); ok && backing.relationKind == compositeRelation {
-			if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: backing.address}, false); err != nil {
+			if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
 				return err
 			}
 		}
@@ -933,7 +933,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.rowType, row.array} {
 			if id != 0 {
-				if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}}, false); err != nil {
+				if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}), false); err != nil {
 					return err
 				}
 			}
@@ -1221,7 +1221,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			observed := removal.descriptor
 			d := current.descriptors[a]
-			if removal.ref.owner != e.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
+			if removal.ref.Domain() != e.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1542,7 +1542,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, e.state}, roleRecord: e.roles, catalog: CatalogRead{e, e.state}, roles: e.roleRead(CatalogRead{e, e.state}, e.roles), state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: authorization.MaintainPrivilege})
+			err = auth.Check(AccessRequirement{Object: e.domain.Ref(e.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1659,7 +1659,7 @@ func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error 
 	if e.domain == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if ref.owner == nil || ref.owner != e.domain {
+	if ref.Domain() == nil || ref.Domain() != e.domain {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
 	if view.state.epoch != e.state.epoch || ref.Epoch != e.state.epoch {

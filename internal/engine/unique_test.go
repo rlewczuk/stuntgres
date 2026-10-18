@@ -79,7 +79,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	index, _ := btreeRoot(t, e, "u")
-	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: index.address}
+	ref := e.domain.Ref(e.state.epoch, index.address)
 	parent := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	ordering, err := bindIndexOrdering(parent, index.sqlIndex)
 	if err != nil {

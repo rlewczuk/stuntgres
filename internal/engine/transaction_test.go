@@ -254,7 +254,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
-	for _, bad := range []TxRef{{}, {domain: New().domain, session: a.Token(), id: ref.id}, {domain: e.domain, session: b.Token(), id: ref.id}} {
+	for _, bad := range []TxRef{{}, New().domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
 		if _, err := e.Commit(op, bad); err == nil {
 			t.Fatal("foreign ref")
 		}
@@ -459,7 +459,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				outcome, err = e.Commit(op, ref)
 			case "ref_before":
 				stale := ref
-				stale.id++
+				stale = withTxID(stale, stale.ID()+1)
 				outcome, err = e.Commit(op, stale)
 			default:
 				outcome, err = e.Commit(op, ref)

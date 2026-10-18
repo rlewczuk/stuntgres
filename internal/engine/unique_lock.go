@@ -73,7 +73,7 @@ func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relation
 			return lockResource{}, nil, err
 		}
 		m.mu.Lock()
-		if !m.valid(ticket) || ref.Epoch != ticket.ref.epoch {
+		if !m.valid(ticket) || ref.Epoch != ticket.ref.Epoch() {
 			m.mu.Unlock()
 			return lockResource{}, nil, ErrCatalogReplaced
 		}

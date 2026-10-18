@@ -61,7 +61,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	boolean, _ := view.LookupType(sqltype.Bool)
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.columns[1].Usage = oid.Usage()
-	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch() + 1, Address: d.address}
+	ref := e.domain.Ref(view.Epoch()+1, d.address)
 	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
@@ -102,7 +102,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	temp.generations, temp.checkConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.state = cloneCatalog(e.state)
-	e.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: SessionToken{domain: e.domain, id: 99}}
+	e.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: e.domain.Session(99)}
 	e.state.descriptors[tempAddress] = &temp
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()

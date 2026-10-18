@@ -308,7 +308,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	if s.txRef.epoch != e.state.epoch {
+	if s.txRef.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
@@ -343,7 +343,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				}
 			}
 		}
-		if ref.owner != nil {
+		if ref.Domain() != nil {
 			retained = true
 			ref, err = e.admittedReference(auth, name, ref)
 		} else if viewReplacement {
@@ -360,7 +360,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				s.viewCreationNamespace = ns
 				address := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
 				if address != (ObjectAddress{}) {
-					ref = ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: address}
+					ref = e.domain.Ref(auth.catalog.Epoch(), address)
 				}
 			}
 		} else if mode == accessShare || mode == relationRowShare || mode == rowExclusive {
@@ -381,7 +381,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if err == nil {
 		switch utility := stmt.(type) {
 		case *parser.CreateView:
-			if ref.owner != nil {
+			if ref.Domain() != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 				if err == nil {
 					d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -391,28 +391,28 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				}
 			}
 		case *parser.AlterView:
-			if ref.owner != nil {
+			if ref.Domain() != nil {
 				err = alterViewAuthority(parentAuth, ref, utility)
 			}
 		}
 		if ownerOnly && !viewReplacement && err == nil {
-			if ref.owner != nil {
+			if ref.Domain() != nil {
 				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
 					err = alterTableLookupKind(parentAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
 				}
 			}
-			if tableRename && ref.owner != nil && err == nil {
-				err = auth.CheckCreate(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: auth.catalog.state.descriptors[ref.Address].Namespace()})
+			if tableRename && ref.Domain() != nil && err == nil {
+				err = auth.CheckCreate(e.domain.Ref(ref.Epoch, auth.catalog.state.descriptors[ref.Address].Namespace()))
 			}
 		}
-		if err == nil && ref.owner != nil {
+		if err == nil && ref.Domain() != nil {
 			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
 		}
 	}
 	var definitionStamp DefinitionRevision
 	var materializedAlterAuthority *relationDescriptor
-	if err == nil && ref.owner != nil {
+	if err == nil && ref.Domain() != nil {
 		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address], s.op.session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
 			materializedAlterAuthority = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -446,7 +446,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				source, err = standaloneComposite(auth.catalog, typ, path)
 			}
 			if err == nil {
-				typedSourceRef = ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: source.address}
+				typedSourceRef = e.domain.Ref(auth.catalog.Epoch(), source.address)
 			}
 		}
 	}
@@ -460,10 +460,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if err != nil {
 		return err
 	}
-	if rename && ref.owner == nil {
+	if rename && ref.Domain() == nil {
 		return nil
 	}
-	if typedSourceRef.owner != nil {
+	if typedSourceRef.Domain() != nil {
 		if err := s.acquireSequence(typedSourceRef, accessShare, false); err != nil {
 			return err
 		}
@@ -506,7 +506,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	partitionDrop := false
 	e.mu.Lock()
-	if ref.owner != nil {
+	if ref.Domain() != nil {
 		err = s.observePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
 			d, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
@@ -556,7 +556,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	descriptor, live := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
-	if ref.owner != e.domain || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
+	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || txref.Epoch() != e.state.epoch || !live {
 		return ErrCatalogReplaced
 	}
 	if materializedAlterAuthority != nil &&
@@ -651,7 +651,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		if tableRename {
-			return auth.CheckCreate(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: descriptor.namespace})
+			return auth.CheckCreate(e.domain.Ref(ref.Epoch, descriptor.namespace))
 		}
 		return nil
 	}
@@ -680,7 +680,7 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		}
 		s.activateMutation(active)
 	}
-	if len(s.querySources) == 0 && s.lockedRef.owner == nil && len(s.partitionRelations) == 0 {
+	if len(s.querySources) == 0 && s.lockedRef.Domain() == nil && len(s.partitionRelations) == 0 {
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -708,11 +708,11 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 }
 
 func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
-	if s.lockedRef.owner == nil {
+	if s.lockedRef.Domain() == nil {
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	if s.lockedRef.owner != e.domain || s.lockedRef.Epoch != e.state.epoch {
+	if s.lockedRef.Domain() != e.domain || s.lockedRef.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	current := catalog.state.descriptors[s.lockedRef.Address]

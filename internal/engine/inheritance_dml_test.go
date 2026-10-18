@@ -27,7 +27,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 		done()
 		t.Fatal(err)
 	}
-	s.lockedRef = ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: p.address}
+	s.lockedRef = e.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	s.lockedDescriptor = p
 	s.lockedStorage = e.storage[p.address]
 	if err = e.locks.acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
@@ -86,7 +86,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := func(d *relationDescriptor) ObjectRef {
-		return ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: d.address}
+		return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	old := rowVersion{row: 7, version: 11, base: 5, born: 3, values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &relationStorage{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}

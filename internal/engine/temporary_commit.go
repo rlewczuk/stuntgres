@@ -9,7 +9,7 @@ import (
 // transaction/savepoint roots remain untouched until the ordinary final install.
 func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ObjectAddress][]rowVersion, map[ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
 	e.mu.Lock()
-	if ref.epoch != e.state.epoch {
+	if ref.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		return nil, nil, nil, ErrCatalogReplaced
 	}
@@ -90,7 +90,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 			return nil
 		}
 		for _, a := range dropped {
-			if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: a}); err != nil {
+			if err := stage.Remove(e.domain.Ref(base.Epoch(), a)); err != nil {
 				return nil, nil, nil, err
 			}
 		}

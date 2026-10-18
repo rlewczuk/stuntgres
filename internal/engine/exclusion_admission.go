@@ -507,7 +507,7 @@ func (s *StatementScope) probeExclusionRow(ref ObjectRef, binding *uniqueWriteBi
 		return conflict, nil
 	}
 	if c.Deferrable && potential {
-		event := exclusionEvent{parent: ref, index: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: index.address}, constraint: c.OID, row: candidate.row, version: candidate.version}
+		event := exclusionEvent{parent: ref, index: ref.Domain().Ref(ref.Epoch, index.address), constraint: c.OID, row: candidate.row, version: candidate.version}
 		if !slices.Contains(s.exclusionModes.events, event) {
 			s.exclusionModes.events = append(slices.Clone(s.exclusionModes.events), event)
 			if s.foreignActionsSettling {

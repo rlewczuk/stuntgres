@@ -121,7 +121,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	typ := d.columns[0].Usage.Type
 	base := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
-	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: d.address}
+	ref := e.domain.Ref(view.Epoch(), d.address)
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	node := b.queryColumnAt(queryColumn{descriptor: d.columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
@@ -157,7 +157,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	original := d.address
 	d.address.ObjectID++
 	d.columns[1].Usage = oid.Usage()
-	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch() + 1, Address: d.address}
+	ref := e.domain.Ref(view.Epoch()+1, d.address)
 	node := tableOIDExpression{expressionInfo: expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, owner: ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: node, planned: node}}
 	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)

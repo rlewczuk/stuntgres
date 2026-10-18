@@ -294,7 +294,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef,
 		if err != nil {
 			return ObjectRef{}, err
 		}
-		return ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}}, nil
+		return e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
@@ -377,7 +377,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			if namespace.temporary != (SessionToken{}) && namespace.temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
 			}
-			if err := r.auth.CanUse(ObjectRef{owner: r.auth.engine.domain, Epoch: r.auth.catalog.Epoch(), Address: ns}); err != nil {
+			if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
 			}
 			path = []ObjectAddress{ns}
@@ -417,7 +417,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	scope := c.liveScope()
 	e := scope.op.session.Engine()
 	ref := x.ref
-	if x.name != "lastval" && ref.owner == nil {
+	if x.name != "lastval" && ref.Domain() == nil {
 		text, err := values[0].Text()
 		if err != nil {
 			return sqltype.Value{}, err
@@ -428,11 +428,11 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		ref = ObjectRef{owner: e.domain, Epoch: scope.txRef.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}}
+		ref = e.domain.Ref(scope.txRef.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)})
 	}
 	if x.name == "lastval" {
 		e.mu.Lock()
-		ref = ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: scope.op.session.lastSequence}
+		ref = e.domain.Ref(e.state.epoch, scope.op.session.lastSequence)
 		e.mu.Unlock()
 		if ref.Address == (ObjectAddress{}) {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")
@@ -447,7 +447,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
 		ref.Epoch = before.catalog.Epoch()
 	}
-	if beforeErr == nil && (ref.owner != e.domain || ref.Epoch != before.catalog.Epoch()) {
+	if beforeErr == nil && (ref.Domain() != e.domain || ref.Epoch != before.catalog.Epoch()) {
 		beforeErr = ErrCatalogReplaced
 	}
 	if beforeErr == nil {

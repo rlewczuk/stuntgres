@@ -14,7 +14,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		return nil, err
 	}
 	d, exists := e.privateCatalogLocked(scope.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
-	if ref.owner != e.domain || ref.Epoch != e.state.epoch || !exists {
+	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || !exists {
 		e.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
@@ -190,7 +190,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 // checks; neither substitutes a live role/catalog sample during recursion.
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
+	if !ok || ref.Domain() != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced
 	}
 	principal := d.owner

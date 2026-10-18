@@ -115,10 +115,10 @@ func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, candidate *indexWriteCa
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return false, false, errors.New("stuntgres: inactive write stage")
 	}
-	if ref.owner != e.domain {
+	if ref.Domain() != e.domain {
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.state.epoch || ref.Epoch != s.owner.ref.epoch {
+	if ref.Epoch != e.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
 		return false, false, ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -178,7 +178,7 @@ func (s *StatementScope) partitionReturningGroup(ref ObjectRef) *partitionInsert
 	address := state.destination.address
 	group := state.groups[address]
 	if group == nil {
-		group = &partitionInsertGroup{ref: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}}
+		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
 			state.groups = make(map[ObjectAddress]*partitionInsertGroup)
 		}

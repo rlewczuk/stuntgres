@@ -18,7 +18,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *relationTicket) {
 }
 
 func blockingUnitResource(e *Engine) lockResource {
-	return lockResource{ObjectRef: ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 999999}}}
+	return lockResource{ObjectRef: e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: 999999})}
 }
 
 func blockingUnitType(e *Engine) *sqltype.Descriptor {
@@ -90,7 +90,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	inquiry := expressions[0].(blockingInquiryExpression)
-	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.id))
+	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.ID()))
 	inquiry.arg = literalExpression{expressionInfo: expressionInfo{usage: input.Type().Usage()}, value: input}
 	inquiry.properties = ExprProperties{Volatility: Volatile}
 	evaluation := &EvalContext{Context: context.Background(), statementScope: scope}
@@ -99,7 +99,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 		t.Fatal("live inquiry", before, err)
 	}
 	pid, _ := before.ArrayElement(0).Integer()
-	if pid != int64(owner.token.id) {
+	if pid != int64(owner.token.ID()) {
 		t.Fatal("physical blocker mapping", pid)
 	}
 	e.endLockOwner(holder)
@@ -118,16 +118,16 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if value, err := planned.Eval(evaluation); err != nil || value.IsNull() || value.ArrayLen() != 0 {
 		t.Fatal("undemanded branch evaluated", value, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: New().domain, id: 7}, false, e.domain); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), New().domain.Session(7), false, e.domain); err != nil || len(values) != 0 {
 		t.Fatal("foreign owner exposed", values, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: e.domain, private: s}, false, e.domain); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), e.domain.PrivateSession(s), false, e.domain); err != nil || len(values) != 0 {
 		t.Fatal("private owner exposed", values, err)
 	}
-	if _, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: e.domain, id: math.MaxInt32 + 1}, false, e.domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+	if _, err := appendBlockingPid(nil, blockingUnitType(e), e.domain.Session(math.MaxInt32+1), false, e.domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("unchecked PID projection", err)
 	}
-	zeros, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: e.domain, id: math.MaxInt32 + 1}, true, e.domain)
+	zeros, err := appendBlockingPid(nil, blockingUnitType(e), e.domain.Session(math.MaxInt32+1), true, e.domain)
 	if err != nil || len(zeros) != 1 {
 		t.Fatal("prepared projection used physical ID", zeros, err)
 	}
@@ -156,12 +156,12 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if ar == nil || cr == nil {
 			t.Fatal("missing actual upgrade queue")
 		}
-		before := blockingUnitWant(t, e, c.token.id, int64(a.token.id), int64(b.token.id))
+		before := blockingUnitWant(t, e, c.token.ID(), int64(a.token.ID()), int64(b.token.ID()))
 		e.endLockOwner(bt)
 		if err := deadlockResult(t, ar); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.id, int64(a.token.id))
+		blockingUnitWant(t, e, c.token.ID(), int64(a.token.ID()))
 		if len(before) != 2 {
 			t.Fatal("snapshot aliases manager", before)
 		}
@@ -169,7 +169,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.id)
+		blockingUnitWant(t, e, c.token.ID())
 	})
 	t.Run("compatible_holder_soft_predecessor", func(t *testing.T) {
 		e := New()
@@ -185,8 +185,8 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if br == nil || cr == nil {
 			t.Fatal("missing soft queue")
 		}
-		blockingUnitWant(t, e, b.token.id, int64(a.token.id))
-		blockingUnitWant(t, e, c.token.id, int64(b.token.id))
+		blockingUnitWant(t, e, b.token.ID(), int64(a.token.ID()))
+		blockingUnitWant(t, e, c.token.ID(), int64(b.token.ID()))
 		e.endLockOwner(bt)
 		if !errors.Is(deadlockResult(t, br), errRelationOwnerEnded) {
 			t.Fatal("ended requester not terminated")
@@ -194,7 +194,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.id)
+		blockingUnitWant(t, e, c.token.ID())
 	})
 	t.Run("prepared_zeros_and_origin_reuse", func(t *testing.T) {
 		e := New()
@@ -212,15 +212,15 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if cr == nil {
 			t.Fatal("prepared owners did not block")
 		}
-		blockingUnitWant(t, e, c.token.id, 0, 0)
-		blockingUnitWant(t, e, a.token.id)
+		blockingUnitWant(t, e, c.token.ID(), 0, 0)
+		blockingUnitWant(t, e, a.token.ID())
 		e.endLockOwner(at)
-		blockingUnitWant(t, e, c.token.id, 0)
+		blockingUnitWant(t, e, c.token.ID(), 0)
 		e.endLockOwner(bt)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.id)
+		blockingUnitWant(t, e, c.token.ID())
 	})
 	t.Run("full_width_target_and_blocker_identity", func(t *testing.T) {
 		e := New()
@@ -246,7 +246,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			t.Fatal("high identity did not queue")
 		}
 		blockingUnitWant(t, e, math.MaxInt32) // must not truncate high target
-		blockingUnitWant(t, e, high.token.id, int64(low.token.id))
+		blockingUnitWant(t, e, high.token.ID(), int64(low.token.ID()))
 		e.endLockOwner(lt)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
@@ -258,7 +258,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if request == nil {
 			t.Fatal("high holder did not block")
 		}
-		if _, err := e.locks.blockingPids(next.session.id, blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+		if _, err := e.locks.blockingPids(next.session.ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 			t.Fatal("high live blocker", err)
 		}
 		e.endLockOwner(ht)
@@ -292,12 +292,12 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				if cr == nil {
 					t.Fatal("missing completion waiter")
 				}
-				blockingUnitWant(t, e, c.token.id, int64(a.token.id))
+				blockingUnitWant(t, e, c.token.ID(), int64(a.token.ID()))
 			} else {
 				if cr != nil {
 					t.Fatal("NO KEY UPDATE incorrectly soft blocked")
 				}
-				blockingUnitWant(t, e, c.token.id)
+				blockingUnitWant(t, e, c.token.ID())
 			}
 			e.endLockOwner(at)
 			e.endLockOwner(bt)
@@ -321,13 +321,13 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 		if err != nil || r == nil {
 			t.Fatal(r, err)
 		}
-		blockingUnitWant(t, e, b.token.id, int64(a.token.id))
+		blockingUnitWant(t, e, b.token.ID(), int64(a.token.ID()))
 		// A pending pointer without current journal ownership is stale, not
 		// an alternate source of wait state. Inquiry must not settle or edit it.
 		e.locks.mu.Lock()
 		delete(bt.resources, resource)
 		e.locks.mu.Unlock()
-		blockingUnitWant(t, e, b.token.id)
+		blockingUnitWant(t, e, b.token.ID())
 		e.locks.mu.Lock()
 		bt.resources[resource] = struct{}{}
 		unchanged := !r.terminal && len(r.entry.pending) == 1 && r.entry.pending[0] == r
@@ -336,7 +336,7 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 			t.Fatal("read-only inquiry mutated queue")
 		}
 		if fence {
-			e.locks.fence(bt.ref.epoch + 1)
+			e.locks.fence(bt.ref.Epoch() + 1)
 		} else {
 			cancel()
 		}
@@ -344,7 +344,7 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 		if fence && !errors.Is(err, ErrCatalogReplaced) || !fence && !errors.Is(err, context.Canceled) {
 			t.Fatal("wrong wait terminal", err)
 		}
-		blockingUnitWant(t, e, b.token.id)
+		blockingUnitWant(t, e, b.token.ID())
 		// A saved terminal request never becomes an observable wait again.
 		e.locks.mu.Lock()
 		entry := e.locks.entries[resource]
@@ -352,6 +352,6 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 			entry.pending = append(entry.pending, r)
 		}
 		e.locks.mu.Unlock()
-		blockingUnitWant(t, e, b.token.id)
+		blockingUnitWant(t, e, b.token.ID())
 	}
 }

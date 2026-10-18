@@ -100,7 +100,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 				return 0, sqlError("42501", "permission denied for schema "+ns.name)
 			}
 		}
-		if err := r.auth.CanUse(ObjectRef{owner: r.auth.engine.domain, Epoch: r.auth.catalog.Epoch(), Address: namespace}); err != nil {
+		if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), namespace)); err != nil {
 			return 0, err
 		}
 		path = namespaceSelection{qualified: namespace}

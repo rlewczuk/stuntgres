@@ -247,7 +247,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 		t.Fatal("private metadata replacement froze descriptor or copied membership")
 	}
 	stage = e.BeginCatalogStage(current)
-	if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: current.Epoch(), Address: moved.address}); err != nil {
+	if err := stage.Remove(e.domain.Ref(current.Epoch(), moved.address)); err != nil {
 		t.Fatal(err)
 	}
 	assertOperatorIndex(t, e.stageRead(stage).state)
@@ -300,7 +300,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	// Synthetic descriptor-only fixture: TEMP operators have no SQL creation
 	// route, but replacement's whole-catalog projection must remain exact.
 	source.state = source.stageRead(stage).state
-	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, owner: target.authorizationDomain.Principal(10), temporary: SessionToken{domain: target.domain, id: 99}}
+	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, owner: target.authorizationDomain.Principal(10), temporary: target.domain.Session(99)}
 	temp := indexUnitOperator(operator.address.ObjectID, tempNamespace.address, "#?#")
 	temp.owner = tempNamespace.owner
 	stage = target.BeginCatalogStage(target.CatalogRead())

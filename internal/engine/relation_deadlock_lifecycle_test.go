@@ -111,7 +111,7 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	// terminal result. None may replace the error or double-close notification.
 	cancel()
 	e.endLockOwner(victimTicket)
-	e.locks.fence(at.ref.epoch + 1)
+	e.locks.fence(at.ref.Epoch() + 1)
 	if again := deadlockResult(t, victim); again != original {
 		t.Fatalf("first terminal error replaced: %v -> %v", original, again)
 	}

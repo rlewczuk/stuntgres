@@ -195,7 +195,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if err != nil {
 		return Result{}, err
 	}
-	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.epoch, hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
+	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
 		routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, collationPath: s.collationPath, visibilityCatalog: s.visibilityCatalog,
@@ -272,7 +272,7 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	if err := s.owner.validate(s.txRef); err != nil {
 		return err
 	}
-	if s.txRef.epoch != e.state.epoch {
+	if s.txRef.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {
@@ -296,7 +296,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return Result{}, missingSQLCursor(fetch.Name.Text)
 	}
-	if c.epoch != s.txRef.epoch {
+	if c.epoch != s.txRef.Epoch() {
 		return Result{}, ErrCatalogReplaced
 	}
 	if c.position == cursorFailed {

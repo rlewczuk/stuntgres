@@ -44,7 +44,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 						m.mu.Unlock()
 						notifyRequests(notify)
 					case "fence":
-						m.fence(bt.ref.epoch + 1)
+						m.fence(bt.ref.Epoch() + 1)
 					}
 				}
 				if grantFirst {

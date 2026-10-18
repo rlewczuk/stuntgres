@@ -122,7 +122,7 @@ func TestDeleteCoreRowAuthority(t *testing.T) {
 		mode     relationLockMode
 	}{
 		{lockResource{ObjectRef: ref}, rowUpdate}, {resource, accessExclusive}, {resource, accessShare},
-		{lockResource{ObjectRef: ObjectRef{owner: ref.owner, Epoch: ref.Epoch + 1, Address: ref.Address}, row: 1}, rowUpdate},
+		{lockResource{ObjectRef: ref.Domain().Ref(ref.Epoch+1, ref.Address), row: 1}, rowUpdate},
 	} {
 		if err := manager.acquire(context.Background(), b.transactions.ticket, invalid.resource, invalid.mode); err == nil {
 			t.Fatal("invalid resource/mode accepted", invalid)

@@ -26,7 +26,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		}
 	}
 	checkTypeLinks(catalog, source)
-	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
+	ref := e.domain.Ref(e.state.epoch, address)
 	captured, err := capturePGLanguage(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)

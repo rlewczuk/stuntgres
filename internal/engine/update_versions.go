@@ -162,10 +162,10 @@ retry:
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
-	if ref.owner != e.domain {
+	if ref.Domain() != e.domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
+	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {

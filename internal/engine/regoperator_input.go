@@ -111,7 +111,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 		if ns == (ObjectAddress{}) {
 			return nil, nil
 		}
-		if err := r.types.auth.CanUse(ObjectRef{owner: r.types.auth.engine.domain, Epoch: r.types.auth.catalog.Epoch(), Address: ns}); err != nil {
+		if err := r.types.auth.CanUse(r.types.auth.engine.domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
 			return nil, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {

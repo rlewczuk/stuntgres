@@ -114,7 +114,7 @@ func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode, r
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.owner != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
+	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
@@ -405,7 +405,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 				targetAuth := auth
 				targetAuth.state.CurrentUser = target
-				if err = targetAuth.CheckCreate(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: d.namespace}); err != nil {
+				if err = targetAuth.CheckCreate(e.domain.Ref(ref.Epoch, d.namespace)); err != nil {
 					return Result{}, err
 				}
 			}
@@ -628,7 +628,7 @@ func relationDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescrip
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid sequence namespace")
 	}
-	namespace := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: ns.address}
+	namespace := ref.Domain().Ref(ref.Epoch, ns.address)
 	if auth.Check(AccessRequirement{Object: namespace, OwnerOnly: true}) == nil {
 		return nil
 	}

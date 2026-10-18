@@ -84,7 +84,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 		return out
 	}
 	rows := capture()
-	if len(rows) != 1 || rows[0].mode != advisoryShared || rows[0].owner.local != a.transactions.ref.id {
+	if len(rows) != 1 || rows[0].mode != advisoryShared || rows[0].owner.local != a.transactions.ref.ID() {
 		t.Fatal("same process mode duplication", rows)
 	}
 	advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
@@ -104,7 +104,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 		for _, r := range rows {
 			if r.waiting {
 				pending++
-				if r.owner.session != b.token.id || r.waitstart.IsZero() || r.mode != advisoryExclusive {
+				if r.owner.session != b.token.ID() || r.waitstart.IsZero() || r.mode != advisoryExclusive {
 					t.Fatal("pending identity", r)
 				}
 			}
@@ -139,7 +139,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	for _, r := range records {
 		if r.kind == pgAdvisoryLock && r.object == other.low && r.class == other.high {
 			detached++
-			if !r.owner.prepared || r.owner.local != old.ref.id {
+			if !r.owner.prepared || r.owner.local != old.ref.ID() {
 				t.Fatal("detached capture lost origin", r)
 			}
 		}

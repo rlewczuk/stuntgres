@@ -42,7 +42,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: provider.address}
+	ref := e.domain.Ref(stage.base.Epoch(), provider.address)
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}

@@ -49,7 +49,7 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 		t.Fatal("fabricated catalog identity accepted for advisory", err)
 	}
 	retiredSource := ra
-	retiredSource.id++
+	retiredSource = withTxID(retiredSource, retiredSource.ID()+1)
 	if _, err := advisoryUnitAcquire(t, a, retiredSource, key, advisoryExclusive, true); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("missing exact transient provenance authorized", err)
 	}

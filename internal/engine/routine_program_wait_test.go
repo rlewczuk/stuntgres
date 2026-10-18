@@ -243,7 +243,7 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ObjectRef, worker 
 				continue
 			}
 			for _, request := range entry.pending {
-				if !request.terminal && request.ticket.ref.session == worker.token && request.mode == uniqueClaim {
+				if !request.terminal && request.ticket.ref.Session() == worker.token && request.mode == uniqueClaim {
 					found = true
 					break
 				}

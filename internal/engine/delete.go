@@ -76,7 +76,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.ticket == nil || s.ticket.ref != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.session != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
+	if s.ticket == nil || s.ticket.ref != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
@@ -103,7 +103,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.ref.owner != e.domain || candidate.ref.Epoch != e.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.ref.Domain() != e.domain || candidate.ref.Epoch != e.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return ErrCatalogReplaced
 	}
 	return nil
@@ -143,10 +143,10 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if candidate.ref.owner != e.domain || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
+	if candidate.ref.Domain() != e.domain || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.ref.Epoch != e.state.epoch || candidate.ref.Epoch != s.txRef.epoch || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.ref.Epoch != e.state.epoch || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return false, ErrCatalogReplaced
 	}
 	if s.view == nil {
@@ -418,7 +418,7 @@ func captureQueryPrefix(view *VisibilityView, ref ObjectRef) (*querySource, erro
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility catalog")
 	}
-	if _, ok := data.committed[ref.Address]; !ok || ref.owner != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() {
+	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}

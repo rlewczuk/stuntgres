@@ -17,7 +17,7 @@ func pgRangeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef)
 	if !ok {
 		t.Fatal("missing pg_range")
 	}
-	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
+	return d, e.domain.Ref(e.state.epoch, a)
 }
 func pgRangeUnitFacts() [][7]uint32 {
 	return [][7]uint32{

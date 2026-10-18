@@ -148,7 +148,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 }
 
 func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
-	if c.epoch != s.txRef.epoch {
+	if c.epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	c.admit(s)

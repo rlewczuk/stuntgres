@@ -261,7 +261,7 @@ func (e *Engine) captureRestoredPlaceholders(created ObjectRef, raw *parser.Crea
 				}
 				inherited = true
 				record, exists := origins[restoredGenerationKey{origin.parent, origin.attribute}]
-				if !exists || record.ref.owner != created.owner || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.kind || record.usage != parent.columns[parent.indexForAttribute(origin.attribute)].Usage {
+				if !exists || record.ref.Domain() != created.Domain() || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.kind || record.usage != parent.columns[parent.indexForAttribute(origin.attribute)].Usage {
 					compatible = false
 					break
 				}
@@ -393,7 +393,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		return reject()
 	}
 	for _, repair := range repairs {
-		if repair.ref.owner != ref.owner || repair.ref.Epoch != ref.Epoch {
+		if repair.ref.Domain() != ref.Domain() || repair.ref.Epoch != ref.Epoch {
 			continue
 		}
 		table, ok := auth.catalog.state.descriptors[repair.ref.Address].(*relationDescriptor)

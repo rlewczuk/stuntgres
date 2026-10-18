@@ -126,7 +126,7 @@ func TestSerializableGraphFinalizedPivotIdentity(t *testing.T) {
 	reader := serializableUnitNode(t, e, false)
 	pivot := serializableUnitNode(t, e, false)
 	out := serializableUnitNode(t, e, false)
-	if reader.ref.ID() != pivot.ref.ID() || reader.ref == pivot.ref || reader.ref.diagnostic == pivot.ref.diagnostic || pivot.ref.diagnostic == 0 {
+	if reader.ref.ID() != pivot.ref.ID() || reader.ref == pivot.ref || reader.ref.Diagnostic() == pivot.ref.Diagnostic() || pivot.ref.Diagnostic() == 0 {
 		t.Fatal("qualified/diagnostic identities conflated sessions")
 	}
 	e.mu.Lock()

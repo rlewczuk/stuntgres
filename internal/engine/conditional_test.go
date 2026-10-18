@@ -577,7 +577,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				if scope.view != nil {
 					t.Error("INSERT captured data before planning/revalidation")
 				}
-				if scope.lockedRef.owner != e.domain || scope.lockedDescriptor == nil {
+				if scope.lockedRef.Domain() != e.domain || scope.lockedDescriptor == nil {
 					t.Error("INSERT lost locked relation identity")
 				}
 				switch mode {

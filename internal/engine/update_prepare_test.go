@@ -19,7 +19,7 @@ func TestUpdateCorePrepareNoRowLocks(t *testing.T) {
 	for resource, entry := range e.locks.entries {
 		if resource.row != 0 {
 			for owner := range entry.holders {
-				if owner.ref.session == b.Token() {
+				if owner.ref.Session() == b.Token() {
 					e.locks.mu.Unlock()
 					t.Fatal("Prepare acquired selected row")
 				}

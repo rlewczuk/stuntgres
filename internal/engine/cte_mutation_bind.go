@@ -229,7 +229,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 			}
 		}
 	}
-	if required.owner == nil {
+	if required.Domain() == nil {
 		var name parser.ObjectName
 		switch s := statement.(type) {
 		case *parser.Insert:

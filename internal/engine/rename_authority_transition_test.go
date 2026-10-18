@@ -21,7 +21,7 @@ func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ObjectRe
 	actor, _ := e.Roles().Lookup("rename_transition_owner")
 	view := e.CatalogRead()
 	address := view.state.names[NameKey{ClassID: NamespaceClassID, Name: "protected"}]
-	ns := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: address}
+	ns := e.domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.state.descriptors[address].(*namespaceDescriptor).owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)

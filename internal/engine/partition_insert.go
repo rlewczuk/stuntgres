@@ -129,7 +129,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 		destination = selected
 	}
-	ref := ObjectRef{owner: state.catalog.owner.domain, Epoch: state.catalog.Epoch(), Address: destination.address}
+	ref := state.catalog.owner.domain.Ref(state.catalog.Epoch(), destination.address)
 	if state.groups[destination.address] == nil {
 		if err := s.acquirePartitionLock(ref, rowExclusive); err != nil {
 			return err
@@ -176,7 +176,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 }
 
 func (state *partitionInsertState) missingPartition(ctx context.Context, parent *relationDescriptor, key []partitionDatum, output sqltype.OutputEnvironment) error {
-	ref := ObjectRef{owner: state.catalog.owner.domain, Epoch: state.catalog.Epoch(), Address: parent.address}
+	ref := state.catalog.owner.domain.Ref(state.catalog.Epoch(), parent.address)
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.name)).(*sqlstate.Error)
 	err.Schema, err.Table = state.catalog.state.descriptors[parent.namespace].Name(), parent.name
 	// Routing/integrity errors remain real, but an actor subject to RLS must
@@ -279,7 +279,7 @@ func (s *StatementScope) partitionInsertionGroup(ref ObjectRef) *partitionInsert
 	address := state.destination.address
 	group := state.groups[address]
 	if group == nil {
-		group = &partitionInsertGroup{ref: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}}
+		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
 			state.groups = make(map[ObjectAddress]*partitionInsertGroup)
 		}

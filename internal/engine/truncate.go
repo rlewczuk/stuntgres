@@ -67,7 +67,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
-			if ref.owner != e.domain || ref.Epoch != e.state.epoch || s.txRef.epoch != ref.Epoch {
+			if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || s.txRef.Epoch() != ref.Epoch {
 				err = ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -125,7 +125,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			d, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
-			if ref.Epoch != e.state.epoch || s.txRef.epoch != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
+			if ref.Epoch != e.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
 				err = ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)
@@ -179,7 +179,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return err
 		}
 		for _, child := range children {
-			if err = open(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: child.address}, nil, false, false, true, false); err != nil {
+			if err = open(ref.Domain().Ref(ref.Epoch, child.address), nil, false, false, true, false); err != nil {
 				return err
 			}
 		}
@@ -190,7 +190,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ObjectRef
 		observation := truncateName{name: target.Name}
-		if err == nil && s.txRef.epoch != e.state.epoch {
+		if err == nil && s.txRef.Epoch() != e.state.epoch {
 			err = ErrCatalogReplaced
 		}
 		if err == nil {
@@ -228,7 +228,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return truncateForeignKeyError(inbound[0].parent.name, inbound[0].relation.name)
 		}
 		for _, candidate := range inbound {
-			ref := ObjectRef{owner: e.domain, Epoch: s.txRef.epoch, Address: candidate.relation.address}
+			ref := e.domain.Ref(s.txRef.Epoch(), candidate.relation.address)
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}

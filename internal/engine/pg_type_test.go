@@ -17,7 +17,7 @@ func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) 
 	if !ok {
 		t.Fatal("missing type source")
 	}
-	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
+	return d, e.domain.Ref(e.state.epoch, address)
 }
 func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map[uint32][]sqltype.Value {
 	t.Helper()
@@ -164,7 +164,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
 	ordinary(s, err)
 	badRef = ref
-	badRef.owner = other.domain
+	badRef = other.domain.Ref(badRef.Epoch, badRef.Address)
 	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
 	ordinary(s, err)
 	badRef = ref

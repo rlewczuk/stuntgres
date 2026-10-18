@@ -30,7 +30,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 		}
 	}
 	for _, ref := range g.targets {
-		if ref.owner != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
+		if ref.Domain() != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
 		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -56,7 +56,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				return err
 			}
 			if s.Action == "rename" {
-				if err := auth.CheckCreate(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: d.namespace}); err != nil {
+				if err := auth.CheckCreate(ref.Domain().Ref(ref.Epoch, d.namespace)); err != nil {
 					return err
 				}
 			}
@@ -70,7 +70,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 			} else if d.relationKind != tableRelation && d.relationKind != partitionedRelation {
 				return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.name))
 			}
-			rights, err := auth.Effective(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.address}, false)
+			rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, parent.address), false)
 			if err != nil {
 				return err
 			}
@@ -146,7 +146,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	g := &indexMaintenanceGrant{descriptors: make(map[ObjectAddress]*relationDescriptor)}
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
-	if s.txRef.epoch != e.state.epoch {
+	if s.txRef.Epoch() != e.state.epoch {
 		return fail(ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
@@ -192,7 +192,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			g.indexes = append(g.indexes, ref)
 			parent := d.sqlIndex.parent
 			if g.descriptors[parent] == nil {
-				g.parents = append(g.parents, ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent})
+				g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
 				g.descriptors[parent] = auth.catalog.state.descriptors[parent].(*relationDescriptor)
 			}
 		case *parser.Reindex:
@@ -201,7 +201,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 				parent = d.sqlIndex.parent
 				g.indexes = append(g.indexes, ref)
 			}
-			g.parents = append(g.parents, ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent})
+			g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
 			g.descriptors[parent] = auth.catalog.state.descriptors[parent].(*relationDescriptor)
 			if v.Kind.Text == "table" {
 				g.indexSets = map[ObjectAddress]int{parent: 0}
@@ -210,7 +210,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 					if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent {
 						continue
 					}
-					g.indexes = append(g.indexes, ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address})
+					g.indexes = append(g.indexes, ref.Domain().Ref(ref.Epoch, address))
 					g.descriptors[address] = index
 					g.indexSets[parent]++
 				}
@@ -283,7 +283,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if err != nil {
 			return err
 		}
-		if s.txRef.epoch != e.state.epoch {
+		if s.txRef.Epoch() != e.state.epoch {
 			return ErrCatalogReplaced
 		}
 		if err := g.check(auth, stmt, false); err != nil {

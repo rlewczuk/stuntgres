@@ -29,7 +29,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*re
 	if !ok {
 		t.Fatal("missing pg_parameter_acl")
 	}
-	return d, ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
+	return d, e.domain.Ref(catalog.Epoch(), address)
 }
 
 func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog CatalogRead, roles authorization.Read) *querySource {

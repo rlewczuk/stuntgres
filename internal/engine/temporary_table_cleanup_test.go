@@ -91,7 +91,7 @@ func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *rel
 	stage.terminalCleanup = true
 	targets := []ObjectAddress{owner.address, sequence.address}
 	for _, address := range targets {
-		if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: address}); err != nil {
+		if err := stage.Remove(e.domain.Ref(stage.base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}

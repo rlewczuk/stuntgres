@@ -105,7 +105,7 @@ func (s *StatementScope) stageTruncate() error {
 		e.mu.Unlock()
 		return err
 	}
-	if s.txRef.epoch != e.state.epoch {
+	if s.txRef.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}

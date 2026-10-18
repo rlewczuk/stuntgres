@@ -110,7 +110,7 @@ func walkCatalogAliasDependenciesAt(view CatalogRead, reader definitionReader, v
 
 func (r scalarRenderer) recordCatalogAliasDependencies(view CatalogRead, value sqltype.Value) error {
 	record := func(address ObjectAddress) error {
-		r.record(ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: address})
+		r.record(view.owner.domain.Ref(view.Epoch(), address))
 		return nil
 	}
 	if err := walkCatalogAliasDependenciesAt(view, r.definition, value, record); err != nil {
@@ -124,7 +124,7 @@ func (r scalarRenderer) recordCatalogAliasDependencies(view CatalogRead, value s
 
 func (r scalarRenderer) recordCatalogAliasReferences(view CatalogRead, value sqltype.Value) error {
 	record := func(address ObjectAddress) error {
-		r.record(ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: address})
+		r.record(view.owner.domain.Ref(view.Epoch(), address))
 		return nil
 	}
 	if err := walkCatalogAliasReferencesAt(view, r.definition, value, record); err != nil {

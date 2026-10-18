@@ -199,7 +199,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	}
 	before := f.e.CatalogRead()
 	drop := f.e.BeginCatalogStage(before)
-	ref := ObjectRef{owner: f.e.domain, Epoch: before.Epoch(), Address: f.schema}
+	ref := f.e.domain.Ref(before.Epoch(), f.schema)
 	if err := drop.removeObject(ref, true); err != nil {
 		t.Fatal(err)
 	}

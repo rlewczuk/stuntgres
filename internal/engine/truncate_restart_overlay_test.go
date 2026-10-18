@@ -226,7 +226,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 			t.Fatal("TEMP ownership not isolated")
 		}
 		e.locks.mu.Lock()
-		foreignRef := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: foreign}
+		foreignRef := e.domain.Ref(catalog.Epoch(), foreign)
 		_, journaled := scope.ticket.resources[lockResource{ObjectRef: foreignRef}]
 		excluded := e.locks.entries[lockResource{ObjectRef: foreignRef}] == nil && !journaled
 		e.locks.mu.Unlock()

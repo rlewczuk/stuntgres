@@ -71,7 +71,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("prepared helper literal omitted real owner dependency")
 	}
 	source := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}].(*relationDescriptor)
-	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: source.address}
+	ref := e.domain.Ref(view.Epoch(), source.address)
 	rows, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil || len(rows.anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
@@ -235,7 +235,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	namespace := &namespaceDescriptor{
 		address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: original.helpers[0].id},
 		name:    "pg_temp_pga_collision", revision: 1, owner: target.authorizationDomain.Principal(10),
-		temporary: SessionToken{domain: target.domain, id: 99},
+		temporary: target.domain.Session(99),
 	}
 	target.state.descriptors[namespace.address] = namespace
 	target.state.names[descriptorNameKey(namespace)] = namespace.address

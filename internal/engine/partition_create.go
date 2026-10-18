@@ -104,7 +104,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		if !pending.bound.defaultBound && parent.partition.defaultChild != (ObjectAddress{}) {
 			defaultRelation := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
 			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *relationDescriptor) error {
-				ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: leaf.address}
+				ref := e.domain.Ref(auth.catalog.Epoch(), leaf.address)
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
 				stage.domainBases = append(stage.domainBases, leaf)
 				storage := e.privateStorageLocked(scope.owner.catalog, leaf.address)

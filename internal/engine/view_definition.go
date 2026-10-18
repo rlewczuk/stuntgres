@@ -67,7 +67,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			address.ClassID = OperatorClassID
 		}
 		if d, exists := auth.catalog.state.descriptors[address]; exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: address}, revision: d.Revision()})
+			definition.dependencies = append(definition.dependencies, expressionDependency{ref: e.domain.Ref(auth.catalog.Epoch(), address), revision: d.Revision()})
 		}
 	}
 	definition.sources = make([]viewLeaf, len(b.querySources))

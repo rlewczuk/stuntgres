@@ -98,7 +98,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	public := ObjectRef{stage.domain, stage.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	public := stage.domain.Ref(stage.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	if err := stage.SetObjectACL(context.Background(), public, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}

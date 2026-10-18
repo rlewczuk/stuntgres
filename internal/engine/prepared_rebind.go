@@ -73,7 +73,7 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 	}
 	for _, dep := range analysis.dependencies {
 		d := auth.catalog.state.descriptors[dep.ref.Address]
-		if d == nil || dep.ref.owner != e.domain || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
+		if d == nil || dep.ref.Domain() != e.domain || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
 			return false
 		}
 	}
@@ -108,7 +108,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	seen := make(map[ObjectRef]bool)
 	var visit func(ObjectRef) error
 	visit = func(ref ObjectRef) error {
-		if ref.owner == nil {
+		if ref.Domain() == nil {
 			return nil
 		}
 		ref.Address.SubID = 0
@@ -117,7 +117,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 		seen[ref] = true
 		d := auth.catalog.state.descriptors[ref.Address]
-		if d == nil || ref.owner != e.domain || ref.Epoch != auth.catalog.Epoch() {
+		if d == nil || ref.Domain() != e.domain || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
 		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
@@ -157,7 +157,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			if mutation.viewWrite != nil {
 				ref = mutation.viewWrite.logical.ref
 			}
-			if ref.owner == nil {
+			if ref.Domain() == nil {
 				continue
 			}
 			cell.targets[mutation.statement] = ref
@@ -188,14 +188,14 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 // Admission selects an exact identity before waiting. Analysis checks current
 // namespace authority on that identity, not whether its spelling now shadows it.
 func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectName, ref ObjectRef) (ObjectRef, error) {
-	if ref.owner == nil {
+	if ref.Domain() == nil {
 		return e.resolveReference(auth, name)
 	}
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != e.domain || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.Domain() != e.domain || ref.Epoch != auth.catalog.Epoch() {
 		return ObjectRef{}, ErrCatalogReplaced
 	}
-	ns := ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: d.namespace}
+	ns := e.domain.Ref(ref.Epoch, d.namespace)
 	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) != 0 && name.Parts[0].Pos.Character > 0 {
 			copy := *diagnostic
@@ -258,7 +258,7 @@ func (s *StatementScope) validateAdmissionNamesLocked(e *Engine, auth Authorizat
 		}
 	}
 	for table, source := range s.queryLockAdmission.tableQueries {
-		if source.ref.owner != nil {
+		if source.ref.Domain() != nil {
 			if err := check(table.Name, source.lexical); err != nil {
 				return err
 			}

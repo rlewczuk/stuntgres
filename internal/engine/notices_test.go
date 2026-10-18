@@ -401,7 +401,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal("switch reset notice filter", got)
 	}
-	namespace := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	namespace := e.domain.Ref(e.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +454,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 					roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
 					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
 					view := e.CatalogRead()
-					namespace := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+					namespace := e.domain.Ref(view.Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 					acl := authorization.ACLValue{Explicit: true}
 					if usage {
 						acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}

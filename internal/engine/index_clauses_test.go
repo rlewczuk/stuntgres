@@ -600,7 +600,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				}
 				dependent := false
 				for _, dependency := range key.derived.dependencies {
-					if dependency.Address == (ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.owner == e.domain && dependency.Epoch == view.Epoch() {
+					if dependency.Address == (ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.domain && dependency.Epoch == view.Epoch() {
 						dependent = true
 					}
 				}

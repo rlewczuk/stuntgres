@@ -199,7 +199,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	}
 	e.diagnosticTx++
 	t.next++
-	t.ref = TxRef{domain: e.domain, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
+	t.ref = e.domain.Tx(t.session.token, t.next, e.state.epoch, t, e.diagnosticTx)
 	t.state = state
 	session.notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
@@ -249,7 +249,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 }
 
 func (t *transactionOwner) validate(ref TxRef) error {
-	if ref.domain != domainOf(t.session.Engine()) || ref.session != t.session.token || ref.id == 0 || txOwnerOf(ref) != t {
+	if ref.Domain() != domainOf(t.session.Engine()) || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {
@@ -557,7 +557,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return err
 	}
 	e.mu.Lock()
-	stale := t.ref.epoch != e.state.epoch
+	stale := t.ref.Epoch() != e.state.epoch
 	e.mu.Unlock()
 	if stale {
 		return ErrCatalogReplaced
@@ -651,10 +651,10 @@ retry:
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
-	if ref.owner != e.domain {
+	if ref.Domain() != e.domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.state.epoch || ref.Epoch != s.owner.ref.epoch {
+	if ref.Epoch != e.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
 		return ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {

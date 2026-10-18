@@ -165,7 +165,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		if i == scope.activeMutation {
 			mutation = scope.statementMutation
 		}
-		if mutation.lockedRef.owner != nil {
+		if mutation.lockedRef.Domain() != nil {
 			if len(leaves) == len(b.querySources) {
 				leaves = append([]queryLeaf(nil), leaves...)
 			}
@@ -173,7 +173,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			leaves = append(leaves, mutation.inheritedTargets...)
 		}
 	}
-	if len(scope.mutations) == 0 && b.ref.owner != nil {
+	if len(scope.mutations) == 0 && b.ref.Domain() != nil {
 		leaves = append(append([]queryLeaf(nil), leaves...), queryLeaf{ref: b.ref, relation: b.relation})
 	}
 	collectAuth := auth

@@ -97,7 +97,7 @@ func TestViewCheckStack(t *testing.T) {
 		view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.columns), syntax: syntax, frame: 1, expressions: expressions, child: &filterNode{querySchema: querySchema(source.columns), child: sourceNode, predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.attributes}}}
 		f.e.state.descriptors[view.address] = &view
 		layers = append(layers, &view)
-		refs = append(refs, ObjectRef{owner: f.e.domain, Epoch: f.e.state.epoch, Address: view.address})
+		refs = append(refs, f.e.domain.Ref(f.e.state.epoch, view.address))
 	}
 	scope, op := f.scope(t)
 	sets := [27]int{0, 1, 1, 2, 3, 3, 3, 3, 3, 4, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}

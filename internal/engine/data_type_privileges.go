@@ -67,7 +67,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 		if err != nil || owns {
 			return owns, err
 		}
-		rights, err := auth.Effective(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}, false)
+		rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, address), false)
 		return rights&mask != 0, err
 	}
 	for _, descriptor := range catalog.state.descriptors {
@@ -120,7 +120,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 				if !ownerVisible {
 					address := d.address
 					address.SubID = attribute
-					rights, err := auth.Effective(ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}, false)
+					rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, address), false)
 					if err != nil {
 						return nil, err
 					}

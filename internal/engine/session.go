@@ -187,9 +187,9 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{engine: e, token: SessionToken{domain: e.domain, id: start.ID}, countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{engine: e, token: e.domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	if private {
-		s.token.private = s
+		s.token = e.domain.PrivateSession(s)
 	}
 	s.databaseName = e.databaseName
 	s.cond = sync.NewCond(&s.mu)
@@ -381,7 +381,7 @@ func (op *Operation) Done() {
 	s.cond.Broadcast()
 }
 func (e *Engine) validateOperation(op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.domain != domainOf(e) {
+	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	s := op.session

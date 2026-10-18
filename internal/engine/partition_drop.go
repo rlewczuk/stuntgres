@@ -12,7 +12,7 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationDescriptor) error {
 	if relation.partition != nil {
 		for _, address := range relation.partition.children {
-			ref := ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: address}
+			ref := provider.owner.domain.Ref(provider.base.Epoch(), address)
 			if err := provider.removeObjectLocked(ref, false); err != nil {
 				return err
 			}
@@ -69,7 +69,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}
-		ancestors = append(ancestors, ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: relation.address})
+		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.address))
 	}
 	e.mu.Unlock()
 	slices.Reverse(ancestors)

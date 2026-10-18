@@ -26,7 +26,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			originalEpoch := e.state.epoch
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
-			ref := ObjectRef{owner: e.domain, Epoch: originalEpoch, Address: d.address}
+			ref := e.domain.Ref(originalEpoch, d.address)
 			mode := accessShare
 			if concurrent {
 				mode = relationExclusive

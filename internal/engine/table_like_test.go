@@ -51,7 +51,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
 	source := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, attributes: []int32{1, 3}}
 	destination := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, attributes: []int32{1, 2, 3, 4}}
-	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: source.address}
+	ref := e.domain.Ref(e.CatalogRead().Epoch(), source.address)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(columnExpression)
-	if got.origin.owner != e.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
+	if got.origin.Domain() != e.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
 		t.Fatal(got, column)
 	}
 	owner := tableOIDExpression{expressionInfo: expressionInfo{usage: testUsage(e, sqltype.Oid)}, owner: ref}
@@ -75,7 +75,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(tableOIDExpression).owner.owner != e.domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
+	if mapped.(tableOIDExpression).owner.Domain() != e.domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)

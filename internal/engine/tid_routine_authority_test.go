@@ -64,7 +64,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if len(outer.body) != 0 {
 				t.Fatal("INTERNAL TID operator acquired SQL helper edges", outer.body)
 			}
-			wantRef := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: address}
+			wantRef := e.domain.Ref(auth.catalog.Epoch(), address)
 			procedures := 0
 			for _, dependency := range binder.dependencies {
 				if dependency.ref.Address.ClassID != ProcedureClassID {
@@ -91,7 +91,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 						case "missing":
 							continue
 						case "foreign":
-							dependency.ref.owner = foreign.domain
+							dependency.ref = foreign.domain.Ref(dependency.ref.Epoch, dependency.ref.Address)
 						case "stale epoch":
 							dependency.ref.Epoch++
 						case "stale revision":

@@ -24,7 +24,7 @@ func pgLocksUnitCapture(t *testing.T, e *Engine) []pgLockRecord {
 func pgLocksUnitOwnerRecords(records []pgLockRecord, ticket *relationTicket, kind pgLockKind) []pgLockRecord {
 	var result []pgLockRecord
 	for _, r := range records {
-		if r.owner.session == ticket.ref.session.id && r.owner.local == ticket.ref.id && r.kind == kind {
+		if r.owner.session == ticket.ref.Session().ID() && r.owner.local == ticket.ref.ID() && r.kind == kind {
 			result = append(result, r)
 		}
 	}
@@ -211,11 +211,11 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		if e.visibility[ticket.ref].xmin != before.xmin || !e.visibility[ticket.ref].snapshot {
 			t.Fatal("assignment discarded visibility")
 		}
-		e.locks.fence(ticket.ref.epoch + 1)
-		if rows, err := e.locks.snapshotPGLocks(ticket.ref.epoch); !errors.Is(err, ErrCatalogReplaced) || rows != nil {
+		e.locks.fence(ticket.ref.Epoch() + 1)
+		if rows, err := e.locks.snapshotPGLocks(ticket.ref.Epoch()); !errors.Is(err, ErrCatalogReplaced) || rows != nil {
 			t.Fatal("old epoch snapshot", rows, err)
 		}
-		if rows, err := e.locks.snapshotPGLocks(ticket.ref.epoch + 1); err != nil || len(rows) != 0 {
+		if rows, err := e.locks.snapshotPGLocks(ticket.ref.Epoch() + 1); err != nil || len(rows) != 0 {
 			t.Fatal("fenced owner resurrection", rows, err)
 		}
 	})
@@ -266,14 +266,14 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	})
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
-		ref := TxRef{domain: e.domain, session: SessionToken{domain: e.domain, id: math.MaxInt32 + 1}, id: 1}
+		ref := e.domain.Tx(e.domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
 		if _, _, err := publicLockOwner(e.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
 		if owner, ok, err := publicLockOwner(e.domain, ref, true); err != nil || !ok || !owner.prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref.session = SessionToken{domain: e.domain, private: &Session{}}
+		ref = withTxSession(ref, e.domain.PrivateSession(&Session{}))
 		if _, ok, err := publicLockOwner(e.domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
@@ -303,7 +303,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
+	ref := e.domain.Ref(e.state.epoch, d.address)
 	store := e.storage[d.address]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID

@@ -85,7 +85,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
-		if ref.owner != e.domain {
+		if ref.Domain() != e.domain {
 			return false, ErrCatalogReplaced
 		}
 		if constant.temporary != (SessionToken{}) && constant.temporary != auth.session.token {
@@ -134,7 +134,7 @@ func (e *Engine) pinSequenceReplacementLocked(auth AuthorizationView, previous *
 			if current.offset != old.offset {
 				continue
 			}
-			if old.temporary != auth.session.token || current.temporary != old.temporary || current.ref.owner != old.ref.owner || current.ref.Address != old.ref.Address {
+			if old.temporary != auth.session.token || current.temporary != old.temporary || current.ref.Domain() != old.ref.Domain() || current.ref.Address != old.ref.Address {
 				return ErrCatalogReplaced
 			}
 			current.ref.Epoch = old.ref.Epoch

@@ -69,7 +69,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		sourceLive := e.locks.valid(source)
 		epoch := e.locks.epoch
 		e.locks.mu.Unlock()
-		if !pending || !sourceLive || epoch != oldManagerEpoch || e.CatalogRead().Epoch() != provenance.epoch || advisoryUnitHold(a, key).shared != 1 || advisoryUnitHold(b, key).shared != 1 {
+		if !pending || !sourceLive || epoch != oldManagerEpoch || e.CatalogRead().Epoch() != provenance.Epoch() || advisoryUnitHold(a, key).shared != 1 || advisoryUnitHold(b, key).shared != 1 {
 			t.Fatal("failed stage fenced/discarded live state", pending, sourceLive, epoch)
 		}
 		advisoryUnitUnlock(t, a, key, advisoryShared, true)

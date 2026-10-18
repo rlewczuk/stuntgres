@@ -80,7 +80,7 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 		}
 		if resume == nil {
 			e.mu.Lock()
-			if s.txRef.epoch != e.state.epoch {
+			if s.txRef.Epoch() != e.state.epoch {
 				resume = ErrCatalogReplaced
 			} else {
 				resume = s.validateLockedRelation(e)

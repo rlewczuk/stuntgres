@@ -195,7 +195,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if err := t.validate(t.ref); err != nil {
 			return Result{}, err
 		}
-		if t.ref.epoch != e.state.epoch {
+		if t.ref.Epoch() != e.state.epoch {
 			return Result{}, ErrCatalogReplaced
 		}
 		if control.Kind != parser.CreateSavepoint && index < 0 {

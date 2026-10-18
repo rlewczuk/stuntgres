@@ -35,7 +35,7 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 	lockPending(t, e, 2)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	exact := len(entry.pending) == 2 && entry.pending[0].mode == relationShare && entry.pending[0].ticket.ref.session == b.token && entry.pending[1].mode == rowExclusive && entry.pending[1].ticket.ref.session == c.token && entry.holders[a.transactions.ticket].mode&rowExclusive != 0
+	exact := len(entry.pending) == 2 && entry.pending[0].mode == relationShare && entry.pending[0].ticket.ref.Session() == b.token && entry.pending[1].mode == rowExclusive && entry.pending[1].ticket.ref.Session() == c.token && entry.holders[a.transactions.ticket].mode&rowExclusive != 0
 	e.locks.mu.Unlock()
 	if !exact {
 		t.Fatal("ordinary Share build did not precede and block later RX request")
@@ -144,8 +144,8 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 	}
 	err = concurrentUnitRequestWait(t, exclusive)
 	var diagnostic *sqlstate.Error
-	first := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for AccessExclusiveLock on relation %d (class %d, sub-ID 0, epoch %d); blocked by transaction %d (session %d, epoch %d).", ta.id, ta.session.id, ta.epoch, ref.Address.ObjectID, ref.Address.ClassID, ref.Epoch, tb.id, tb.session.id, tb.epoch)
-	second := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for transaction completion; blocked by transaction %d (session %d, epoch %d).", tb.id, tb.session.id, tb.epoch, ta.id, ta.session.id, ta.epoch)
+	first := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for AccessExclusiveLock on relation %d (class %d, sub-ID 0, epoch %d); blocked by transaction %d (session %d, epoch %d).", ta.ID(), ta.Session().ID(), ta.Epoch(), ref.Address.ObjectID, ref.Address.ClassID, ref.Epoch, tb.ID(), tb.Session().ID(), tb.Epoch())
+	second := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for transaction completion; blocked by transaction %d (session %d, epoch %d).", tb.ID(), tb.Session().ID(), tb.Epoch(), ta.ID(), ta.Session().ID(), ta.Epoch())
 	if !errors.As(err, &diagnostic) {
 		t.Fatal(err)
 	}

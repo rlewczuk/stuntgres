@@ -52,7 +52,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 			}
 			ref := func(d *relationDescriptor) ObjectRef {
-				return ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: d.address}
+				return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 			}
 			parentRef, parentStorage := ref(parent), e.storage[parent.address]
 			ctx, cancelScan := context.WithCancel(context.Background())

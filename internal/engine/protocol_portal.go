@@ -277,7 +277,7 @@ func (s *StatementScope) installProtocolProducer(root LogicalNode, source *query
 		source.close()
 		return Result{}, fmt.Errorf("stuntgres: portal lacks projection")
 	}
-	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.epoch, root: project, schema: project.Schema(), source: source, authority: s.authority,
+	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles, routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, collationPath: s.collationPath, visibilityCatalog: s.visibilityCatalog, visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
 	c.state = queryState{source: source, parameters: values, input: s.input, output: s.output, locking: source.locks != nil && source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}

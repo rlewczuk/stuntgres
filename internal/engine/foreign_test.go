@@ -283,7 +283,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if count != 1 {
 				t.Fatal("registered procedure identity not unique", count)
 			}
-			ref := ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: selected.id}}
+			ref := e.domain.Ref(base.Epoch(), ObjectAddress{ClassID: ProcedureClassID, ObjectID: selected.id})
 			original := base.state.descriptors[ref.Address].(*procedureDescriptor)
 			retained := catalogAuthorization(e, base)
 			retained.state.CurrentUser = retained.roles.LookupRef("pg_read_all_data")

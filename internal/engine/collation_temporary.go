@@ -143,7 +143,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	// table being removed must not also receive a replacement row shape.
 	e.mu.Lock()
 	for _, a := range children {
-		if err = stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: a}, false); err != nil {
+		if err = stage.removeObjectLocked(e.domain.Ref(base.Epoch(), a), false); err != nil {
 			break
 		}
 	}
@@ -173,7 +173,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		if i != 0 && a == relations[i-1] {
 			continue
 		}
-		if err = scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: a}, accessExclusive, true); err != nil {
+		if err = scope.acquireSequence(e.domain.Ref(base.Epoch(), a), accessExclusive, true); err != nil {
 			return false, err
 		}
 	}

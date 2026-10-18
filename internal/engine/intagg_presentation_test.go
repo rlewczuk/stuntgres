@@ -47,7 +47,7 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
-			for _, badRef := range []ObjectRef{{}, {owner: New().domain, Epoch: ref.Epoch, Address: ref.Address}, {owner: ref.owner, Epoch: ref.Epoch + 1, Address: ref.Address}, {owner: ref.owner, Epoch: ref.Epoch, Address: ext.address}} {
+			for _, badRef := range []ObjectRef{{}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.address)} {
 				bad := *definition
 				bad.intaggRefs = map[viewLiteralPath]ObjectRef{path: badRef}
 				if err := bad.validateLiterals(e.CatalogRead()); err == nil {

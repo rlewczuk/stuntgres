@@ -21,7 +21,7 @@ func schemaRef(t *testing.T, e *Engine, name string) ObjectRef {
 	if a == (ObjectAddress{}) {
 		t.Fatal("missing namespace", name)
 	}
-	return ObjectRef{owner: e.domain, Epoch: v.Epoch(), Address: a}
+	return e.domain.Ref(v.Epoch(), a)
 }
 func schemaFail(t *testing.T, e *Engine, op *Operation, q, code string) {
 	t.Helper()

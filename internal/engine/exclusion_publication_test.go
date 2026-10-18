@@ -30,7 +30,7 @@ func TestExclusionPublication(t *testing.T) {
 				writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{value}}}
 				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 				if materialize {
-					if err := e.prepareRowPublication(&publication, TxRef{domain: e.domain, epoch: e.state.epoch}, true); err != nil {
+					if err := e.prepareRowPublication(&publication, e.domain.Tx(SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -67,7 +67,7 @@ func TestExclusionPublication(t *testing.T) {
 				row, version := e.nextRow, e.nextVersion
 				writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{overflow}}}
 				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
-				if err := e.prepareRowPublication(&publication, TxRef{domain: e.domain, epoch: e.state.epoch}, true); err != nil {
+				if err := e.prepareRowPublication(&publication, e.domain.Tx(SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
 					t.Fatal(err)
 				}
 				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
@@ -110,7 +110,7 @@ func TestExclusionPublication(t *testing.T) {
 					writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{value}}}
 					publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 					if materialize {
-						if err := e.prepareRowPublication(&publication, TxRef{domain: e.domain, epoch: e.state.epoch}, true); err != nil {
+						if err := e.prepareRowPublication(&publication, e.domain.Tx(SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
 							t.Fatal(err)
 						}
 					}

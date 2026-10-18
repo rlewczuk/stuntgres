@@ -10,13 +10,13 @@ import (
 
 func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, stmt parser.Statement) error {
 	add := func(index *relationDescriptor) {
-		ref := ObjectRef{owner: auth.engine.domain, Epoch: auth.catalog.Epoch(), Address: index.address}
+		ref := auth.engine.domain.Ref(auth.catalog.Epoch(), index.address)
 		if !slices.Contains(g.indexes, ref) {
 			g.indexes = append(g.indexes, ref)
 		}
 		g.descriptors[index.address] = index
 		address := index.sqlIndex.parent
-		parentRef := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}
+		parentRef := ref.Domain().Ref(ref.Epoch, address)
 		if !slices.Contains(g.parents, parentRef) {
 			g.parents = append(g.parents, parentRef)
 		}
@@ -119,7 +119,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 			return err
 		}
 	}
-	return stage.Remove(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: index.address})
+	return stage.Remove(e.domain.Ref(stage.base.Epoch(), index.address))
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid OID) error {

@@ -698,7 +698,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *typeDescriptor
 				if source.relationKind == compositeRelation {
-					typeRef := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}}
+					typeRef := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
@@ -987,7 +987,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			auth.session.transactions.accessedTemporary = true
 		}
 	}
-	return ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: a}, nil
+	return e.domain.Ref(view.Epoch(), a), nil
 }
 
 func insertError(code, message string, pos parser.Position) error {

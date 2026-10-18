@@ -296,7 +296,7 @@ type materializedSourceFence struct {
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
-	if f.ref.owner != e.domain || f.ref.Epoch != e.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.relationKind != materializedViewRelation {
+	if f.ref.Domain() != e.domain || f.ref.Epoch != e.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.relationKind != materializedViewRelation {
 		return false
 	}
 	current, _ := e.state.descriptors[f.ref.Address].(*relationDescriptor)

@@ -1878,7 +1878,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if captureErr != nil {
 				return captureErr
 			}
-			if record.child.owner != nil {
+			if record.child.Domain() != nil {
 				partitionTeardowns[record.child.Address] = record
 			}
 		case *parser.DropTable:

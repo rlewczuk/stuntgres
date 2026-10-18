@@ -38,7 +38,7 @@ func (owner pgLockOwner) virtualTransaction() string {
 func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
 	var records []pgLockRecord
 	for ref, node := range e.serializable.nodes {
-		if ref.epoch != e.state.epoch || node.ref != ref || !serializableRelevant(node) {
+		if ref.Epoch() != e.state.epoch || node.ref != ref || !serializableRelevant(node) {
 			continue
 		}
 		owner, visible, err := publicLockOwner(e.domain, ref, node.prepared)

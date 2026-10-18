@@ -22,7 +22,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		name   string
 		change func(*columnExpression)
 	}{
-		{"foreign owner", func(c *columnExpression) { c.origin.owner = New().domain }},
+		{"foreign owner", func(c *columnExpression) { c.origin = New().domain.Ref(c.origin.Epoch, c.origin.Address) }},
 		{"foreign relation", func(c *columnExpression) { c.origin.Address.ObjectID++ }},
 		{"foreign epoch", func(c *columnExpression) { c.origin.Epoch++ }},
 		{"stale attribute", func(c *columnExpression) { c.origin.Address.SubID++ }},

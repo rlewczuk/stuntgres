@@ -15,7 +15,7 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.owner != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.state.descriptors[ref.Address] != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.state.descriptors[ref.Address] != source {
 		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
 	}
 	rows := make([][]sqltype.Value, 0)
@@ -35,10 +35,10 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index namespace")
 		}
-		schemaRef := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.namespace}
+		schemaRef := ref.Domain().Ref(ref.Epoch, parent.namespace)
 		err := auth.CanUse(schemaRef)
 		if err == nil {
-			err = auth.checkColumns(binding{ref: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.address}, relation: parent}, authorization.SelectPrivilege, nil)
+			err = auth.checkColumns(binding{ref: ref.Domain().Ref(ref.Epoch, parent.address), relation: parent}, authorization.SelectPrivilege, nil)
 		}
 		if err != nil {
 			var diagnostic *sqlstate.Error

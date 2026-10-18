@@ -5,7 +5,7 @@ package engine
 func (m *relationLockManager) indexWriters(ticket *relationTicket, parent ObjectRef) ([]*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !m.valid(ticket) || parent.Epoch != ticket.ref.epoch {
+	if !m.valid(ticket) || parent.Epoch != ticket.ref.Epoch() {
 		return nil, ErrCatalogReplaced
 	}
 	var cohort []*relationTicket
@@ -37,7 +37,7 @@ func (e *Engine) admitIndexBuildWaitLocked(index ObjectAddress, owner TxRef, kin
 	if index == (ObjectAddress{}) {
 		return nil
 	}
-	if owner.domain != domainOf(e) || owner.epoch != e.state.epoch {
+	if owner.Domain() != domainOf(e) || owner.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	if e.indexBuildWaits == nil {

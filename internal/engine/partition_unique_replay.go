@@ -145,7 +145,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
 // recursive virtual-index producer, validator and Finish overlay own all effects.
 func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *relationDescriptor) (Result, error) {
-	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: table.address}
+	ref := e.domain.Ref(auth.catalog.Epoch(), table.address)
 	origin := op.restorePartitionUnique
 	e.mu.Unlock()
 	if err := scope.acquirePartitionDescendants(ref, accessExclusive); err != nil {

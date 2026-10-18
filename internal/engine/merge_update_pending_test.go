@@ -22,7 +22,7 @@ func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ObjectRef, row RowID, wo
 		found := false
 		if entry != nil && entry.holders[blocker].mode != 0 {
 			for _, request := range entry.pending {
-				if !request.terminal && request.ticket.ref.session == worker.token && (mode == 0 || request.mode == mode) {
+				if !request.terminal && request.ticket.ref.Session() == worker.token && (mode == 0 || request.mode == mode) {
 					found = true
 					break
 				}

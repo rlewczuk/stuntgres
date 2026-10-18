@@ -68,7 +68,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ObjectRef, 
 		}
 		row[10] = sqltype.Null(source.columns[10].Usage.Type)
 		rows = append(rows, row)
-		provider.refs = append(provider.refs, ObjectRef{owner: e.domain, Epoch: base.epoch, Address: relation.address})
+		provider.refs = append(provider.refs, e.domain.Ref(base.epoch, relation.address))
 		return nil
 	}
 	for address, descriptor := range base.descriptors {
@@ -104,7 +104,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ObjectRef, row []s
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if ref.owner != e.domain || ref.Epoch != e.state.epoch {
+	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	auth, err := e.authorizationLocked(p.scope.op)

@@ -165,7 +165,7 @@ func (s *StatementScope) acquirePartitionLock(ref ObjectRef, mode relationLockMo
 func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ObjectRef) error {
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != e.domain || ref.Epoch != catalog.Epoch() {
+	if !ok || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
 	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {
@@ -199,7 +199,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ObjectRef) error {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}
-		ancestors = append(ancestors, ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: d.address})
+		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, d.address))
 	}
 	e.mu.Unlock()
 	slices.Reverse(ancestors)
@@ -235,7 +235,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ObjectRef, mode relatio
 	}
 	e.mu.Unlock()
 	for _, address := range children {
-		child := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: address}
+		child := ref.Domain().Ref(ref.Epoch, address)
 		if err := s.acquirePartitionLock(child, mode); err != nil {
 			return err
 		}
@@ -261,10 +261,10 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ObjectRef) err
 	}
 	var child ObjectRef
 	if d.partition != nil && d.partition.defaultChild != (ObjectAddress{}) {
-		child = ObjectRef{owner: parent.owner, Epoch: parent.Epoch, Address: d.partition.defaultChild}
+		child = parent.Domain().Ref(parent.Epoch, d.partition.defaultChild)
 	}
 	e.mu.Unlock()
-	if child.owner == nil {
+	if child.Domain() == nil {
 		return nil
 	}
 	if err := s.acquirePartitionLock(child, accessExclusive); err != nil {

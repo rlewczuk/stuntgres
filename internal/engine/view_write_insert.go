@@ -14,7 +14,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 	for i, attr := range d.attributes {
 		b.defaults[i] = d.defaults[attr].expression
 		if identity, ok := d.identities[attr]; ok {
-			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: d.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
+			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: d.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: e.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
 		}
 	}
 	if s.Override == parser.OverrideUser && len(d.identities) != 0 {

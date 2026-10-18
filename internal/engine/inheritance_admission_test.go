@@ -23,7 +23,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				t.Fatal(err)
 			}
 			base := e.CatalogRead()
-			ref := ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: parent.address}
+			ref := e.domain.Ref(base.Epoch(), parent.address)
 			if err = e.locks.acquire(context.Background(), holder.session.transactions.ticket, lockResource{ObjectRef: ref}, shareUpdateExclusive); err != nil {
 				t.Fatal(err)
 			}
@@ -139,7 +139,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 		lockEmpty(t, e)
 	}()
 	base := e.CatalogRead()
-	ref := ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: table.address}
+	ref := e.domain.Ref(base.Epoch(), table.address)
 	if err := e.locks.acquire(context.Background(), holder.session.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}

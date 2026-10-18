@@ -86,7 +86,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref TxRef, materialize
 			}
 		}
 		for id, candidate := range p.deletion.rows {
-			if candidate.ref.owner != e.domain || candidate.ref.Epoch != ref.epoch || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
+			if candidate.ref.Domain() != e.domain || candidate.ref.Epoch != ref.Epoch() || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
 				return ErrCatalogReplaced
 			}
 			predecessors := p.root

@@ -154,17 +154,17 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 		}
 		r, blocker := edge.request, edge.blocker
 		if r.ref.kind != ordinaryResource {
-			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.id, deadlockMode(r.mode), r.ref.high, r.ref.low, r.ref.kind, blocker.session.id)
+			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.ID(), deadlockMode(r.mode), r.ref.high, r.ref.low, r.ref.kind, blocker.session.ID())
 			continue
 		}
 		if r.ref.completion != nil {
-			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.id, r.ticket.ref.session.id, r.ticket.ref.epoch)
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch())
 		} else {
 			kind := "relation"
 			if r.ref.Address.ClassID == TypeClassID {
 				kind = "type"
 			}
-			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.id, r.ticket.ref.session.id, r.ticket.ref.epoch, deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
+			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
 			if r.ref.row != 0 {
 				fmt.Fprintf(&detail, " row %d", r.ref.row)
 			}
@@ -172,7 +172,7 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 				detail.WriteString(" unique key")
 			}
 		}
-		fmt.Fprintf(&detail, "; blocked by transaction %d (session %d, epoch %d).", blocker.ref.id, blocker.ref.session.id, blocker.ref.epoch)
+		fmt.Fprintf(&detail, "; blocked by transaction %d (session %d, epoch %d).", blocker.ref.ID(), blocker.ref.Session().ID(), blocker.ref.Epoch())
 	}
 	diagnostic.Detail = detail.String()
 	// Formatting is also diagnostic work during which interruption can become

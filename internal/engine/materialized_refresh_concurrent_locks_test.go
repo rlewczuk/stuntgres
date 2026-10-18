@@ -29,11 +29,11 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			d = e.state.descriptors[d.address].(*relationDescriptor)
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: source.address}
+			sourceRef := e.domain.Ref(e.state.epoch, source.address)
 			definition := *d.view
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
 			d.view = &definition
-			targetRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
+			targetRef := e.domain.Ref(e.state.epoch, d.address)
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			heldRef := sourceRef

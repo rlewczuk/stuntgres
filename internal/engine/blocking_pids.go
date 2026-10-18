@@ -158,15 +158,15 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, domain *Domain) ([]sqltype.Value, error) {
-	if !prepared && (token.domain != domain || privateSessionOf(token) != nil || token.id == 0) {
+	if !prepared && (token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0) {
 		return values, nil
 	}
 	var pid int64
 	if !prepared {
-		if token.id > math.MaxInt32 {
+		if token.ID() > math.MaxInt32 {
 			return nil, fmt.Errorf("stuntgres: blocking session identity exceeds integer range")
 		}
-		pid = int64(token.id)
+		pid = int64(token.ID())
 	}
 	value, err := sqltype.Integer(typ, pid)
 	if err != nil {
@@ -179,16 +179,16 @@ func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token Se
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	for ref, node := range e.serializable.nodes {
-		if ref.domain != e.domain || ref.epoch != e.state.epoch || ref.session != (SessionToken{domain: e.domain, id: pid}) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
+		if ref.Domain() != e.domain || ref.Epoch() != e.state.epoch || ref.Session() != (e.domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
 		}
 		var values []sqltype.Value
 		for writer := range node.possible {
-			if writer.ref.domain != e.domain || writer.ref.epoch != ref.epoch || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
+			if writer.ref.Domain() != e.domain || writer.ref.Epoch() != ref.Epoch() || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
 				continue
 			}
 			var err error
-			values, err = appendBlockingPid(values, typ, writer.ref.session, writer.prepared, e.domain)
+			values, err = appendBlockingPid(values, typ, writer.ref.Session(), writer.prepared, e.domain)
 			if err != nil {
 				return nil, err
 			}
@@ -235,7 +235,7 @@ func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relation
 func (m *relationLockManager) blockingPids(pid SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	token := SessionToken{domain: m.domain, id: pid}
+	token := m.domain.Session(pid)
 	r := m.pendingInquiryRequest(m.sessions[token])
 	if r == nil {
 		for _, t := range m.owners {
@@ -270,7 +270,7 @@ func (m *relationLockManager) blockingPids(pid SessionID, typ *sqltype.Descripto
 			if other == t || !m.valid(other) || !sameLockSession(t, other) || !lockConflict(r.mode, hold.mode) {
 				continue
 			}
-			if other.persistent && !t.persistent || other.persistent == t.persistent && other.ref.id < t.ref.id {
+			if other.persistent && !t.persistent || other.persistent == t.persistent && other.ref.ID() < t.ref.ID() {
 				duplicate = true
 				break
 			}

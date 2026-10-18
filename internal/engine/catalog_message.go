@@ -159,7 +159,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		if snapshot := s.materializedSourceView; snapshot != nil {
 			if relation, ok := source.(*relationDescriptor); ok && relation.relationKind == materializedViewRelation {
-				fence := materializedSourceFence{ref: ObjectRef{owner: e.domain, Epoch: snapshot.catalog.Epoch(), Address: relation.address}, relation: relation, storage: snapshot.generationAt(relation.address)}
+				fence := materializedSourceFence{ref: e.domain.Ref(snapshot.catalog.Epoch(), relation.address), relation: relation, storage: snapshot.generationAt(relation.address)}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.address] == nil {
 					c.materializedSources = append(c.materializedSources, fence)
 					continue

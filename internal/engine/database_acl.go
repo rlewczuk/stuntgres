@@ -66,7 +66,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
 func (v AuthorizationView) ownTemporaryPrivileges() (authorization.Privileges, error) {
-	rights, err := v.Effective(ObjectRef{owner: v.engine.domain, Epoch: v.catalog.Epoch(), Address: currentDatabaseAddress}, false)
+	rights, err := v.Effective(v.engine.domain.Ref(v.catalog.Epoch(), currentDatabaseAddress), false)
 	if err != nil {
 		return 0, err
 	}

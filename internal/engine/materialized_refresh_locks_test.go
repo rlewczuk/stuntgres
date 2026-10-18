@@ -47,7 +47,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			d := refreshUnitRelation(t, e)
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: source.address}
+			sourceRef := e.domain.Ref(e.state.epoch, source.address)
 			definition := *d.view
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
 			d.view = &definition

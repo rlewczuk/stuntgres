@@ -48,7 +48,7 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 }
 
 func timeoutMechanicsRef(s *Session, id TxID) TxRef {
-	return TxRef{domain: s.Engine().domain, session: s.Token(), id: id, attachment: s.transactions}
+	return s.Engine().domain.Tx(s.Token(), id, 0, s.transactions, 0)
 }
 
 func TestSessionTimeoutGenerationMechanics(t *testing.T) {
@@ -76,7 +76,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 		t.Error("transaction birth did not adopt the same provisional budget")
 	}
 	foreign := s.token
-	foreign.id++
+	foreign = withSessionID(foreign, foreign.ID()+1)
 	s.expireTimeoutLocked(slot, generation, foreign, "25P04", deadline)
 	s.timeouts.authority = timeoutMechanicsRef(s, 2)
 	s.expireTimeoutLocked(slot, generation, s.token, "25P04", deadline)

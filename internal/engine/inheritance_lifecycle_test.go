@@ -41,7 +41,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: p.address}); err != nil {
+	if err := stage.Remove(e.domain.Ref(base.Epoch(), p.address)); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{p.address})
@@ -93,7 +93,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	for _, table := range []*relationDescriptor{p, c} {
-		if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: table.address}); err != nil {
+		if err := stage.Remove(e.domain.Ref(base.Epoch(), table.address)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -175,7 +175,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				parent.address: {{row: 1, version: 1, values: []sqltype.Value{one}}},
 				child.address:  {{row: 2, version: 2, values: []sqltype.Value{two}}},
 			}
-			nextWrites, _, next, err := e.prepareTemporaryCommit(op, TxRef{epoch: e.state.epoch}, writes, nil, changes)
+			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*Domain)(nil).Tx(SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}

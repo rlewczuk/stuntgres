@@ -12,7 +12,7 @@ func inheritanceControlsTemporary(e *Engine, id OID, name string, parents ...Obj
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 21000}
 	if e.state.descriptors[ns] == nil {
 		e.state = cloneCatalog(e.state)
-		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: SessionToken{domain: e.domain, id: 99}}
+		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.domain.Session(99)}
 		e.state.descriptors[ns] = d
 		e.state.names[descriptorNameKey(d)] = ns
 	}
@@ -157,7 +157,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		p.notNullConstraints = []notNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
 		c.notNullConstraints = []notNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}
 		for _, table := range []*relationDescriptor{p, c} {
-			ref := ObjectRef{owner: owner.domain, Epoch: owner.CatalogRead().Epoch(), Address: table.address}
+			ref := owner.domain.Ref(owner.CatalogRead().Epoch(), table.address)
 			ref.Address.SubID = 1
 			table.checkConstraints = []checkConstraint{{OID: 23002 + table.address.ObjectID - p.address.ObjectID, Name: "ck", expression: columnExpression{expressionInfo: expressionInfo{usage: usage}, origin: ref, scope: 1, frame: 1, slot: 0}}}
 		}
@@ -215,7 +215,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 			table.attributes = []int32{1, 2}
 			table.attributeHighWater = 2
 			table.index = map[string]int{"a": 0, "b": 1}
-			ref := ObjectRef{owner: owner.domain, Epoch: owner.CatalogRead().Epoch(), Address: table.address}
+			ref := owner.domain.Ref(owner.CatalogRead().Epoch(), table.address)
 			ref.Address.SubID = 2
 			table.checkConstraints = []checkConstraint{{OID: 23002 + table.address.ObjectID - p.address.ObjectID, Name: "ck", expression: columnExpression{expressionInfo: expressionInfo{usage: table.columns[1].Usage}, origin: ref, scope: 1, frame: 1, slot: 1}}}
 		}

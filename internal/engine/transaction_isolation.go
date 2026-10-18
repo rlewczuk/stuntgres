@@ -219,7 +219,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return err
 		}
-		if t.ref != s.txRef || t.ref.epoch != e.state.epoch {
+		if t.ref != s.txRef || t.ref.Epoch() != e.state.epoch {
 			return ErrCatalogReplaced
 		}
 		return nil

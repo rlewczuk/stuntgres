@@ -59,7 +59,7 @@ func deadlockDiagnostic(t *testing.T, err error, tickets []*relationTicket, reso
 			mode = "NoKeyUpdate"
 			row = fmt.Sprintf(" row %d", resource.row)
 		}
-		line := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d)%s; blocked by transaction %d (session %d, epoch %d).", ticket.ref.id, ticket.ref.session.id, ticket.ref.epoch, mode, resource.Address.ObjectID, resource.Address.ClassID, resource.Address.SubID, resource.Epoch, row, blocker.ref.id, blocker.ref.session.id, blocker.ref.epoch)
+		line := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d)%s; blocked by transaction %d (session %d, epoch %d).", ticket.ref.ID(), ticket.ref.Session().ID(), ticket.ref.Epoch(), mode, resource.Address.ObjectID, resource.Address.ClassID, resource.Address.SubID, resource.Epoch, row, blocker.ref.ID(), blocker.ref.Session().ID(), blocker.ref.Epoch())
 		expected[line] = true
 	}
 	for _, line := range lines {

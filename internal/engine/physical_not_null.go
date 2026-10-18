@@ -90,7 +90,7 @@ func physicalNotNullFromType(old, candidate *relationDescriptor, fact notNullCon
 		}
 	}
 	parent := provenance.retired[0].parent
-	ref := ObjectRef{owner: parent.owner, Epoch: parent.Epoch, Address: old.address}
+	ref := parent.Domain().Ref(parent.Epoch, old.address)
 	cause := &physicalNotNullCause{kind: physicalNotNullTypeCleanup, ref: ref, origin: ref, attribute: fact.Attribute, removedNN: fact.OID, primary: primary.OID, index: primary.Index, usage: old.columns[slot].Usage}
 	cause.self = cause
 	return physicalNotNullProof{cause: cause, usage: old.columns[slot].Usage, support: capturePhysicalPrimarySupport(candidate, primary)}, true
@@ -101,7 +101,7 @@ func physicalNotNullOriginValid(view CatalogRead, table *relationDescriptor, att
 	if cause == nil || cause.self != cause || cause.kind != physicalNotNullTypeCleanup && cause.kind != physicalNotNullImportCleanup && cause.kind != physicalNotNullImportFlag || cause.ref.Address != table.address || cause.ref.Address.SubID != 0 || cause.attribute != attribute || cause.removedNN == 0 || cause.usage.Type == nil || !storedReferenceEpochValid(view, table, cause.ref) {
 		return false
 	}
-	if cause.origin.owner == nil || cause.origin.Epoch == 0 || cause.origin.Address.ClassID != RelationClassID || cause.origin.Address.ObjectID == 0 || cause.origin.Address.SubID != 0 {
+	if cause.origin.Domain() == nil || cause.origin.Epoch == 0 || cause.origin.Address.ClassID != RelationClassID || cause.origin.Address.ObjectID == 0 || cause.origin.Address.SubID != 0 {
 		return false
 	}
 	if cause.kind == physicalNotNullImportFlag {

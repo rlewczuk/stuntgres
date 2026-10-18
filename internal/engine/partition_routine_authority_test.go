@@ -126,7 +126,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	foreign := slices.Clone(refs)
 	other := New()
 	for i := range foreign {
-		foreign[i].owner = other.domain
+		foreign[i] = other.domain.Ref(foreign[i].Epoch, foreign[i].Address)
 	}
 	probe("foreign_equal_address", foreign)
 	otherAdmin, otherDone := roleOperation(t, other, "postgres")

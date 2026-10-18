@@ -159,7 +159,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		}
 		parentDependency := false
 		for _, dependency := range key.derived.dependencies {
-			if dependency.owner != target.domain || dependency.Epoch != target.CatalogRead().Epoch() {
+			if dependency.Domain() != target.domain || dependency.Epoch != target.CatalogRead().Epoch() {
 				t.Fatal("replacement retained source dependency authority", dependency)
 			}
 			if dependency.Address.ClassID == RelationClassID && dependency.Address.ObjectID == index.sqlIndex.parent.ObjectID {

@@ -145,7 +145,7 @@ func retiredImportFixture(t *testing.T) (*Engine, *Operation, *restoredHistoryAu
 	refs := make(map[ObjectAddress]ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
-		refs[r.address] = ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: r.address}
+		refs[r.address] = e.domain.Ref(e.CatalogRead().Epoch(), r.address)
 	}
 	e.captureHistoricalFacts(refs, a.facts)
 	return e, op, a
@@ -190,7 +190,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	old := retiredUnitTable(t, e, "c")
 	oid := old.notNullConstraints[0].OID
 	for name, mutate := range map[string]func(*restoredHistoricalFact){
-		"epoch": func(f *restoredHistoricalFact) { f.ref.Epoch++ }, "owner": func(f *restoredHistoricalFact) { f.ref.owner = New().domain },
+		"epoch": func(f *restoredHistoricalFact) { f.ref.Epoch++ }, "owner": func(f *restoredHistoricalFact) { f.ref = New().domain.Ref(f.ref.Epoch, f.ref.Address) },
 		"oid": func(f *restoredHistoricalFact) { f.oid++ }, "name": func(f *restoredHistoricalFact) { f.name = "wrong" },
 		"kind": func(f *restoredHistoricalFact) { f.check = true }, "key": func(f *restoredHistoricalFact) { f.attributes = []int32{1} },
 		"validity": func(f *restoredHistoricalFact) { f.notValid = true }, "noinherit": func(f *restoredHistoricalFact) { f.noInherit = true },
@@ -241,7 +241,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "CREATE TEMP TABLE history_temp() INHERITS(public.p,public.q)")
 	temp := retiredUnitTable(t, e, "history_temp")
-	tempRef := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: temp.address}
+	tempRef := e.domain.Ref(e.CatalogRead().Epoch(), temp.address)
 	tempFacts := make(map[OID]restoredHistoricalFact)
 	captureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
 	if len(tempFacts) != 0 {
@@ -402,7 +402,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE ONLY d ADD CONSTRAINT d_pk PRIMARY KEY(a)")
 	d := retiredUnitTable(t, e, "d")
 	oid := d.notNullConstraints[0].OID
-	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: d.address}
+	ref := e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	captureHistoricalRelation(e.CatalogRead(), ref, a.facts)
 	before := a.facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.local, before.count, retiredRow("n", "0:7", "77"))

@@ -83,7 +83,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if !found {
 		t.Fatal("real closure lacks whole-hierarchy dependency edge")
 	}
-	if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: provider.address}); err != nil {
+	if err := stage.Remove(e.domain.Ref(base.Epoch(), provider.address)); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {

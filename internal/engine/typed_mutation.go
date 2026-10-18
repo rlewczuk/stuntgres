@@ -23,7 +23,7 @@ type typedRelationMutation struct {
 
 func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, actions []typedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
-	ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: old.address}
+	ref := e.domain.Ref(stage.base.Epoch(), old.address)
 	raw := make([]parser.AlterTableAction, len(actions))
 	for i, action := range actions {
 		raw[i] = action.action
@@ -157,7 +157,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		err = scope.acquireSerializableSnapshot()
 		if err == nil {
 			e.mu.Lock()
-			err = e.serializableReadLocked(scope, ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: old.address})
+			err = e.serializableReadLocked(scope, e.domain.Ref(stage.base.Epoch(), old.address))
 			e.mu.Unlock()
 		}
 		scope.owner.mu.Unlock()

@@ -249,7 +249,7 @@ func (provider dropProvider) evolveIndex(address ObjectAddress, index, parent *r
 		return err
 	}
 	if next == nil {
-		if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: address}, false); err != nil {
+		if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), address), false); err != nil {
 			return err
 		}
 	} else if next != index {
@@ -583,7 +583,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	}
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	if s.txRef.epoch != e.state.epoch {
+	if s.txRef.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}

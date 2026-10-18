@@ -97,7 +97,7 @@ func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []fun
 	if err != nil {
 		return nil, nil, ObjectRef{}, err
 	}
-	ref := ObjectRef{owner: b.engine.domain, Epoch: auth.catalog.Epoch(), Address: proc.address}
+	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
 	return arg, proc, ref, nil
 }
@@ -190,7 +190,7 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref Object
 		return nil
 	}
 	actual, ok := v.state.descriptors[ref.Address].(*procedureDescriptor)
-	if !ok || actual != proc || ref.owner != v.owner.domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intagg != stockIntagg {
+	if !ok || actual != proc || ref.Domain() != v.owner.domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intagg != stockIntagg {
 		return fmt.Errorf("stuntgres: invalid stored intagg identity")
 	}
 	return stockIntagg.validateProcedure(v, proc)

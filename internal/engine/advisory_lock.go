@@ -21,9 +21,9 @@ func (m *relationLockManager) registerSession(token SessionToken) (*relationTick
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	private := privateSessionOf(token)
-	if token.domain != m.domain ||
-		token.id == 0 && (private == nil || private.token != token) ||
-		token.id != 0 && private != nil {
+	if token.Domain() != m.domain ||
+		token.ID() == 0 && (private == nil || private.token != token) ||
+		token.ID() != 0 && private != nil {
 		return nil, errors.New("stuntgres: invalid advisory session")
 	}
 	if m.sessions[token] != nil {
@@ -70,7 +70,7 @@ func (m *relationLockManager) validRequest(r *relationRequest) bool {
 		return true
 	}
 	source := m.owners[r.provenance]
-	return source != nil && !source.detached && source.session == r.ticket.session && r.provenance.epoch >= m.epoch
+	return source != nil && !source.detached && source.session == r.ticket.session && r.provenance.Epoch() >= m.epoch
 }
 
 // Caller holds manager metadata. Both immediate and queued grants use this
@@ -217,7 +217,7 @@ func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, 
 			e.replacementMu.RLock()
 			s.replacementRead = true
 			e.mu.Lock()
-			if s.txRef.epoch != e.state.epoch {
+			if s.txRef.Epoch() != e.state.epoch {
 				err = ErrCatalogReplaced
 			}
 			e.mu.Unlock()

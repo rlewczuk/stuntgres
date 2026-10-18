@@ -62,7 +62,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.base}, stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
 				return err
 			}
-			providerRef := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: provider.address}
+			providerRef := e.domain.Ref(stage.base.Epoch(), provider.address)
 			if err := stage.Remove(providerRef); err != nil {
 				t.Fatal(err)
 			}

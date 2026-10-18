@@ -73,7 +73,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	e, _, parent, index := primaryKeyUnitFixture(t)
 	view := e.CatalogRead()
-	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: index.address}
+	ref := e.domain.Ref(view.Epoch(), index.address)
 	metadata, names, err := projectIndexMetadata(context.Background(), view, ref)
 	if err != nil || !metadata.IndIsUnique || !metadata.IndIsPrimary || !metadata.IndImmediate || !metadata.IndIsValid || !metadata.IndIsReady || !metadata.IndIsLive || metadata.IndNullsNotDistinct || metadata.IndIsExclusion || metadata.IndRelID != parent.address.ObjectID || metadata.IndexRelID != index.address.ObjectID || metadata.IndNKeyAtts != 2 || metadata.IndNatts != 2 || !reflect.DeepEqual(metadata.IndKey, []int16{1, 2}) {
 		t.Fatal(metadata, err)

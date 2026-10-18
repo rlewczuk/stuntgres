@@ -87,7 +87,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					e.mu.Lock()
 					ns := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "a"}]
 					address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: "t"}]
-					early = ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
+					early = e.domain.Ref(e.state.epoch, address)
 					e.mu.Unlock()
 					earlyHolder = transactionBegin(t, ddl)
 					if err := e.locks.acquire(context.Background(), ddl.transactions.ticket, lockResource{ObjectRef: early}, accessExclusive); err != nil {

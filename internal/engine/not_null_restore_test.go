@@ -128,7 +128,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	old = e.CatalogRead().state.descriptors[old.address].(*relationDescriptor)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	origin := restoredNotNull{ref: ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: old.address}, attribute: 1, constraint: old.notNullConstraints[0].OID}
+	origin := restoredNotNull{ref: e.domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.notNullConstraints[0].OID}
 	raw := restoreNNRaw("public.p", "a", "captured")
 	for name, mutate := range map[string]func(*restoredNotNull){"epoch": func(r *restoredNotNull) { r.ref.Epoch++ }, "attribute": func(r *restoredNotNull) { r.attribute++ }, "constraint": func(r *restoredNotNull) { r.constraint++ }, "missing_pair": func(r *restoredNotNull) { *r = restoredNotNull{} }} {
 		t.Run(name, func(t *testing.T) {

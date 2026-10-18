@@ -186,7 +186,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		bad := n.ref
 		if foreign {
-			bad.owner = New().domain
+			bad = New().domain.Ref(bad.Epoch, bad.Address)
 		} else {
 			bad.Epoch++
 		}

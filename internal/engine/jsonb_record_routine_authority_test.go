@@ -106,7 +106,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.ref.Address == address {
 					selected++
-					if dependency.ref.owner != e.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
+					if dependency.ref.Domain() != e.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
 						t.Fatal("original ref/epoch/revision", dependency)
 					}
 				} else if dependency.ref.Address.ClassID == ProcedureClassID {
@@ -189,7 +189,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 						case "revision":
 							copied[i].revision++
 						case "foreign_ref":
-							copied[i].ref.owner = other.domain
+							copied[i].ref = other.domain.Ref(copied[i].ref.Epoch, copied[i].ref.Address)
 						}
 					}
 				}
@@ -461,7 +461,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		found := false
 		for _, dep := range freshBinder.dependencies {
 			if dep.ref.Address == current.address {
-				found = dep.revision == current.revision && dep.ref.owner == e.domain
+				found = dep.revision == current.revision && dep.ref.Domain() == e.domain
 			}
 		}
 		if !found {

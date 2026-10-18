@@ -117,7 +117,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 		if i == s.activeMutation {
 			mutation = s.statementMutation
 		}
-		if mutation.lockedRef.owner == nil {
+		if mutation.lockedRef.Domain() == nil {
 			continue
 		}
 		s.queryLockAdmission.mutationTargets = append(s.queryLockAdmission.mutationTargets, admittedMutationTarget{mutation.statement, mutation.lockedRef})

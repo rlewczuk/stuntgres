@@ -35,7 +35,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 				t.Helper()
 				a := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: privileges}}}
-				if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}, acl); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -57,7 +57,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			if tc.name == "nonowner_with_table_rights" {
 				table := e.state.descriptors[a].(*relationDescriptor)
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.SelectPrivilege}}}
-				if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}, acl); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}

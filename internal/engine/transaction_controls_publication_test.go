@@ -161,7 +161,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				_, err = scope.Execute(query, 0, nil)
 			case "ref_before":
 				bad := old
-				bad.id++
+				bad = withTxID(bad, bad.ID()+1)
 				_, err = e.endAdmitted(op, a.transactions, bad, true, true, true, scope.statementStart, scope)
 			default:
 				_, err = scope.Execute(query, 0, nil)
@@ -396,7 +396,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					t.Fatal("ordinary work did not reject stale chained epoch", err)
 				}
 				controlsRequire(t, a, "ROLLBACK AND CHAIN")
-				if a.transactions.ref.ID() <= next.ID() || a.transactions.ref.epoch != e.CatalogRead().Epoch() ||
+				if a.transactions.ref.ID() <= next.ID() || a.transactions.ref.Epoch() != e.CatalogRead().Epoch() ||
 					a.TransactionState() != TxActive || a.transactions.command != 0 {
 					t.Fatal("replacement recovery did not create current-epoch chain")
 				}

@@ -46,7 +46,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if mode == "stale_removal" {
 					invalid.Epoch++
 				} else {
-					invalid.owner = New().domain
+					invalid = New().domain.Ref(invalid.Epoch, invalid.Address)
 				}
 				if stage.Remove(invalid) == nil {
 					t.Fatal("invalid removal admitted")

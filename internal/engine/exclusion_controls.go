@@ -197,7 +197,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 // lock ownership, including its completion resource. Neither Engine.mu nor
 // the manager mutex is held by the caller.
 func (e *Engine) endLockOwner(ticket *relationTicket) {
-	if ticket != nil && ticket.ref.domain != nil {
+	if ticket != nil && ticket.ref.Domain() != nil {
 		e.removeExclusionOwner(ticket)
 	}
 	e.locks.end(ticket)

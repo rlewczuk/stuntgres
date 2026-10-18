@@ -20,7 +20,7 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *relationTicket, bu
 		var found *relationRequest
 		if entry := e.locks.entries[lockResource{completion: owner}]; entry != nil {
 			for _, request := range entry.pending {
-				if !request.terminal && request.ticket.ref.session == builder.token && request.mode == transactionCompletion {
+				if !request.terminal && request.ticket.ref.Session() == builder.token && request.mode == transactionCompletion {
 					found = request
 					break
 				}

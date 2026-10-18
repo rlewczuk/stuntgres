@@ -80,7 +80,7 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	if !ok {
 		return nil, nil, auth, ErrCatalogReplaced
 	}
-	if err = auth.CheckCreate(ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: parent.namespace}); err != nil {
+	if err = auth.CheckCreate(e.domain.Ref(e.state.epoch, parent.namespace)); err != nil {
 		return nil, nil, auth, err
 	}
 	return index, parent, auth, nil

@@ -53,7 +53,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	}
 	source, err := standaloneComposite(auth.catalog, typ, path)
 	if err == nil {
-		err = auth.CanUse(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: typ.Address()})
+		err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), typ.Address()))
 	}
 	if err != nil {
 		return nil, nil, nil, err
@@ -278,7 +278,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if !ok {
 			continue
 		}
-		if err := scope.acquireSequence(ObjectRef{owner: stage.owner.domain, Epoch: stage.base.Epoch(), Address: typ.owningRelation}, mode, true); err != nil {
+		if err := scope.acquireSequence(stage.owner.domain.Ref(stage.base.Epoch(), typ.owningRelation), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep

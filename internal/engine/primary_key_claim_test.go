@@ -23,7 +23,7 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
 		index := primaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
-		metadata, _, err := projectIndexMetadata(context.Background(), view, ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: index.address})
+		metadata, _, err := projectIndexMetadata(context.Background(), view, e.domain.Ref(view.Epoch(), index.address))
 		if err != nil || !metadata.IndIsUnique || metadata.IndIsPrimary || !metadata.IndImmediate {
 			t.Fatal("ordinary unique provider became primary", name, metadata, err)
 		}
@@ -82,7 +82,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: index.address}
+	ref := e.domain.Ref(e.state.epoch, index.address)
 	first, releaseFirst, err := e.locks.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)

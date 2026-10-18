@@ -17,7 +17,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) 
 	if !ok {
 		t.Fatal("missing pg_cast")
 	}
-	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
+	return d, e.domain.Ref(e.state.epoch, a)
 }
 
 func TestPGCastShapeAndOwnership(t *testing.T) {

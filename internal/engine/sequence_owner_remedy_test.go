@@ -84,7 +84,7 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 			}
 			ref := roleTableRef(t, e, "private.s")
 			old := e.state.descriptors[ref.Address].(*relationDescriptor)
-			ns := ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: old.namespace}
+			ns := e.domain.Ref(ref.Epoch, old.namespace)
 			owner, _ := e.Roles().Lookup("seq_owner")
 			target, _ := e.Roles().Lookup("seq_target")
 			reader, _ := e.Roles().Lookup("seq_reader")
@@ -145,7 +145,7 @@ func TestSequenceOwnerSuperuserWithoutDestinationCreate(t *testing.T) {
 			}
 			ref := roleTableRef(t, e, "private.s")
 			before := e.state.descriptors[ref.Address].(*relationDescriptor)
-			ns := ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: before.namespace}
+			ns := e.domain.Ref(ref.Epoch, before.namespace)
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}

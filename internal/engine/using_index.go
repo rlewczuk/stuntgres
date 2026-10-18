@@ -64,7 +64,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 				}
 			}
 			e.mu.Lock()
-			err = stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: index.address}, false)
+			err = stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), index.address), false)
 			e.mu.Unlock()
 			if err == nil {
 				err = stage.Create(&clone)

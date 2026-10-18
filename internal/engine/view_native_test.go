@@ -45,7 +45,7 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 			t.Fatal("view owner remap", name, descriptor.owner)
 		}
 		for _, leaf := range descriptor.view.sources {
-			if leaf.ref.owner != e.domain || leaf.ref.Epoch != e.state.epoch {
+			if leaf.ref.Domain() != e.domain || leaf.ref.Epoch != e.state.epoch {
 				t.Fatal("view identity remap", name, leaf.ref)
 			}
 		}
@@ -84,7 +84,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal("view retained type generation")
 	}
 	for _, dependency := range definition.dependencies {
-		if dependency.ref.owner != e.domain || dependency.ref.Epoch != e.state.epoch {
+		if dependency.ref.Domain() != e.domain || dependency.ref.Epoch != e.state.epoch {
 			t.Fatal("view dependency generation", dependency)
 		}
 	}

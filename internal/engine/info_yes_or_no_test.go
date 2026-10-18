@@ -37,7 +37,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	}
 	for _, dependency := range check.dependencies {
 		provider, ok := view.Descriptor(dependency.ref.Address)
-		if !ok || dependency.ref.owner != e.domain || dependency.ref.Epoch != view.Epoch() || dependency.revision != provider.Revision() {
+		if !ok || dependency.ref.Domain() != e.domain || dependency.ref.Epoch != view.Epoch() || dependency.revision != provider.Revision() {
 			t.Fatal("captured recipe dependency", dependency)
 		}
 	}

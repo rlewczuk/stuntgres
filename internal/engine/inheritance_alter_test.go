@@ -120,7 +120,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 		next.revision++
 		next.comment = "candidate"
 		store := e.storage[old.address]
-		ref := ObjectRef{owner: e.domain, Epoch: before.Epoch(), Address: old.address}
+		ref := e.domain.Ref(before.Epoch(), old.address)
 		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.versions), store.generation, store.ends); err != nil {
 			t.Fatal(err)
 		}
@@ -196,7 +196,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	foreign := New()
 	definition := c.generations[2]
-	definition.dependencies = []ObjectRef{{owner: foreign.domain, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Int4)}}}
+	definition.dependencies = []ObjectRef{foreign.domain.Ref(view.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Int4)})}
 	invalid := *c
 	invalid.generations = map[int32]columnGeneration{2: definition}
 	if err := validateGenerationProviders(view, &invalid); err == nil {

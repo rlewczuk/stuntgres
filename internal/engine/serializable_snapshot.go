@@ -12,7 +12,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		e.mu.Lock()
 		s.op.session.mu.Lock()
 		err := publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.epoch != e.state.epoch) {
+		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.state.epoch) {
 			err = ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()
@@ -42,7 +42,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		t.sequenceCatalog = e.state
 		if node.readOnly {
 			for _, writer := range e.serializable.nodes {
-				if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.epoch == node.ref.epoch {
+				if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
 					if node.possible == nil {
 						node.possible = make(map[*serializableTransaction]struct{})
 					}
@@ -78,7 +78,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		e.mu.Lock()
 		s.op.session.mu.Lock()
 		err = publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.epoch != e.state.epoch || node.aborted || node.ended) {
+		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.state.epoch || node.aborted || node.ended) {
 			err = ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()

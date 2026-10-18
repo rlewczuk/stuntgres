@@ -286,7 +286,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				if err != nil {
 					t.Fatal("new epoch acquisition", err)
 				}
-				if fresh.ref.epoch != oldEpoch+1 || !fresh.exempt || !freshScope.owner.snapshotSet || len(fresh.possible) != 0 || freshScope.owner.frontier != e.commitSeq {
+				if fresh.ref.Epoch() != oldEpoch+1 || !fresh.exempt || !freshScope.owner.snapshotSet || len(fresh.possible) != 0 || freshScope.owner.frontier != e.commitSeq {
 					t.Fatal("new epoch inherited replaced cohort")
 				}
 				freshRelation := catalogRef(t, e, e.CatalogRead(), "replacement_rows")

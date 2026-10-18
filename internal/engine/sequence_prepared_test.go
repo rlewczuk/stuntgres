@@ -236,7 +236,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 		t.Helper()
 		var ref ObjectRef
 		if a, ok := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]; ok {
-			ref = ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
+			ref = e.domain.Ref(e.state.epoch, a)
 		} else {
 			ref = roleTableRef(t, e, name)
 		}

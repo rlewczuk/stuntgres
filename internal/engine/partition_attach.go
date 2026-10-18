@@ -15,7 +15,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	if scope.lockedRef.owner == nil {
+	if scope.lockedRef.Domain() == nil {
 		op.session.mu.Lock()
 		err := publicationOperationLocked(e, op)
 		op.session.mu.Unlock()
@@ -61,7 +61,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partitionAttachScan
 	if !bound.defaultBound && parent.partition.defaultChild != (ObjectAddress{}) {
-		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: parent.partition.defaultChild}
+		ref := e.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
 		if err = scope.acquirePartitionLock(ref, accessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -233,7 +233,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ObjectRef) (
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != e.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.epoch {
+	if !ok || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
 		return CatalogRead{}, nil, ErrCatalogReplaced
 	}
 	return catalog, d, nil

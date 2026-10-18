@@ -563,7 +563,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
 		}
-		ns := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: parent.namespace}
+		ns := e.domain.Ref(auth.catalog.Epoch(), parent.namespace)
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
 			if !scope.op.restoreTableDestination || !ok || denied.Code != "42501" {

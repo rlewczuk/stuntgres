@@ -88,7 +88,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 	stage := e.BeginCatalogStage(base)
 	e.mu.Lock()
 	for _, declaration := range pending {
-		if declaration.child.owner != e.domain || declaration.child.Epoch != base.Epoch() {
+		if declaration.child.Domain() != e.domain || declaration.child.Epoch != base.Epoch() {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}

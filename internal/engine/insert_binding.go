@@ -267,7 +267,7 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 			b.defaults[i] = domainNullInputExpression(b.relation.columns[i].Usage)
 		}
 		if identity, ok := b.relation.identities[attribute]; ok {
-			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
+			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: e.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

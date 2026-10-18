@@ -20,7 +20,7 @@ func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*r
 	if !ok {
 		t.Fatal("missing pg_db_role_setting")
 	}
-	return d, ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
+	return d, e.domain.Ref(catalog.Epoch(), address)
 }
 
 func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) {

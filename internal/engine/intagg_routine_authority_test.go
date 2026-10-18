@@ -104,7 +104,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.state.descriptors[captured.extension].(*extensionDescriptor)
-			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.state.descriptors[ref.Address] != captured || ref.owner != e.domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.state.descriptors[ref.Address] != captured || ref.Domain() != e.domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -165,7 +165,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 							case "revision":
 								deps[i].revision++
 							case "foreign_ref":
-								deps[i].ref.owner = other.domain
+								deps[i].ref = other.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
 							}
 						}
 					}
@@ -226,7 +226,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("structural parameter rewrite lost original authority", err)
 					}
 					foreignEnum := node.(unnestExpression)
-					foreignEnum.ref.owner = other.domain
+					foreignEnum.ref = other.domain.Ref(foreignEnum.ref.Epoch, foreignEnum.ref.Address)
 					foreignEnum.ref.Epoch = foreign.catalog.Epoch()
 					foreignNode, _, err := retagBoundTypes(foreign.catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
@@ -310,7 +310,11 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := admitRoutineCall(&probe, relocated, false, false); err != nil {
 						t.Fatal("transferred original authority", err)
 					}
-					foreignNode, err := remapBoundExpression(node, func(r ObjectRef) ObjectRef { r.owner = other.domain; r.Epoch = foreign.catalog.Epoch(); return r }, nil)
+					foreignNode, err := remapBoundExpression(node, func(r ObjectRef) ObjectRef {
+						r = other.domain.Ref(r.Epoch, r.Address)
+						r.Epoch = foreign.catalog.Epoch()
+						return r
+					}, nil)
 					if err != nil {
 						t.Fatal(err)
 					}

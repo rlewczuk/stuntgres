@@ -88,7 +88,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 		pending := false
 		if entry != nil {
 			for _, request := range entry.pending {
-				pending = pending || !request.terminal && request.ticket.ref.session == worker.token
+				pending = pending || !request.terminal && request.ticket.ref.Session() == worker.token
 			}
 		}
 		e.locks.mu.Unlock()

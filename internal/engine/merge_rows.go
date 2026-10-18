@@ -513,7 +513,7 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ObjectRef, candidate upda
 	if err := s.validateLockedRelation(e); err != nil {
 		return rowVersion{}, false, err
 	}
-	if ref.Epoch != e.state.epoch || s.txRef.epoch != e.state.epoch {
+	if ref.Epoch != e.state.epoch || s.txRef.Epoch() != e.state.epoch {
 		return rowVersion{}, false, ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)

@@ -376,7 +376,7 @@ func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) er
 			address := dependency.ref.Address
 			address.SubID = 0
 			provider, exists := view.Descriptor(address)
-			if !exists || dependency.ref.owner != view.owner.domain || dependency.ref.Epoch != view.Epoch() || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject && provider.Kind() != RelationObject {
+			if !exists || dependency.ref.Domain() != view.owner.domain || dependency.ref.Epoch != view.Epoch() || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject && provider.Kind() != RelationObject {
 				return fmt.Errorf("stuntgres: invalid domain CHECK provider")
 			}
 		}

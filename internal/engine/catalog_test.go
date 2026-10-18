@@ -574,7 +574,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 	}
 	va, vb := a.CatalogRead(), b.CatalogRead()
 	ra, rb := catalogRef(t, a, va, "t"), catalogRef(t, b, vb, "t")
-	if ra.Address.ObjectID == 0 || ra.Address != rb.Address || ra.Epoch != rb.Epoch || ra == rb || ra.owner == nil || rb.owner == nil {
+	if ra.Address.ObjectID == 0 || ra.Address != rb.Address || ra.Epoch != rb.Epoch || ra == rb || ra.Domain() == nil || rb.Domain() == nil {
 		t.Fatalf("coincident identities lack provenance: %#v / %#v", ra, rb)
 	}
 	for _, tc := range []struct {
@@ -587,7 +587,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 			t.Fatal(err)
 		}
 		ownerless := tc.own
-		ownerless.owner = nil
+		ownerless = ObjectRef{Epoch: ownerless.Epoch, Address: ownerless.Address}
 		for _, ref := range []ObjectRef{tc.foreign, ownerless} {
 			if err := tc.engine.ValidateObjectRef(tc.view, ref); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
 				t.Fatalf("foreign reference: %v", err)
@@ -620,7 +620,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	creation, creationErr := e.creationNamespace(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
 	e.mu.Unlock()
 	state(t, err, "42P01")
-	if creationErr != nil || creation.owner != e.domain || creation.Epoch != base.Epoch() {
+	if creationErr != nil || creation.Domain() != e.domain || creation.Epoch != base.Epoch() {
 		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
 	}
 	stage := e.BeginCatalogStage(base)
@@ -670,7 +670,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 		t.Fatalf("replacement ownership: %#v, %v", changes, err)
 	}
 	newRef := catalogRef(t, target, target.CatalogRead(), "t")
-	if newRef.owner != owner || newRef.Address != sourceRef.Address {
+	if newRef.Domain() != owner || newRef.Address != sourceRef.Address {
 		t.Fatalf("replacement ref: %#v", newRef)
 	}
 	if err := target.ValidateObjectRef(target.CatalogRead(), oldRef); !errors.Is(err, ErrCatalogReplaced) {

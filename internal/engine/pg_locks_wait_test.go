@@ -36,7 +36,7 @@ func pgLocksUnitWait(t *testing.T, e *Engine, ticket *relationTicket) pgLockReco
 	t.Helper()
 	var waits []pgLockRecord
 	for _, r := range pgLocksUnitCapture(t, e) {
-		if r.waiting && r.owner.session == ticket.ref.session.id {
+		if r.waiting && r.owner.session == ticket.ref.Session().ID() {
 			waits = append(waits, r)
 		}
 	}
@@ -103,7 +103,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal("missing actual queue-only predecessor")
 		}
 		before := pgLocksUnitWait(t, e, c)
-		if before.kind != pgVirtualLock || before.target.session != b.ref.session.id || before.target.local != b.ref.id || before.xid != 0 {
+		if before.kind != pgVirtualLock || before.target.session != b.ref.Session().ID() || before.target.local != b.ref.ID() || before.xid != 0 {
 			t.Fatal("queue-only target fabricated/dropped", before)
 		}
 		if r, _ := pgLocksUnitRequest(t, e, bypass, resource, noKeyUpdate, completionTransaction); r != nil {
@@ -121,7 +121,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal("compatible tail did not grant", err)
 		}
 		for _, r := range pgLocksUnitCapture(t, e) {
-			if r.waiting && r.owner.session == c.ref.session.id {
+			if r.waiting && r.owner.session == c.ref.Session().ID() {
 				t.Fatal("queue-only phantom after grant", r)
 			}
 		}
@@ -141,7 +141,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		br, _ := pgLocksUnitRequest(t, e, b, resource, uniqueClaim, completionTransaction)
 		cr, _ := pgLocksUnitRequest(t, e, c, resource, uniqueClaim, completionTransaction)
 		before := pgLocksUnitWait(t, e, b)
-		if before.kind != pgVirtualLock || before.target.session != a.ref.session.id {
+		if before.kind != pgVirtualLock || before.target.session != a.ref.Session().ID() {
 			t.Fatal("unassigned unique holder", before)
 		}
 		xid := pgLocksUnitAssign(t, e, a)
@@ -173,7 +173,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal("index completion did not enqueue")
 		}
 		before := pgLocksUnitWait(t, e, waiter)
-		if before.kind != pgVirtualLock || before.target.local != holder.ref.id || before.target.session != holder.ref.session.id {
+		if before.kind != pgVirtualLock || before.target.local != holder.ref.ID() || before.target.session != holder.ref.Session().ID() {
 			t.Fatal("live index completion target", before)
 		}
 		e.locks.detachPrepared(holder)
@@ -218,7 +218,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			xid := pgLocksUnitAssign(t, e, holder)
 			r, _ := pgLocksUnitRequest(t, e, waiter, lockResource{completion: holder}, transactionCompletion, purpose)
 			pending := pgLocksUnitWait(t, e, waiter)
-			if purpose == completionVirtual && (pending.kind != pgVirtualLock || pending.target.local != holder.ref.id) || purpose == completionTransaction && (pending.kind != pgTransactionLock || pending.xid != xid) {
+			if purpose == completionVirtual && (pending.kind != pgVirtualLock || pending.target.local != holder.ref.ID()) || purpose == completionTransaction && (pending.kind != pgTransactionLock || pending.xid != xid) {
 				t.Fatal("caller-selected completion purpose", pending)
 			}
 			captured := pgLocksUnitCapture(t, e)
@@ -230,7 +230,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, r := range pgLocksUnitCapture(t, e) {
-				if r.waiting || r.owner.session == waiter.ref.session.id && (r.kind == pgTransactionLock || r.mode == transactionCompletion) {
+				if r.waiting || r.owner.session == waiter.ref.Session().ID() && (r.kind == pgTransactionLock || r.mode == transactionCompletion) {
 					t.Fatal("transient completion retained ShareLock", r)
 				}
 			}
@@ -273,13 +273,13 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 				case "grant":
 					e.endLockOwner(a)
 				case "fence":
-					e.locks.fence(a.ref.epoch + 1)
+					e.locks.fence(a.ref.Epoch() + 1)
 				}
 			}()
 			for range 32 {
 				// A capture is coherent at its manager linearization point. A
 				// terminal outcome after capture need not invalidate owned history.
-				_, err := e.locks.snapshotPGLocks(a.ref.epoch)
+				_, err := e.locks.snapshotPGLocks(a.ref.Epoch())
 				if err != nil && !errors.Is(err, ErrCatalogReplaced) {
 					t.Error(err)
 				}
@@ -289,7 +289,7 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 			if ending == "grant" && err != nil || ending == "cancel" && !errors.Is(err, context.Canceled) || ending == "fence" && !errors.Is(err, ErrCatalogReplaced) {
 				t.Fatal("terminal outcome", ending, err)
 			}
-			epoch := a.ref.epoch
+			epoch := a.ref.Epoch()
 			if ending == "fence" {
 				epoch++
 			}
@@ -340,7 +340,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 				if request == nil {
 					t.Fatal("logical dependency did not enqueue")
 				}
-				waiters[waiter.ref.session.id] = waiter.ref.id
+				waiters[waiter.ref.Session().ID()] = waiter.ref.ID()
 			}
 			if holder.assignedPublicXID() != 0 {
 				t.Fatal("key grant assigned an XID before the genuine assignment")
@@ -364,7 +364,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 			e.locks.mu.Lock()
 			go func() {
 				close(started)
-				records, err := e.locks.snapshotPGLocks(holder.ref.epoch)
+				records, err := e.locks.snapshotPGLocks(holder.ref.Epoch())
 				done <- outcome{records, err}
 			}()
 			<-started
@@ -418,7 +418,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 				} else if record.kind != identity.kind || record.xid != identity.xid || record.target != identity.target {
 					t.Fatal("one holder has inconsistent captured dependency identities", identity, record)
 				}
-				if record.target.session != holder.ref.session.id || record.target.local != holder.ref.id {
+				if record.target.session != holder.ref.Session().ID() || record.target.local != holder.ref.ID() {
 					t.Fatal("logical dependency changed its actual holder", record)
 				}
 				seen[record.owner.session] = true
@@ -428,7 +428,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 			}
 			owners := 0
 			for _, record := range captured.records {
-				if record.waiting || record.owner.session != holder.ref.session.id || record.owner.local != holder.ref.id || record.kind != identity.kind {
+				if record.waiting || record.owner.session != holder.ref.Session().ID() || record.owner.local != holder.ref.ID() || record.kind != identity.kind {
 					continue
 				}
 				if identity.kind == pgVirtualLock && record.target == identity.target || identity.kind == pgTransactionLock && record.xid == identity.xid {

@@ -117,7 +117,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			}
 			d := dest.state.descriptors[roleTableRef(t, dest, "portable.t").Address].(*relationDescriptor)
 			next := serialLeaf(d.defaults[1].expression)
-			if next.ref.Address == temp || next.ref.owner != dest.domain || next.ref.Epoch != dest.state.epoch || !closedSequenceDefault(d.defaults[1].expression) {
+			if next.ref.Address == temp || next.ref.Domain() != dest.domain || next.ref.Epoch != dest.state.epoch || !closedSequenceDefault(d.defaults[1].expression) {
 				t.Fatal("default not remapped", next.ref)
 			}
 			if err := (relationProvider{}).Validate(dest.CatalogRead(), d); err != nil {
