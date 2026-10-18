@@ -51,7 +51,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		for i := range args {
 			args[i] = values[signature.args[i]]
 		}
-		node, err := b.bindDatetimeZone(datetimeMakeRaw(signature.name, args...), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw(signature.name, args...))
 		if err != nil {
 			t.Fatal(signature, err)
 		}
@@ -91,7 +91,7 @@ func TestDatetimeZonePreferredUnknownAndFailures(t *testing.T) {
 		{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		node, err := b.bindDatetimeZone(datetimeMakeRaw("timezone", args...), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw("timezone", args...))
 		if err != nil || node.ResultUsage().Type.ID() != sqltype.Timestamp {
 			t.Fatal(node, err)
 		}
@@ -105,13 +105,13 @@ func TestDatetimeZonePreferredUnknownAndFailures(t *testing.T) {
 	}
 	for _, name := range []string{"date_add", "date_subtract"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bindDatetimeZone(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}), true)
+		_, err := b.bindFunctionProvider(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}))
 		if err != nil || b.parameters[1].Type.ID() != sqltype.Timestamptz || b.parameters[2].Type.ID() != sqltype.Interval || b.parameters[3].Type.ID() != sqltype.Text {
 			t.Fatal(b.parameters, err)
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	_, err := b.bindDatetimeZone(datetimeMakeRaw("timezone", datetimeMakeInteger(1), ageFiniteTyped("timestamp", "2000-01-01")), true)
+	_, err := b.bindFunctionProvider(datetimeMakeRaw("timezone", datetimeMakeInteger(1), ageFiniteTyped("timestamp", "2000-01-01")))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != "function timezone(integer, timestamp without time zone) does not exist" || diagnostic.Position != "8" {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestDatetimeZonePreferredUnknownAndFailures(t *testing.T) {
 
 func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeZone(datetimeMakeRaw("date_add", ageFiniteTyped("timestamptz", "2004-01-01+00"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("text", "No/Such_Zone")), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("date_add", ageFiniteTyped("timestamptz", "2004-01-01+00"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("text", "No/Such_Zone")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestDatetimeZoneSelectedCastDiagnosticAndScopeRestoration(t *testing.T) {
 		if nested {
 			source = datetimeMakeRaw("date_add", stamp, ageFiniteTyped("interval", "0"))
 		}
-		_, err := b.bindDatetimeZone(datetimeMakeRaw("date_add", source, span), true)
+		_, err := b.bindFunctionProvider(datetimeMakeRaw("date_add", source, span))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42846" || diagnostic.Message != "cannot cast type timestamp with time zone to interval" || diagnostic.Position != "35" || b.datetimeZoneOperands {
 			t.Fatal(nested, err, b.datetimeZoneOperands)
@@ -156,7 +156,7 @@ func TestDatetimeZoneSelectedCastDiagnosticAndScopeRestoration(t *testing.T) {
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	_, err := b.bindDatetimeZone(datetimeMakeRaw("date_add", ageFiniteTyped("timestamptz", "2004-01-01+00"), ageFiniteTyped("interval", "0")), true)
+	_, err := b.bindFunctionProvider(datetimeMakeRaw("date_add", ageFiniteTyped("timestamptz", "2004-01-01+00"), ageFiniteTyped("interval", "0")))
 	if err != nil || b.datetimeZoneOperands {
 		t.Fatal("successful analysis leaked scope", err, b.datetimeZoneOperands)
 	}

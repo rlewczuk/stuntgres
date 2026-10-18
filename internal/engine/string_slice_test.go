@@ -31,7 +31,7 @@ func TestStringSliceFormalInference(t *testing.T) {
 			if name == "substring" || name == "substr" {
 				node, err = b.bindBinaryFunction(raw, true)
 			} else {
-				node, err = b.bindStringFunction(raw, true)
+				node, err = functions.BindString(b, raw, true)
 			}
 			if err != nil {
 				t.Fatal(name, arity, err)

@@ -157,8 +157,12 @@ Tier C has a refined plan.
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
 - [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
-  `0f3c7e5a2` move, docs `96e11f662`) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
-  [ ] JSON/JSONB/SQL-JSON
+  `0f3c7e5a2` move, docs `96e11f662`) [x] string [x] LIKE/SIMILAR/regex
+  [x] datetime (datetime: `5c5928497` seam, `5a293c0b3` port, `4acb5e42b`
+  move; pattern: `ba236a2b8` seam, `1807e7ee9` port, `34f7300d1` move;
+  string: `69133565c` seam, `7c28e5c79` port, `76d0201d9` move,
+  `db9694a8f` string_to_table and variadic bookkeeping; then the docs
+  commit) [ ] JSON/JSONB/SQL-JSON
   (function calls done: `059a86924` seam, `94b71bb40`
   port, `a6c399c2b` move, `b1099500b` slot binder, then the docs commit;
   operators, SQL/JSON constructors and `IS JSON` remain) [x] arrays [x] ranges (`a46ee7c5c` seam,
@@ -180,8 +184,10 @@ is a genuine analyzer capability); `DefaultConsumer`, `ArrayType`,
 `RetainUntypedParameter`, `NoteCatalogText` and `InstalledRoutine` (UUID
 generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
 `CaptureComparisonInput` (arrays and ranges); `Literal`, `Context`,
-`AdmitSetReturning` and `CaptureTypeInput` (JSON calls). Reasons for every method are in the
-`functions` README.
+`AdmitSetReturning` and `CaptureTypeInput` (JSON calls); `ConstantValue`
+(datetime), `BuiltinOperatorVisible` and `CallSignatureError` (pattern) and
+`FinishBinary` (string, a leak the binary port removes). Reasons for every
+method are in the `functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 `functions/routine_provider.go`; the engine keeps `routineProvider` and
@@ -191,7 +197,10 @@ alias-removal pass, which counts as a broad rewrite (§8). The step 2b aliases
 in `functions/expr_aliases.go` are still listed in `ENGINE-SPLIT-expr.md` for
 2d. Math added `functionResolutionErrorForTypes = functions.ResolutionError`
 (41 engine call sites) and `functionCastHint = functions.SignatureHint` (4);
-remove them with the other aliases.
+remove them with the other aliases. The datetime, pattern and string ports
+added no aliases: the callers of the moved `operatorExpressionError` (now
+`functions.OperatorError`) and `datetimeFormattingTypeName` (now
+`functions.DiagnosticNameOrUnknown`) were repointed.
 
 F1 record, measured at its start on `b12c7ee57`:
 
@@ -519,6 +528,85 @@ Verification: `make quickcheck` passed; `make deps` lists only module paths;
 in `/postgres` only, as on master). Bench skipped: bind path only, no startup
 code changed. Racecheck skipped at the user's request.
 
+F4/F5 datetime, LIKE/SIMILAR/regex and string record, measured at its start
+on `604ee2be6`. The three families ran in one session on
+`split/functions-tier-a`, in parallel with F2 on `split/functions`, and were
+rebased over the UUID/format, array/range and JSON merges:
+
+- Datetime used, beyond the shared set, engine literal construction
+  (`make_*` defaults) and reads (constant templates), `b.ctx`, the
+  `datetimeZoneOperands` flag, `identityExpression(age(xid))` and
+  `overlapsInlineSafe`. The flag is read only by `bindCast`, which coercion
+  finalization cannot reach for the zone family's operands, so scoping it to
+  operand analysis (`ZoneArgument`) is equivalent. Hand-built 42725 errors in
+  age, extract, trunc and formatting were byte-identical to
+  `ResolutionError(..., true)`. `make_*` sat in the final switch but was
+  exempt from the label gate; it uses `OwnsLabels`, which removes the gate's
+  last exemptions (only the advisory names remain).
+- Pattern: the LIKE operator node `likeExpression` is engine-private and has
+  about 20 central switch cases (F2's territory), so its binder is ported onto
+  `Binder` in place but not moved. `similar_to_escape` is dispatched by
+  `SimilarEscapeFunctionSyntax`, not by name; registering the name would claim
+  ordinary calls that fail with 42883 today. `regexp_*` checks its own labels
+  before the shared gates and wraps set-returning calls; it keeps an engine
+  branch.
+- The regexp and variadic string 42883 paths used the unnoted builder and keep
+  `ResolutionError(..., false)`; noting them would change the composite
+  fallback decision.
+- String: bytea/bit overloads finish through `FinishBinary`. `stringNode`'s
+  catalog-output flag and `capturePolymorphicBody` act only for `||` (and
+  quote_literal/quote_nullable on anyelement), so `functions.StringNode`
+  leaves them to the engine's operator wrapper. `bindLowerUpper` (added by
+  the range port) moved with the family; `lower`/`upper` and `parse_ident`
+  register without gates, as they sat before them.
+- Engine state needed at one point is passed as a value: the `age(xid)` node
+  builder, the regexp placement check and the variadic query frame.
+- Files: 22 new `functions/*_bind.go` files plus `operator_error.go`; 14
+  engine glue files deleted. `expression_similar.go` became
+  `regex_execution.go` (the regex executor capability), `datetimeMakeSQL`
+  moved to `datetime_make_render.go`, and `string_variadic_capture.go` gained
+  the variadic wrapper. Switch helpers stay in place for F2: `regexpSQL`,
+  `mapRegexpChildren`, `preflightRegexpCall`, `sameRegexpCall`,
+  `stringSpecialSQL`, `trimSyntaxSQL`, `datetimeMakeSQL`, the
+  overlaps/extract render files.
+
+Tests in F4/F5 datetime/pattern/string: `TestLookupClaimsRegisteredNames`
+gained the families' exact names, the `make_*` `OwnsLabels` case, the
+ungated `parse_ident` and `lower`/`upper` spellings, and unclaimed names
+(engine-dispatched calls and other spellings); it failed before
+registration. Engine unit tests stay, because they exercise engine switches.
+Adapted call sites: the `datetime_*_test.go`, `numeric_formatting_test.go`
+and `transaction_identity_test.go` tests bind through `bindFunctionProvider`,
+and `TestDatetimeFormattingBindingAuthority`'s hidden case uses a
+`public.`-qualified name instead of `visible=false`; the `bindStringFunction`
+callers in `bitstring_functions_test.go`, `range_inspect_test.go`,
+`string_case_test.go`, `string_replace_test.go` and `string_slice_test.go`
+call `functions.BindString`. No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages) on the rebased branch;
+`make deps` lists only module paths; `functions` imports no engine state
+packages. Quick mode passed for each family's reference selection, and
+`REFERENCE=1` passed for the datetime, timezone, numeric formatting,
+transaction identity, LIKE/SIMILAR/POSIX/regexp, collation, string, range,
+binary/bit, SRF, search-path and object-grant selections except the six
+`/postgres`-only drift tests listed below, which fail identically on master.
+Bench median 1.91 ms/op with 7,769 allocs/op, against 2.91 ms and 7,770 on
+master `604ee2be6` on the same machine (allocations unchanged; time within
+run-to-run noise and still above the 1 ms target). Racecheck skipped at the
+user's request.
+
+Notes for later steps (datetime, pattern, string):
+
+- `Lookup` now holds about 140 names plus the JSON predicate.
+- The binary port removes `FinishBinary`.
+- Still engine-dispatched over exported entry points: `age`/`isfinite`
+  (Tier C), `overlaps` (an F2 inline-safety hook), `regexp_*` (placement
+  callback and set wrapping; `AdmitSetReturning` does not cover the regexp
+  placement rules), the variadic string family (polymorphic body capture,
+  query frame) and `similar_to_escape` (needs a syntax-keyed definition).
+- LIKE's binder and node move together once F2 has converted the switches
+  that name `likeExpression`.
+
 Notes for later steps (JSON):
 
 - `Lookup` now evaluates the JSON `Claims` predicate (about 40 name
@@ -539,4 +627,8 @@ Notes for later steps (JSON):
   `TestReferenceStringCoreNormalization`,
   `TestReferenceStringCoreValuesSourceConsumerRoutes` (Unicode case and
   normalization) and `TestReferenceStringSplitLocking` (locked-row results)
-  also fail in `/postgres` only, on master too.
+  also fail in `/postgres` only, on master too, as do
+  `TestReferenceDatetimeExtractCanonicalDefinitions` (18.6 quotes
+  mixed-case EXTRACT fields in deparse) and
+  `TestReferenceDatetimeFormattingReviewCollationDemand` (XX000 "cache
+  lookup failed for collation 0" instead of 42P22).

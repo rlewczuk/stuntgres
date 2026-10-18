@@ -1,119 +1,10 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool) (functions.RegexpCall, error) {
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var call functions.RegexpCall
-	operands := make([]functions.Argument, len(raw.Args))
-	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringTextArgument})
-		if err != nil {
-			return call, err
-		}
-		operands[i] = o
-	}
-	signature := func() error {
-		names := make([]string, len(operands))
-		for i, o := range operands {
-			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
-		}
-		return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
-	}
-	if len(raw.Args) > 100 {
-		return call, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return call, fmt.Errorf("invalid regexp argument labels")
-	case issue.Positional:
-		return call, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return call, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	replaceFlags, probe := functions.RegexpReplaceSelection(raw, operands)
-	var integer *sqltype.Descriptor
-	if probe != nil {
-		integer = b.typ(sqltype.Int4)
-		replaceFlags = functions.RegexpReplaceFlags(probe.Usage, integer.Usage())
-	}
-	labels, types, result, valid := functions.RegexpSignature(name, len(operands), replaceFlags)
-	if !visible || raw.Variadic || !valid {
-		return call, signature()
-	}
-	call.WrittenSlots, call.Labels, valid = functions.RegexpSlots(raw, labels, len(operands))
-	if !valid {
-		return call, signature()
-	}
-	var text *sqltype.Descriptor
-	var targets [7]sqltype.Usage
-	for i, operand := range operands {
-		slot := call.WrittenSlots[i]
-		var target *sqltype.Descriptor
-		if types[slot] == sqltype.Text {
-			if text == nil {
-				text = b.typ(sqltype.Text)
-			}
-			target = text
-		} else {
-			if integer == nil {
-				integer = b.typ(sqltype.Int4)
-			}
-			target = integer
-		}
-		targets[slot] = target.Usage()
-		if !functions.RegexpCompatible(operand.Usage, targets[slot]) {
-			return call, signature()
-		}
-	}
-	var err error
-	call.Args, err = functions.CoerceRegexpArguments(b, operands, call.WrittenSlots, targets)
-	if err != nil {
-		return call, err
-	}
-	properties := ExprProperties{Volatility: Immutable}
-	for _, arg := range call.Args {
-		p := arg.Properties()
-		properties.Volatility = max(properties.Volatility, p.Volatility)
-		properties.RowDependent = properties.RowDependent || p.RowDependent
-		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
-		properties.StageDependent = properties.StageDependent || p.StageDependent
-		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
-		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
-	}
-	properties.StageDependent = properties.StageDependent || functions.RegexpStageDependent(name)
-	input, err := b.collatedInfo(b.info(text.Usage(), raw.Pos, properties), call.Args...)
-	if err != nil {
-		return call, err
-	}
-	resultType := text
-	if result != sqltype.Text {
-		resultType = b.typ(result)
-	}
-	info := b.info(resultType.Usage(), raw.Pos, properties)
-	if info.Usage.Collation.ID != 0 {
-		info.Usage.Collation = input.Usage.Collation
-		info.CollationConflict = input.CollationConflict
-	}
-	call, err = functions.NewRegexpCall(info, name, call.Args, call.WrittenSlots, call.Labels, input.Usage.Collation, input.CollationConflict)
-	if err == nil && call.Plan.ReturnsSet() {
-		err = b.regexpPlacement(call)
-	}
-	if err == nil {
-		info, err = b.builtinRoutineInfo(info, regexpRoutineProvider, name, types[:len(operands)]...)
-		if err == nil {
-			call.Info = info
-		}
-	}
-	return call, err
-}
 func regexpSQL(call functions.RegexpCall, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	text := name + "("
 	for i, slot := range call.WrittenSlots[:len(call.Args)] {
@@ -198,7 +89,7 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 			context = "index expressions"
 		case b.checkConsumer:
 			context = "check constraints"
-		case b.defaultConsumer:
+		case b.DefaultConsumer():
 			context = "DEFAULT expressions"
 		case b.policyConsumer && b.queryFrame == 0:
 			return sqlError("0A000", "set-returning functions are not allowed in policy expressions")

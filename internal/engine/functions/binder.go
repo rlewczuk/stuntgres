@@ -87,4 +87,18 @@ type Binder interface {
 	// CaptureTypeInput captures the diagnostic-name, ACL and catalog
 	// identifier input that values of the type need.
 	CaptureTypeInput(*sqltype.Descriptor) error
+	// ConstantValue returns the value of a literal node built by the
+	// analyzer; ok is false for every other node.
+	ConstantValue(expr.Expr) (sqltype.Value, bool)
+	// BuiltinOperatorVisible reports whether operator lookup for the name
+	// reaches pg_catalog under the current search_path.
+	BuiltinOperatorVisible(parser.ObjectName) (bool, error)
+	// CallSignatureError is the analyzer's whole-call 42883: it re-analyzes
+	// the arguments for their diagnostic names, reports composite-candidate
+	// calls as unsupported, and notes the missing signature.
+	CallSignatureError(parser.FunctionExpr) error
+	// FinishBinary finishes a selected bytea/bit call. It is a leak: string
+	// overloads route to the binary family, which the engine still binds.
+	// The binary port removes it.
+	FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []Argument, syntax parser.FunctionSyntax, types *BinaryTypes) (expr.Expr, error)
 }

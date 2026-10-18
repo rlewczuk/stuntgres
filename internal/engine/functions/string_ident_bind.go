@@ -1,7 +1,6 @@
-package engine
+package functions
 
 import (
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,10 +14,10 @@ func stringIdentStrictArgument(raw parser.FunctionExpr, i int) bool {
 	return i == 1
 }
 
-func selectStringIdent(raw parser.FunctionExpr, visible bool, args []functions.Argument, targets functions.StringTargets) (functions.StringSelection, functions.Resolution) {
-	selected := functions.StringSelection{Result: sqltype.Text, Array: true}
+func selectStringIdent(raw parser.FunctionExpr, visible bool, args []Argument, targets StringTargets) (StringSelection, Resolution) {
+	selected := StringSelection{Result: sqltype.Text, Array: true}
 	if !visible || raw.Variadic || len(args) < 1 || len(args) > 2 {
-		return selected, functions.Missing
+		return selected, Missing
 	}
 	var assigned [2]bool
 	for i, arg := range args {
@@ -30,11 +29,11 @@ func selectStringIdent(raw parser.FunctionExpr, visible bool, args []functions.A
 			case "strict":
 				slot = 1
 			default:
-				return selected, functions.Missing
+				return selected, Missing
 			}
 		}
 		if assigned[slot] {
-			return selected, functions.Missing
+			return selected, Missing
 		}
 		assigned[slot] = true
 		selected.Textual[i] = slot == 0
@@ -47,14 +46,14 @@ func selectStringIdent(raw parser.FunctionExpr, visible bool, args []functions.A
 		}
 		if slot == 0 {
 			if !sqltype.StringTextInput(arg.Usage.Type.BaseType().ID()) {
-				return selected, functions.Missing
+				return selected, Missing
 			}
 		} else if _, err := sqltype.PlanCoercion(arg.Usage, targets.Boolean, sqltype.Implicit); err != nil {
-			return selected, functions.Missing
+			return selected, Missing
 		}
 	}
 	if !assigned[0] {
-		return selected, functions.Missing
+		return selected, Missing
 	}
-	return selected, functions.Resolved
+	return selected, Resolved
 }

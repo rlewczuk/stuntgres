@@ -26,7 +26,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		{"time", "24:00", sqltype.Interval, Immutable},
 	} {
 		raw := datetimeMakeRaw("date_trunc", datetimeMakeString("day"), ageFiniteTyped(tc.typ, tc.source))
-		node, err := b.bindDatetimeTrunc(raw, true)
+		node, err := b.bindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -67,7 +67,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := datetimeMakeRaw("date_trunc", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3})
-	node, err := b.bindDatetimeTrunc(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 		if tc.zone {
 			args = append(args, datetimeMakeString("UTC"))
 		}
-		_, err := b.bindDatetimeTrunc(datetimeMakeRaw("date_trunc", args...), true)
+		_, err := b.bindFunctionProvider(datetimeMakeRaw("date_trunc", args...))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)

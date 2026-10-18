@@ -67,8 +67,42 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "lower", "UPPER", "range_agg", "int4range",
-		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays"} {
+	for _, name := range []string{"extract", "date_part", "date_trunc", "date_bin", "timezone", "date_add", "justify_interval", "to_char", "to_timestamp", "make_date", "make_interval"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+		// Only the make_* constructors accept argument labels.
+		if definition.OwnsLabels != strings.HasPrefix(name, "make_") {
+			t.Fatalf("Lookup(%q).OwnsLabels = %v", name, definition.OwnsLabels)
+		}
+	}
+	for _, name := range []string{"left", "trim", "split_part", "string_to_array", "string_to_table", "position", "md5", "unicode_assigned"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates || definition.OwnsLabels {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+	}
+	// parse_ident and lower/upper sat before the shared gates and claimed
+	// any spelling.
+	for _, name := range []string{"parse_ident", "PARSE_IDENT", "Parse_Ident", "lower", "UPPER", "Lower"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+	}
+	if definition, ok := Lookup("like_escape"); !ok || !definition.ExactSpelling || !definition.SharedGates || definition.OwnsLabels {
+		t.Fatalf("Lookup(like_escape) = %v, %v", definition.Names, ok)
+	}
+	// regexp_* checks its own labels before the shared gates, and
+	// similar_to_escape is dispatched by call syntax, not by name.
+	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
+		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
+		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "pg_sleep", "now", "to_number",
+		"LIKE_ESCAPE", "regexp_match", "regexp_replace", "similar_to_escape", "similar_escape",
+		// The variadic family keeps an engine wrapper for polymorphic body
+		// capture; substring routes through the binary family.
+		"LEFT", "Trim", "String_To_Table", "concat", "concat_ws", "quote_literal", "substring", "substr"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}

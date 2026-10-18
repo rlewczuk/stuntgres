@@ -130,7 +130,7 @@ func TestDatetimeFormattingCapturedLiteralGrouping(t *testing.T) {
 		parser.CastExpr{Child: literal(parser.Value{Kind: parser.StringValue, Text: "a"}), TypeName: parser.TypeName{Name: "text"}},
 		literal(parser.Value{Kind: parser.StringValue, Text: "YYYY"}),
 	}}
-	node, err := b.bindDatetimeFormatting(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

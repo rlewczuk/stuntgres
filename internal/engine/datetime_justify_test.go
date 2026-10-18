@@ -14,7 +14,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	var previous BoundExpr
 	for _, name := range []string{"justify_days", "justify_hours", "justify_interval"} {
-		node, err := b.bindDatetimeJustify(datetimeMakeRaw(name, ageFiniteTyped("interval", "30 days")), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "30 days")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,14 +63,14 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 	for _, name := range []string{"justify_days", "justify_hours", "justify_interval"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		node, err := b.bindDatetimeJustify(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if b.parameters[1].Type.ID() != sqltype.Interval || !node.Properties().ParameterDependent {
 			t.Fatal(node.Properties(), b.parameters)
 		}
-		null, err := b.bindDatetimeJustify(datetimeMakeRaw(name, ageFiniteTyped("interval", "0")), true)
+		null, err := b.bindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "0")))
 		if err != nil {
 			t.Fatal(err)
 		}

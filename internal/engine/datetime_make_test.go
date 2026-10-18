@@ -34,7 +34,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		{"make_timestamptz", []parser.Expr{datetimeMakeInteger(2013), datetimeMakeInteger(7), datetimeMakeInteger(15), datetimeMakeInteger(8), datetimeMakeInteger(15), datetimeMakeString("23.5")}, sqltype.Timestamptz, 6},
 		{"make_interval", nil, sqltype.Interval, 7},
 	} {
-		node, err := b.bindDatetimeMake(datetimeMakeRaw(tc.name, tc.args...), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw(tc.name, tc.args...))
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -45,7 +45,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 	}
 	raw := datetimeMakeRaw("make_interval", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2})
 	raw.ArgNames = []parser.Identifier{{Text: "secs"}, {Text: "days"}}
-	node, err := b.bindDatetimeMake(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		{datetimeMakeRaw("make_date", parser.CastExpr{Child: datetimeMakeInteger(2000), TypeName: parser.TypeName{Name: "int8"}}, datetimeMakeInteger(1), datetimeMakeInteger(1)), "42883"},
 		{datetimeMakeRaw("make_interval", parser.CastExpr{Child: datetimeMakeString("bad"), TypeName: parser.TypeName{Name: "text"}}), "42883"},
 	} {
-		_, err := b.bindDatetimeMake(tc.raw, true)
+		_, err := b.bindFunctionProvider(tc.raw)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code {
 			t.Fatal(tc, err)
@@ -85,7 +85,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 			}
 			args = append(args, datetimeMakeInteger(n))
 		}
-		node, err := b.bindDatetimeMake(datetimeMakeRaw(name, args...), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, args...))
 		if err != nil {
 			t.Fatal(name, err)
 		}
@@ -120,7 +120,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		}
 	}
 	raw := datetimeMakeRaw("make_timestamptz", datetimeMakeInteger(2000), datetimeMakeInteger(1), datetimeMakeInteger(1), datetimeMakeInteger(0), datetimeMakeInteger(0), datetimeMakeInteger(0), datetimeMakeString("UTC"))
-	node, err := b.bindDatetimeMake(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := datetimeMakeRaw("make_interval", datetimeMakeString("1.5"), datetimeMakeInteger(2))
 	raw.ArgNames = []parser.Identifier{{Text: "secs"}, {Text: "days"}}
-	node, err := b.bindDatetimeMake(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

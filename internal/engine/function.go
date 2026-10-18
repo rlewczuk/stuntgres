@@ -60,7 +60,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindInstalledSoundex(raw)
 	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
-		return b.bindSimilarEscape(raw)
+		return functions.BindSimilarEscape(b, raw)
 	}
 	if parser.VersionInformationFunctionName(name) {
 		return b.bindVersionInformation(raw)
@@ -96,7 +96,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		if err != nil {
 			return nil, err
 		}
-		call, err := b.bindRegexpCall(raw, visible)
+		call, err := functions.BindRegexpCall(b, raw, visible, b.regexpPlacement)
 		if err != nil {
 			return nil, err
 		}
@@ -112,24 +112,14 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "unnest") {
 		return b.bindUnnest(raw)
 	}
-	if strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
-		return b.bindLowerUpper(raw)
-	}
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)
 	}
 	if parser.BlockingInquiryFunctionName(name) {
 		return b.bindBlockingInquiry(raw)
 	}
-	if strings.EqualFold(name, "parse_ident") {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		return b.bindStringFunction(raw, visible && name == "parse_ident")
-	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly {
@@ -160,49 +150,25 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindEnumFunction(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
-	case "extract", "date_part":
-		return b.bindDatetimeExtract(raw, visible)
-	case "date_trunc":
-		return b.bindDatetimeTrunc(raw, visible)
-	case "date_bin":
-		return b.bindDatetimeBin(raw, visible)
-	case "timezone", "date_add", "date_subtract":
-		return b.bindDatetimeZone(raw, visible)
 	case "pg_sleep", "pg_sleep_for", "pg_sleep_until":
 		return b.bindDatetimeSleep(raw, visible)
 	case "age", "isfinite":
-		return b.bindDatetimeAgeFinite(raw, visible)
+		return functions.BindDatetimeAgeFinite(b, raw, visible, func(arg BoundExpr) (BoundExpr, error) {
+			return b.identityExpression(raw, identityAge, arg)
+		})
 	case "overlaps":
-		return b.bindDatetimeOverlaps(raw, visible)
-	case "justify_days", "justify_hours", "justify_interval":
-		return b.bindDatetimeJustify(raw, visible)
-	case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
-		return b.bindDatetimeMake(raw, visible)
-	case "to_char", "to_date", "to_timestamp":
-		return b.bindDatetimeFormatting(raw, visible)
-	case "to_number":
-		return b.bindNumericFormatting(raw, visible)
-	case "string_to_table":
-		expr, err := b.bindStringFunction(raw, visible)
+		node, err := functions.BindDatetimeOverlaps(b, raw, visible)
 		if err != nil {
 			return nil, err
 		}
-		if err := b.stringSetAllowed(raw.Pos); err != nil {
-			return nil, err
-		}
-		switch b.aggregateClause {
-		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-			b.queryHasTargetSet = true
-		}
-		return expr, nil
-	case "split_part", "string_to_array":
-		return b.bindStringFunction(raw, visible)
-	case "left", "right", "to_bin", "to_oct", "to_hex", "md5", "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
-		return b.bindStringFunction(raw, visible && name != "trim")
+		// Inline safety walks engine nodes; the node protocol replaces it (F2).
+		e := node.(functions.DatetimeOverlaps)
+		e.WrapperContext = !overlapsInlineSafe(e)
+		return e, nil
+	case "to_number":
+		return b.bindNumericFormatting(raw, visible)
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
-	case "like_escape":
-		return b.bindLikeEscape(raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 		return b.bindBinaryFunction(raw, visible)
 	case "pg_size_bytes", "pg_size_pretty":

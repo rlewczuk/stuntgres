@@ -39,7 +39,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if tc.name == "substring" || tc.name == "bit_count" {
 				node, err = b.bindBinaryFunction(raw, true)
 			} else {
-				node, err = b.bindStringFunction(raw, true)
+				node, err = functions.BindString(b, raw, true)
 			}
 			if err != nil {
 				t.Fatal(tc.name, defaults, err)
@@ -110,7 +110,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 	b.defaultConsumer = true
 	raw.Name.Parts[0].Text = "length"
 	raw.Args = []parser.Expr{parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x01"}}, TypeName: parser.TypeName{Name: "bytea"}}}
-	_, err = b.bindStringFunction(raw, true)
+	_, err = functions.BindString(b, raw, true)
 	var state interface{ SQLState() string }
 	if !errors.As(err, &state) || state.SQLState() != "0A000" || !strings.Contains(err.Error(), "functions are unsupported") {
 		t.Fatal(err)

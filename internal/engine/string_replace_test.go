@@ -19,7 +19,7 @@ func TestStringReplacementFormalInference(t *testing.T) {
 			args[i] = parser.ParameterExpr{Number: i + 1, Pos: parser.Position{Character: 20 + i}}
 		}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "overlay"}}}, Args: args, Pos: parser.Position{Character: 8}}
-		node, err := b.bindStringFunction(raw, true)
+		node, err := functions.BindString(b, raw, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestStringReplacementFormalInference(t *testing.T) {
 	}
 	small := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}}, TypeName: parser.TypeName{Name: "int2"}, Syntax: parser.PostfixCast}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "overlay"}}}, Args: []parser.Expr{literal("abc"), literal("X"), small}}
-	node, err := b.bindStringFunction(raw, true)
+	node, err := functions.BindString(b, raw, true)
 	if err != nil {
 		t.Fatal(err)
 	}

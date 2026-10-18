@@ -26,7 +26,7 @@ func (e selectedOperatorExpression) Eval(ctx ExprContext) (sqltype.Value, error)
 
 func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy expressionPolicy) (BoundExpr, error) {
 	if r.SQLSimilar {
-		return b.bindSimilar(r)
+		return functions.BindSimilar(b, r)
 	}
 	if subquery, ok := rowSubqueryComparison(r); ok {
 		return b.bindSubquery(subquery)
@@ -40,9 +40,9 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 	case name == "^@":
 		return b.bindStringPrefix(r)
 	case likeName(name):
-		return b.bindLike(r)
+		return bindLike(b, r)
 	case len(r.Args) == 2 && functions.PosixName(name):
-		return b.bindPosix(r)
+		return functions.BindPosix(b, r)
 	case arrayMembershipName(name):
 		return b.bindArrayMembership(r)
 	case jsonExtractionName(name):
@@ -135,7 +135,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 		diagnosticLeft = right
 	}
 	if err != nil {
-		return nil, operatorExpressionError(err, diagnosticLeft, right, raw)
+		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]
 	if d.function == 0 && !d.seeded() {

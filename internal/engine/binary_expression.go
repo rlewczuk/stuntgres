@@ -30,7 +30,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	}
 	prepared := functions.PrepareBinary(name, visible, raw.Variadic, b.defaultConsumer, operands)
 	var types functions.BinaryTypes
-	b.supplyBinaryTypes(prepared.Demand, &types)
+	functions.SupplyBinaryTypes(b, prepared.Demand, &types)
 	selection := functions.ResolveBinary(prepared, name, operands, &types)
 	if selection.Resolution != functions.Resolved {
 		names := make([]string, len(operands))
@@ -52,11 +52,11 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	case functions.BinaryFunctionsUnsupported:
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	case functions.BinaryPosixSubstring:
-		return b.bindPosixSubstring(raw, operands)
+		return functions.BindPosixSubstring(b, raw, operands)
 	case functions.BinarySimilarSubstring:
-		return b.bindSimilarSubstring(raw, operands)
+		return functions.BindSimilarSubstring(b, raw, operands)
 	case functions.BinaryTextSubstring:
-		return b.finishStringFunction(raw, visible, operands)
+		return functions.FinishString(b, raw, visible, operands)
 	case functions.BinaryTextUnsupported:
 		return nil, expressionError("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
 	}
@@ -64,7 +64,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 }
 
 func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (BoundExpr, error) {
-	b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, family, operands, false), types)
+	functions.SupplyBinaryTypes(b, functions.BinaryArgumentDemand(name, family, operands, false), types)
 	args, err := functions.CoerceBinaryArguments(b, name, family, operands, types)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	b.supplyBinaryTypes(functions.BinaryResultDemand(name, family), types)
+	functions.SupplyBinaryTypes(b, functions.BinaryResultDemand(name, family), types)
 	id := functions.BinaryResultID(name, family)
 	usage := types.Usage(id)
 	info := b.info(usage, pos, properties)
@@ -121,31 +121,4 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 	}
 	node.Info = info
 	return node, nil
-}
-
-func (b *expressionBinder) supplyBinaryTypes(demand functions.BinaryDemand, types *functions.BinaryTypes) {
-	if demand == 0 {
-		return
-	}
-	if demand.Needs(sqltype.Bytea) && types.Bytea.Type == nil {
-		types.Bytea = b.typ(sqltype.Bytea).Usage()
-	}
-	if demand.Needs(sqltype.Bit) && types.Bit.Type == nil {
-		types.Bit = b.typ(sqltype.Bit).Usage()
-	}
-	if demand.Needs(sqltype.VarBit) && types.VarBit.Type == nil {
-		types.VarBit = b.typ(sqltype.VarBit).Usage()
-	}
-	if demand.Needs(sqltype.Int4) && types.Integer.Type == nil {
-		types.Integer = b.typ(sqltype.Int4).Usage()
-	}
-	if demand.Needs(sqltype.Int8) && types.Bigint.Type == nil {
-		types.Bigint = b.typ(sqltype.Int8).Usage()
-	}
-	if demand.Needs(sqltype.Name) && types.Name.Type == nil {
-		types.Name = b.typ(sqltype.Name).Usage()
-	}
-	if demand.Needs(sqltype.Text) && types.Text.Type == nil {
-		types.Text = b.typ(sqltype.Text).Usage()
-	}
 }

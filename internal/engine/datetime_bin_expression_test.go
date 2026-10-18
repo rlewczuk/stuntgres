@@ -41,7 +41,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 			}
 			return ageFiniteTyped(typ, value)
 		}
-		node, err := b.bindDatetimeBin(datetimeMakeRaw("date_bin", datetimeMakeString("1 day"), arg(tc.source, "2000-01-02"), arg(tc.origin, "2000-01-01")), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("1 day"), arg(tc.source, "2000-01-02"), arg(tc.origin, "2000-01-01")))
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -60,7 +60,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 		{ageFiniteTyped("text", "1 day"), ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("timestamp", "2000-01-01")},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-		_, err := b.bindDatetimeBin(datetimeMakeRaw("date_bin", args...), true)
+		_, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", args...))
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42883" || d.Position != "8" || d.Hint != "No function matches the given name and argument types. You might need to add explicit type casts." {
 			t.Fatal(err)
@@ -71,7 +71,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	utc, _ := sqltype.ResolveZone("UTC")
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-	node, err := b.bindDatetimeBin(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(node.Properties(), b.parameters)
 	}
 	for _, id := range []string{"timestamp", "timestamptz"} {
-		node, err := b.bindDatetimeBin(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped(id, "2000-01-01 00:02:29.999999"), ageFiniteTyped(id, "2000-01-01 00:02:30")), true)
+		node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped(id, "2000-01-01 00:02:29.999999"), ageFiniteTyped(id, "2000-01-01 00:02:30")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +118,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	flags := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
 	flags.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "z", Usage: flags.typ(sqltype.Timestamptz).Usage()}}, attributes: []int32{1}, index: map[string]int{"z": 0}}
 	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "z"}}}}
-	volatile, err := flags.bindDatetimeBin(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")), true)
+	volatile, err := flags.bindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 
 func TestDatetimeBinStoredTraversal(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeBin(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("timestamp", "2000-01-01")), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("timestamp", "2000-01-01")))
 	if err != nil {
 		t.Fatal(err)
 	}

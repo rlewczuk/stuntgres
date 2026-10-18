@@ -44,7 +44,7 @@ func (b *expressionBinder) selectJSONBDelete(raw parser.OperatorExpr, left, righ
 			rhs = sqltype.Int4
 		}
 		if _, err := sqltype.PlanCoercion(right.node.ResultUsage(), b.typ(rhs).Usage(), sqltype.Implicit); err != nil {
-			return nil, true, operatorExpressionError(sqlError("42883", "operator does not exist"), lt, rt, raw)
+			return nil, true, functions.OperatorError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 		}
 	}
 	node, err := b.jsonbOperatorNode(raw, [2]comparisonOperand{left, right}, rhs)

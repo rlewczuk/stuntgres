@@ -179,49 +179,49 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
+	info, err := b.coercionInfo(b.Info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
 	if err != nil {
 		return nil, err
 	}
 	return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 }
 
-func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) {
+func bindLike(b functions.Binder, raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Args) != 2 || len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid LIKE expression")
 	}
-	left, err := b.comparisonOperand(raw.Args[0])
+	left, err := b.AnalyzeArgument(raw.Args[0], functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 	if err != nil {
 		return nil, err
 	}
-	right, err := b.comparisonOperand(raw.Args[1])
+	right, err := b.AnalyzeArgument(raw.Args[1], functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 	if err != nil {
 		return nil, err
 	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.BuiltinOperatorVisible(raw.Name)
 	if err != nil {
 		return nil, err
 	}
 	missing := func() (BoundExpr, error) {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left.descriptor(), right.descriptor(), raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left.Usage.Type, right.Usage.Type, raw)
 	}
 	if !visible {
 		return missing()
 	}
 	operator := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	lt, rt := left.descriptor(), right.descriptor()
+	lt, rt := left.Usage.Type, right.Usage.Type
 	if lt != nil {
 		lt = lt.BaseType()
 	}
 	if rt != nil {
 		rt = rt.BaseType()
 	}
-	lhs, rhs := b.typ(sqltype.Text), b.typ(sqltype.Text)
+	lhs, rhs := b.Type(sqltype.Text), b.Type(sqltype.Text)
 	if lt != nil && lt.ID() == sqltype.Bytea || lt == nil && rt != nil && rt.ID() == sqltype.Bytea {
 		if operator == "~~*" || operator == "!~~*" {
 			return missing()
 		}
-		lhs, rhs = b.typ(sqltype.Bytea), b.typ(sqltype.Bytea)
+		lhs, rhs = b.Type(sqltype.Bytea), b.Type(sqltype.Bytea)
 	} else if lt != nil && (lt.ID() == sqltype.Name || lt.ID() == sqltype.BPChar) {
 		lhs = lt
 	}
@@ -237,15 +237,15 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	if !valid(lt, lhs.ID() == sqltype.Bytea) || !valid(rt, rhs.ID() == sqltype.Bytea) {
 		return missing()
 	}
-	l, err := b.likeOperand(left, lhs)
+	l, err := b.CoerceArgument(left, functions.CoercionRequest{Intent: functions.LikeArgument, Target: lhs.Usage()})
 	if err != nil {
 		return nil, err
 	}
-	r, err := b.likeOperand(right, rhs)
+	r, err := b.CoerceArgument(right, functions.CoercionRequest{Intent: functions.LikeArgument, Target: rhs.Usage()})
 	if err != nil {
 		return nil, err
 	}
-	collation, err := b.collatedInfo(b.info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
+	collation, err := b.CollatedInfo(b.Info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 		collation.Usage.Collation.Unicode() {
 		return nil, expressionError("0A000", "ILIKE is unsupported for this collation", raw.Pos)
 	}
-	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.typ(sqltype.Bool).Usage(), collation.CollationConflict)
+	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.Type(sqltype.Bool).Usage(), collation.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -261,49 +261,9 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	info, err := b.builtinOperatorRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, likeProperties(l, r)), operator, lhs.ID(), rhs.ID())
+	info, err := b.BuiltinOperatorRoutineInfo(b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, likeProperties(l, r)), operator, lhs.ID(), rhs.ID())
 	if err != nil {
 		return nil, err
 	}
 	return likeExpression{info, l, r, provider, operator, namespace}, nil
-}
-
-func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	if len(raw.Args) != 2 {
-		return nil, b.functionSignatureError(raw)
-	}
-	var operands [2]functions.Argument
-	var names []string
-	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
-		if err != nil {
-			return nil, err
-		}
-		operands[i] = o
-		name := "unknown"
-		if o.Usage.Type != nil {
-			name = o.Usage.Type.DiagnosticName()
-		}
-		names = append(names, name)
-	}
-	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	targetID := functions.LikeEscapeTarget(operands)
-	if !functions.LikeEscapeAllowed(visible, raw.Variadic, operands, targetID) {
-		return missing()
-	}
-	target := b.typ(targetID)
-	pattern, escape, err := functions.CoerceLikeEscapeArguments(b, operands, target.Usage())
-	if err != nil {
-		return nil, err
-	}
-	u := target.Usage()
-	info, err := b.collatedInfo(b.info(u, raw.Pos, likeProperties(pattern, escape)), pattern, escape)
-	if err != nil {
-		return nil, err
-	}
-	info, err = b.builtinRoutineInfo(info, stringRoutineProvider, "like_escape", targetID, targetID)
-	if err != nil {
-		return nil, err
-	}
-	return functions.NewLikeEscape(info, pattern, escape)
 }

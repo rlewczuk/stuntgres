@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -119,4 +120,18 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 		g.entries, g.private = next, true
 		return
 	}
+}
+
+// bindStringVariadic captures the polymorphic body casts of
+// quote_literal/quote_nullable on anyelement after binding in the current
+// query frame, which keys the quote capture cache.
+func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExpr, error) {
+	node, err := functions.BindStringVariadic(b, raw, b.frameID())
+	if err != nil {
+		return nil, err
+	}
+	if err := b.capturePolymorphicBody(node); err != nil {
+		return nil, err
+	}
+	return node, nil
 }

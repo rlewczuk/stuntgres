@@ -283,7 +283,7 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, gener
 	return nil
 }
 func (b *expressionBinder) comparisonError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
-	diagnostic := operatorExpressionError(err, left, right, raw)
+	diagnostic := functions.OperatorError(err, left, right, raw)
 	if record, ok := diagnostic.(*sqlstate.Error); ok && record.Code == "42883" {
 		copy := *record
 		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", b.diagnosticTypeName(left), objectNameText(raw.Name), b.diagnosticTypeName(right))
