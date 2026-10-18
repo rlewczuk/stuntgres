@@ -68,17 +68,17 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	c := &boundInsertConflict{targets: b.targets}
 	b.conflict = c
 	if raw.Constraint.Text != "" {
-		for _, u := range b.relation.uniqueConstraints {
+		for _, u := range b.relation.UniqueConstraints {
 			if u.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
 				c.namedIndex = u.Index
 				for _, a := range u.Attributes {
-					c.reads = append(c.reads, slices.Index(b.relation.attributes, a))
+					c.reads = append(c.reads, slices.Index(b.relation.Attributes, a))
 				}
 				return nil
 			}
 		}
-		for _, definition := range b.relation.exclusionConstraints {
+		for _, definition := range b.relation.ExclusionConstraints {
 			if definition.Name != raw.Constraint.Text {
 				continue
 			}
@@ -88,14 +88,14 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}
-			for _, key := range index.sqlIndex.keys {
-				if key.derived == nil {
-					c.reads = append(c.reads, slices.Index(b.relation.attributes, key.attribute))
+			for _, key := range index.SQLIndex.Keys {
+				if key.Derived == nil {
+					c.reads = append(c.reads, slices.Index(b.relation.Attributes, key.Attribute))
 					continue
 				}
-				for _, dependency := range key.derived.dependencies {
+				for _, dependency := range key.Derived.Dependencies {
 					if dependency.Address.ClassID == b.ref.Address.ClassID && dependency.Address.ObjectID == b.ref.Address.ObjectID && dependency.Address.SubID != 0 {
-						slot := slices.Index(b.relation.attributes, dependency.Address.SubID)
+						slot := slices.Index(b.relation.Attributes, dependency.Address.SubID)
 						if !slices.Contains(c.reads, slot) {
 							c.reads = append(c.reads, slot)
 						}
@@ -104,19 +104,19 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			}
 			return nil
 		}
-		for _, check := range b.relation.checkConstraints {
+		for _, check := range b.relation.CheckConstraints {
 			if check.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
-		for _, nn := range b.relation.notNullConstraints {
+		for _, nn := range b.relation.NotNullConstraints {
 			if nn.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil
 			}
 		}
-		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.name))
+		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.Name()))
 	}
 	binder := e.indexExpressionBinder(shared.op, shared.input, auth, b.relation)
 	binder.parameters = shared.parameters
@@ -186,7 +186,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	c.reads = binder.querySources[0].uses
 	shared.anyParameters = append(shared.anyParameters, binder.anyParameters...)
 	for _, dep := range binder.dependencies {
-		shared.dependency(dep.ref, dep.revision)
+		shared.dependency(dep.Ref, dep.Revision)
 	}
 	return nil
 }
@@ -198,30 +198,30 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		def := index.sqlIndex
-		if def.parent != parent.address || !def.live || !def.ready || (!def.unique && !def.isExclusion()) {
+		def := index.SQLIndex
+		if def.Parent != parent.Address() || !def.Live || !def.Ready || (!def.Unique && !def.isExclusion()) {
 			continue
 		}
 		if c.constraint != (ids.ObjectAddress{}) {
-			if index.address == c.namedIndex {
+			if index.Address() == c.namedIndex {
 				if c.update != nil && def.isExclusion() {
 					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
 				}
-				c.selected = append(c.selected, index.address)
+				c.selected = append(c.selected, index.Address())
 			}
 			continue
 		}
 		if len(c.keys) == 0 {
-			c.selected = append(c.selected, index.address)
+			c.selected = append(c.selected, index.Address())
 			continue
 		}
-		if !def.unique {
+		if !def.Unique {
 			continue
 		}
-		if !def.valid {
+		if !def.Valid {
 			continue
 		}
 		matches, err := c.matches(parent, def)
@@ -232,15 +232,15 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			continue
 		}
 		var predicate expr.Expr
-		if def.predicate != nil {
-			predicate = def.predicate.definition
+		if def.Predicate != nil {
+			predicate = def.Predicate.Definition
 		}
 		implied, err := conflictPredicateImpliedBy(ctx, c.predicate, predicate)
 		if err != nil {
 			return err
 		}
 		if implied {
-			c.selected = append(c.selected, index.address)
+			c.selected = append(c.selected, index.Address())
 		}
 	}
 	if (len(c.keys) != 0 || c.constraint != (ids.ObjectAddress{})) && len(c.selected) == 0 {
@@ -255,7 +255,7 @@ func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDe
 	// restrict a matching key occurrence without changing the expression set.
 	for _, target := range c.keys {
 		found := false
-		for _, key := range index.keys {
+		for _, key := range index.Keys {
 			attribute, expression, err := indexCatalogKey(parent, key)
 			if err != nil {
 				return false, err
@@ -270,7 +270,7 @@ func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDe
 			if target.collation != 0 && target.collation != usage.Collation.ID {
 				continue
 			}
-			if target.class.Name != "" && !target.class.SameInferenceIdentity(key.class) {
+			if target.class.Name != "" && !target.class.SameInferenceIdentity(key.Class) {
 				continue
 			}
 			found = true
@@ -280,7 +280,7 @@ func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDe
 			return false, nil
 		}
 	}
-	for _, key := range index.keys {
+	for _, key := range index.Keys {
 		attribute, expression, err := indexCatalogKey(parent, key)
 		if err != nil {
 			return false, err

@@ -49,11 +49,11 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		requests = append(requests, struct {
 			ref  ids.ObjectRef
 			mode lock.Mode
-		}{event.ref, lock.AccessShare})
+		}{event.Ref, lock.AccessShare})
 	}
 	for _, command := range commands {
 		physical := command.binding.physicalBinding()
-		if physical.relation != nil && physical.relation.relationKind != viewRelation {
+		if physical.relation != nil && physical.relation.RelationKind != viewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
 				mode lock.Mode
@@ -126,8 +126,8 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		return nil, err
 	}
 	for _, event := range events {
-		current, ok := fresh.catalog.Find(event.ref.Address)
-		if !ok || event.ref.Epoch != fresh.catalog.Epoch() || current.Revision() != event.revision {
+		current, ok := fresh.catalog.Find(event.Ref.Address)
+		if !ok || event.Ref.Epoch != fresh.catalog.Epoch() || current.Revision() != event.Revision {
 			e.mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}

@@ -850,7 +850,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 		}
 		return true
 	case installedFunctionExpression:
-		return e.procedure != nil && e.procedure.volatility == expr.Immutable && literal(e.Arg)
+		return e.procedure != nil && e.procedure.Volatility == expr.Immutable && literal(e.Arg)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		return compositeConstantInputs(e)

@@ -18,13 +18,13 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		return err
 	}
 	for _, dependency := range dependencies {
-		if dependency.ref.Address != captured.address {
+		if dependency.Ref.Address != captured.Address() {
 			continue
 		}
-		if dependency.revision != captured.revision {
+		if dependency.Revision != captured.Revision() {
 			return fmt.Errorf("stuntgres: mismatched routine lifetime manifest")
 		}
-		ref := dependency.ref
+		ref := dependency.Ref
 		if consumer != nil {
 			if !storedReferenceEpochValid(auth.catalog, consumer, ref) {
 				return ids.ErrCatalogReplaced
@@ -37,7 +37,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		if _, err := auth.object(ref); err != nil {
 			return err
 		}
-		if current.revision != dependency.revision {
+		if current.Revision() != dependency.Revision {
 			return CatalogConflict{}
 		}
 		return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
@@ -117,7 +117,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 }
 
 func admitCaseEquality(c *EvalContext, arm caseBranch) error {
-	if arm.routine == nil || arm.routine.strict && randomLiteralNull(arm.condition) {
+	if arm.routine == nil || arm.routine.Strict && randomLiteralNull(arm.condition) {
 		return nil
 	}
 	auth, dependencies, err := c.routineAdmissionAuthority()
@@ -146,7 +146,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 			return err
 		}
 		for _, ref := range c.routineReferences {
-			if ref.Address != captured.address {
+			if ref.Address != captured.Address() {
 				continue
 			}
 			if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {
@@ -200,7 +200,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		return fmt.Errorf("stuntgres: invalid callable routine reference")
 	}
 	for _, dependency := range dependencies {
-		if dependency.ref != ref {
+		if dependency.Ref != ref {
 			continue
 		}
 		if c.routineConsumer != nil {
@@ -216,7 +216,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		if err != nil {
 			return err
 		}
-		if d.Revision() != dependency.revision {
+		if d.Revision() != dependency.Revision {
 			return CatalogConflict{}
 		}
 		rights, err := auth.Effective(ref, false)

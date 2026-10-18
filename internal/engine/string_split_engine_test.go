@@ -594,7 +594,7 @@ func TestStringSplitBinding(t *testing.T) {
 	if !ok || !literal.value.IsNull() || !b.queryHasTargetSet {
 		t.Fatal("lost original set analysis after strict folding", folded)
 	}
-	descriptor := &relationDescriptor{view: &viewDefinition{syntax: raw, query: &BoundQuery{Root: &projectNode{child: &singletonNode{}, expressions: []expr.Expr{folded}, hasTargetSet: b.queryHasTargetSet}}}}
+	descriptor := &relationDescriptor{View: &viewDefinition{syntax: raw, query: &BoundQuery{Root: &projectNode{child: &singletonNode{}, expressions: []expr.Expr{folded}, hasTargetSet: b.queryHasTargetSet}}}}
 	if _, _, _, reason := viewWriteShape(descriptor); reason != "Views that return set-returning functions are not automatically updatable." {
 		t.Fatal(reason)
 	}

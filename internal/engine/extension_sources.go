@@ -13,12 +13,12 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if source.address.ObjectID == ids.ExtensionClassID {
+	if source.Address().ObjectID == ids.ExtensionClassID {
 		ids := [8]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Bool, sqltype.Text, 1028, 1009}
-		if len(source.columns) != len(ids) {
+		if len(source.Columns) != len(ids) {
 			return nil, fmt.Errorf("stuntgres: invalid extension source shape")
 		}
-		for i, column := range source.columns {
+		for i, column := range source.Columns {
 			owned, ok := catalog.LookupType(ids[i])
 			if !ok || owned != column.Usage.Type {
 				return nil, fmt.Errorf("stuntgres: foreign extension source type")
@@ -27,7 +27,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 	}
 	descriptors := make([]Descriptor, 0)
 	for _, d := range catalog.Descriptors() {
-		if d.Address().ClassID == source.address.ObjectID {
+		if d.Address().ClassID == source.Address().ObjectID {
 			descriptors = append(descriptors, d)
 		}
 	}
@@ -37,53 +37,53 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		row := make([]sqltype.Value, len(source.columns))
+		row := make([]sqltype.Value, len(source.Columns))
 		var valueErr error
 		integer := func(i int, n int64) {
 			var v sqltype.Value
 			var err error
-			if source.columns[i].Usage.Type.ID() == sqltype.Oid {
-				v, err = sqltype.OIDValue(source.columns[i].Usage.Type, uint32(n))
+			if source.Columns[i].Usage.Type.ID() == sqltype.Oid {
+				v, err = sqltype.OIDValue(source.Columns[i].Usage.Type, uint32(n))
 			} else {
-				v, err = sqltype.Integer(source.columns[i].Usage.Type, n)
+				v, err = sqltype.Integer(source.Columns[i].Usage.Type, n)
 			}
 			if err != nil {
 				valueErr = err
 			}
 			row[i] = v
 		}
-		text := func(i int, s string) { row[i] = sqltype.String(source.columns[i].Usage.Type, s) }
-		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.columns[i].Usage.Type, b) }
+		text := func(i int, s string) { row[i] = sqltype.String(source.Columns[i].Usage.Type, s) }
+		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 		switch d := descriptor.(type) {
 		case *extensionDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.owner.ID()))
-			integer(3, int64(d.targetNamespace.ObjectID))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Owner.ID()))
+			integer(3, int64(d.TargetNamespace.ObjectID))
 			boolean(4, true)
-			text(5, d.version)
-			row[6] = sqltype.Null(source.columns[6].Usage.Type)
-			row[7] = sqltype.Null(source.columns[7].Usage.Type)
+			text(5, d.Version)
+			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
+			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
 		case *procedureDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.namespace.ObjectID))
-			integer(3, int64(d.owner.ID()))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Namespace().ObjectID))
+			integer(3, int64(d.Owner.ID()))
 			integer(4, procedureArity(d))
-			integer(5, int64(d.result))
+			integer(5, int64(d.Result))
 			vol := "v"
-			if d.volatility == expr.Stable {
+			if d.Volatility == expr.Stable {
 				vol = "s"
-			} else if d.volatility == expr.Immutable {
+			} else if d.Volatility == expr.Immutable {
 				vol = "i"
 			}
 			text(6, vol)
-			boolean(7, d.strict)
+			boolean(7, d.Strict)
 			parallel := "s"
-			if d.foreign != nil {
+			if d.Foreign != nil {
 				parallel = "u"
-			} else if d.builtin != nil {
-				switch d.builtin.parallel {
+			} else if d.Builtin != nil {
+				switch d.Builtin.Parallel {
 				case 'r':
 					parallel = "r"
 				case 'u':
@@ -92,15 +92,15 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			}
 			text(8, parallel)
 		case *tsTemplateDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.namespace.ObjectID))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Namespace().ObjectID))
 		case *tsDictionaryDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.namespace.ObjectID))
-			integer(3, int64(d.owner.ID()))
-			integer(4, int64(d.template.ObjectID))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Namespace().ObjectID))
+			integer(3, int64(d.Owner.ID()))
+			integer(4, int64(d.Template.ObjectID))
 			text(5, "rules = 'unaccent'")
 		default:
 			continue

@@ -11,24 +11,24 @@ import (
 // SQL/MED global objects are ordinary immutable catalog descriptors. Mapping
 // names encode exact server/role identities, never role membership or SQL text.
 type foreignDescriptor struct {
-	address                             ids.ObjectAddress
-	revision                            ids.DefinitionRevision
-	name                                string
-	owner                               authorization.PrincipalRef
-	acl                                 authorization.ACLValue
-	options                             []ForeignOption
-	wrapper, server, handler, validator ids.ObjectAddress
-	mappedRole                          authorization.PrincipalRef // zero is PUBLIC
-	mappedName                          string                     // diagnostic spelling only; identity is mappedRole
-	serverType, version                 *string
+	ObjectAddress                       ids.ObjectAddress
+	ObjectRevision                      ids.DefinitionRevision
+	ObjectName                          string
+	Owner                               authorization.PrincipalRef
+	ACL                                 authorization.ACLValue
+	Options                             []ForeignOption
+	Wrapper, Server, Handler, Validator ids.ObjectAddress
+	MappedRole                          authorization.PrincipalRef // zero is PUBLIC
+	MappedName                          string                     // diagnostic spelling only; identity is mappedRole
+	ServerType, Version                 *string
 }
 
-func (d *foreignDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *foreignDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *foreignDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *foreignDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (*foreignDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *foreignDescriptor) Name() string                     { return d.name }
+func (d *foreignDescriptor) Name() string                     { return d.ObjectName }
 func (d *foreignDescriptor) Kind() ids.ObjectKind {
-	switch d.address.ClassID {
+	switch d.Address().ClassID {
 	case ids.ForeignWrapperClassID:
 		return ids.ForeignWrapperObject
 	case ids.ForeignServerClassID:
@@ -43,9 +43,9 @@ func foreignMappingName(server ids.ObjectAddress, role authorization.PrincipalRe
 }
 
 type foreignTableDefinition struct {
-	server  ids.ObjectAddress
-	options []ForeignOption
-	columns map[int32][]ForeignOption
+	Server  ids.ObjectAddress
+	Options []ForeignOption
+	Columns map[int32][]ForeignOption
 }
 
 type foreignCatalogProvider struct{ class ids.OID }
@@ -53,12 +53,12 @@ type foreignCatalogProvider struct{ class ids.OID }
 func (p foreignCatalogProvider) ClassID() ids.OID { return p.class }
 func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*foreignDescriptor)
-	if !ok || d.address.ClassID != p.class || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
+	if !ok || d.Address().ClassID != p.class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid SQL/MED descriptor")
 	}
 	switch p.class {
 	case ids.ForeignWrapperClassID:
-		for _, a := range []ids.ObjectAddress{d.handler, d.validator} {
+		for _, a := range []ids.ObjectAddress{d.Handler, d.Validator} {
 			if a != (ids.ObjectAddress{}) {
 				if _, ok := v.Procedure(a); !ok {
 					return fmt.Errorf("stuntgres: missing SQL/MED procedure identity")
@@ -66,13 +66,13 @@ func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) e
 			}
 		}
 	case ids.ForeignServerClassID:
-		w, ok := v.Foreign(d.wrapper)
-		if !ok || w.address.ClassID != ids.ForeignWrapperClassID {
+		w, ok := v.Foreign(d.Wrapper)
+		if !ok || w.Address().ClassID != ids.ForeignWrapperClassID {
 			return fmt.Errorf("stuntgres: missing foreign-data wrapper")
 		}
 	case ids.ForeignMappingClassID:
-		s, ok := v.Foreign(d.server)
-		if !ok || s.address.ClassID != ids.ForeignServerClassID || d.name != foreignMappingName(d.server, d.mappedRole) {
+		s, ok := v.Foreign(d.Server)
+		if !ok || s.Address().ClassID != ids.ForeignServerClassID || d.Name() != foreignMappingName(d.Server, d.MappedRole) {
 			return fmt.Errorf("stuntgres: invalid user mapping identity")
 		}
 	default:

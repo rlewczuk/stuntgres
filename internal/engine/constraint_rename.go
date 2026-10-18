@@ -31,46 +31,46 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		return fail(err)
 	}
 	parent := scope.lockedDescriptor.(*relationDescriptor)
-	if parent.relationKind == sequenceRelation {
-		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.name), Detail: "This operation is not supported for sequences."})
+	if parent.RelationKind == sequenceRelation {
+		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."})
 	}
 	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
 	var backing ids.ObjectAddress
 	kind := byte(0)
-	for _, c := range parent.notNullConstraints {
+	for _, c := range parent.NotNullConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'n'
 			break
 		}
 	}
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'c'
 			break
 		}
 	}
-	for _, c := range parent.uniqueConstraints {
+	for _, c := range parent.UniqueConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'u'
 			backing = c.Index
 			break
 		}
 	}
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		if c.Name == raw.Constraint.Text {
 			kind = 'x'
 			backing = c.Index
 			break
 		}
 	}
-	for _, c := range parent.foreignKeys {
+	for _, c := range parent.ForeignKeys {
 		if c.Name == raw.Constraint.Text {
 			kind = 'f'
 			break
 		}
 	}
 	if kind == 0 {
-		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.name)))
+		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.Name())))
 	}
 	if (kind == 'n' || kind == 'c') && inheritanceParticipant(auth.catalog, parent) {
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
@@ -83,17 +83,17 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 			e.DiscardCatalogStage(stage)
 			return fail(ids.ErrCatalogReplaced)
 		}
-		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}); exists {
+		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.NewName.Text}); exists {
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}
-		if index.revision == ids.DefinitionRevision(^uint64(0)) {
+		if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			e.DiscardCatalogStage(stage)
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}
 		next := *index
-		next.name = raw.NewName.Text
-		next.revision++
+		next.ObjectName = raw.NewName.Text
+		next.ObjectRevision++
 		err = stageBackingIndexRename(stage, &next)
 		if err == nil {
 			err = stage.Replace(&next)
@@ -144,62 +144,62 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 func renameLocalConstraint(parent *relationDescriptor, old, destination string, kind byte) (*relationDescriptor, error) {
 	collision := func(name string) error {
 		if name == destination {
-			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, destination, parent.name))
+			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, destination, parent.Name()))
 		}
 		return nil
 	}
-	for _, c := range parent.notNullConstraints {
+	for _, c := range parent.NotNullConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.uniqueConstraints {
+	for _, c := range parent.UniqueConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.foreignKeys {
+	for _, c := range parent.ForeignKeys {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return nil, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent
-	next.revision++
+	next.ObjectRevision++
 	if kind == 'n' {
-		next.notNullConstraints = slices.Clone(parent.notNullConstraints)
-		for i := range next.notNullConstraints {
-			if next.notNullConstraints[i].Name == old {
-				next.notNullConstraints[i].Name = destination
+		next.NotNullConstraints = slices.Clone(parent.NotNullConstraints)
+		for i := range next.NotNullConstraints {
+			if next.NotNullConstraints[i].Name == old {
+				next.NotNullConstraints[i].Name = destination
 				return &next, nil
 			}
 		}
 	} else if kind == 'f' {
-		next.foreignKeys = slices.Clone(parent.foreignKeys)
-		for i := range next.foreignKeys {
-			if next.foreignKeys[i].Name == old {
-				next.foreignKeys[i].Name = destination
+		next.ForeignKeys = slices.Clone(parent.ForeignKeys)
+		for i := range next.ForeignKeys {
+			if next.ForeignKeys[i].Name == old {
+				next.ForeignKeys[i].Name = destination
 				return &next, nil
 			}
 		}
 	} else {
-		next.checkConstraints = slices.Clone(parent.checkConstraints)
-		for i := range next.checkConstraints {
-			if next.checkConstraints[i].Name == old {
-				next.checkConstraints[i].Name = destination
-				slices.SortFunc(next.checkConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+		next.CheckConstraints = slices.Clone(parent.CheckConstraints)
+		for i := range next.CheckConstraints {
+			if next.CheckConstraints[i].Name == old {
+				next.CheckConstraints[i].Name = destination
+				slices.SortFunc(next.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
 				return &next, nil
 			}
 		}

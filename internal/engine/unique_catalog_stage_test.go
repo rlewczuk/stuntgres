@@ -29,8 +29,8 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if err != nil || revisionErr != nil {
 					t.Fatal(err, revisionErr)
 				}
-				d.address.ObjectID = id
-				d.revision = revision
+				d.ObjectAddress.ObjectID = id
+				d.ObjectRevision = revision
 			}
 			mint(&next)
 			stage := e.BeginCatalogStage(base)
@@ -48,7 +48,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if mode == "stale_removal" {
 					invalid.Epoch++
 				} else {
-					invalid = New().catalog.domain.Ref(invalid.Epoch, invalid.Address)
+					invalid = New().catalog.Domain.Ref(invalid.Epoch, invalid.Address)
 				}
 				if stage.Remove(invalid) == nil {
 					t.Fatal("invalid removal admitted")
@@ -60,7 +60,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				}
 			}
 			if mode == "reused_address" {
-				next.address = old.address
+				next.ObjectAddress = old.Address()
 				reject = true
 			}
 			err := stage.Create(&next)
@@ -77,7 +77,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				t.Fatal(err)
 			}
 			private := e.stageRead(stage)
-			if _, ok := private.Find(oldRef.Address); ok || private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: old.name}) != next.address {
+			if _, ok := private.Find(oldRef.Address); ok || private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: old.Name()}) != next.Address() {
 				t.Fatal("private overlay retained incumbent")
 			}
 			if mode == "duplicate" || mode == "duplicate_address" {
@@ -85,7 +85,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if mode == "duplicate" {
 					mint(&duplicate)
 				} else {
-					duplicate.name = "different"
+					duplicate.ObjectName = "different"
 				}
 				if stage.Create(&duplicate) == nil {
 					t.Fatal("second replacement claimed name/address")
@@ -102,7 +102,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				concurrent := e.BeginCatalogStage(base)
 				changed := *old
 				if mode == "concurrent" {
-					changed.revision++
+					changed.ObjectRevision++
 					if err := concurrent.Replace(&changed); err != nil {
 						t.Fatal(err)
 					}
@@ -145,7 +145,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 					t.Fatal("old identity survived")
 				}
 				index, _ := btreeRoot(t, e, "idx")
-				if index.address != next.address {
+				if index.Address() != next.Address() {
 					t.Fatal("wrong name owner")
 				}
 			}
@@ -158,7 +158,7 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")
 	ref := roleTableRef(t, e, "t")
 	parent := e.catalog.state.MustRelation(ref.Address)
-	index := parent.uniqueConstraints[0].Index
+	index := parent.UniqueConstraints[0].Index
 	if e.storage[ref.Address] == nil || e.indexRoots[index] == nil || len(e.indexRoots[index].entries) != 0 {
 		t.Fatal("co-created parent and empty backing root did not publish together")
 	}

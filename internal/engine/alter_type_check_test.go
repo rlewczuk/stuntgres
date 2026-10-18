@@ -19,7 +19,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(9,2,7)")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
-	oldChecks := append([]checkConstraint(nil), old.checkConstraints...)
+	oldChecks := append([]checkConstraint(nil), old.CheckConstraints...)
 	op, cleanup, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +31,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 		t.Fatal(queue, err)
 	}
 	for i, want := range []string{"z", "both_values", "explicit_cast", "aa"} {
-		if old.checkConstraints[queue[i].index].Name != want {
+		if old.CheckConstraints[queue[i].index].Name != want {
 			t.Fatal("discovery/declaration order", queue, i, want)
 		}
 	}
@@ -40,21 +40,21 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t DROP p,ALTER a TYPE BIGINT USING b,ALTER b TYPE BIGINT USING a*10")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || !reflect.DeepEqual(old.checkConstraints, oldChecks) || old.columns[1].Usage.Type.ID() != 23 || next.columns[0].Usage.Type.ID() != 20 || next.columns[1].Usage.Type.ID() != 20 || !reflect.DeepEqual(next.attributes, old.attributes[1:]) {
+	if next == old || !reflect.DeepEqual(old.CheckConstraints, oldChecks) || old.Columns[1].Usage.Type.ID() != 23 || next.Columns[0].Usage.Type.ID() != 20 || next.Columns[1].Usage.Type.ID() != 20 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) {
 		t.Fatal("mutated original/final layout", old, next)
 	}
 	if err := validateChecks(e.CatalogRead(), next, map[string]bool{}); err != nil {
 		t.Fatal("new expression/manifest invalid", err)
 	}
-	for i, c := range next.checkConstraints {
-		if c.Name != oldChecks[i].Name || c.ordinal != oldChecks[i].ordinal || c.NoInherit != oldChecks[i].NoInherit {
+	for i, c := range next.CheckConstraints {
+		if c.Name != oldChecks[i].Name || c.Ordinal != oldChecks[i].Ordinal || c.NoInherit != oldChecks[i].NoInherit {
 			t.Fatal("lost identity", c, oldChecks[i])
 		}
-		if _, err := (scalarRenderer{owner: next}).sql(context.Background(), e.CatalogRead(), c.expression); err != nil {
+		if _, err := (scalarRenderer{owner: next}).sql(context.Background(), e.CatalogRead(), c.Expression); err != nil {
 			t.Fatal("stale usage/origin/provider", c.Name, err)
 		}
-		for _, dep := range c.dependencies {
-			if dep.ref.Address.ClassID == ids.RelationClassID && dep.ref.Address.ObjectID == ref.Address.ObjectID && dep.ref.Address.SubID == old.attributes[0] {
+		for _, dep := range c.Dependencies {
+			if dep.Ref.Address.ClassID == ids.RelationClassID && dep.Ref.Address.ObjectID == ref.Address.ObjectID && dep.Ref.Address.SubID == old.Attributes[0] {
 				t.Fatal("retained dropped slot", dep)
 			}
 		}
@@ -179,7 +179,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 				t.Fatal("public CHECK parameter admission changed", err)
 			}
-			ordinary, err := (scalarRenderer{owner: original}).sql(context.Background(), e.CatalogRead(), original.checkConstraints[0].expression)
+			ordinary, err := (scalarRenderer{owner: original}).sql(context.Background(), e.CatalogRead(), original.CheckConstraints[0].Expression)
 			if err != nil || strings.Contains(ordinary, "$") {
 				t.Fatal("changed ordinary CHECK serialization", ordinary, err)
 			}

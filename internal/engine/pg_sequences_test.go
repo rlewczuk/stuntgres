@@ -26,13 +26,13 @@ func TestPGSequencesDescriptors(t *testing.T) {
 	e := New()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048}
 	d := e.catalog.state.MustRelation(address)
-	if !d.virtualView || d.rowType != 12050 || len(d.columns) != 11 {
+	if !d.VirtualView || d.RowType != 12050 || len(d.Columns) != 11 {
 		t.Fatal(d)
 	}
 	names := []string{"schemaname", "sequencename", "sequenceowner", "data_type", "start_value", "min_value", "max_value", "increment_by", "cycle", "cache_size", "last_value"}
 	typeIDs := []sqltype.ID{sqltype.Name, sqltype.Name, sqltype.Name, sqltype.Regtype, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Bool, sqltype.Int8, sqltype.Int8}
-	for i, column := range d.columns {
-		if column.Name != names[i] || column.Usage.Type.ID() != typeIDs[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 12048 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) {
+	for i, column := range d.Columns {
+		if column.Name != names[i] || column.Usage.Type.ID() != typeIDs[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 12048 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) {
 			t.Fatal(i, column)
 		}
 		if i < 3 && column.Usage.Collation.ID != 950 {
@@ -41,7 +41,7 @@ func TestPGSequencesDescriptors(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12050})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12049})
-	if row.owningRelation != address || row.array != 12049 || array.owningRelation != address || array.typ.Element() != row.typ {
+	if row.OwningRelation != address || row.Array != 12049 || array.OwningRelation != address || array.SQLType.Element() != row.SQLType {
 		t.Fatal(row, array)
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
@@ -106,7 +106,7 @@ func TestPGSequencesACL(t *testing.T) {
 	sequenceScalar(t, a, "SELECT setval('s',42)", 42)
 	sessionSQL(t, a, "CREATE ROLE reader")
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
-	owner := e.catalog.state.MustRelation(ref.Address).owner
+	owner := e.catalog.state.MustRelation(ref.Address).Owner
 	sessionSQL(t, a, "SET SESSION AUTHORIZATION reader")
 	for _, mask := range []authorization.Privileges{0, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.SelectPrivilege, authorization.UsagePrivilege | authorization.UpdatePrivilege} {
 		acl := authorization.ACLValue{Explicit: true}

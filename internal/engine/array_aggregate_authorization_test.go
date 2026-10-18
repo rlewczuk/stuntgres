@@ -19,7 +19,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.aa_column_acl(id INT,v INT,a INT[])")
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, table.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, table.Address())
 	reader := e.authorizationDomain.Principal(1000000)
 	roles := cloneRoleFixture(e.roles)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "aa_unit_reader"})
@@ -27,14 +27,14 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	e.roles = roles
 	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
-		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
 	column := func(index int) ids.ObjectRef {
 		object := ref
-		object.Address.SubID = table.attributes[index]
+		object.Address.SubID = table.Attributes[index]
 		return object
 	}
 	grant(ref, 0)
@@ -54,7 +54,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 		{"SELECT array_agg(v) FROM aa_column_acl ORDER BY count(id)", []int{0, 1}, true},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
-			for i := range table.columns {
+			for i := range table.Columns {
 				rights := authorization.Privileges(0)
 				if i == 1 {
 					rights = authorization.SelectPrivilege

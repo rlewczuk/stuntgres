@@ -45,10 +45,10 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.ObjectNamespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.ObjectNamespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -59,20 +59,20 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
 	oldCatalog := e.catalog.state
 	oldRelation := oldCatalog.MustRelation(ref.Address)
-	value, _ := mood.typ.Input(context.Background(), "q", -1)
+	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
 	oldStore := &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 3, keyChangedAt: 2, values: []sqltype.Value{value}}}, generation: 4}
 	e.storage[ref.Address] = oldStore
 	otherStore := e.storage[other.Address]
-	members := mood.typ.EnumMembers()
+	members := mood.SQLType.EnumMembers()
 	members[1].Label = "end"
 	members = append(members, sqltype.EnumMember{ID: 100000, Label: "last", SortOrder: 3})
-	typ, err := sqltype.EnumWithMembers(mood.typ.ID(), mood.Name(), mood.typ.SQLName(), members)
+	typ, err := sqltype.EnumWithMembers(mood.SQLType.ID(), mood.Name(), mood.SQLType.SQLName(), members)
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *mood
-	next.typ = typ
-	next.revision++
+	next.SQLType = typ
+	next.ObjectRevision++
 	stage = e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	row := shape.replacement.versions[0]
 	oldID, _ := value.EnumMemberID()
 	newID, _ := row.values[0].EnumMemberID()
-	if oldID != newID || row.row != 7 || row.version != 11 || row.born != 3 || row.keyChangedAt != 2 || !reflect.DeepEqual(oldRelation.attributes, stage.descriptors[ref.Address].(*relationDescriptor).attributes) {
+	if oldID != newID || row.row != 7 || row.version != 11 || row.born != 3 || row.keyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.descriptors[ref.Address].(*relationDescriptor).Attributes) {
 		t.Fatal("row/column/member identity rewritten")
 	}
 	if stage.rowShapes[other.Address].replacement != nil || e.storage[other.Address] != otherStore {
@@ -102,7 +102,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
-	if text, err := mood.typ.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {
+	if text, err := mood.SQLType.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {
 		t.Fatal("old root mutated", text, err)
 	}
 }

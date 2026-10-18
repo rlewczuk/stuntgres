@@ -17,19 +17,19 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 	}
 	switch d := d.(type) {
 	case *typeDescriptor:
-		next := address(d.extension)
-		if next == d.extension {
+		next := address(d.Extension)
+		if next == d.Extension {
 			return d
 		}
 		n := *d
-		n.extension = next
+		n.Extension = next
 		return &n
 	case *relationDescriptor:
 		var addresses []ids.ObjectAddress
-		for i, a := range d.autoExtensions {
+		for i, a := range d.AutoExtensions {
 			next := address(a)
 			if next != a && addresses == nil {
-				addresses = append([]ids.ObjectAddress(nil), d.autoExtensions...)
+				addresses = append([]ids.ObjectAddress(nil), d.AutoExtensions...)
 			}
 			if addresses != nil {
 				addresses[i] = next
@@ -40,66 +40,66 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		}
 		sort.Slice(addresses, func(i, j int) bool { return addresses[i].ObjectID < addresses[j].ObjectID })
 		n := *d
-		n.autoExtensions = addresses
+		n.AutoExtensions = addresses
 		return &n
 	case *extensionDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.targetNamespace = address(n.targetNamespace)
+		n.ObjectAddress = address(n.Address())
+		n.TargetNamespace = address(n.TargetNamespace)
 		var members []ids.ObjectAddress
-		for i, a := range d.members {
+		for i, a := range d.Members {
 			mapped := address(a)
 			if mapped != a && members == nil {
-				members = slices.Clone(d.members)
+				members = slices.Clone(d.Members)
 			}
 			if members != nil {
 				members[i] = mapped
 			}
 		}
 		if members != nil {
-			n.members = members
+			n.Members = members
 		}
-		if n.address == d.address && n.targetNamespace == d.targetNamespace && members == nil {
+		if n.Address() == d.Address() && n.TargetNamespace == d.TargetNamespace && members == nil {
 			return d
 		}
 		return &n
 	case *procedureDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.namespace = address(n.namespace)
-		n.extension = address(n.extension)
-		n.dictionary = address(n.dictionary)
-		n.aggregate = remapOwnedAggregate(d.aggregate, n.address, n.namespace, mapping)
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
+		n.Extension = address(n.Extension)
+		n.Dictionary = address(n.Dictionary)
+		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
 		if n.intarrayProvider() != nil {
-			if n.name == "bqarr_in" {
-				n.result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.result}).ObjectID
+			if n.Name() == "bqarr_in" {
+				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
-				if oid, err := strconv.ParseUint(string(n.signature), 10, 32); err == nil {
+				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {
 					next := address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)})
 					if next.ObjectID != ids.OID(oid) {
-						n.signature = queryIntSignature(sqltype.ID(next.ObjectID))
+						n.Signature = queryIntSignature(sqltype.ID(next.ObjectID))
 					}
 				}
 			}
 		}
-		if n.address == d.address && n.namespace == d.namespace && n.extension == d.extension && n.dictionary == d.dictionary && n.signature == d.signature && n.result == d.result && n.aggregate == d.aggregate {
+		if n.Address() == d.Address() && n.Namespace() == d.Namespace() && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate {
 			return d
 		}
 		return &n
 	case *tsTemplateDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.namespace = address(n.namespace)
-		n.extension = address(n.extension)
-		n.init = address(n.init)
-		n.lexize = address(n.lexize)
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
+		n.Extension = address(n.Extension)
+		n.Init = address(n.Init)
+		n.Lexize = address(n.Lexize)
 		return &n
 	case *tsDictionaryDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.namespace = address(n.namespace)
-		n.extension = address(n.extension)
-		n.template = address(n.template)
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
+		n.Extension = address(n.Extension)
+		n.Template = address(n.Template)
 		return &n
 	}
 	return d

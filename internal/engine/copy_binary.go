@@ -28,7 +28,7 @@ type copyBinaryCursor struct {
 }
 
 func newCopyBinaryCursor(s *StatementScope, b binding, r io.Reader) *copyBinaryCursor {
-	c := &copyBinaryCursor{scope: s, binding: b, reader: bufio.NewReader(copyReader{s, r}), defaults: make([]bool, len(b.relation.columns)), omitted: make([]bool, len(b.relation.columns))}
+	c := &copyBinaryCursor{scope: s, binding: b, reader: bufio.NewReader(copyReader{s, r}), defaults: make([]bool, len(b.relation.Columns)), omitted: make([]bool, len(b.relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -137,7 +137,7 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 	}
 	copy(c.defaults, c.omitted)
 	for i, target := range c.binding.targets {
-		column := c.binding.relation.columns[target]
+		column := c.binding.relation.Columns[target]
 		c.column = column.Name
 		p, err = c.readFixed(4)
 		if err != nil {
@@ -206,8 +206,8 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	if !errors.As(err, &record) || c.number == 0 {
 		return err
 	}
-	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.relation.name, c.number)
-	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.relation.name)) {
+	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.relation.Name(), c.number)
+	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.relation.Name())) {
 		return err
 	}
 	result := *record

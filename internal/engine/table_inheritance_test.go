@@ -11,29 +11,29 @@ import (
 )
 
 func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string) *relationDescriptor {
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
 	for i, name := range names {
-		d.index[name] = i
-		d.attributes = append(d.attributes, int32(i+1))
-		d.columns = append(d.columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
+		d.Index[name] = i
+		d.Attributes = append(d.Attributes, int32(i+1))
+		d.Columns = append(d.Columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
 	}
-	d.attributeHighWater = int32(len(names))
+	d.AttributeHighWater = int32(len(names))
 	return d
 }
 func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRead {
 	state := cloneCatalog(e.CatalogRead().state)
 	for _, d := range relations {
-		state.setDescriptor(d.address, d)
-		state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
+		state.setDescriptor(d.Address(), d)
+		state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	}
 	return e.catalog.read(state)
 }
 func TestInheritanceMergeStableRemap(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "p", 22000, "b", "a")
-	parent.attributes = []int32{2, 7}
+	parent.Attributes = []int32{2, 7}
 	child := inheritanceUnitRelation(e, "c", 22001, "a", "b", "local")
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
 	ref.Address.SubID = 7
 	node := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: ref, scope: 1, frame: 1, slot: 1}
 	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
@@ -42,7 +42,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(columnExpression)
-	if got.slot != 0 || got.origin.Address.ObjectID != child.address.ObjectID || got.origin.Address.SubID != 1 || node.slot != 1 || node.origin != ref {
+	if got.slot != 0 || got.origin.Address.ObjectID != child.Address().ObjectID || got.origin.Address.SubID != 1 || node.slot != 1 || node.origin != ref {
 		t.Fatal(got, node)
 	}
 	sequence := sequenceCallExpression{ref: ref}
@@ -57,16 +57,16 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	defer done()
 	p := inheritanceUnitRelation(e, "p", 22000, "a", "x")
 	q := inheritanceUnitRelation(e, "q", 22001, "x", "a")
-	p.notNullConstraints = []notNullConstraint{{OID: 23000, Name: "first", Attribute: 1}}
-	q.notNullConstraints = []notNullConstraint{{OID: 23001, Name: "second", Attribute: 2}}
+	p.NotNullConstraints = []notNullConstraint{{OID: 23000, Name: "first", Attribute: 1}}
+	q.NotNullConstraints = []notNullConstraint{{OID: 23001, Name: "second", Attribute: 2}}
 	usage := testUsage(e, sqltype.Int4)
 	value, err := sqltype.Integer(usage.Type, 7)
 	if err != nil {
 		t.Fatal(err)
 	}
 	literal := literalExpression{Info: expr.Info{Usage: usage}, value: value}
-	p.defaults = map[int32]columnDefault{1: {OID: 23002, expression: literal}}
-	q.defaults = map[int32]columnDefault{2: {OID: 23003, expression: literal}}
+	p.Defaults = map[int32]columnDefault{1: {OID: 23002, Expression: literal}}
+	q.Defaults = map[int32]columnDefault{2: {OID: 23003, Expression: literal}}
 	child := inheritanceUnitRelation(e, "c", 22002, "a", "x", "z")
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
@@ -80,16 +80,16 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
 		t.Fatal(err)
 	}
-	if len(child.notNullConstraints) != 1 || child.notNullConstraints[0].Name != "first" || child.columns[0].Nullable || len(child.inheritance.notNull[1].origins) != 2 || child.inheritance.notNull[1].local || child.inheritance.columns[1].local || !child.inheritance.columns[3].local {
+	if len(child.NotNullConstraints) != 1 || child.NotNullConstraints[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
 		t.Fatal(child)
 	}
-	if !reflect.DeepEqual(child.inheritance.parents, []ids.ObjectAddress{p.address, q.address}) || !sameGroupExpression(child.defaults[1].expression, literal) || child.defaults[1].OID != 0 || p.defaults[1].OID != 23002 {
-		t.Fatal(child.defaults, p.defaults)
+	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !sameGroupExpression(child.Defaults[1].Expression, literal) || child.Defaults[1].OID != 0 || p.Defaults[1].OID != 23002 {
+		t.Fatal(child.Defaults, p.Defaults)
 	}
 	if err := e.assignDefinitionOIDsLocked(child); err != nil {
 		t.Fatal(err)
 	}
-	if child.notNullConstraints[0].OID == p.notNullConstraints[0].OID || child.defaults[1].OID == p.defaults[1].OID {
+	if child.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || child.Defaults[1].OID == p.Defaults[1].OID {
 		t.Fatal("inherited identity copied")
 	}
 	combined := inheritanceUnitView(e, p, q, child)
@@ -101,7 +101,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 	e := New()
 	p := inheritanceUnitRelation(e, "p", 22000, "a")
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
-	c.inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}}}
+	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}}}
 	if err := validateInheritance(inheritanceUnitView(e, p, c), c); err != nil {
 		t.Fatal(err)
 	}
@@ -109,31 +109,31 @@ func TestInheritanceGraphValidation(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			parent := *p
 			child := *c
-			graph := *c.inheritance
-			child.inheritance = &graph
-			graph.parents = append([]ids.ObjectAddress(nil), graph.parents...)
-			graph.columns = map[int32]inheritedColumn{1: c.inheritance.columns[1]}
+			graph := *c.Inheritance
+			child.Inheritance = &graph
+			graph.Parents = append([]ids.ObjectAddress(nil), graph.Parents...)
+			graph.Columns = map[int32]inheritedColumn{1: c.Inheritance.Columns[1]}
 			switch kind {
 			case "dangling":
-				graph.parents[0].ObjectID++
+				graph.Parents[0].ObjectID++
 			case "duplicate":
-				graph.parents = append(graph.parents, p.address)
+				graph.Parents = append(graph.Parents, p.Address())
 			case "attribute":
-				graph.columns[1] = inheritedColumn{origins: []inheritanceOrigin{{parent: p.address, attribute: 0}}}
+				graph.Columns[1] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: 0}}}
 			case "cycle":
-				parent.inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}}
+				parent.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{c.Address()}}
 			case "locality":
-				graph.columns[1] = inheritedColumn{}
+				graph.Columns[1] = inheritedColumn{}
 			case "type":
-				parent.columns = append([]ColumnDescriptor(nil), p.columns...)
-				parent.columns[0].Usage = testUsage(e, sqltype.Int8)
+				parent.Columns = append([]ColumnDescriptor(nil), p.Columns...)
+				parent.Columns[0].Usage = testUsage(e, sqltype.Int8)
 			}
 			if err := validateInheritance(inheritanceUnitView(e, &parent, &child), &child); err == nil {
 				t.Fatal("invalid graph accepted")
 			}
 		})
 	}
-	if p.inheritance != nil || c.inheritance.parents[0] != p.address {
+	if p.Inheritance != nil || c.Inheritance.Parents[0] != p.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -143,12 +143,12 @@ func TestInheritanceGraphDiamondChildren(t *testing.T) {
 	left := inheritanceUnitRelation(e, "left", 22001)
 	right := inheritanceUnitRelation(e, "right", 22002)
 	leaf := inheritanceUnitRelation(e, "leaf", 22003)
-	left.inheritance = &tableInheritance{parents: []ids.ObjectAddress{base.address}}
-	right.inheritance = &tableInheritance{parents: []ids.ObjectAddress{base.address}}
-	leaf.inheritance = &tableInheritance{parents: []ids.ObjectAddress{left.address, right.address, base.address}}
+	left.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{base.Address()}}
+	right.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{base.Address()}}
+	leaf.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{left.Address(), right.Address(), base.Address()}}
 	v := inheritanceUnitView(e, base, left, right, leaf)
-	got := inheritanceChildren(v, base.address)
-	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(inheritanceChildren(v, leaf.address)) != 0 {
+	got := inheritanceChildren(v, base.Address())
+	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(inheritanceChildren(v, leaf.Address())) != 0 {
 		t.Fatal(got)
 	}
 }
@@ -168,8 +168,8 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.defaults = map[int32]columnDefault{1: {OID: 23000, expression: literalExpression{Info: expr.Info{Usage: usage}, value: first}}}
-	q.defaults = map[int32]columnDefault{1: {OID: 23001, expression: literalExpression{Info: expr.Info{Usage: usage}, value: second}}}
+	p.Defaults = map[int32]columnDefault{1: {OID: 23000, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: first}}}
+	q.Defaults = map[int32]columnDefault{1: {OID: 23001, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: second}}}
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -194,11 +194,11 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 			}
 			continue
 		}
-		if err != nil || len(child.defaults) != 0 || !child.inheritance.columns[1].explicitDefault || !child.inheritance.columns[1].local {
+		if err != nil || len(child.Defaults) != 0 || !child.Inheritance.Columns[1].ExplicitDefault || !child.Inheritance.Columns[1].Local {
 			t.Fatal(child, err)
 		}
 	}
-	if p.defaults[1].OID != 23000 || q.defaults[1].OID != 23001 {
+	if p.Defaults[1].OID != 23000 || q.Defaults[1].OID != 23001 {
 		t.Fatal("source default identity changed")
 	}
 }
@@ -206,9 +206,9 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	e := New()
 	p := inheritanceUnitRelation(e, "p", 22000, "a", "x")
-	p.columns[1].Usage = testUsage(e, sqltype.Text)
+	p.Columns[1].Usage = testUsage(e, sqltype.Text)
 	q := inheritanceUnitRelation(e, "q", 22001, "y", "a")
-	q.columns[0].Usage = testUsage(e, sqltype.Bool)
+	q.Columns[0].Usage = testUsage(e, sqltype.Bool)
 	e.catalog.state = inheritanceUnitView(e, p, q).state
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -239,7 +239,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	if bound.createColumns[1].Usage.Type.ID() != sqltype.Text || bound.createColumns[2].Usage.Type.ID() != sqltype.Bool || bound.createColumns[3].Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(bound.createColumns)
 	}
-	if p.columns[1].Name != "x" || q.columns[0].Name != "y" {
+	if p.Columns[1].Name != "x" || q.Columns[0].Name != "y" {
 		t.Fatal("source physical shape changed")
 	}
 }
@@ -248,7 +248,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	e := New()
 	d := inheritanceUnitRelation(e, "retained", 22000, "a")
 	v := e.CatalogRead()
-	oldRef := e.catalog.domain.Ref(v.Epoch(), d.address)
+	oldRef := e.catalog.Domain.Ref(v.Epoch(), d.Address())
 	oldRef.Address.SubID = 1
 	old := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
 	state := cloneCatalog(v.state)
@@ -283,7 +283,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := literalExpression{Info: expr.Info{Usage: usage}, value: value}
-	parent.generations = map[int32]columnGeneration{1: {kind: generationStored, expression: expression, planned: expression}}
+	parent.Generations = map[int32]columnGeneration{1: {Kind: generationStored, Expression: expression, Planned: expression}}
 	view := inheritanceUnitView(e, parent)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -300,11 +300,11 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		if err := e.stageInheritance(op, auth, e.BeginCatalogStage(view), child, b); err != nil {
 			t.Fatal(err)
 		}
-		provenance := child.inheritance.columns[1]
-		if !provenance.local || provenance.explicitGeneration != explicit {
+		provenance := child.Inheritance.Columns[1]
+		if !provenance.Local || provenance.ExplicitGeneration != explicit {
 			t.Fatal("generation declaration provenance", provenance, explicit)
 		}
-		if !explicit && !sameGroupExpression(child.generations[1].expression, expression) {
+		if !explicit && !sameGroupExpression(child.Generations[1].Expression, expression) {
 			t.Fatal("plain local declaration lost inherited generation")
 		}
 	}

@@ -115,23 +115,23 @@ type columnProjection struct {
 }
 
 func newColumnProjection(old, next *relationDescriptor, fills map[int32]sqltype.Value) (columnProjection, error) {
-	p := columnProjection{width: len(old.columns), slots: make([]int, len(next.attributes))}
+	p := columnProjection{width: len(old.Columns), slots: make([]int, len(next.Attributes))}
 	source := 0
-	for j, attribute := range next.attributes {
-		for source < len(old.attributes) && old.attributes[source] < attribute {
+	for j, attribute := range next.Attributes {
+		for source < len(old.Attributes) && old.Attributes[source] < attribute {
 			source++
 		}
-		if source < len(old.attributes) && old.attributes[source] == attribute {
+		if source < len(old.Attributes) && old.Attributes[source] == attribute {
 			p.slots[j] = source
 			source++
 		} else {
 			value, ok := fills[attribute]
-			if !ok || value.Type() != next.columns[j].Usage.Type {
+			if !ok || value.Type() != next.Columns[j].Usage.Type {
 				return columnProjection{}, fmt.Errorf("stuntgres: invalid added column projection")
 			}
 			p.slots[j] = -1
 			if p.fills == nil {
-				p.fills = make([]sqltype.Value, len(next.attributes))
+				p.fills = make([]sqltype.Value, len(next.Attributes))
 			}
 			p.fills[j] = value
 		}
@@ -195,7 +195,7 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 	var next *catalogChanges
 	for address, shape := range catalog.storage {
 		root, exists := roots[address]
-		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.relation.attributes, shape.relation.attributes) {
+		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.relation.Attributes, shape.relation.Attributes) {
 			continue
 		}
 		versions := shape.replacement.versions

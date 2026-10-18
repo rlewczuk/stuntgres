@@ -11,15 +11,15 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	e := source.restoreStage()
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
-	child.relationKind = tableRelation
-	child.membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.partition.children = []ids.ObjectAddress{child.address}
-	parent.partition.defaultChild = child.address
+	child.RelationKind = tableRelation
+	child.Membership = &partitionMembership{Parent: parent.Address(), DefaultBound: true}
+	parent.Partition.Children = []ids.ObjectAddress{child.Address()}
+	parent.Partition.DefaultChild = child.Address()
 	partitionAttachUnitInstall(t, e, parent, child)
-	child = e.CatalogRead().MustRelation(child.address)
+	child = e.CatalogRead().MustRelation(child.Address())
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.name}}}, Actions: []parser.AlterTableAction{{Action: parser.AddCheck, Check: &parser.CheckConstraint{Name: parser.Identifier{Text: "local"}, NotValid: true, Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}}}
+	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddCheck, Check: &parser.CheckConstraint{Name: parser.Identifier{Text: "local"}, NotValid: true, Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}}}
 	if err := e.beginPartitionCheckReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 		t.Fatal("valid CHECK granted")
 	}
 	virtual := *child
-	virtual.partition = parent.partition
+	virtual.Partition = parent.Partition
 	op.restorePartitionCheck = &virtual
 	if partitionCheckReplayAllowed(op, auth, raw, &virtual) {
 		t.Fatal("virtual CHECK granted")

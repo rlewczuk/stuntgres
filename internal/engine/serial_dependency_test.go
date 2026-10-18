@@ -24,11 +24,11 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t,e,"t").Address)
 	bad := *d
-	bad.defaults = map[int32]columnDefault{1:d.defaults[1]}
-	definition := bad.defaults[1]
-	definition.dependencies = append([]ids.ObjectRef(nil),definition.dependencies...)
-	for i,ref := range definition.dependencies { if ref.Address == target { definition.dependencies = append(definition.dependencies[:i],definition.dependencies[i+1:]...); break } }
-	bad.defaults[1] = definition
+	bad.Defaults = map[int32]columnDefault{1:d.Defaults[1]}
+	definition := bad.Defaults[1]
+	definition.Dependencies = append([]ids.ObjectRef(nil),definition.Dependencies...)
+	for i,ref := range definition.Dependencies { if ref.Address == target { definition.Dependencies = append(definition.Dependencies[:i],definition.Dependencies[i+1:]...); break } }
+	bad.Defaults[1] = definition
 	if err := (relationProvider{}).Validate(view,&bad); err == nil { t.Fatal("untracked default edge admitted") }
-	if _,err := defaultSQL(context.Background(),view,d.defaults[1].expression); err != nil { t.Fatal("source expression mutated",err) }
+	if _,err := defaultSQL(context.Background(),view,d.Defaults[1].Expression); err != nil { t.Fatal("source expression mutated",err) }
 }

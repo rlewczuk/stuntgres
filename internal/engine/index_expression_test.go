@@ -14,14 +14,14 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	u := typ.Usage()
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "v", Usage: u}}, index: map[string]int{"v": 0}}
+	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "v", Usage: u}}, Index: map[string]int{"v": 0}}
 	column := columnExpression{Info: expr.Info{Usage: u, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
-	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}, ready: true, valid: true, live: true}
+	d := &indexDefinition{Parent: parent.Address(), Keys: []indexKey{{Derived: &derivedIndexKey{Definition: node, Execution: node}}}, Ready: true, Valid: true, Live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}
 	for i, v := range values {
@@ -36,7 +36,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(got, want)
 	}
 	publication := &rowPublication{writes: []rowVersion{{row: 6, version: 6, values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &relationDescriptor{sqlIndex: d}, root.entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &relationDescriptor{SQLIndex: d}, root.entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,13 +55,13 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	parent := &relationDescriptor{attributes: []int32{7, 9}, columns: []ColumnDescriptor{{Usage: typ.Usage()}, {Usage: typ.Usage()}}}
-	d := &indexDefinition{keys: []indexKey{{attribute: 9}, {attribute: 7}}, unique: true, ready: true, valid: true, live: true}
+	parent := &relationDescriptor{Attributes: []int32{7, 9}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}, {Usage: typ.Usage()}}}
+	d := &indexDefinition{Keys: []indexKey{{Attribute: 9}, {Attribute: 7}}, Unique: true, Ready: true, Valid: true, Live: true}
 	ordering, err := bindIndexOrdering(parent, d)
 	if err != nil || !reflect.DeepEqual(ordering.slots, []int{1, 0}) || ordering.derived != nil {
 		t.Fatal(ordering, err)
 	}
-	d.keys[0] = indexKey{derived: &derivedIndexKey{execution: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
+	d.Keys[0] = indexKey{Derived: &derivedIndexKey{Execution: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
 	if _, err := bindIndexOrdering(parent, d); err == nil {
 		t.Fatal("derived UNIQUE sentinel admitted")
 	}

@@ -33,7 +33,7 @@ func (n installedUUIDOsspFunctionExpression) validShape() bool {
 	// Group rewriting adds execution-stage dependence to a valid leaf.
 	// DEFAULT closure separately rejects that dependence before shape checks.
 	properties.StageDependent = false
-	return n.procedure != nil && n.RoutineReference == n.procedure && n.procedure.uuidOsspProvider() == stockUUIDOssp && n.ref.Address == n.procedure.address && n.ref.Epoch != 0 && n.Name == "uuidv4" && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: expr.Volatile})
+	return n.procedure != nil && n.RoutineReference == n.procedure && n.procedure.uuidOsspProvider() == stockUUIDOssp && n.ref.Address == n.procedure.Address() && n.ref.Epoch != 0 && n.Name == "uuidv4" && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: expr.Volatile})
 }
 
 func (n installedUUIDOsspFunctionExpression) validate(v CatalogRead) error {

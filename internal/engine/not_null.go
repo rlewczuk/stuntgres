@@ -12,11 +12,11 @@ import (
 
 // Named ALTER lookup rejects protected relations before action preparation.
 func alterTableLookupKind(d *relationDescriptor) error {
-	switch d.relationKind {
+	switch d.RelationKind {
 	case catalogRelation:
-		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.name))
+		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.Name()))
 	case compositeRelation:
-		diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, d.name)).(*sqlstate.Error)
+		diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, d.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TYPE instead."
 		return diagnostic
 	default:
@@ -64,10 +64,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		for i := range command.Actions {
 			if command.Actions[i].Action == parser.SetNotNull {
 				a := &command.Actions[i]
-				a.NoInherit = len(inheritanceChildren(auth.catalog, old.address)) != 0
-				if slot, ok := old.index[a.Column.Text]; ok {
-					for _, c := range old.notNullConstraints {
-						if c.Attribute == old.attributes[slot] && c.NoInherit {
+				a.NoInherit = len(inheritanceChildren(auth.catalog, old.Address())) != 0
+				if slot, ok := old.Index[a.Column.Text]; ok {
+					for _, c := range old.NotNullConstraints {
+						if c.Attribute == old.Attributes[slot] && c.NoInherit {
 							a.NoInherit = true
 						}
 					}
@@ -165,7 +165,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	versions, ends, frontier := store.versions, store.ends, e.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
-	schema := auth.catalog.Get(old.namespace).Name()
+	schema := auth.catalog.Get(old.Namespace()).Name()
 	var stage *CatalogStage
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
@@ -240,7 +240,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					replacements = append(replacements, attribute)
 				}
 			} else if action.Action == parser.DropColumn {
-				if _, exists := next.index[action.Column.Text]; exists && stage == nil {
+				if _, exists := next.Index[action.Column.Text]; exists && stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
 					stage.authorizeLocked(auth, op.session)
 				}
@@ -269,7 +269,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 				next, err = e.stageAddedUnique(op, auth, stage, next, action.Unique)
 				if err == nil {
-					addedIndexes = append(addedIndexes, next.uniqueConstraints[len(next.uniqueConstraints)-1].Index)
+					addedIndexes = append(addedIndexes, next.UniqueConstraints[len(next.UniqueConstraints)-1].Index)
 				}
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
@@ -277,13 +277,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					stage.authorizeLocked(auth, op.session)
 				}
 				copy := *next
-				copy.exclusionConstraints = slices.Clone(next.exclusionConstraints)
+				copy.ExclusionConstraints = slices.Clone(next.ExclusionConstraints)
 				next = &copy
 				e.mu.Lock()
 				err = e.stageExclusion(op, scope.input, auth, stage, next, action.Exclusion, true)
 				e.mu.Unlock()
 				if err == nil {
-					addedIndexes = append(addedIndexes, next.exclusionConstraints[len(next.exclusionConstraints)-1].Index)
+					addedIndexes = append(addedIndexes, next.ExclusionConstraints[len(next.ExclusionConstraints)-1].Index)
 				}
 			} else {
 				next, err = notNullCandidate(op, auth.catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
@@ -440,7 +440,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var storedReplacements []int32
 	for _, attribute := range replacements {
-		if next.generations[attribute].kind == generationStored {
+		if next.Generations[attribute].Kind == generationStored {
 			storedReplacements = append(storedReplacements, attribute)
 		}
 	}
@@ -457,10 +457,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, nil
 	}
 	if next != old {
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next.revision = old.revision + 1
+		next.ObjectRevision = old.Revision() + 1
 	}
 	// USING/CHECK demand must allocate from the AS replacement, not the live
 	// generator. This statement overlay is discarded on failure, never installed
@@ -473,7 +473,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if stage != nil {
 		for address, descriptor := range stage.descriptors {
 			sequence, ok := descriptor.(*relationDescriptor)
-			if !ok || sequence.relationKind != sequenceRelation {
+			if !ok || sequence.RelationKind != sequenceRelation {
 				continue
 			}
 			original := grantCatalog.Get(address)
@@ -489,7 +489,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		for address, removal := range stage.removals {
 			sequence, ok := removal.descriptor.(*relationDescriptor)
-			if !ok || sequence.relationKind != sequenceRelation {
+			if !ok || sequence.RelationKind != sequenceRelation {
 				continue
 			}
 			original := grantCatalog.Get(address)
@@ -511,9 +511,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rewrite = rewrite || transformation.rewrite
 	}
 	if next != old {
-		next.defaults = maps.Clone(next.defaults)
-		next.checkConstraints = slices.Clone(next.checkConstraints)
-		next.notNullConstraints = slices.Clone(next.notNullConstraints)
+		next.Defaults = maps.Clone(next.Defaults)
+		next.CheckConstraints = slices.Clone(next.CheckConstraints)
+		next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
 		e.mu.Lock()
 		err = e.assignDefinitionOIDsLocked(next)
 		e.mu.Unlock()
@@ -570,20 +570,20 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err != nil {
 			return Result{}, err
 		}
-		addedForeignKeys = append(addedForeignKeys, next.foreignKeys[len(next.foreignKeys)-1].OID)
+		addedForeignKeys = append(addedForeignKeys, next.ForeignKeys[len(next.ForeignKeys)-1].OID)
 		fkIndex++
 	}
-	if hasForeignKeys && next.revision == old.revision {
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if hasForeignKeys && next.Revision() == old.Revision() {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next.revision = old.revision + 1
+		next.ObjectRevision = old.Revision() + 1
 	}
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
 	if changedValues {
-		if err := scope.acquireForeignKeyTypeProviders(auth.catalog, old.address); err != nil {
+		if err := scope.acquireForeignKeyTypeProviders(auth.catalog, old.Address()); err != nil {
 			return Result{}, err
 		}
 	}
@@ -599,7 +599,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	for _, added := range additions {
-		if next.defaults[added.attribute].catalogSnapshot {
+		if next.Defaults[added.attribute].CatalogSnapshot {
 			e.mu.Lock()
 			err = e.captureCommentSnapshotLocked(scope)
 			e.mu.Unlock()
@@ -661,11 +661,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	projectedWrites, projectedDeletes := scope.columnProjectionRoots(ref.Address)
 	validator := newAlterRowValidator(next, schema)
 	if len(storedReplacements) != 0 {
-		typeChecks = validCheckTraversal(next).checkConstraints
+		typeChecks = validCheckTraversal(next).CheckConstraints
 	}
 	if len(typeChecks) != 0 {
 		traversal := *next
-		traversal.checkConstraints = typeChecks
+		traversal.CheckConstraints = typeChecks
 		validator.checks = &traversal
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
@@ -689,7 +689,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		versions, ends = replacement.versions, replacement.ends
 		shape.rewritten, shape.frontier = true, frontier
 		shape.snapshot, shape.hasSnapshot = nil, false
-	} else if !slices.Equal(storageOwner.attributes, next.attributes) {
+	} else if !slices.Equal(storageOwner.Attributes, next.Attributes) {
 		shape, projectedWrites, projectedDeletes, err = projectColumnShape(scope, storageOwner, next, store, shape, snapshot, snapshotExists)
 		if err != nil {
 			return Result{}, err
@@ -701,7 +701,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if action.Action != parser.DropConstraint {
 			continue
 		}
-		for _, c := range old.uniqueConstraints {
+		for _, c := range old.UniqueConstraints {
 			if c.Name == action.Constraint.Text {
 				if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
 					return Result{}, err
@@ -740,7 +740,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.generations[attribute].kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
+			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}
@@ -753,7 +753,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if len(scanChecks) != 0 {
 			traversal := *next
-			traversal.checkConstraints = scanChecks
+			traversal.CheckConstraints = scanChecks
 			scanValidator.checks = &traversal
 			e.mu.Lock()
 			err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
@@ -774,7 +774,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, err
 	}
 	var dependencyTargets []ids.ObjectAddress
-	for _, attribute := range old.attributes {
+	for _, attribute := range old.Attributes {
 		if !next.hasAttribute(attribute) {
 			target := ref.Address
 			target.SubID = attribute
@@ -858,7 +858,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		shape.truncated = false
 	}
 	shape.replacement, shape.relation = replacement, next
-	metadataOnly := !changedValues && len(additions) == 0 && slices.Equal(old.attributes, next.attributes)
+	metadataOnly := !changedValues && len(additions) == 0 && slices.Equal(old.Attributes, next.Attributes)
 	// A storage entry requests index reconstruction at publication. Attachment
 	// metadata needs none; retain any earlier private shape without restamping it.
 	if !hasAttachments || !metadataOnly {

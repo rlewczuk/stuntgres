@@ -41,7 +41,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 		scope.completed = true
 		if reindex {
-			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].name)})
+			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
 		}
 		for _, notice := range g.notices {
 			scope.op.emitNotice(levelNotice, notice)
@@ -61,7 +61,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	stage.indexSets = g.indexSets
 	for address, observed := range g.descriptors {
-		if observed.sqlIndex != nil {
+		if observed.SQLIndex != nil {
 			stage.domainBases = append(stage.domainBases, g.descriptors[address])
 		}
 	}
@@ -70,15 +70,15 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
 			original := g.descriptors[ref.Address]
-			if !original.sqlIndex.ready || !original.sqlIndex.valid || !original.sqlIndex.live {
-				next, definition := *original, *original.sqlIndex
-				definition.ready, definition.valid, definition.live = true, true, true
-				next.sqlIndex = &definition
-				if next.revision == ids.DefinitionRevision(^uint64(0)) {
+			if !original.SQLIndex.Ready || !original.SQLIndex.Valid || !original.SQLIndex.Live {
+				next, definition := *original, *original.SQLIndex
+				definition.Ready, definition.Valid, definition.Live = true, true, true
+				next.SQLIndex = &definition
+				if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 					e.mu.Unlock()
 					return Result{}, fmt.Errorf("stuntgres: index revision exhausted")
 				}
-				next.revision++
+				next.ObjectRevision++
 				if err := stage.Replace(&next); err != nil {
 					e.mu.Unlock()
 					return Result{}, err
@@ -148,7 +148,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		}
 	}
 	for address, observed := range s.indexRebuilds {
-		if observed == nil || observed.sqlIndex == nil || current.Get(address) != observed || s.base.Get(address) != observed {
+		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.base.Get(address) != observed {
 			return CatalogConflict{}
 		}
 	}
@@ -156,13 +156,13 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		actual := 0
 		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*relationDescriptor)
-			if !ok || d.sqlIndex == nil || d.sqlIndex.parent != parent {
+			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
 				continue
 			}
 			// Replacement observes the existing complete index set; it does
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedReplacement
-			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.address != parent || s.base.Get(address) != d) {
+			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.base.Get(address) != d) {
 				return CatalogConflict{}
 			}
 			actual++

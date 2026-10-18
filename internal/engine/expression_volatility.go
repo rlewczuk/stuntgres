@@ -146,9 +146,9 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case installedUUIDOsspFunctionExpression:
 		return expr.Volatile
 	case installedCryptoFunctionExpression:
-		return merge(n.procedure.volatility, children(n.Args...))
+		return merge(n.procedure.Volatility, children(n.Args...))
 	case installedFunctionExpression:
-		return merge(n.procedure.volatility, children(n.Arg))
+		return merge(n.procedure.Volatility, children(n.Arg))
 	case caseExpression:
 		v := children(n.test, n.otherwise)
 		for _, arm := range n.arms {

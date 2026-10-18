@@ -31,10 +31,10 @@ func TestCheckAlterCommittedCatalogAndRetainedPins(t *testing.T) {
 	sessionSQL(t, owner, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, owner, "COMMIT")
 	after := e.CatalogRead().MustRelation(ref.Address)
-	if len(after.checkConstraints) != 0 || len(after.columns) != 1 {
+	if len(after.CheckConstraints) != 0 || len(after.Columns) != 1 {
 		t.Fatal("Commit failed to publish CHECK removal and row shape")
 	}
-	if len(original.checkConstraints) != 1 || len(original.columns) != 2 || pin.count != 1 {
+	if len(original.CheckConstraints) != 1 || len(original.Columns) != 2 || pin.count != 1 {
 		t.Fatal("ALTER changed old descriptor or retained rows")
 	}
 	transactionRows(t, peer, "SELECT a FROM t ORDER BY a", 1, 2)

@@ -50,13 +50,13 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege},
 	}}
 	d := e.CatalogRead().MustNamespace(ns.Address)
-	if d.owner != successor.Ref || !reflect.DeepEqual(d.acl, want) {
-		t.Fatalf("transferred descriptor owner=%v ACL=%+v; want owner=%v ACL=%+v", d.owner, d.acl, successor.Ref, want)
+	if d.Owner != successor.Ref || !reflect.DeepEqual(d.ACL, want) {
+		t.Fatalf("transferred descriptor owner=%v ACL=%+v; want owner=%v ACL=%+v", d.Owner, d.ACL, successor.Ref, want)
 	}
-	if retainedDescriptor.owner != former.Ref || !reflect.DeepEqual(retainedDescriptor.acl, acl) {
+	if retainedDescriptor.Owner != former.Ref || !reflect.DeepEqual(retainedDescriptor.ACL, acl) {
 		t.Fatal("owner transfer mutated retained descriptor")
 	}
-	if got := e.CatalogRead().MustRelation(table.Address).owner; got != tableOwner.Ref {
+	if got := e.CatalogRead().MustRelation(table.Address).Owner; got != tableOwner.Ref {
 		t.Fatalf("contained table owner=%v want %v", got, tableOwner.Ref)
 	}
 	for _, tc := range []struct {
@@ -80,8 +80,8 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 	}{{"empty_acl", true}, {"absent_acl", false}} {
 		ref := schemaRef(t, e, tc.name)
 		d := e.CatalogRead().MustNamespace(ref.Address)
-		if d.acl.Explicit != tc.explicit || len(d.acl.Entries) != 0 {
-			t.Fatalf("%s ACL=%+v", tc.name, d.acl)
+		if d.ACL.Explicit != tc.explicit || len(d.ACL.Entries) != 0 {
+			t.Fatalf("%s ACL=%+v", tc.name, d.ACL)
 		}
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION successor")
 		view, err := op.Authorization()

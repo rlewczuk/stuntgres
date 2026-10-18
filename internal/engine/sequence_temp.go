@@ -15,7 +15,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	}
 	table := func(a ids.ObjectAddress) bool {
 		ns, ok := auth.catalog.Namespace(a)
-		return ok && !ns.temporaryToast && ns.temporary == auth.session.token
+		return ok && !ns.TemporaryToast && ns.Temporary == auth.session.token
 	}
 	if table(auth.stagedTemporary) {
 		return auth.stagedTemporary
@@ -25,7 +25,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	}
 	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
 		for a, d := range auth.catalog.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == auth.session.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				return a
 			}
 		}
@@ -34,7 +34,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 }
 
 func ownTemporaryNamespace(auth AuthorizationView, ns *namespaceDescriptor) bool {
-	return ns != nil && !ns.temporaryToast && ns.temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.address
+	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.Address()
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
@@ -65,7 +65,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
-		return e.catalog.domain.Ref(e.catalog.state.epoch, a), nil
+		return e.catalog.Domain.Ref(e.catalog.state.epoch, a), nil
 	}
 	rights, err := databaseRights(context.Background(), auth.catalog, auth.roles, auth.state.CurrentUser)
 	if err != nil {
@@ -73,7 +73,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
 		db := auth.catalog.MustDatabase(currentDatabaseAddress)
-		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.name))
+		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
 	}
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
@@ -92,23 +92,23 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	owner := e.authorizationDomain.Principal(10)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), revision: rev, owner: owner, temporary: auth.session.token}
-	toast := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), revision: toastRevision, owner: owner, temporary: auth.session.token, temporaryToast: true}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
+	toast := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
 	if c.originals == nil {
 		c.originals = make(map[ids.ObjectAddress]Descriptor)
 		c.descriptors = make(map[ids.ObjectAddress]Descriptor)
 		c.names = make(map[ids.NameKey]ids.ObjectAddress)
 	}
-	e.catalogChangeLocked(c, ns.address, ns)
-	e.catalogChangeLocked(c, toast.address, toast)
-	return e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), nil
+	e.catalogChangeLocked(c, ns.Address(), ns)
+	e.catalogChangeLocked(c, toast.Address(), toast)
+	return e.catalog.Domain.Ref(e.catalog.state.epoch, ns.Address()), nil
 }
 
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.
 // Callers supply the coherent catalog containing any privately staged namespace.
 func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef, requested string) (string, error) {
 	ns := auth.catalog.MustNamespace(ref.Address)
-	temporary := ns.temporary != (ids.SessionToken{})
+	temporary := ns.Temporary != (ids.SessionToken{})
 	own := ownTemporaryNamespace(auth, ns)
 	switch requested {
 	case "temporary":
@@ -150,7 +150,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 			if _, ok := d.(*collationDescriptor); !ok {
 				continue
 			}
-			if ns, ok := base.Namespace(d.Namespace()); ok && ns.temporary == s.token {
+			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.token {
 				e.mu.Unlock()
 				return nil
 			}
@@ -158,7 +158,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		var namespaces []ids.ObjectAddress
 		owned := make(map[ids.ObjectAddress]bool)
 		for a, d := range base.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == s.token {
 				namespaces = append(namespaces, a)
 				owned[a] = true
 			}
@@ -178,7 +178,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
 		for _, a := range targets {
-			if err = stage.Remove(e.catalog.domain.Ref(base.Epoch(), a)); err != nil {
+			if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				break
 			}
 		}
@@ -230,7 +230,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.sqlIndex != nil && !candidate.matches(e.storage[index.sqlIndex.parent]) {
+		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -253,7 +253,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	}
 	for _, address := range namespaces {
 		namespace, ok := e.catalog.state.Namespace(address)
-		if !ok || namespace.temporary != s.token {
+		if !ok || namespace.Temporary != s.token {
 			return false, nil
 		}
 	}
@@ -336,7 +336,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
 	for address := range stage.removals {
 		index, ok := stage.base.Relation(address)
-		if ok && index.sqlIndex != nil {
+		if ok && index.SQLIndex != nil {
 			result.previous[address] = e.indexRoots[address]
 		}
 	}
@@ -361,7 +361,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !parents[index.sqlIndex.parent] || !index.sqlIndex.ready {
+		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.Parent] || !index.SQLIndex.Ready {
 			continue
 		}
 		result.previous[address] = e.indexRoots[address]
@@ -382,10 +382,10 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	for address := range result.previous {
 		if _, removed := stage.removals[address]; !removed {
 			index, ok := next.Relation(address)
-			if !ok || index.sqlIndex == nil {
+			if !ok || index.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			shape, ok := stage.rowShapes[index.sqlIndex.parent]
+			shape, ok := stage.rowShapes[index.SQLIndex.Parent]
 			candidate, produced := changes.indexCandidates[address]
 			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
 				return nil, ids.ErrCatalogReplaced

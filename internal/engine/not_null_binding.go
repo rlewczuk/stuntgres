@@ -23,28 +23,28 @@ func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *r
 		descriptors = reader[0].descriptors()
 	}
 	for _, descriptor := range descriptors {
-		if candidate != nil && descriptor.Address() == candidate.address {
+		if candidate != nil && descriptor.Address() == candidate.Address() {
 			descriptor = candidate
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && domain.namespace == namespace {
-			for _, constraint := range domain.domainChecks {
+		if domain, ok := descriptor.(*typeDescriptor); ok && domain.ObjectNamespace == namespace {
+			for _, constraint := range domain.DomainChecks {
 				names[constraint.Name] = true
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.namespace == namespace {
-			for _, constraint := range relation.notNullConstraints {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Namespace() == namespace {
+			for _, constraint := range relation.NotNullConstraints {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.checkConstraints {
+			for _, constraint := range relation.CheckConstraints {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.uniqueConstraints {
+			for _, constraint := range relation.UniqueConstraints {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.exclusionConstraints {
+			for _, constraint := range relation.ExclusionConstraints {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.foreignKeys {
+			for _, constraint := range relation.ForeignKeys {
 				names[constraint.Name] = true
 			}
 		}
@@ -55,27 +55,27 @@ func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *r
 // Explicit names are relation-local and span every admitted constraint kind.
 // Keep this allocation-free lookup shared by NN additions and FK attachment.
 func relationConstraintNameExists(d *relationDescriptor, name string) bool {
-	for _, c := range d.notNullConstraints {
+	for _, c := range d.NotNullConstraints {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.checkConstraints {
+	for _, c := range d.CheckConstraints {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.uniqueConstraints {
+	for _, c := range d.UniqueConstraints {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.exclusionConstraints {
+	for _, c := range d.ExclusionConstraints {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.foreignKeys {
+	for _, c := range d.ForeignKeys {
 		if c.Name == name {
 			return true
 		}
@@ -311,25 +311,25 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declar
 }
 
 func nameCreateNotNull(d *relationDescriptor, read CatalogRead) error {
-	if len(d.notNullConstraints) == 0 {
+	if len(d.NotNullConstraints) == 0 {
 		return nil
 	}
-	used := constraintNames(read, d.namespace, nil)
+	used := constraintNames(read, d.Namespace(), nil)
 	// A local false entry was generated; true entries were explicitly named.
-	local := make(map[string]bool, len(d.notNullConstraints))
-	for i := range d.notNullConstraints {
-		constraint := &d.notNullConstraints[i]
+	local := make(map[string]bool, len(d.NotNullConstraints))
+	for i := range d.NotNullConstraints {
+		constraint := &d.NotNullConstraints[i]
 		if constraint.Name == "" {
-			constraint.Name = generatedConstraintName(d.name, d.columns[constraint.Attribute-1].Name, "not_null", used)
+			constraint.Name = generatedConstraintName(d.Name(), d.Columns[constraint.Attribute-1].Name, "not_null", used)
 			local[constraint.Name] = false
 		} else {
 			if explicit, exists := local[constraint.Name]; exists {
 				if explicit {
-					return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, constraint.Name, d.name))
+					return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, constraint.Name, d.Name()))
 				}
 				const index = "pg_constraint_conrelid_contypid_conname_index"
 				diagnostic := sqlError("23505", `duplicate key value violates unique constraint "`+index+`"`).(*sqlstate.Error)
-				diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.address.ObjectID, constraint.Name)
+				diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.Address().ObjectID, constraint.Name)
 				diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = "pg_catalog", "pg_constraint", index
 				return diagnostic
 			}

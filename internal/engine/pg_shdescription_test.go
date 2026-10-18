@@ -19,7 +19,7 @@ func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, id
 	if !ok {
 		t.Fatal("missing shared catalog descriptor")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgShDescriptionUnitBag(t *testing.T, source *querySource) map[uint32]string {
@@ -63,10 +63,10 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	removed := pgShDescriptionUnitRole(e, deleted, 20000, "removed", "old")
 	retireFixtureRole(deleted, removed)
 	root := &projectNode{
-		querySchema: querySchema(d.columns),
-		child:       &sourceNode{querySchema: querySchema(d.columns), ref: ref},
+		querySchema: querySchema(d.Columns),
+		child:       &sourceNode{querySchema: querySchema(d.Columns), ref: ref},
 	}
-	for i, column := range d.columns {
+	for i, column := range d.Columns {
 		root.expressions = append(root.expressions, columnExpression{
 			Info:   expr.Info{Usage: column.Usage},
 			origin: ref, scope: 1, frame: 1, slot: i,
@@ -95,7 +95,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 				t.Fatal("empty captured source must execute", err)
 			}
 			defer rows.Close()
-			if count != 0 || !reflect.DeepEqual(rows.Schema(), d.columns) {
+			if count != 0 || !reflect.DeepEqual(rows.Schema(), d.Columns) {
 				t.Fatal("empty result shape/count", rows.Schema(), count)
 			}
 			if present, err := rows.Next(context.Background(), make([]sqltype.Value, 3)); present || err != nil {
@@ -150,7 +150,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 func TestPGShDescriptionDescriptor(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	if d.name != "pg_shdescription" || d.address.ObjectID != 2396 || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 3 || len(d.columns) != 3 || len(d.attributes) != 3 || len(d.index) != 3 {
+	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -158,13 +158,13 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 		typ       sqltype.ID
 		collation uint32
 	}{{"objoid", sqltype.Oid, 0}, {"classoid", sqltype.Oid, 0}, {"description", sqltype.Text, 950}} {
-		c := d.columns[i]
-		if c.Name != tc.name || c.Usage.Type.ID() != tc.typ || c.Usage.Typmod != -1 || c.Usage.Collation.ID != tc.collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2396 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[tc.name] != i {
+		c := d.Columns[i]
+		if c.Name != tc.name || c.Usage.Type.ID() != tc.typ || c.Usage.Typmod != -1 || c.Usage.Collation.ID != tc.collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2396 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[tc.name] != i {
 			t.Fatal("exact shared descriptor", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
@@ -186,8 +186,8 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 		}
 		name, _ := row[1].Text()
 		namespace, _ := row[2].OID()
-		kind, _ := row[class.index["relkind"]].Text()
-		natts, _ := row[class.index["relnatts"]].Integer()
+		kind, _ := row[class.Index["relkind"]].Text()
+		natts, _ := row[class.Index["relnatts"]].Integer()
 		if name != "pg_shdescription" || namespace != 11 || kind != "r" || natts != 3 {
 			t.Fatal(row)
 		}
@@ -237,7 +237,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	catalog := cloneCatalog(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	catalog.setDescriptor(local, &relationDescriptor{address: local, comment: "local collision"})
+	catalog.setDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
 	read := e.catalog.read(catalog)
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
@@ -301,12 +301,12 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	// Construct typed immutable nested views, then use the actual relocking seam.
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name, view.relationKind = name, viewRelation
-		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
-		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
-		e.catalog.state.setDescriptor(view.address, &view)
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName, view.RelationKind = name, viewRelation
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
+		e.catalog.state.setDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "shared_inner", ref)
@@ -362,8 +362,8 @@ func TestPGShDescriptionCanceledCapture(t *testing.T) {
 		t.Fatal("in-loop cancellation published partial source", captured, err, inLoop.calls)
 	}
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[0].Usage.Type = testUsage(e, sqltype.Int4).Type
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[0].Usage.Type = testUsage(e, sqltype.Int4).Type
 	captured, err = capturePGShDescription(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid)
 	if captured != nil || err == nil {
 		t.Fatal("OID constructor failure published partial source", captured, err)

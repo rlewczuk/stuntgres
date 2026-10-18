@@ -7,7 +7,7 @@ func (e *Engine) bindInsertReturning(b *binding, binder *expressionBinder, auth 
 		return nil
 	}
 	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName, binder.targetAlias = b.relation.name, s.Alias.Text
+	binder.targetName, binder.targetAlias = b.relation.Name(), s.Alias.Text
 	binder.queryAuth = &auth
 	target := binder.mutationTargetNamespace()
 	binder.queryNamespace = &target

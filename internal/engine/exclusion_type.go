@@ -8,13 +8,13 @@ import (
 )
 
 func rebindExclusionOperators(parent *relationDescriptor, definition *indexDefinition) ([]sqltype.ExclusionOperator, error) {
-	operators := make([]sqltype.ExclusionOperator, len(definition.exclusion))
-	for i, operator := range definition.exclusion {
-		usage, err := indexKeyUsage(parent, definition.keys[i])
+	operators := make([]sqltype.ExclusionOperator, len(definition.Exclusion))
+	for i, operator := range definition.Exclusion {
+		usage, err := indexKeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return nil, err
 		}
-		operators[i], err = sqltype.BindExclusionOperator(usage, definition.keys[i].class, operator.Name)
+		operators[i], err = sqltype.BindExclusionOperator(usage, definition.Keys[i].Class, operator.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -22,27 +22,27 @@ func rebindExclusionOperators(parent *relationDescriptor, definition *indexDefin
 	return operators, nil
 }
 func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
-	if len(parent.exclusionConstraints) == 0 || len(transformations) == 0 {
+	if len(parent.ExclusionConstraints) == 0 || len(transformations) == 0 {
 		return parent, nil
 	}
 	var next *relationDescriptor
-	for i, old := range parent.exclusionConstraints {
+	for i, old := range parent.ExclusionConstraints {
 		index, ok := stage.base.Relation(old.Index)
 		if !ok {
-			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
+			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
 				continue // New definitions already bind the completed TYPE shape.
 			}
 		}
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE exclusion index")
 		}
-		if !uniqueIndexTypeAffected(index.sqlIndex, transformations) {
+		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
 		if replacement, ok := stage.descriptors[old.Index].(*relationDescriptor); ok {
 			index = replacement
 		}
-		oldParent := stage.base.MustRelation(parent.address)
+		oldParent := stage.base.MustRelation(parent.Address())
 		evolved, err := evolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
@@ -52,11 +52,11 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		}
 		if next == nil {
 			copy := *parent
-			copy.exclusionConstraints = slices.Clone(parent.exclusionConstraints)
+			copy.ExclusionConstraints = slices.Clone(parent.ExclusionConstraints)
 			next = &copy
 		}
-		c := &next.exclusionConstraints[i]
-		if err := stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
+		c := &next.ExclusionConstraints[i]
+		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
 			return nil, err
 		}
 		c.OID, err = e.catalog.allocateOIDLocked()
@@ -69,23 +69,23 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}
 		copy := *evolved
-		copy.address = c.Index
-		copy.revision, err = e.catalog.revisionLocked()
+		copy.ObjectAddress = c.Index
+		copy.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
-		definition := *evolved.sqlIndex
-		definition.exclusion, err = rebindExclusionOperators(parent, &definition)
+		definition := *evolved.SQLIndex
+		definition.Exclusion, err = rebindExclusionOperators(parent, &definition)
 		if err != nil {
 			return nil, err
 		}
-		c.Operators = definition.exclusion
-		definition.constraint = exclusionBacking(c)
-		definition.ready, definition.valid, definition.live = true, true, true
-		copy.sqlIndex = &definition
-		copy.columns = slices.Clone(evolved.columns)
-		for j := range copy.columns {
-			copy.columns[j].OriginTable = uint32(indexOID)
+		c.Operators = definition.Exclusion
+		definition.Constraint = exclusionBacking(c)
+		definition.Ready, definition.Valid, definition.Live = true, true, true
+		copy.SQLIndex = &definition
+		copy.Columns = slices.Clone(evolved.Columns)
+		for j := range copy.Columns {
+			copy.Columns[j].OriginTable = uint32(indexOID)
 		}
 		if err := stage.Create(&copy); err != nil {
 			return nil, err
@@ -105,19 +105,19 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 func rebindImportedExclusions(next *catalogState) error {
 	for address, descriptor := range next.Descriptors() {
 		parent, ok := descriptor.(*relationDescriptor)
-		if !ok || len(parent.exclusionConstraints) == 0 {
+		if !ok || len(parent.ExclusionConstraints) == 0 {
 			continue
 		}
 		var replacement *relationDescriptor
-		for i, constraint := range parent.exclusionConstraints {
+		for i, constraint := range parent.ExclusionConstraints {
 			index, ok := next.Relation(constraint.Index)
-			if !ok || index.sqlIndex == nil {
+			if !ok || index.SQLIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported exclusion attachment")
 			}
-			definition := index.sqlIndex
+			definition := index.SQLIndex
 			changed := false
-			for j, operator := range definition.exclusion {
-				usage, err := indexKeyUsage(parent, definition.keys[j])
+			for j, operator := range definition.Exclusion {
+				usage, err := indexKeyUsage(parent, definition.Keys[j])
 				if err != nil {
 					return err
 				}
@@ -135,14 +135,14 @@ func rebindImportedExclusions(next *catalogState) error {
 			}
 			if replacement == nil {
 				copy := *parent
-				copy.exclusionConstraints = slices.Clone(parent.exclusionConstraints)
+				copy.ExclusionConstraints = slices.Clone(parent.ExclusionConstraints)
 				replacement = &copy
 			}
-			replacement.exclusionConstraints[i].Operators = operators
+			replacement.ExclusionConstraints[i].Operators = operators
 			indexCopy, definitionCopy := *index, *definition
-			definitionCopy.exclusion = operators
-			indexCopy.sqlIndex = &definitionCopy
-			next.setDescriptor(index.address, &indexCopy)
+			definitionCopy.Exclusion = operators
+			indexCopy.SQLIndex = &definitionCopy
+			next.setDescriptor(index.Address(), &indexCopy)
 		}
 		if replacement != nil {
 			next.setDescriptor(address, replacement)

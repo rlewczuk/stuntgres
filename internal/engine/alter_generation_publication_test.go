@@ -55,16 +55,16 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*relationDescriptor)
-				if candidate == old || candidate.revision != old.revision+1 || e.catalog.state != catalog || e.storage[ref.Address] != store {
+				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != catalog || e.storage[ref.Address] != store {
 					t.Fatal("stage published before Finish")
 				}
 				shape := scope.catalog.storage[ref.Address]
 				if drop {
-					if len(candidate.generations) != 0 || shape.replacement != store {
+					if len(candidate.Generations) != 0 || shape.replacement != store {
 						t.Fatal("DROP rewrote source storage")
 					}
 				} else {
-					if shape.replacement == store || candidate.generations[2].OID == old.generations[2].OID {
+					if shape.replacement == store || candidate.Generations[2].OID == old.Generations[2].OID {
 						t.Fatal("SET lacked detached rewrite/definition")
 					}
 					for i, r := range shape.replacement.versions {
@@ -78,7 +78,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || catalog.Get(ref.Address) != old || old.generations[2].kind != generationStored {
+					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || catalog.Get(ref.Address) != old || old.Generations[2].Kind != generationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.versions {
@@ -130,12 +130,12 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			provider := e.catalog.providers[ids.RelationClassID]
-			defer func() { e.catalog.providers[ids.RelationClassID] = provider }()
+			provider := e.catalog.Providers[ids.RelationClassID]
+			defer func() { e.catalog.Providers[ids.RelationClassID] = provider }()
 			calls := 0
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.catalog.providers[ids.RelationClassID] = provider
+				e.catalog.Providers[ids.RelationClassID] = provider
 				if !e.mu.TryLock() {
 					t.Error("generation callback held Engine.mu")
 				} else {
@@ -169,8 +169,8 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					}
 				case "descriptor":
 					changed := *old
-					changed.revision++
-					changed.comment = "external generation provider change"
+					changed.ObjectRevision++
+					changed.Comment = "external generation provider change"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					if err := stage.Replace(&changed); err != nil {
 						t.Fatal(err)
@@ -206,14 +206,14 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					t.Fatal("provider veto changed storage/counters", err)
 				}
 				current := e.catalog.state.MustRelation(ref.Address)
-				if !reflect.DeepEqual(current.generations, old.generations) || current.generations[2].OID != old.generations[2].OID {
+				if !reflect.DeepEqual(current.Generations, old.Generations) || current.Generations[2].OID != old.Generations[2].OID {
 					t.Fatal("failed generation replaced old recipe")
 				}
 				if kind == "cancel" && e.commitSeq != frontier {
 					t.Fatal("canceled generation advanced commit frontier")
 				}
 			}
-			if retained.Get(ref.Address) != old || len(old.generations) != 1 || len(store.versions) != 2 {
+			if retained.Get(ref.Address) != old || len(old.Generations) != 1 || len(store.versions) != 2 {
 				t.Fatal("retained snapshot changed")
 			}
 			lockEmpty(t, e)
@@ -239,7 +239,7 @@ func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	e, admin, _, ref := generatedAuthorizationFixture(t)
 	old := e.catalog.state.MustRelation(ref.Address)
 	limit := *old
-	limit.revision = ids.DefinitionRevision(^uint64(0))
+	limit.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&limit); err != nil {
 		t.Fatal(err)

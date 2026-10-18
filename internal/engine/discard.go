@@ -204,7 +204,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	base := auth.catalog
 	owned := make(map[ids.ObjectAddress]bool)
 	for address, d := range base.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
+		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == session.token {
 			owned[address] = true
 		}
 	}
@@ -226,7 +226,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	// Exclude every owned target before projecting surviving dependents, exactly
 	// as physical collation cleanup does, but retain the namespace descriptor.
 	for _, address := range children {
-		if err = stage.removeObjectLocked(e.catalog.domain.Ref(base.Epoch(), address), false); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(base.Epoch(), address), false); err != nil {
 			break
 		}
 	}
@@ -270,7 +270,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		if i != 0 && address == relations[i-1] {
 			continue
 		}
-		if err = s.acquireSequence(e.catalog.domain.Ref(base.Epoch(), address), lock.AccessExclusive, true); err != nil {
+		if err = s.acquireSequence(e.catalog.Domain.Ref(base.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return err
 		}
 	}
@@ -297,14 +297,14 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address id
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.Domain() != catalog.owner.domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
+			if leaf.ref.Domain() != catalog.owner.Domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
 			relation, ok := catalog.Relation(address)
 			if !ok || leaf.relation == nil {
 				continue
 			}
-			return sqlError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.name))
+			return sqlError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.Name()))
 		}
 	}
 	return nil

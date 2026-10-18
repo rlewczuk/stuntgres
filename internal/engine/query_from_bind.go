@@ -80,8 +80,8 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 		leaf := &b.querySources[c.leaf]
 		relation = leaf.relation
 		origin = leaf.ref
-		origin.Address.SubID = leaf.relation.attributes[c.physical]
-		b.dependency(origin, leaf.relation.revision)
+		origin.Address.SubID = leaf.relation.Attributes[c.physical]
+		b.dependency(origin, leaf.relation.Revision())
 		found := false
 		for _, slot := range leaf.uses {
 			if slot == c.physical {
@@ -183,7 +183,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 	if len(parts) == 2 {
 		if scope, newValues := b.outerReturningScope(parser.ObjectName{Parts: parts[:1]}); scope != nil {
 			relation := scope.relation
-			slot, ok := relation.index[parts[1].Text]
+			slot, ok := relation.Index[parts[1].Text]
 			if !ok {
 				return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[0].Text, parts[1].Text), raw.Pos)
 			}
@@ -225,7 +225,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue
 			}
-			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.relationKind == tableRelation {
+			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.RelationKind == tableRelation {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
@@ -398,32 +398,32 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, futureCTEError(err, b.queryLockAdmission.futureCTE[n])
 		}
 		relation, _ := b.queryAuth.definitionRelation(ref.Address)
-		if relation.relationKind == compositeRelation {
+		if relation.RelationKind == compositeRelation {
 			return nil, queryNamespace{}, compositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
-		if relation.relationKind == indexRelation {
+		if relation.RelationKind == indexRelation {
 			if b.deleteUsingSources {
-				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), n.Name.Parts[0].Pos).(*sqlstate.Error)
+				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), n.Name.Parts[0].Pos).(*sqlstate.Error)
 				err.Detail = "This operation is not supported for indexes."
 				return nil, queryNamespace{}, err
 			}
-			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
+			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.Name()))
 		}
-		if relation.relationKind == viewRelation {
+		if relation.RelationKind == viewRelation {
 			if err := b.captureRetainedViewInput(viewOf(relation)); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}
 		leaf := len(b.querySources)
 		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n].query, deleteReference: b.deleteUsingSources && len(b.queryScopes) == 0})
-		columns := make([]queryColumn, len(relation.columns))
-		for i, c := range relation.columns {
+		columns := make([]queryColumn, len(relation.Columns))
+		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
 		}
-		namespace, _ := b.queryAuth.definitionDescriptor(relation.namespace)
-		q := queryQualifier{name: relation.name, original: relation.name, schema: namespace.Name(), ref: ref, columns: columns}
+		namespace, _ := b.queryAuth.definitionDescriptor(relation.Namespace())
+		q := queryQualifier{name: relation.Name(), original: relation.Name(), schema: namespace.Name(), ref: ref, columns: columns}
 		b.queryHidden = append(b.queryHidden, q)
-		return &sourceNode{querySchema: relation.columns, ref: ref, occurrence: leaf, rangeName: relation.name}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.columns}, nil
+		return &sourceNode{querySchema: relation.Columns, ref: ref, occurrence: leaf, rangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {

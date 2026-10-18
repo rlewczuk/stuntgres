@@ -52,17 +52,17 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		identity, found := routineIdentityByOID(auth.catalog, ids.OID(oid))
 		e.mu.Unlock()
 		if found {
-			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.name))
+			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.Name))
 		}
 		return ProtocolField{}, sqlError("42883", fmt.Sprintf("function with OID %d does not exist", oid))
 	}
-	if d.routineKind != functionRoutine || d.returnsSet() {
+	if d.RoutineKind != functionRoutine || d.returnsSet() {
 		e.mu.Unlock()
-		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.name))
+		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.Name()))
 	}
-	ns := auth.catalog.Get(d.namespace)
-	nsRef := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), d.namespace)
-	ref := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), d.address)
+	ns := auth.catalog.Get(d.Namespace())
+	nsRef := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.Namespace())
+	ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}
@@ -71,8 +71,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, err
 	}
 	var usages []sqltype.Usage
-	if d.signature != "" {
-		for _, word := range strings.Split(string(d.signature), ",") {
+	if d.Signature != "" {
+		for _, word := range strings.Split(string(d.Signature), ",") {
 			id, parseErr := strconv.ParseUint(word, 10, 32)
 			if parseErr != nil {
 				e.mu.Unlock()
@@ -103,11 +103,11 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	for i := range args {
 		args[i] = parser.ParameterExpr{Number: i + 1}
 	}
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.name}}}, Args: args})
+	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.Name()}}}, Args: args})
 	if err == nil {
 		selected := expr.InfoOf(node).RoutineReference
 		if selected == nil || selected.RoutineOID() != oid {
-			err = sqlError("0A000", fmt.Sprintf("function \"%s\" is not executable via fastpath interface", d.name))
+			err = sqlError("0A000", fmt.Sprintf("function \"%s\" is not executable via fastpath interface", d.Name()))
 		}
 	}
 	if err != nil {

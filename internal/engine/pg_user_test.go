@@ -19,7 +19,7 @@ func pgUserUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_user")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Value {
@@ -66,29 +66,29 @@ func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) autho
 func TestPGUserDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgUserUnitSource(t, e)
-	if d.name != "pg_user" || !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != 9 || len(d.attributes) != 9 || len(d.index) != 9 || d.attributeHighWater != 9 {
+	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}
 	types := []sqltype.ID{sqltype.Name, sqltype.Oid, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Text, sqltype.Timestamptz, 1009}
 	collations := []uint32{950, 0, 0, 0, 0, 0, 100, 0, 950}
-	for i, c := range d.columns {
-		if c.Name != names[i] || c.Usage.Type.ID() != types[i] || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12014 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[c.Name] != i {
+	for i, c := range d.Columns {
+		if c.Name != names[i] || c.Usage.Type.ID() != types[i] || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collations[i] || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12014 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i {
 			t.Fatal("exact pg_user metadata", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	if d.rowType != 12016 {
+	if d.RowType != 12016 {
 		t.Fatal("existing row identity not reused")
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015})
-	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12015 || row.typ.Concrete() {
+	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 12015 || row.SQLType.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
 	if representedSummaryTable(12014) || representedSummaryViewDefinition(12014) == "" {
@@ -127,7 +127,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 	}
 	for id, row := range bag {
 		for i, value := range row {
-			if value.Type() != d.columns[i].Usage.Type {
+			if value.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("wrong concrete descriptor", i)
 			}
 		}
@@ -210,15 +210,15 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name = name
-		view.relationKind = viewRelation
-		view.virtualView = false
-		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
-		attrs := append([]int32(nil), d.attributes...)
-		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.address, &view)
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName = name
+		view.RelationKind = viewRelation
+		view.VirtualView = false
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+		attrs := append([]int32(nil), d.Attributes...)
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
+		e.catalog.state.setDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_user_inner", ref)
@@ -272,19 +272,19 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 		}
 	}
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
 	if source, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
-	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.setDescriptor(unknown.address, &unknown)
+	unknown.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
+	e.catalog.state.setDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.catalog.domain.Ref(e.catalog.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.Address()), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}
@@ -318,8 +318,8 @@ func TestPGUserResolvedWriteTargets(t *testing.T) {
 	}
 	// Resolved attribute identity, not coincidental name spelling, chooses mask rejection.
 	renamed := *d
-	renamed.columns = append([]ColumnDescriptor(nil), d.columns...)
-	renamed.columns[6].Name = "alias"
+	renamed.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	renamed.Columns[6].Name = "alias"
 	if !reflect.DeepEqual(virtualViewWriteError(d, "update", []int{6}), virtualViewWriteError(&renamed, "update", []int{6})) {
 		t.Fatal("write diagnostic depends on text spelling")
 	}

@@ -8,11 +8,11 @@ import (
 )
 
 func indexHasTableOID(index *indexDefinition) bool {
-	if predicate := index.predicate; predicate != nil && (generationHasTableOID(predicate.definition) || generationHasTableOID(predicate.execution)) {
+	if predicate := index.Predicate; predicate != nil && (generationHasTableOID(predicate.Definition) || generationHasTableOID(predicate.Execution)) {
 		return true
 	}
-	for _, key := range index.keys {
-		if key.derived != nil && (generationHasTableOID(key.derived.definition) || generationHasTableOID(key.derived.execution)) {
+	for _, key := range index.Keys {
+		if key.Derived != nil && (generationHasTableOID(key.Derived.Definition) || generationHasTableOID(key.Derived.Execution)) {
 			return true
 		}
 	}
@@ -24,7 +24,7 @@ func (snapshot *indexSnapshot) needsOwnerRepair() bool {
 		return false
 	}
 	for _, source := range snapshot.sources {
-		if snapshot.destination(source.parent.address) != source.parent.address && indexHasTableOID(source.index.sqlIndex) {
+		if snapshot.destination(source.parent.Address()) != source.parent.Address() && indexHasTableOID(source.index.SQLIndex) {
 			return true
 		}
 	}
@@ -39,16 +39,16 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.Ob
 	}
 	var changed map[ids.ObjectAddress]map[int32]bool
 	for _, source := range snapshot.sources {
-		address := snapshot.destination(source.parent.address)
-		if address == source.parent.address {
+		address := snapshot.destination(source.parent.Address())
+		if address == source.parent.Address() {
 			continue
 		}
 		parent, ok := next.Relation(address)
 		if !ok {
 			continue
 		}
-		for attribute, generation := range parent.generations {
-			if generation.kind != generationStored || !generationHasTableOID(generation.planned) || !indexAttributeAffected(source.index.sqlIndex, attribute) {
+		for attribute, generation := range parent.Generations {
+			if generation.Kind != generationStored || !generationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
 				continue
 			}
 			if changed == nil {
@@ -72,10 +72,10 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 	}
 	var repairedStores map[ids.ObjectAddress]relationStorage
 	for address, source := range snapshot.sources {
-		parentAddress := snapshot.destination(source.parent.address)
-		affected := moved[parentAddress] || parentAddress != source.parent.address && indexHasTableOID(source.index.sqlIndex)
+		parentAddress := snapshot.destination(source.parent.Address())
+		affected := moved[parentAddress] || parentAddress != source.parent.Address() && indexHasTableOID(source.index.SQLIndex)
 		for attribute, different := range changed[parentAddress] {
-			affected = affected || different && indexAttributeAffected(source.index.sqlIndex, attribute)
+			affected = affected || different && indexAttributeAffected(source.index.SQLIndex, attribute)
 		}
 		if !affected {
 			continue
@@ -84,22 +84,22 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 			return err
 		}
 		index, ok := evaluation.catalog.Relation(snapshot.destination(address))
-		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			return ids.ErrCatalogReplaced
 		}
 		parent, ok := evaluation.catalog.Relation(parentAddress)
-		if !ok || parent.partition != nil || index.sqlIndex.parent != parentAddress {
+		if !ok || parent.Partition != nil || index.SQLIndex.Parent != parentAddress {
 			return ids.ErrCatalogReplaced
 		}
 		store := storage[parentAddress]
 		if store == nil {
 			return ids.ErrCatalogReplaced
 		}
-		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, store, nil)
+		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
 		if err != nil {
 			return err
 		}
-		schema := evaluation.catalog.Get(parent.namespace).Name()
+		schema := evaluation.catalog.Get(parent.Namespace()).Name()
 		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
 			return err
 		}

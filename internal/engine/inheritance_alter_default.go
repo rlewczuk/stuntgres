@@ -21,17 +21,17 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range targets {
 		ref := scope.lockedRef
-		ref.Address = old.address
+		ref.Address = old.Address()
 		e.mu.Lock()
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		fresh, err := e.statementAuthorizationLocked(op, raw)
-		if err == nil && current.Get(old.address) != old {
+		if err == nil && current.Get(old.Address()) != old {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
 			err = fresh.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		}
-		childSlot, exists := old.index[raw.Column.Text]
+		childSlot, exists := old.Index[raw.Column.Text]
 		if err == nil && !exists {
 			err = ids.ErrCatalogReplaced
 		}
@@ -43,29 +43,29 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next := *old
-		next.revision++
-		next.defaults = maps.Clone(old.defaults)
-		attribute := old.attributes[childSlot]
-		if definition.expression == nil {
-			delete(next.defaults, attribute)
+		next.ObjectRevision++
+		next.Defaults = maps.Clone(old.Defaults)
+		attribute := old.Attributes[childSlot]
+		if definition.Expression == nil {
+			delete(next.Defaults, attribute)
 		} else {
-			if next.defaults == nil {
-				next.defaults = make(map[int32]columnDefault)
+			if next.Defaults == nil {
+				next.Defaults = make(map[int32]columnDefault)
 			}
-			next.defaults[attribute] = definition
+			next.Defaults[attribute] = definition
 		}
-		if next.inheritance != nil {
-			next.inheritance = cloneInheritance(old.inheritance)
-			provenance := next.inheritance.columns[attribute]
-			provenance.explicitDefault = true
-			next.inheritance.columns[attribute] = provenance
+		if next.Inheritance != nil {
+			next.Inheritance = cloneInheritance(old.Inheritance)
+			provenance := next.Inheritance.Columns[attribute]
+			provenance.ExplicitDefault = true
+			next.Inheritance.Columns[attribute] = provenance
 		}
-		store := e.privateStorageLocked(scope.owner.catalog, old.address)
+		store := e.privateStorageLocked(scope.owner.catalog, old.Address())
 		if store == nil {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced

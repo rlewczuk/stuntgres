@@ -78,11 +78,11 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if invoker != (authorization.PrincipalRef{}) {
 		auth.state.CurrentUser = invoker
 	}
-	server, ok := auth.catalog.Foreign(relation.foreign.server)
+	server, ok := auth.catalog.Foreign(relation.Foreign.Server)
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}
-	wrapper, ok := auth.catalog.Foreign(server.wrapper)
+	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -98,9 +98,9 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	request := ForeignRequest{Schema: auth.catalog.Get(relation.namespace).Name(), Table: relation.name, Role: role.Name, TableOID: uint32(relation.address.ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.options), ServerOptions: slices.Clone(server.options), TableOptions: slices.Clone(relation.foreign.options), MappingOptions: slices.Clone(mapping.options)}
-	for i, column := range relation.columns {
-		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.foreign.columns[relation.attributes[i]])})
+	request := ForeignRequest{Schema: auth.catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
+	for i, column := range relation.Columns {
+		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}
 	request.RequiredAttributes, err = foreignRequiredAttributes(relation, uses)
 	if err != nil {
@@ -109,7 +109,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if e.foreignValueImporter == nil || e.foreignValueExporter == nil {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}
-	f := &foreignQuerySource{wrapper: handler.wrapper, request: request, columns: slices.Clone(relation.columns), importValue: e.foreignValueImporter, exportValue: e.foreignValueExporter}
+	f := &foreignQuerySource{wrapper: handler.Wrapper, request: request, columns: slices.Clone(relation.Columns), importValue: e.foreignValueImporter, exportValue: e.foreignValueExporter}
 	scope.ownForeignSource(f)
 	return &querySource{ref: ref, anonymous: [][]sqltype.Value{}, foreign: f}, nil
 }
@@ -119,11 +119,11 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int32, error) {
 	count := len(uses)
 	if uses == nil {
-		count = len(relation.columns)
+		count = len(relation.Columns)
 	}
 	required := make([]int32, 0, count)
 	add := func(slot int) {
-		attribute := relation.attributes[slot]
+		attribute := relation.Attributes[slot]
 		if !slices.Contains(required, attribute) {
 			required = append(required, attribute)
 		}
@@ -133,11 +133,11 @@ func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int3
 		if uses != nil {
 			slot = uses[i]
 		}
-		if slot < 0 || slot >= len(relation.attributes) {
+		if slot < 0 || slot >= len(relation.Attributes) {
 			return nil, fmt.Errorf("stuntgres: invalid foreign required attribute")
 		}
-		if generation, ok := relation.generations[relation.attributes[slot]]; ok && generation.kind == generationVirtual {
-			walkBoundExpression(generation.planned, func(node expr.Expr) {
+		if generation, ok := relation.Generations[relation.Attributes[slot]]; ok && generation.Kind == generationVirtual {
+			walkBoundExpression(generation.Planned, func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok {
 					add(column.slot)
 				}

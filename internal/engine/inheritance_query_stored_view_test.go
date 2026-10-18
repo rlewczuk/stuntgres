@@ -40,23 +40,23 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			var child *relationDescriptor
 			if tc.child {
 				predecessor, before := parent, e.CatalogRead()
-				storage := e.storage[parent.address]
+				storage := e.storage[parent.Address()]
 				childStage, d := queryCreateStage(t, e, "c", 1)
-				d.inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: parent.address, attribute: parent.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+				d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 					t.Fatal(err)
 				}
 				queryCreatePublish(t, e, childStage)
 				child = d
-				parent = e.CatalogRead().MustRelation(predecessor.address)
-				if parent == predecessor || !parent.hasSubclasses || predecessor.hasSubclasses || parent.address != predecessor.address || parent.rowType != predecessor.rowType || parent.revision == predecessor.revision || before.Get(predecessor.address) != predecessor || e.storage[parent.address] != storage {
+				parent = e.CatalogRead().MustRelation(predecessor.Address())
+				if parent == predecessor || !parent.HasSubclasses || predecessor.HasSubclasses || parent.Address() != predecessor.Address() || parent.RowType != predecessor.RowType || parent.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage[parent.Address()] != storage {
 					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
 				}
 			}
 			ref := func(d *relationDescriptor) ids.ObjectRef {
-				return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+				return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 			}
-			parentRef, parentStorage := ref(parent), e.storage[parent.address]
+			parentRef, parentStorage := ref(parent), e.storage[parent.Address()]
 			ctx, cancelScan := context.WithCancel(context.Background())
 			defer cancelScan()
 			op, done, err := testOperation(e, ctx)
@@ -94,8 +94,8 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(bindErr)
 				}
-				d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: 1, owner: parent.owner, relationKind: viewRelation, view: viewPayloadOf(definition), columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"i": 0}, attributes: []int32{1}, attributeHighWater: 1}
-				d.columns[0].OriginTable, d.columns[0].OriginAttribute = uint32(oid), 1
+				d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+				d.Columns[0].OriginTable, d.Columns[0].OriginAttribute = uint32(oid), 1
 				viewStage := e.BeginCatalogStage(auth.catalog)
 				bindErr = e.stageRowTypeLocked(viewStage, d)
 				if bindErr == nil {
@@ -260,7 +260,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if captureErr == nil {
 				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, queryLeaf{ref: parentRef, relation: parent, storage: parentStorage, only: viewOf(view).sources[0].only}, op.session.token)
 			}
-			validBase := catalog.Get(parent.address) == parent && e.privateStorageLocked(scope.owner.catalog, parent.address) == parentStorage
+			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)
@@ -269,7 +269,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if !validBase {
 				t.Fatal("stored base identity/storage changed during admission")
 			}
-			if len(parent.columns) != 1 || parent.columns[0].Name != "i" || parent.columns[0].Usage.Type != testUsage(e, sqltype.Int4).Type {
+			if len(parent.Columns) != 1 || parent.Columns[0].Name != "i" || parent.Columns[0].Usage.Type != testUsage(e, sqltype.Int4).Type {
 				t.Fatal("parent metadata changed")
 			}
 			if err = selectQuerySources(op.Context(), source); err != nil {

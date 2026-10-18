@@ -9,19 +9,19 @@ import (
 )
 
 func materializedIndexEligible(parent, index *relationDescriptor) bool {
-	if parent == nil || parent.relationKind != materializedViewRelation || index == nil || index.relationKind != indexRelation || index.sqlIndex == nil {
+	if parent == nil || parent.RelationKind != materializedViewRelation || index == nil || index.RelationKind != indexRelation || index.SQLIndex == nil {
 		return false
 	}
-	d := index.sqlIndex
-	if d.parent != parent.address || !d.unique || !d.valid || !d.ready || !d.live || d.predicate != nil || len(d.keys) == 0 {
+	d := index.SQLIndex
+	if d.Parent != parent.Address() || !d.Unique || !d.Valid || !d.Ready || !d.Live || d.Predicate != nil || len(d.Keys) == 0 {
 		return false
 	}
-	for _, key := range d.keys {
-		if key.attribute <= 0 || key.derived != nil || !parent.hasAttribute(key.attribute) {
+	for _, key := range d.Keys {
+		if key.Attribute <= 0 || key.Derived != nil || !parent.hasAttribute(key.Attribute) {
 			return false
 		}
 	}
-	for _, attribute := range d.include {
+	for _, attribute := range d.Include {
 		if attribute <= 0 || !parent.hasAttribute(attribute) {
 			return false
 		}
@@ -30,7 +30,7 @@ func materializedIndexEligible(parent, index *relationDescriptor) bool {
 }
 
 func materializedConcurrentAdmission(view CatalogRead, parent *relationDescriptor, noData bool) error {
-	if !parent.populated {
+	if !parent.Populated {
 		return sqlError("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
 	}
 	if noData {
@@ -41,8 +41,8 @@ func materializedConcurrentAdmission(view CatalogRead, parent *relationDescripto
 			return nil
 		}
 	}
-	namespace := view.MustNamespace(parent.namespace)
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.name), pgIdentifier(parent.name)), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
+	namespace := view.MustNamespace(parent.Namespace())
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.Name()), pgIdentifier(parent.Name())), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
 }
 
 func materializedEligibleIndexes(view CatalogRead, parent *relationDescriptor) []*relationDescriptor {
@@ -130,7 +130,7 @@ func materializedDuplicatePreflight(ctx context.Context, view CatalogRead, paren
 	if duplicate == len(rows) {
 		return nil
 	}
-	typ, ok := view.LookupType(parent.rowType)
+	typ, ok := view.LookupType(parent.RowType)
 	if !ok {
 		return fmt.Errorf("stuntgres: materialized row type is missing")
 	}
@@ -142,7 +142,7 @@ func materializedDuplicatePreflight(ctx context.Context, view CatalogRead, paren
 	if err != nil {
 		return err
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: fmt.Sprintf(`new data for materialized view "%s" contains duplicate rows without any null columns`, parent.name), Detail: "Row: " + text}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: fmt.Sprintf(`new data for materialized view "%s" contains duplicate rows without any null columns`, parent.Name()), Detail: "Row: " + text}
 }
 
 func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, new []sqltype.Value) (bool, error) {
@@ -178,7 +178,7 @@ func materializedConcurrentRows(ctx context.Context, view CatalogRead, parent *r
 	orderings := make([]indexOrdering, len(indices))
 	for i, index := range indices {
 		var err error
-		orderings[i], err = bindIndexOrdering(parent, index.sqlIndex)
+		orderings[i], err = bindIndexOrdering(parent, index.SQLIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +270,7 @@ func materializedConcurrentRows(ctx context.Context, view CatalogRead, parent *r
 type materializedLineage struct{ marker byte }
 
 func sameMaterializedLineage(old, current *relationDescriptor, a, b *relationStorage) bool {
-	return old != nil && current != nil && old.relationKind == materializedViewRelation && current.relationKind == materializedViewRelation && old.populated && current.populated && a != nil && b != nil && a.materializedLineage != nil && a.materializedLineage == b.materializedLineage && relationDefiningAuthorityCompatible(old, current)
+	return old != nil && current != nil && old.RelationKind == materializedViewRelation && current.RelationKind == materializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.materializedLineage != nil && a.materializedLineage == b.materializedLineage && relationDefiningAuthorityCompatible(old, current)
 }
 
 // A producer snapshot may outlive a compatible source publication, never a
@@ -297,7 +297,7 @@ type materializedSourceFence struct {
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
-	if f.ref.Domain() != e.catalog.domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.relationKind != materializedViewRelation {
+	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != materializedViewRelation {
 		return false
 	}
 	current, _ := e.catalog.state.Relation(f.ref.Address)

@@ -106,17 +106,17 @@ func descriptorComment(d Descriptor, sub int32) string {
 	switch d := d.(type) {
 	case *namespaceDescriptor:
 		if sub == 0 {
-			return d.comment
+			return d.Comment
 		}
 	case *typeDescriptor:
 		if sub == 0 {
-			return d.comment
+			return d.Comment
 		}
 	case *relationDescriptor:
 		if sub == 0 {
-			return d.comment
+			return d.Comment
 		}
-		return d.columnComments[sub]
+		return d.ColumnComments[sub]
 	}
 	return ""
 }
@@ -177,7 +177,7 @@ func (e commentInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) 
 		if e.kind == sharedDescription {
 			if name == "pg_authid" {
 				r := scope.commentRoles
-				role, _ := r.Find(scope.commentCatalog.owner.principals.Principal(uint64(oid)))
+				role, _ := r.Find(scope.commentCatalog.owner.Principals.Principal(uint64(oid)))
 				text = role.Comment
 			}
 		} else {

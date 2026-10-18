@@ -558,8 +558,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE public.os_unit_enum AS ENUM('z','a')"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.os_unit_domain AS INT"))
 	view := e.CatalogRead()
-	enum := domainUnitType(t, view, "os_unit_enum").typ
-	domain := domainUnitType(t, view, "os_unit_domain").typ
+	enum := domainUnitType(t, view, "os_unit_enum").SQLType
+	domain := domainUnitType(t, view, "os_unit_domain").SQLType
 	for _, tc := range []struct {
 		name            string
 		operation       functions.AggregateOperation
@@ -606,7 +606,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				t.Fatal("binding input owner")
 			}
 			inputOwner := descriptor.(*typeDescriptor)
-			if inputOwner.typ != input {
+			if inputOwner.SQLType != input {
 				t.Fatal("input owner/leaf generation", inputOwner, input)
 			}
 			namespace, ok := catalog.Descriptor(inputOwner.Namespace())
@@ -617,8 +617,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if !ok || namespace.Name() != wantNamespace {
 				t.Fatal("input namespace authority", namespace, wantNamespace)
 			}
-			if tc.custom != nil && inputOwner.owner != auth.state.CurrentUser {
-				t.Fatal("custom input principal authority", inputOwner.owner, auth.state.CurrentUser)
+			if tc.custom != nil && inputOwner.Owner != auth.state.CurrentUser {
+				t.Fatal("custom input principal authority", inputOwner.Owner, auth.state.CurrentUser)
 			}
 			usage := input.Usage()
 			if tc.id == sqltype.VarChar {
@@ -662,7 +662,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			want.Typmod = -1
 			if tc.array {
 				array, ok := catalog.LookupArray(input)
-				if !ok || array.Element() != input || array.ID() != inputOwner.array {
+				if !ok || array.Element() != input || array.ID() != inputOwner.Array {
 					t.Fatal("catalog associated-array authority", array, input, inputOwner)
 				}
 				catalogLeaf, ok := catalog.LookupType(array.Element().ID())
@@ -681,10 +681,10 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				t.Fatal("actual result owner")
 			}
 			resultOwner := descriptor.(*typeDescriptor)
-			if actual.Type != resultOwner.typ || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.owner != inputOwner.owner {
+			if actual.Type != resultOwner.SQLType || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.Owner != inputOwner.Owner {
 				t.Fatal("result generation/namespace/principal authority", actual, resultOwner, inputOwner)
 			}
-			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.InputType() || resultOwner.typ.Element() != input || inputOwner.array != actual.Type.ID()) {
+			if tc.array && (actual.Type.Element() != input || actual.Type.Element() != provider.InputType() || resultOwner.SQLType.Element() != input || inputOwner.Array != actual.Type.ID()) {
 				t.Fatal("actual result/leaf/owner relationship", actual, input, inputOwner)
 			}
 			for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {
@@ -717,8 +717,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	// Bind real catalog columns privately; input origins exist, but aggregate
 	// outputs are computed descriptors, including enum/domain associated arrays.
 	table := domainUnitTable(t, e, op, `CREATE TABLE public.os_unit_authority(v VARCHAR(4) COLLATE "C",w VARCHAR(4) COLLATE "POSIX",n NUMERIC(10,4),i INTERVAL,e os_unit_enum,d os_unit_domain)`)
-	if table.columns[0].Usage.Typmod != 8 || table.columns[0].Usage.Collation.ID != 950 {
-		t.Fatal("genuine sized/collated source descriptor", table.columns[0])
+	if table.Columns[0].Usage.Typmod != 8 || table.Columns[0].Usage.Collation.ID != 950 {
+		t.Fatal("genuine sized/collated source descriptor", table.Columns[0])
 	}
 	for _, expression := range []string{
 		"percentile_cont(.5) WITHIN GROUP(ORDER BY n)",
@@ -733,7 +733,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	} {
 		q := domainUnitBindSelect(t, e, op, "SELECT v,"+expression+" FROM os_unit_authority GROUP BY v")
 		schema := q.Root.Schema()
-		if schema[0].OriginTable != uint32(table.address.ObjectID) || schema[0].OriginAttribute != 1 {
+		if schema[0].OriginTable != uint32(table.Address().ObjectID) || schema[0].OriginAttribute != 1 {
 			t.Fatal("missing genuine input origin", schema[0])
 		}
 		column := schema[1]
@@ -744,8 +744,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		if column.Usage != call.provider.ResultUsage() {
 			t.Fatal("schema/provider authority drift", column, call.provider.ResultUsage())
 		}
-		if strings.Contains(expression, "ORDER BY v)") && column.Usage.Collation != table.columns[0].Usage.Collation {
-			t.Fatal("lost source-column collation authority", expression, column.Usage, table.columns[0].Usage)
+		if strings.Contains(expression, "ORDER BY v)") && column.Usage.Collation != table.Columns[0].Usage.Collation {
+			t.Fatal("lost source-column collation authority", expression, column.Usage, table.Columns[0].Usage)
 		}
 		provider := call.provider.(*functions.OrderedSet)
 		for _, comparison := range []sqltype.Comparison{provider.Comparison(), call.order[0].comparison} {

@@ -9,23 +9,23 @@ import (
 // its DEFAULT markers and supply the real base's complete omission schedule.
 func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.Insert) error {
 	d := b.viewWrite.base
-	b.defaults = make([]expr.Expr, len(d.columns))
+	b.defaults = make([]expr.Expr, len(d.Columns))
 	b.identityDiscard = nil
 	b.insertProjection = nil
-	for i, attr := range d.attributes {
-		b.defaults[i] = d.defaults[attr].expression
-		if identity, ok := d.identities[attr]; ok {
-			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: d.columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
+	for i, attr := range d.Attributes {
+		b.defaults[i] = d.Defaults[attr].Expression
+		if identity, ok := d.Identities[attr]; ok {
+			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: d.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), identity.Sequence), identity: true}
 		}
 	}
-	if s.Override == parser.OverrideUser && len(d.identities) != 0 {
-		b.identityDiscard = make([]bool, len(d.columns))
-		for i, attr := range d.attributes {
-			_, b.identityDiscard[i] = d.identities[attr]
+	if s.Override == parser.OverrideUser && len(d.Identities) != 0 {
+		b.identityDiscard = make([]bool, len(d.Columns))
+		for i, attr := range d.Attributes {
+			_, b.identityDiscard[i] = d.Identities[attr]
 		}
 	}
 	for i, slot := range b.targets {
-		attr := d.attributes[slot]
+		attr := d.Attributes[slot]
 		supplied := false
 		defaultUsed := false
 		if b.query != nil {
@@ -40,11 +40,11 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 			}
 		}
 		if supplied {
-			if _, generated := d.generations[attr]; generated {
-				return generationWriteError(d.columns[slot].Name, false)
+			if _, generated := d.Generations[attr]; generated {
+				return generationWriteError(d.Columns[slot].Name, false)
 			}
-			if identity, ok := d.identities[attr]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
-				return identityInsertError(d.columns[slot].Name)
+			if identity, ok := d.Identities[attr]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+				return identityInsertError(d.Columns[slot].Name)
 			}
 		}
 		discard := len(b.identityDiscard) != 0 && b.identityDiscard[slot]
@@ -53,8 +53,8 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 			b.defaults[slot] = nil
 		}
 	}
-	if len(d.identities) != 0 {
-		b.insertProjection = make([]int, len(d.columns))
+	if len(d.Identities) != 0 {
+		b.insertProjection = make([]int, len(d.Columns))
 		for i := range b.insertProjection {
 			b.insertProjection[i] = -1
 		}

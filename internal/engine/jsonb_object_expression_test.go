@@ -176,8 +176,8 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	array := b.typ(1009).Usage()
 	b.relation = &relationDescriptor{
-		columns:    []ColumnDescriptor{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
-		attributes: []int32{1, 2}, index: map[string]int{"a": 0, "v": 1},
+		Columns:    []ColumnDescriptor{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
+		Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "v": 1},
 	}
 	node, err := b.bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 	if err != nil || !node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {

@@ -28,13 +28,13 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 			continue
 		}
 		d := auth.catalog.MustType(found[0])
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 		diagnosticPath, err := e.referencePath(auth)
 		if err != nil {
 			return nil, ref, err
 		}
-		if !d.typ.IsDomain() {
-			return nil, ref, sqlError("42809", d.typ.DiagnosticName()+" is not a domain")
+		if !d.SQLType.IsDomain() {
+			return nil, ref, sqlError("42809", d.SQLType.DiagnosticName()+" is not a domain")
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
@@ -87,9 +87,9 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	scope.domainInputCatalog = auth.catalog
 	stage.domainBases = append(stage.domainBases, old)
 	next := *old
-	next.domainChecks = slices.Clone(old.domainChecks)
+	next.DomainChecks = slices.Clone(old.DomainChecks)
 	selected := -1
-	for i, check := range next.domainChecks {
+	for i, check := range next.DomainChecks {
 		if check.Name == raw.Constraint.Text {
 			selected = i
 			break
@@ -104,13 +104,13 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		check.NoInherit = false
 		err = e.bindDomainChecks(op, auth, stage, &next, []parser.ColumnConstraint{{Check: &check, Pos: check.Pos}}, scope.input)
 		if err == nil {
-			for i, c := range next.domainChecks {
-				if !slices.ContainsFunc(old.domainChecks, func(prior domainCheckConstraint) bool { return prior.OID == c.OID }) {
+			for i, c := range next.DomainChecks {
+				if !slices.ContainsFunc(old.DomainChecks, func(prior domainCheckConstraint) bool { return prior.OID == c.OID }) {
 					selected = i
 					break
 				}
 			}
-			next.typ, err = sqltype.Domain(old.typ.ID(), old.Name(), old.typ.SQLName(), old.typ.DomainBase(), true)
+			next.SQLType, err = sqltype.Domain(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), old.SQLType.DomainBase(), true)
 		}
 	case parser.DomainDropCheck, parser.DomainValidateCheck:
 		if selected < 0 {
@@ -123,15 +123,15 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			}
 			err = sqlError("42704", message)
 		} else if raw.Action == parser.DomainDropCheck {
-			err = stage.removeDomainCheck(old, next.domainChecks[selected].OID)
+			err = stage.removeDomainCheck(old, next.DomainChecks[selected].OID)
 		} else {
-			next.domainChecks[selected].NotValid = false
+			next.DomainChecks[selected].NotValid = false
 		}
 	default:
 		err = fmt.Errorf("stuntgres: invalid domain constraint action")
 	}
 	if err == nil && raw.Action != parser.DomainDropCheck {
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err == nil {
 			err = stage.replaceDescriptor(&next, false)
 		}
@@ -147,8 +147,8 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	}
 	if validating {
 		chosen := next
-		chosen.domainChecks = []domainCheckConstraint{next.domainChecks[selected]}
-		scope.routineDependencies = chosen.domainChecks[0].dependencies
+		chosen.DomainChecks = []domainCheckConstraint{next.DomainChecks[selected]}
+		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
@@ -160,7 +160,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.reads {
-				if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, relation.address), lock.AccessShare, true); err != nil {
+				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.Address()), lock.AccessShare, true); err != nil {
 					return Result{}, err
 				}
 			}
@@ -181,7 +181,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			return Result{}, discoveryErr
 		}
 		for _, use := range fence.uses {
-			if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, use.relation.address), lock.Share, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, use.relation.Address()), lock.Share, true); err != nil {
 				return Result{}, err
 			}
 		}
@@ -195,7 +195,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if graphErr == nil {
 			for i := range fence.uses {
 				use := &fence.uses[i]
-				use.storage = e.stageStorageLocked(stage, use.relation.address)
+				use.storage = e.stageStorageLocked(stage, use.relation.Address())
 				if use.storage == nil {
 					graphErr = CatalogConflict{}
 					break
@@ -210,7 +210,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		}
 		stage.domainValidation = fence
 		for _, use := range fence.uses {
-			writes, deletes := scope.columnProjectionRoots(use.relation.address)
+			writes, deletes := scope.columnProjectionRoots(use.relation.Address())
 			if err := evaluation.validateSelectedDomainRows(auth.catalog, &chosen, use, frontier, writes, deletes); err != nil {
 				return Result{}, err
 			}

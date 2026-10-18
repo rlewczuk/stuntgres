@@ -174,7 +174,7 @@ func TestSumAnalysisStructure(t *testing.T) {
 func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	target := &relationDescriptor{name: "sum_unit_target", columns: []ColumnDescriptor{{Name: "i", Usage: integer.Usage()}}}
+	target := &relationDescriptor{ObjectName: "sum_unit_target", Columns: []ColumnDescriptor{{Name: "i", Usage: integer.Usage()}}}
 	one := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: parser.Position{Character: 20}}}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "sum", Pos: parser.Position{Character: 10}}}}
 	for _, existingNamespace := range []bool{false, true} {

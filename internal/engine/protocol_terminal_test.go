@@ -114,7 +114,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			defer scope.Finish(context.Canceled)
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			cancel(cause)
-			cursor := &copyCursor{scope: scope, binding: binding{relation: &relationDescriptor{name: "t"}}, number: 1, line: []byte("1"), lineValid: true}
+			cursor := &copyCursor{scope: scope, binding: binding{relation: &relationDescriptor{ObjectName: "t"}}, number: 1, line: []byte("1"), lineValid: true}
 			got := cursor.diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {

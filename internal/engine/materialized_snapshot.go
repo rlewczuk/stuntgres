@@ -26,7 +26,7 @@ type materializedSnapshot struct {
 }
 
 func materializedViewReadError(d *relationDescriptor) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.name), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.Name()), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
 }
 
 func (t *dumpRelation) emitMaterializedSnapshot(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
@@ -34,7 +34,7 @@ func (t *dumpRelation) emitMaterializedSnapshot(ctx context.Context, catalog Cat
 	if err := t.emitRows(ctx, catalog, func(line string) error { rows.WriteString(line); return nil }); err != nil {
 		return err
 	}
-	record := materializedSnapshot{Schema: t.schema, Name: t.name, Populated: t.descriptor.populated, Rows: rows.String()}
+	record := materializedSnapshot{Schema: t.schema, Name: t.name, Populated: t.descriptor.Populated, Rows: rows.String()}
 	if !record.Populated && record.Rows != "" {
 		return fmt.Errorf("stuntgres: unpopulated materialized view has stored rows")
 	}
@@ -205,7 +205,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
 		address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name})
 		d, ok := e.catalog.state.Relation(address)
-		valid := ok && d.relationKind == materializedViewRelation && !d.populated && !seen[address]
+		valid := ok && d.RelationKind == materializedViewRelation && !d.Populated && !seen[address]
 		e.mu.Unlock()
 		if !valid {
 			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
@@ -222,14 +222,14 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 				return fmt.Errorf("stuntgres: invalid materialized view snapshot row statement")
 			}
 			if s.DefaultValues {
-				if len(d.columns) != 0 {
+				if len(d.Columns) != 0 {
 					return fmt.Errorf("stuntgres: snapshot DEFAULT requires zero columns")
 				}
 				rows = append(rows, []sqltype.Value{})
 				continue
 			}
 			for _, row := range s.Rows {
-				if len(row) != len(d.columns) {
+				if len(row) != len(d.Columns) {
 					return fmt.Errorf("stuntgres: invalid materialized view snapshot row width")
 				}
 				for _, raw := range row {
@@ -239,7 +239,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 				}
 			}
 			e.mu.Lock()
-			b, err := e.describe(ctx, s, auth, e.catalog.domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
+			b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				return err
@@ -257,13 +257,13 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			environment.ACLItem = b.aclitemInput
 			evaluation := EvalContext{Context: ctx, Input: environment}
 			for _, expressions := range b.expressions {
-				values := make([]sqltype.Value, len(d.columns))
+				values := make([]sqltype.Value, len(d.Columns))
 				for i, expression := range expressions {
 					value, err := expression.Eval(&evaluation)
 					if err != nil {
 						return err
 					}
-					if value.Type() != d.columns[i].Usage.Type {
+					if value.Type() != d.Columns[i].Usage.Type {
 						return fmt.Errorf("stuntgres: invalid materialized view snapshot value type")
 					}
 					values[i] = value
@@ -288,13 +288,13 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			versions[i].born = e.commitSeq
 		}
 		d := *item.descriptor
-		d.revision, err = e.catalog.revisionLocked()
+		d.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
-		d.populated = item.populated
-		next.setDescriptor(d.address, &d)
-		e.storage[d.address] = &relationStorage{versions: versions}
+		d.Populated = item.populated
+		next.setDescriptor(d.Address(), &d)
+		e.storage[d.Address()] = &relationStorage{versions: versions}
 	}
 	e.catalog.state = next
 	return nil

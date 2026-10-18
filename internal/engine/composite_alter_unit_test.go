@@ -19,7 +19,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address())
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
 	e.mu.Lock()
@@ -29,10 +29,10 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	next, transform, err := e.alterTypeCandidate(nil, op, auth, stage, source, source, ref, action, prepared)
-	if err != nil || next.columns[1].Usage.Type.ID() != sqltype.Int4 || transform.expression != nil || source.columns[1].Usage.Type.ID() != sqltype.Text {
+	if err != nil || next.Columns[1].Usage.Type.ID() != sqltype.Int4 || transform.expression != nil || source.Columns[1].Usage.Type.ID() != sqltype.Text {
 		t.Fatal("descriptor-only conversion executed assignment or changed capture", err)
 	}
-	actions, _ := typedShapeActions(source, source, table, map[int32]bool{source.attributes[0]: true})
+	actions, _ := typedShapeActions(source, source, table, map[int32]bool{source.Attributes[0]: true})
 	if len(actions) != 1 || actions[0].action.Action != parser.AlterColumnType || actions[0].action.Column.Text != "id" {
 		t.Fatal("identity TYPE propagation lost", actions)
 	}
@@ -47,11 +47,11 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			calls := 0
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.catalog.providers[ids.RelationClassID] = provider
+				e.catalog.Providers[ids.RelationClassID] = provider
 				if !e.mu.TryLock() {
 					t.Fatal("provider called under engine lock")
 				}
@@ -72,7 +72,7 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			if kind == "cancel" && (!errors.Is(err, context.Canceled) || e.CatalogRead().state != before.state) {
 				t.Fatal("canceled candidate published", err)
 			}
-			if source.columns[1].Name != "note" || table.columns[1].Name != "note" {
+			if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
 				t.Fatal("retained roots mutated")
 			}
 		})
@@ -82,7 +82,7 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 func TestCompositeArrayStorageAdmission(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	view := e.CatalogRead()
-	row, ok := view.LookupType(source.rowType)
+	row, ok := view.LookupType(source.RowType)
 	if !ok {
 		t.Fatal("missing composite codec")
 	}
@@ -144,12 +144,12 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.wrapped AS public.pair"))
 	before := e.CatalogRead()
 	domain := domainUnitType(t, before, "wrapped")
-	array, ok := before.LookupArray(domain.typ)
-	if !ok || !array.Concrete() || array.Element() != domain.typ || !array.Usage().Valid() {
+	array, ok := before.LookupArray(domain.SQLType)
+	if !ok || !array.Concrete() || array.Element() != domain.SQLType || !array.Usage().Valid() {
 		t.Fatal("domain did not publish an executable reciprocal array", array)
 	}
 	holder := domainUnitTable(t, e, op, "CREATE TABLE public.domain_holder(v public.wrapped[])")
-	if holder.columns[0].Usage.Type != array {
+	if holder.Columns[0].Usage.Type != array {
 		t.Fatal("holder borrowed a different domain-array generation")
 	}
 	original, err := array.Input(context.Background(), `[0:2]={"(7,x)",NULL,"(9,y)"}`, -1)
@@ -164,21 +164,21 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 	}
 	var evolvedArray *sqltype.Descriptor
 	for _, view := range []CatalogRead{evolved, destination.CatalogRead()} {
-		row, ok := view.LookupType(source.rowType)
-		if !ok || row.CompositeMember(1).Name != "label" || row.CompositeMember(1).Attribute != source.attributes[1] {
+		row, ok := view.LookupType(source.RowType)
+		if !ok || row.CompositeMember(1).Name != "label" || row.CompositeMember(1).Attribute != source.Attributes[1] {
 			t.Fatal("composite lost renamed stable member")
 		}
 		wrapped := domainUnitType(t, view, "wrapped")
-		current, ok := view.LookupArray(wrapped.typ)
-		if !ok || !current.Concrete() || current.Element() != wrapped.typ || wrapped.typ.DomainBase().Type != row || current.ID() != array.ID() || wrapped.typ.ID() != domain.typ.ID() {
+		current, ok := view.LookupArray(wrapped.SQLType)
+		if !ok || !current.Concrete() || current.Element() != wrapped.SQLType || wrapped.SQLType.DomainBase().Type != row || current.ID() != array.ID() || wrapped.SQLType.ID() != domain.SQLType.ID() {
 			t.Fatal("domain-array generation lost identity or reciprocity", current)
 		}
-		owned := view.MustRelation(holder.address)
-		ownRow, ok := view.LookupType(owned.rowType)
-		if !ok || owned.columns[0].Usage.Type != current || ownRow.CompositeMember(0).Usage.Type != current {
+		owned := view.MustRelation(holder.Address())
+		ownRow, ok := view.LookupType(owned.RowType)
+		if !ok || owned.Columns[0].Usage.Type != current || ownRow.CompositeMember(0).Usage.Type != current {
 			t.Fatal("holder and own-row member borrowed stale domain-array codec")
 		}
-		if current == array || wrapped.typ == domain.typ || row == domain.typ.DomainBase().Type {
+		if current == array || wrapped.SQLType == domain.SQLType || row == domain.SQLType.DomainBase().Type {
 			t.Fatal("new generation reused retained source codecs")
 		}
 		if evolvedArray == nil {
@@ -197,7 +197,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		_, err = current.Input(context.Background(), `{"(bad,x)"}`, -1)
 		domainUnitDiagnostic(t, err, "22P02", `invalid input syntax for type integer: "bad"`)
 	}
-	if domain.typ.DomainBase().Type.CompositeMember(1).Name != "note" || array.Element() != domain.typ || holder.columns[0].Usage.Type != array || source.columns[1].Name != "note" {
+	if domain.SQLType.DomainBase().Type.CompositeMember(1).Name != "note" || array.Element() != domain.SQLType || holder.Columns[0].Usage.Type != array || source.Columns[1].Name != "note" {
 		t.Fatal("generation reownership mutated retained catalog roots")
 	}
 	text, err := array.Output(context.Background(), original)

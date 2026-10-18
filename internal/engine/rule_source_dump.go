@@ -33,7 +33,7 @@ func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ru
 		leaf := action.binding.querySources[node.occurrence]
 		attributes := leaf.frozenAttributes
 		if attributes == nil {
-			attributes = leaf.relation.attributes
+			attributes = leaf.relation.Attributes
 		}
 		if slot >= len(attributes) {
 			return "", ids.ErrCatalogReplaced

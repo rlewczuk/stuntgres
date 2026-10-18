@@ -225,7 +225,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return rowVersion{}, nil, "", false, err
 	}
-	namespace, ok := catalog.Namespace(parent.namespace)
+	namespace, ok := catalog.Namespace(parent.Namespace())
 	if !ok {
 		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
@@ -248,5 +248,5 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 		return rowVersion{}, nil, "", false, err
 	}
 	live := liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.row, s.stage.deletes[ref.Address])
-	return row, parent, namespace.name, live, nil
+	return row, parent, namespace.Name(), live, nil
 }

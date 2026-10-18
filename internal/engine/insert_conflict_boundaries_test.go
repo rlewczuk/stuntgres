@@ -41,7 +41,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
 			b := bindingForConflict(ref, f.parent, scope.insertConflict)
-			cursor := &insertConflictInputCursor{schema: f.parent.columns, rows: [][]sqltype.Value{insertConflictUnitRow(t, f, 10), insertConflictUnitRow(t, f, 20), insertConflictUnitRow(t, f, 30)}}
+			cursor := &insertConflictInputCursor{schema: f.parent.Columns, rows: [][]sqltype.Value{insertConflictUnitRow(t, f, 10), insertConflictUnitRow(t, f, 20), insertConflictUnitRow(t, f, 30)}}
 			injected := errors.New("owned cursor failure")
 			if failure == "next" {
 				cursor.nextError = injected
@@ -97,9 +97,9 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	defer doneReader()
 	role, _ := f.e.Roles().Lookup("conflict_reader")
 	owner, _ := f.e.Roles().Lookup("postgres")
-	f.parent.owner = owner.Ref
-	f.index.owner = owner.Ref
-	ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
+	f.parent.Owner = owner.Ref
+	f.index.Owner = owner.Ref
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Address())
 	acl := func(privileges authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 	}

@@ -16,7 +16,7 @@ const nativeDatabaseLocale = "C"
 func databaseCollationActualVersion() (*string, error) {
 	locale := nativeDatabaseLocale
 	return collationActualVersion(&collationDescriptor{
-		provider: nativeDatabaseProvider, collate: &locale, ctype: &locale,
+		Provider: nativeDatabaseProvider, Collate: &locale, CType: &locale,
 	})
 }
 
@@ -26,16 +26,16 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.state.epoch || ref.Address != source.Address() {
 		return nil, fmt.Errorf("stuntgres: foreign database source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}
-	if len(source.columns) != len(ids) {
+	if len(source.Columns) != len(ids) {
 		return nil, fmt.Errorf("stuntgres: invalid database source shape")
 	}
 	for i, id := range ids {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign database source type")
 		}
 	}
@@ -49,13 +49,13 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 	if !roles.BelongsTo(&e.authorizationDomain) {
 		return nil, fmt.Errorf("stuntgres: foreign database owner authority")
 	}
-	if _, err := roles.Descriptor(database.owner); err != nil {
+	if _, err := roles.Descriptor(database.Owner); err != nil {
 		return nil, err
 	}
-	if database.owner.ID() > math.MaxUint32 {
+	if database.Owner.ID() > math.MaxUint32 {
 		return nil, fmt.Errorf("stuntgres: unrepresentable database owner")
 	}
-	acl, err := e.pgClassACL(roles, source.columns[17].Usage.Type, database.acl)
+	acl, err := e.pgClassACL(roles, source.Columns[17].Usage.Type, database.ACL)
 	if err != nil {
 		return nil, err
 	}
@@ -66,15 +66,15 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 		}
 		return value
 	}
-	oid := func(i int, n uint32) sqltype.Value { return checked(sqltype.OIDValue(source.columns[i].Usage.Type, n)) }
-	text := func(i int, s string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, s) }
-	null := func(i int) sqltype.Value { return sqltype.Null(source.columns[i].Usage.Type) }
+	oid := func(i int, n uint32) sqltype.Value { return checked(sqltype.OIDValue(source.Columns[i].Usage.Type, n)) }
+	text := func(i int, s string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, s) }
+	null := func(i int) sqltype.Value { return sqltype.Null(source.Columns[i].Usage.Type) }
 	// Unknown database-wide properties remain concrete typed NULLs. UTF8/C is
 	// the native semantic declaration, not a host locale or physical horizon.
 	row := []sqltype.Value{
-		oid(0, uint32(database.address.ObjectID)), text(1, database.name), oid(2, uint32(database.owner.ID())),
-		checked(sqltype.Integer(source.columns[3].Usage.Type, 6)), text(4, nativeDatabaseProvider), null(5), null(6),
-		sqltype.Boolean(source.columns[7].Usage.Type, false), null(8), null(9), null(10), null(11),
+		oid(0, uint32(database.Address().ObjectID)), text(1, database.Name()), oid(2, uint32(database.Owner.ID())),
+		checked(sqltype.Integer(source.Columns[3].Usage.Type, 6)), text(4, nativeDatabaseProvider), null(5), null(6),
+		sqltype.Boolean(source.Columns[7].Usage.Type, false), null(8), null(9), null(10), null(11),
 		text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,
 	}
 	if failure != nil {

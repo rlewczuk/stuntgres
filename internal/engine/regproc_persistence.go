@@ -59,8 +59,8 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 		return record(address)
 	}
 	if owner := routineDescriptorOwner(view, ids.OID(id)); owner != nil {
-		if _, exists := definitionDescriptorAt(view, reader, owner.address); exists {
-			return record(owner.address)
+		if _, exists := definitionDescriptorAt(view, reader, owner.Address()); exists {
+			return record(owner.Address())
 		}
 	}
 	return nil
@@ -68,7 +68,7 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 
 func (r scalarRenderer) recordRoutineReferences(view CatalogRead, value sqltype.Value) error {
 	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
-		r.record(view.owner.domain.Ref(view.Epoch(), address))
+		r.record(view.owner.Domain.Ref(view.Epoch(), address))
 		return nil
 	})
 }

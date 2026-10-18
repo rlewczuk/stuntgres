@@ -46,10 +46,10 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 		if !ok {
 			return ""
 		}
-		if descriptor.typ.NamespaceName() == "pg_catalog" {
+		if descriptor.SQLType.NamespaceName() == "pg_catalog" {
 			// Released diagnostics use SQL aliases, not catalog spellings such
 			// as int4, and do not identifier-quote builtin names such as json.
-			return descriptor.typ.DiagnosticName()
+			return descriptor.SQLType.DiagnosticName()
 		}
 		return typeDiagnosticNameAt(catalog, descriptor, path)
 	}, nil
@@ -239,7 +239,7 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 		}
 		for _, source := range definition.sources {
 			relation, ok := catalog.Relation(source.ref.Address)
-			if ok && relation.relationKind == viewRelation {
+			if ok && relation.RelationKind == viewRelation {
 				if err := capture(viewOf(relation)); err != nil {
 					return err
 				}
@@ -267,13 +267,13 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, gener
 		}
 	}
 	for _, definition := range generations {
-		walkBoundExpression(definition.planned, visit)
+		walkBoundExpression(definition.Planned, visit)
 		if failure != nil {
 			return failure
 		}
 	}
 	for _, definition := range checks {
-		walkBoundExpression(definition.expression, visit)
+		walkBoundExpression(definition.Expression, visit)
 		if failure != nil {
 			return failure
 		}

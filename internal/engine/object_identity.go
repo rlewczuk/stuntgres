@@ -107,8 +107,8 @@ func objectAddressClassKind(class ids.OID) (string, bool) {
 }
 func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, canonical string) {
 	if ns, ok := view.Namespace(namespace); ok {
-		actual, canonical = ns.name, ns.name
-		if ns.temporary != (ids.SessionToken{}) {
+		actual, canonical = ns.Name(), ns.Name()
+		if ns.Temporary != (ids.SessionToken{}) {
 			canonical = "pg_temp"
 		}
 	}
@@ -131,13 +131,13 @@ func objectRelationKind(view CatalogRead, d *relationDescriptor) string {
 }
 func objectAttributeName(view CatalogRead, d *relationDescriptor, sub int32) string {
 	sub = int32(int16(sub))
-	for i, attr := range d.attributes {
+	for i, attr := range d.Attributes {
 		if attr == sub {
-			return d.columns[i].Name
+			return d.Columns[i].Name
 		}
 	}
-	if old, ok := d.droppedAttributes[sub]; ok {
-		return old.name
+	if old, ok := d.DroppedAttributes[sub]; ok {
+		return old.Name
 	}
 	if sub < 0 && sub >= -6 && hasSystemAttributes(view, d) {
 		return [...]string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"}[-sub-1]
@@ -163,22 +163,22 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 			return r, nil
 		}
 		r.found = true
-		r.kind = objectRoutineKind(p.id)
-		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.namespace})
+		r.kind = objectRoutineKind(p.ID)
+		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
 		r.schema = pgIdentifier(ns)
-		r.names = []string{ns, p.name}
-		if p.signature != "" {
-			for arg := range strings.SplitSeq(string(p.signature), ",") {
+		r.names = []string{ns, p.Name}
+		if p.Signature != "" {
+			for arg := range strings.SplitSeq(string(p.Signature), ",") {
 				id, _ := strconv.ParseUint(arg, 10, 32)
 				r.args = append(r.args, objectQualifiedType(view, ids.OID(id)))
 			}
 		}
-		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.name) + "(" + strings.Join(r.args, ",") + ")"
-		r.description = "function " + routineSpelling(view, path, p.id, true, false)
+		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.Name) + "(" + strings.Join(r.args, ",") + ")"
+		r.description = "function " + routineSpelling(view, path, p.ID, true, false)
 		return r, nil
 	}
 	if a.ClassID == 1260 {
-		role, ok := roles.Find(view.owner.principals.Principal(uint64(a.ObjectID)))
+		role, ok := roles.Find(view.owner.Principals.Principal(uint64(a.ObjectID)))
 		if !ok {
 			return r, nil
 		}
@@ -276,13 +276,13 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 	}
 	switch d := d.(type) {
 	case *namespaceDescriptor:
-		_, canonical = objectNamespace(view, d.address)
+		_, canonical = objectNamespace(view, d.Address())
 		r.identity = pgIdentifier(canonical)
 		r.names = []string{canonical}
 		display = r.name
 	case *relationDescriptor:
 		r.kind = objectRelationKind(view, d)
-		display = regclassSpelling(view, path, d.address.ObjectID)
+		display = regclassSpelling(view, path, d.Address().ObjectID)
 		if a.SubID != 0 {
 			r.kind += " column"
 			attr := objectAttributeName(view, d, a.SubID)
@@ -301,25 +301,25 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 	case *operatorDescriptor:
 		r.name = ""
 		left, right := "NONE", "NONE"
-		if d.left != 0 {
-			left = objectQualifiedType(view, d.left)
+		if d.Left != 0 {
+			left = objectQualifiedType(view, d.Left)
 			r.args = append(r.args, left)
 		}
-		if d.right != 0 {
-			right = objectQualifiedType(view, d.right)
+		if d.Right != 0 {
+			right = objectQualifiedType(view, d.Right)
 			r.args = append(r.args, right)
 		}
-		r.identity = pgIdentifier(canonical) + "." + d.name + "(" + left + "," + right + ")"
-		display = d.name
+		r.identity = pgIdentifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
+		display = d.Name()
 		if !namedObjectVisible(view, path, d) {
 			display = pgIdentifier(canonical) + "." + display
 		}
 		humanLeft, humanRight := "NONE", "NONE"
-		if d.left != 0 {
-			humanLeft = regtypeSpelling(view, path, d.left)
+		if d.Left != 0 {
+			humanLeft = regtypeSpelling(view, path, d.Left)
 		}
-		if d.right != 0 {
-			humanRight = regtypeSpelling(view, path, d.right)
+		if d.Right != 0 {
+			humanRight = regtypeSpelling(view, path, d.Right)
 		}
 		display += "(" + humanLeft + "," + humanRight + ")"
 	}
@@ -332,7 +332,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*typeDescriptor); ok && a.ClassID == 2606 {
-			for _, check := range domain.domainChecks {
+			for _, check := range domain.DomainChecks {
 				if check.OID != a.ObjectID {
 					continue
 				}
@@ -340,7 +340,7 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 				r.kind = "domain constraint"
 				ns, _ := objectNamespace(view, domain.Namespace())
 				r.schema = pgIdentifier(ns)
-				typeName := objectQualifiedType(view, ids.OID(domain.typ.ID()))
+				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
 				r.identity = pgIdentifier(check.Name) + " on " + typeName
 				r.names = []string{typeName}
 				r.args = []string{check.Name}
@@ -357,10 +357,10 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 			continue
 		}
 		r.found = true
-		actual, canonical := objectNamespace(view, d.namespace)
-		relation := pgIdentifier(canonical) + "." + pgIdentifier(d.name)
-		r.names = []string{canonical, d.name, name}
-		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.address.ObjectID)
+		actual, canonical := objectNamespace(view, d.Namespace())
+		relation := pgIdentifier(canonical) + "." + pgIdentifier(d.Name())
+		r.names = []string{canonical, d.Name(), name}
+		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.Address().ObjectID)
 		switch a.ClassID {
 		case 2606:
 			r.kind = "table constraint"
@@ -386,44 +386,44 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32) {
 	switch a.ClassID {
 	case 2606:
-		for _, x := range d.notNullConstraints {
+		for _, x := range d.NotNullConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.checkConstraints {
+		for _, x := range d.CheckConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.uniqueConstraints {
+		for _, x := range d.UniqueConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.exclusionConstraints {
+		for _, x := range d.ExclusionConstraints {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.foreignKeys {
+		for _, x := range d.ForeignKeys {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
 	case 2604:
-		for sub, x := range d.defaults {
+		for sub, x := range d.Defaults {
 			if x.OID == a.ObjectID {
 				return "default", sub
 			}
 		}
-		for sub, x := range d.generations {
+		for sub, x := range d.Generations {
 			if x.OID == a.ObjectID {
 				return "generation", sub
 			}
 		}
 	case 2618:
-		if d.view != nil && d.view.RuleOID() == a.ObjectID {
+		if d.View != nil && d.View.RuleOID() == a.ObjectID {
 			return "_RETURN", 0
 		}
 		for _, x := range rulesOf(d) {
@@ -432,7 +432,7 @@ func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32
 			}
 		}
 	case 3256:
-		for _, x := range d.policies {
+		for _, x := range d.Policies {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}

@@ -12,29 +12,29 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 	if err := visit(root); err != nil {
 		return err
 	}
-	children := inheritanceChildren(catalog, root.address)
+	children := inheritanceChildren(catalog, root.Address())
 	if len(children) == 0 {
 		return nil
 	}
-	seen := map[ids.ObjectAddress]bool{root.address: true}
+	seen := map[ids.ObjectAddress]bool{root.Address(): true}
 	var walk func([]*relationDescriptor) error
 	walk = func(children []*relationDescriptor) error {
 		for _, child := range children {
-			if seen[child.address] {
+			if seen[child.Address()] {
 				continue
 			}
-			seen[child.address] = true
-			ns, ok := catalog.Namespace(child.namespace)
+			seen[child.Address()] = true
+			ns, ok := catalog.Namespace(child.Namespace())
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			if ns.temporary != (ids.SessionToken{}) && ns.temporary != token {
+			if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token {
 				continue
 			}
 			if err := visit(child); err != nil {
 				return err
 			}
-			if err := walk(inheritanceChildren(catalog, child.address)); err != nil {
+			if err := walk(inheritanceChildren(catalog, child.Address())); err != nil {
 				return err
 			}
 		}
@@ -54,13 +54,13 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 			return ids.ErrCatalogReplaced
 		}
 		leaf.relation = d
-		if d.relationKind == viewRelation {
+		if d.RelationKind == viewRelation {
 			for _, address := range active {
-				if address == d.address {
+				if address == d.Address() {
 					return nil
 				}
 			}
-			active = append(active, d.address)
+			active = append(active, d.Address())
 			defer func() { active = active[:len(active)-1] }()
 			for i, child := range viewOf(d).sources {
 				if child.analysisOnly {
@@ -76,12 +76,12 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 			}
 			return nil
 		}
-		if d.relationKind != tableRelation || leaf.only {
+		if d.RelationKind != tableRelation || leaf.only {
 			return visit(leaf)
 		}
 		return inheritanceQueryClosure(catalog, d, token, func(physical *relationDescriptor) error {
 			child := leaf
-			child.ref.Address, child.relation = physical.address, physical
+			child.ref.Address, child.relation = physical.Address(), physical
 			return visit(child)
 		})
 	}
@@ -106,7 +106,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.catalog)
 		d, ok := catalog.Relation(s.lockedRef.Address)
-		if !ok || d.view == nil {
+		if !ok || d.View == nil {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
@@ -135,7 +135,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		}
 		var pending []queryLeaf
 		err := inheritanceQueryLeaves(catalog, roots, s.op.session.token, func(leaf queryLeaf) error {
-			if leaf.relation.relationKind != tableRelation {
+			if leaf.relation.RelationKind != tableRelation {
 				return nil
 			}
 			mode := lock.AccessShare
@@ -145,7 +145,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.relationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}

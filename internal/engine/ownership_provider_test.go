@@ -18,7 +18,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				source := roleAttributeCreate(t, e, op, "own_source", false, parser.RoleOptions{})
 				target := roleAttributeCreate(t, e, op, "own_target", false, parser.RoleOptions{})
 				original := e.CatalogRead()
-				member := original.Get(extension.members[index])
+				member := original.Get(extension.Members[index])
 				owner, _, _ := descriptorACL(member)
 				stage := e.BeginCatalogStage(original)
 				defer e.DiscardCatalogStage(stage)
@@ -44,7 +44,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				}
 				reassigned := e.catalog.state.Get(member.Address())
 				actual, _, _ := descriptorACL(reassigned)
-				if actual != target.Ref || e.catalog.state.Get(extension.address) != extension || sourceGeneration == reassigned {
+				if actual != target.Ref || e.catalog.state.Get(extension.Address()) != extension || sourceGeneration == reassigned {
 					t.Fatal("independent member reassignment")
 				}
 				previous, _, _ := descriptorACL(sourceGeneration)
@@ -61,7 +61,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				noun := ""
 				switch d := member.(type) {
 				case *procedureDescriptor:
-					switch d.signature {
+					switch d.Signature {
 					case unaccentTextSignature:
 						noun = "function unaccent(text)"
 					case unaccentDictionarySignature:
@@ -94,15 +94,15 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				if result, err := e.Execute(op, &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "own_extension"}, {Name: "own_target"}}, Mode: dropMode}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 					t.Fatal("canonical owner union", result, err)
 				}
-				if e.catalog.state.Get(extension.address) != nil {
+				if e.catalog.state.Get(extension.Address()) != nil {
 					t.Fatal("extension survived complete union")
 				}
-				for _, address := range extension.members {
+				for _, address := range extension.Members {
 					if e.catalog.state.Get(address) != nil {
 						t.Fatal("canonical member survived", address)
 					}
 				}
-				for _, address := range extension.members {
+				for _, address := range extension.Members {
 					if original.Get(address) == nil {
 						t.Fatal("retained member generation mutated", address)
 					}

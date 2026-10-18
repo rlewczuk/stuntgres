@@ -24,10 +24,10 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	var source, destination *collationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*collationDescriptor); ok {
-			if d.name == "ac_source" {
+			if d.Name() == "ac_source" {
 				source = d
 			}
-			if d.name == "ac_destination" {
+			if d.Name() == "ac_destination" {
 				destination = d
 			}
 		}
@@ -38,10 +38,10 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	remap := remappedCollationCapabilities(view.state, map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): destination.Address()})
 	ref := catalogRef(t, e, view, "ac_authority")
 	table := view.MustRelation(ref.Address)
-	for _, attribute := range table.attributes {
-		original := table.defaults[attribute].expression.(scalarArrayComparisonExpression)
+	for _, attribute := range table.Attributes {
+		original := table.Defaults[attribute].Expression.(scalarArrayComparisonExpression)
 		input, conflict := original.predicate.InputCollation()
-		if input.ID != uint32(source.oid) || conflict || original.ResultUsage().Collation.ID != 0 {
+		if input.ID != uint32(source.OID) || conflict || original.ResultUsage().Collation.ID != 0 {
 			t.Fatal("BOOL result leaked or hid input authority", input, conflict, original.ResultUsage())
 		}
 		mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, remap)
@@ -50,7 +50,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		}
 		node := mapped.(scalarArrayComparisonExpression)
 		input, conflict = node.predicate.InputCollation()
-		if input.ID != uint32(destination.oid) || !input.Valid() || conflict {
+		if input.ID != uint32(destination.OID) || !input.Valid() || conflict {
 			t.Fatal("predicate retained stale collation", input, conflict)
 		}
 		value, err := node.Eval(&EvalContext{Context: context.Background()})

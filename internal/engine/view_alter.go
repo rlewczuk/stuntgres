@@ -27,8 +27,8 @@ func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.Alt
 			ownerChecked = true
 		}
 	}
-	if d.relationKind != kind {
-		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.name, label))
+	if d.RelationKind != kind {
+		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.Name(), label))
 	}
 	if ownerChecked {
 		return nil
@@ -100,19 +100,19 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		if extension == nil {
 			return fail(ids.ErrCatalogReplaced)
 		}
-		slot := sort.Search(len(old.autoExtensions), func(i int) bool { return old.autoExtensions[i].ObjectID >= address.ObjectID })
-		present := slot < len(old.autoExtensions) && old.autoExtensions[slot] == address
+		slot := sort.Search(len(old.AutoExtensions), func(i int) bool { return old.AutoExtensions[i].ObjectID >= address.ObjectID })
+		present := slot < len(old.AutoExtensions) && old.AutoExtensions[slot] == address
 		changed = present == (s.Action == "no_depends")
 		if changed {
 			if present {
-				next.autoExtensions = make([]ids.ObjectAddress, len(old.autoExtensions)-1)
-				copy(next.autoExtensions, old.autoExtensions[:slot])
-				copy(next.autoExtensions[slot:], old.autoExtensions[slot+1:])
+				next.AutoExtensions = make([]ids.ObjectAddress, len(old.AutoExtensions)-1)
+				copy(next.AutoExtensions, old.AutoExtensions[:slot])
+				copy(next.AutoExtensions[slot:], old.AutoExtensions[slot+1:])
 			} else {
-				next.autoExtensions = make([]ids.ObjectAddress, len(old.autoExtensions)+1)
-				copy(next.autoExtensions, old.autoExtensions[:slot])
-				next.autoExtensions[slot] = address
-				copy(next.autoExtensions[slot+1:], old.autoExtensions[slot:])
+				next.AutoExtensions = make([]ids.ObjectAddress, len(old.AutoExtensions)+1)
+				copy(next.AutoExtensions, old.AutoExtensions[:slot])
+				next.AutoExtensions[slot] = address
+				copy(next.AutoExtensions[slot+1:], old.AutoExtensions[slot:])
 			}
 		}
 	case "set", "reset":
@@ -153,12 +153,12 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				return fail(err)
 			}
 		}
-		next.view = &definition
+		next.View = &definition
 	default:
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}
 	if changed {
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return fail(err)
 		}
@@ -195,8 +195,8 @@ func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 	if ownerErr == nil {
 		return nil
 	}
-	ns := auth.catalog.MustNamespace(d.namespace)
-	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.owner)
+	ns := auth.catalog.MustNamespace(d.Namespace())
+	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.Owner)
 	if err != nil {
 		return err
 	}
@@ -237,9 +237,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			continue
 		}
 		d := auth.catalog.MustRelation(ref.Address)
-		if d.relationKind != kind {
+		if d.RelationKind != kind {
 			hint := "Use DROP TABLE to remove a table."
-			switch d.relationKind {
+			switch d.RelationKind {
 			case sequenceRelation:
 				hint = "Use DROP SEQUENCE to remove a sequence."
 			case indexRelation:
@@ -250,7 +250,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
 			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.name, label), Hint: hint}
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
 		}
 		if err := viewDropOwner(auth, ref, d); err != nil {
 			e.mu.Unlock()
@@ -294,7 +294,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.domain {
+		if !ok || ref.Domain() != e.catalog.Domain {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}

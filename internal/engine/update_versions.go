@@ -159,7 +159,7 @@ retry:
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
-	if ref.Domain() != e.catalog.domain {
+	if ref.Domain() != e.catalog.Domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
@@ -178,7 +178,7 @@ retry:
 		return errors.New("stuntgres: invalid update stage")
 	}
 	for i, row := range rows {
-		if old[i].row == 0 || old[i].version == 0 || len(row) != len(relation.columns) {
+		if old[i].row == 0 || old[i].version == 0 || len(row) != len(relation.Columns) {
 			return errors.New("stuntgres: invalid staged row")
 		}
 	}

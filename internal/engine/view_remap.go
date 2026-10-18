@@ -955,18 +955,18 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 			changed = changed || old != typ(old)
 		})
 	}
-	for _, definition := range d.defaults {
-		expression(definition.expression)
+	for _, definition := range d.Defaults {
+		expression(definition.Expression)
 	}
-	for _, definition := range d.generations {
-		expression(definition.expression)
-		expression(definition.planned)
+	for _, definition := range d.Generations {
+		expression(definition.Expression)
+		expression(definition.Planned)
 	}
-	for _, constraint := range d.checkConstraints {
-		expression(constraint.expression)
+	for _, constraint := range d.CheckConstraints {
+		expression(constraint.Expression)
 	}
-	for _, policy := range d.policies {
-		for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
+	for _, policy := range d.Policies {
+		for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)
 				changed = changed || queryDescriptorsChanged(condition.presentation.query.Root, typ)
@@ -979,37 +979,37 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 			}
 		}
 	}
-	if d.sqlIndex != nil {
-		for _, key := range d.sqlIndex.keys {
-			if key.derived != nil {
-				expression(key.derived.definition)
-				expression(key.derived.execution)
+	if d.SQLIndex != nil {
+		for _, key := range d.SQLIndex.Keys {
+			if key.Derived != nil {
+				expression(key.Derived.Definition)
+				expression(key.Derived.Execution)
 			}
 		}
-		if predicate := d.sqlIndex.predicate; predicate != nil {
-			expression(predicate.definition)
-			expression(predicate.execution)
+		if predicate := d.SQLIndex.Predicate; predicate != nil {
+			expression(predicate.Definition)
+			expression(predicate.Execution)
 		}
 	}
-	if d.partition != nil {
-		for _, key := range d.partition.keys {
-			changed = changed || key.usage.Type != typ(key.usage.Type)
-			if key.derived != nil {
-				expression(key.derived.definition)
-				expression(key.derived.execution)
+	if d.Partition != nil {
+		for _, key := range d.Partition.Keys {
+			changed = changed || key.Usage.Type != typ(key.Usage.Type)
+			if key.Derived != nil {
+				expression(key.Derived.Definition)
+				expression(key.Derived.Execution)
 			}
 		}
 	}
-	if d.membership != nil {
-		for _, tuple := range [][]partitionDatum{d.membership.lower, d.membership.upper} {
+	if d.Membership != nil {
+		for _, tuple := range [][]partitionDatum{d.Membership.Lower, d.Membership.Upper} {
 			for _, datum := range tuple {
-				if datum.kind == 0 {
-					changed = changed || datum.value.Type() != typ(datum.value.Type())
+				if datum.Kind == 0 {
+					changed = changed || datum.Value.Type() != typ(datum.Value.Type())
 				}
 			}
 		}
 	}
-	if d.view != nil {
+	if d.View != nil {
 		for _, usage := range viewOf(d).castUsages {
 			changed = changed || usage.Type != typ(usage.Type)
 		}
@@ -1037,7 +1037,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 	var views []*relationDescriptor
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
-		if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
+		if view, ok := descriptor.(*relationDescriptor); ok && view.View != nil {
 			if viewOf(view).rule == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}
@@ -1045,7 +1045,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 			views = append(views, view)
 		}
 	}
-	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
+	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
 	for _, view := range views {
 		rule := viewOf(view).rule
 		if reserved[rule]&(descriptorOID|claimedOID) != 0 {
@@ -1063,8 +1063,8 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 			definition := *viewOf(view)
 			definition.rule = rule
 			replacement := *view
-			replacement.view = &definition
-			next.setDescriptor(view.address, &replacement)
+			replacement.View = &definition
+			next.setDescriptor(view.Address(), &replacement)
 		}
 		reserved[rule] |= ruleOID | claimedOID
 	}

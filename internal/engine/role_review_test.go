@@ -22,7 +22,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	ns := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	ns := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	namespaceACL := invalid
 	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege
@@ -181,7 +181,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	}
 	unchanged()
 	namespaceDescriptor := *e.catalog.state.MustNamespace(namespace.Address)
-	namespaceDescriptor.acl = namespaceACL
+	namespaceDescriptor.ACL = namespaceACL
 	namespaceView := cloneCatalog(e.catalog.state)
 	namespaceView.setDescriptor(namespace.Address, &namespaceDescriptor)
 	if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(namespaceView)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
@@ -199,9 +199,9 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		unchanged()
 		bad := *original
 		if column {
-			bad.columnACL = map[int32]authorization.ACLValue{1: invalid}
+			bad.ColumnACL = map[int32]authorization.ACLValue{1: invalid}
 		} else {
-			bad.acl = invalid
+			bad.ACL = invalid
 		}
 		view := cloneCatalog(e.catalog.state)
 		view.setDescriptor(ref.Address, &bad)
@@ -210,8 +210,8 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		}
 		unchanged()
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		bad.address.ObjectID = e.catalog.nextOID
-		bad.name = "invalid_stage"
+		bad.ObjectAddress.ObjectID = e.catalog.nextOID
+		bad.ObjectName = "invalid_stage"
 		if err := stage.Create(&bad); err != nil {
 			t.Fatal(err)
 		}
@@ -230,9 +230,9 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		foreignACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 		foreignACL.Entries[0].Grantor = source.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if column {
-			foreign.columnACL = map[int32]authorization.ACLValue{1: foreignACL}
+			foreign.ColumnACL = map[int32]authorization.ACLValue{1: foreignACL}
 		} else {
-			foreign.acl = foreignACL
+			foreign.ACL = foreignACL
 		}
 		foreignView := cloneCatalog(source.catalog.state)
 		foreignView.setDescriptor(foreignRef.Address, &foreign)
@@ -507,8 +507,8 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 				close(release)
 			}
 		}()
-		e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
-			CatalogProvider: e.catalog.providers[ids.RelationClassID],
+		e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+			CatalogProvider: e.catalog.Providers[ids.RelationClassID],
 			publishWinner: func(Descriptor) {
 				close(entered)
 				<-release

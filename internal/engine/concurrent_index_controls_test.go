@@ -60,7 +60,7 @@ func TestConcurrentIndexU7InvalidDumpAndSuccessOnlyRepair(t *testing.T) {
 	consumer := sessionStart(t, restored, nil)
 	concurrentUnitError(t, consumer, "INSERT INTO t VALUES(2)", "23505")
 	imported, _ := concurrentUnitIndex(t, restored, "ui", true, true)
-	if imported.sqlIndex.constraint != nil {
+	if imported.SQLIndex.Constraint != nil {
 		t.Fatal("restore fabricated backing constraint")
 	}
 	concurrentUnitRootMatchesStorage(t, restored, imported)
@@ -232,7 +232,7 @@ func TestConcurrentIndexU7OrdinaryUniqueUsesPublicParseAndExecute(t *testing.T) 
 		t.Fatal("ordinary UNIQUE public execution", result, err)
 	}
 	index, _ := concurrentUnitIndex(t, e, "ui", true, true)
-	if !index.sqlIndex.unique || !index.sqlIndex.nullsNotDistinct || index.sqlIndex.constraint != nil {
+	if !index.SQLIndex.Unique || !index.SQLIndex.NullsNotDistinct || index.SQLIndex.Constraint != nil {
 		t.Fatal("ordinary UNIQUE definition identity")
 	}
 	sessionSQL(t, s, "INSERT INTO t VALUES(NULL)")
@@ -288,22 +288,22 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	var original *relationDescriptor
 	e.mu.Lock()
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.name == "retained_ci_temp_index" {
-			namespace := e.catalog.state.MustNamespace(index.namespace)
-			if namespace.temporary == s.token {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.Name() == "retained_ci_temp_index" {
+			namespace := e.catalog.state.MustNamespace(index.Namespace())
+			if namespace.Temporary == s.token {
 				original = index
 			}
 		}
 	}
 	e.mu.Unlock()
-	if original == nil || original.sqlIndex.ready || original.sqlIndex.valid {
+	if original == nil || original.SQLIndex.Ready || original.SQLIndex.Valid {
 		t.Fatal("real retained TEMP invalid descriptor missing")
 	}
 	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE imported(n INT); INSERT INTO imported VALUES(7);")); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	retained := e.catalog.state.Get(original.address) == original && e.indexRoots[original.address] == nil
+	retained := e.catalog.state.Get(original.Address()) == original && e.indexRoots[original.Address()] == nil
 	e.mu.Unlock()
 	if !retained {
 		t.Fatal("replacement healed or replaced retained not-ready TEMP descriptor")
@@ -326,14 +326,14 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			original, _ := concurrentUnitIndex(t, e, "ui", false, false)
 			base := e.CatalogRead()
 			e.mu.Lock()
-			parent := e.catalog.state.MustRelation(original.sqlIndex.parent)
-			store := e.storage[parent.address]
+			parent := e.catalog.state.MustRelation(original.SQLIndex.Parent)
+			store := e.storage[parent.Address()]
 			snapshot := *store
 			e.mu.Unlock()
-			next, definition := *original, *original.sqlIndex
-			definition.ready = true
-			next.sqlIndex = &definition
-			next.revision++
+			next, definition := *original, *original.SQLIndex
+			definition.Ready = true
+			next.SQLIndex = &definition
+			next.ObjectRevision++
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -343,8 +343,8 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
-			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.address: {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+			stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
+			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}

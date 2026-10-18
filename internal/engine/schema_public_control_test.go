@@ -46,14 +46,14 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			}
 			var acl authorization.ACLValue
 			if tc.namespace != "" {
-				acl = e.CatalogRead().MustNamespace(schemaRef(t, e, tc.namespace).Address).acl
+				acl = e.CatalogRead().MustNamespace(schemaRef(t, e, tc.namespace).Address).ACL
 			}
 			before := e.CatalogRead()
 			names := make(map[string]authorization.ACLValue)
 			owners := make(map[string]authorization.PrincipalRef)
 			for _, descriptor := range before.Descriptors() {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
-					names[ns.name], owners[ns.name] = ns.acl, ns.owner
+					names[ns.Name()], owners[ns.Name()] = ns.ACL, ns.Owner
 				}
 			}
 			var dump bytes.Buffer
@@ -73,9 +73,9 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			gotNames := make(map[string]authorization.ACLValue)
 			for _, descriptor := range after.Descriptors() {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
-					gotNames[ns.name] = ns.acl
-					if ns.owner != owners[ns.name] {
-						t.Fatal("namespace owner changed", ns.name)
+					gotNames[ns.Name()] = ns.ACL
+					if ns.Owner != owners[ns.Name()] {
+						t.Fatal("namespace owner changed", ns.Name())
 					}
 				}
 			}
@@ -89,7 +89,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			} else {
 				d := e.CatalogRead().MustNamespace(schemaRef(t, e, tc.namespace).Address)
 				owner, _ := e.Roles().Lookup(tc.owner)
-				if d.owner != owner.Ref || d.acl.Explicit != tc.explicit || !sameACL(d.acl, acl) {
+				if d.Owner != owner.Ref || d.ACL.Explicit != tc.explicit || !sameACL(d.ACL, acl) {
 					t.Fatalf("owner/ACL changed: %+v want owner %v ACL %+v", d, owner.Ref, acl)
 				}
 				if tc.table {
@@ -103,7 +103,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					td := e.CatalogRead().MustRelation(roleTableRef(t, e, tc.namespace+".t").Address)
 					// Namespace OWNER does not restamp the independently owned table.
 					oldTable := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: before.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.namespace}), Name: "t"}))
-					if td.owner != oldTable.owner || td.acl.Explicit || len(td.acl.Entries) != 0 {
+					if td.Owner != oldTable.Owner || td.ACL.Explicit || len(td.ACL.Entries) != 0 {
 						t.Fatal("table owner/ACL changed")
 					}
 				}
@@ -157,12 +157,12 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 						}}
 					}
-					if ns.owner != owner.Ref || !sameACL(ns.acl, wantACL) {
+					if ns.Owner != owner.Ref || !sameACL(ns.ACL, wantACL) {
 						t.Fatal("restored owner/ACL", name, ns)
 					}
 				}
 				table := before.MustRelation(roleTableRef(t, e, "restored_data.t").Address)
-				if table.owner != owner.Ref || table.acl.Explicit || len(table.acl.Entries) != 0 {
+				if table.Owner != owner.Ref || table.ACL.Explicit || len(table.ACL.Entries) != 0 {
 					t.Fatal("restored table owner/ACL", table)
 				}
 				for _, q := range []string{"CREATE SCHEMA additional", "CREATE SCHEMA nested CREATE TABLE t(id INT NOT NULL) CREATE TABLE u(id INT)"} {
@@ -185,7 +185,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				postgres, _ := e.Roles().Lookup("postgres")
 				for _, name := range []string{"additional", "nested"} {
 					namespace := after.MustNamespace(schemaRef(t, e, name).Address)
-					if namespace.owner != postgres.Ref || namespace.acl.Explicit || len(namespace.acl.Entries) != 0 {
+					if namespace.Owner != postgres.Ref || namespace.ACL.Explicit || len(namespace.ACL.Entries) != 0 {
 						t.Fatal("new namespace owner/ACL", name, namespace)
 					}
 				}

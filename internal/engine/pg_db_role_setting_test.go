@@ -21,7 +21,7 @@ func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*r
 	if !ok {
 		t.Fatal("missing pg_db_role_setting")
 	}
-	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
 func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) {
@@ -40,15 +40,15 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgDBRoleSettingUnitSource(t, e, catalog)
 	owner := e.Roles().LookupRef("postgres")
-	if d.name != "pg_db_role_setting" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.relationKind != catalogRelation || d.virtualView || d.attributeHighWater != 3 || len(d.columns) != 3 || d.owner != owner || !d.hasIndexes {
+	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}
 	typeIDs := [...]sqltype.ID{26, 26, 1009}
 	collations := [...]uint32{0, 0, 950}
-	for i, column := range d.columns {
+	for i, column := range d.Columns {
 		typ, ok := catalog.LookupType(typeIDs[i])
-		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i == 2) || !column.NullabilityKnown || column.OriginTable != 2964 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i == 2) || !column.NullabilityKnown || column.OriginTable != 2964 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}
 		metadata := relationAttributeMetadata(d, i)
@@ -56,27 +56,27 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		if i == 2 {
 			dimensions = 1
 		}
-		if metadata.name != names[i] || metadata.typeID != uint32(typeIDs[i]) || metadata.number != int32(i+1) || metadata.typmod != -1 || metadata.notNull != (i < 2) || metadata.dimensions != dimensions || metadata.collation != collations[i] {
+		if metadata.Name != names[i] || metadata.TypeID != uint32(typeIDs[i]) || metadata.Number != int32(i+1) || metadata.Typmod != -1 || metadata.NotNull != (i < 2) || metadata.Dimensions != dimensions || metadata.Collation != collations[i] {
 			t.Fatal("catalog attribute projection", i, metadata)
 		}
 	}
-	if _, exists := d.index["oid"]; exists {
+	if _, exists := d.Index["oid"]; exists {
 		t.Fatal("invented oid column")
 	}
-	if d.columns[2].Usage.Type.Element().ID() != 25 {
+	if d.Columns[2].Usage.Type.Element().ID() != 25 {
 		t.Fatal("text array element")
 	}
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10054})
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053})
 	ownedRow, ok := catalog.LookupType(10054)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if d.rowType != 10054 || !ok || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10053 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	if d.RowType != 10054 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10053 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
@@ -197,15 +197,15 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 		base := e.CatalogRead()
 		d, _ := pgDBRoleSettingUnitSource(t, e, base)
 		next := *d
-		next.revision++
-		next.acl = authorization.ACLValue{Explicit: true}
-		next.columnACL = nil
+		next.ObjectRevision++
+		next.ACL = authorization.ACLValue{Explicit: true}
+		next.ColumnACL = nil
 		if table {
-			next.acl.Entries = []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}
+			next.ACL.Entries = []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}
 		}
 		if column {
-			next.columnACL = map[int32]authorization.ACLValue{
-				1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}},
+			next.ColumnACL = map[int32]authorization.ACLValue{
+				1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}},
 			}
 		}
 		stage := e.BeginCatalogStage(base)

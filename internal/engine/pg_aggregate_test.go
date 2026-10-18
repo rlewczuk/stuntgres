@@ -13,13 +13,13 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
 	source := catalog.MustRelation(address)
-	ref := e.catalog.domain.Ref(catalog.Epoch(), address)
-	if source.rowType != 10027 || source.virtualView || !source.hasIndexes || len(source.columns) != 22 {
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), address)
+	if source.RowType != 10027 || source.VirtualView || !source.HasIndexes || len(source.Columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
 	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027})
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026})
-	if row.owningRelation != address || array.owningRelation != address || row.array != 10026 || array.typ.Element() != row.typ || row.owner != source.owner || array.owner != source.owner {
+	if row.OwningRelation != address || array.OwningRelation != address || row.Array != 10026 || array.SQLType.Element() != row.SQLType || row.Owner != source.Owner || array.Owner != source.Owner {
 		t.Fatal("aggregate row/array ownership")
 	}
 	nextOID, nextRevision := e.catalog.nextOID, e.catalog.nextRevision
@@ -35,17 +35,17 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 			t.Fatal("definition width", len(values))
 		}
 		for i, v := range values {
-			if v.Type() != source.columns[i].Usage.Type || i < 20 && v.IsNull() {
+			if v.Type() != source.Columns[i].Usage.Type || i < 20 && v.IsNull() {
 				t.Fatal("typed aggregate field", i, v)
 			}
 		}
 	}
-	for i, c := range source.columns {
+	for i, c := range source.Columns {
 		collation := uint32(0)
 		if i >= 20 {
 			collation = 950
 		}
-		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.catalogAttributes[i].notNull != (i < 20) {
+		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.CatalogAttributes[i].NotNull != (i < 20) {
 			t.Fatal("aggregate attribute facts", i, c)
 		}
 	}
@@ -53,8 +53,8 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second.anonymous[0][0] = sqltype.Null(source.columns[0].Usage.Type)
-	second.anonymous[1][1] = sqltype.Null(source.columns[1].Usage.Type)
+	second.anonymous[0][0] = sqltype.Null(source.Columns[0].Usage.Type)
+	second.anonymous[1][1] = sqltype.Null(source.Columns[1].Usage.Type)
 	if captured.anonymous[0][0].IsNull() || captured.anonymous[1][1].IsNull() || second.anonymous[0][1].IsNull() {
 		t.Fatal("aggregate row slots alias")
 	}
@@ -80,11 +80,11 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 			t.Fatal("foreign/stale source admitted", got, err)
 		}
 	}
-	for i := range source.columns {
+	for i := range source.Columns {
 		state := cloneCatalog(catalog.state)
 		bad := *source
-		bad.columns = append([]ColumnDescriptor(nil), source.columns...)
-		bad.columns[i].Usage.Type, _ = foreign.LookupType(source.columns[i].Usage.Type.ID())
+		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
+		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
 		state.setDescriptor(address, &bad)
 		if got, err := capturePGAggregate(context.Background(), e.catalog.read(state), ref, &bad); got != nil || err == nil {
 			t.Fatal("foreign column generation admitted", i, err)
@@ -98,12 +98,12 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if got, err := capturePGAggregate(context.Background(), fresh, ref, source); got != nil || err == nil {
 		t.Fatal("retired source admitted", err)
 	}
-	newRef := e.catalog.domain.Ref(fresh.Epoch(), address)
+	newRef := e.catalog.Domain.Ref(fresh.Epoch(), address)
 	if got, err := capturePGAggregate(context.Background(), fresh, newRef, newSource); err != nil || len(got.anonymous) != 144 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
 	for i, v := range captured.anonymous[0] {
-		if v.Type() != source.columns[i].Usage.Type {
+		if v.Type() != source.Columns[i].Usage.Type {
 			t.Fatal("retained capture retagged", i)
 		}
 	}
@@ -115,15 +115,15 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	}
 	seen := make(map[ids.OID]bool)
 	for _, d := range builtinAggregateDefinitions {
-		identity, ok := routineByOID[d.function]
-		if !ok || seen[d.function] || identity.namespace != ids.PGCatalogNamespaceOID {
-			t.Fatal("unowned/duplicate aggregate signature", d.function)
+		identity, ok := routineByOID[d.Function]
+		if !ok || seen[d.Function] || identity.Namespace != ids.PGCatalogNamespaceOID {
+			t.Fatal("unowned/duplicate aggregate signature", d.Function)
 		}
-		seen[d.function] = true
-		for _, id := range d.functions {
+		seen[d.Function] = true
+		for _, id := range d.Functions {
 			if id != 0 {
 				if _, ok := routineByOID[id]; !ok {
-					t.Fatal("unknown released helper", d.function, id)
+					t.Fatal("unknown released helper", d.Function, id)
 				}
 			}
 		}
@@ -137,7 +137,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
-	ref := e.catalog.domain.Ref(catalog.Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)

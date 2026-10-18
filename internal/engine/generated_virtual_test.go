@@ -13,9 +13,9 @@ import (
 
 func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
 	two, _ := sqltype.Integer(typ, 2)
 	seven, _ := sqltype.Integer(typ, 7)
 	ten, _ := sqltype.Integer(typ, 10)
@@ -54,7 +54,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	if _, err = generated.Eval(&inner); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: base, planned: base}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: base, Planned: base}}
 	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 
 func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 	_, view, d := generatedUnitDescriptor(t)
-	integer := d.columns[0].Usage.Type
+	integer := d.Columns[0].Usage.Type
 	domain, err := sqltype.Domain(64001, "vd", "public.vd", integer.Usage())
 	if err != nil {
 		t.Fatal(err)
@@ -120,13 +120,13 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 
 func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
-	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
-	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
-	node := b.queryColumnAt(queryColumn{descriptor: d.columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
+	node := b.queryColumnAt(queryColumn{descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
 	if len(b.querySources[0].uses) != 1 || b.querySources[0].uses[0] != 1 {
 		t.Fatal("base SELECT widened", b.querySources[0].uses)
 	}
@@ -139,7 +139,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	if v, err := node.Eval(&eval); err != nil || v.IsNull() {
 		t.Fatal(v, err)
 	}
-	d.columns[1].Nullable = false
+	d.Columns[1].Nullable = false
 	validator := newAlterRowValidator(d, "public")
 	if err := validator.validate(row, &eval); err != nil {
 		t.Fatal("physical NULL rejected logical nine", err)
@@ -156,18 +156,18 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	if !ok {
 		t.Fatal("oid missing")
 	}
-	original := d.address
-	d.address.ObjectID++
-	d.columns[1].Usage = oid.Usage()
-	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
+	original := d.Address()
+	d.ObjectAddress.ObjectID++
+	d.Columns[1].Usage = oid.Usage()
+	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
-	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: node, planned: node}}
-	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: node, Planned: node}}
+	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	next.setDescriptor(d.address, d)
-	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.address: store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.address}, EvalContext{}, nil); err != nil {
+	next.setDescriptor(d.Address(), d)
+	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !store.versions[0].values[1].IsNull() {
@@ -175,7 +175,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	}
 	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: store.versions[0].values}
 	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
-	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.address.ObjectID {
+	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
 		t.Fatal(v, err, e)
 	}
 }

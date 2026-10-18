@@ -10,8 +10,8 @@ import (
 // survives, even for a strict known-NULL input (evaluate_function, REL_18_0).
 // Scalar calls may disappear in either target or FROM position; SRFs may not.
 func strictScalarRoutine(routine *procedureDescriptor) bool {
-	return routine != nil && routine.strict && routine.routineKind == functionRoutine &&
-		routine.result != 2249 && !routine.returnsSet()
+	return routine != nil && routine.Strict && routine.RoutineKind == functionRoutine &&
+		routine.Result != 2249 && !routine.returnsSet()
 }
 
 // Child preflight has already preserved ordinary constant errors and parameter

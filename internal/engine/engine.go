@@ -171,11 +171,11 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
-	e.catalog.principals, e.catalog.aclAuthority = &e.authorizationDomain, &e.aclAuthority
+	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{Domain: &ids.Domain{}, Providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e.catalog.Principals, e.catalog.ACLAuthority = &e.authorizationDomain, &e.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
-	e.locks = lock.New(e.catalog.domain)
+	e.locks = lock.New(e.catalog.Domain)
 	e.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
@@ -238,24 +238,24 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if ns.oid == ids.PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
+		d := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
-			d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 			}}
 		}
-		d.comment = namespaceCommentBaseline(ns.oid)
-		e.catalog.state.setDescriptor(d.address, d)
-		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}, d.address)
+		d.Comment = namespaceCommentBaseline(ns.oid)
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &typeDescriptor{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
-			d.revision = 1
+			d.ObjectRevision = 1
 		}
 		if typ.NamespaceName() == "information_schema" {
-			d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
+			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
 		e.catalog.state.setDescriptor(d.Address(), d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
@@ -263,7 +263,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
-		d.owner = e.authorizationDomain.Principal(10)
+		d.Owner = e.authorizationDomain.Principal(10)
 		e.catalog.state.setDescriptor(d.Address(), d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
@@ -273,9 +273,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for i := range builtinConversions {
 		d := new(conversionDescriptor)
 		*d = builtinConversions[i]
-		d.owner = e.authorizationDomain.Principal(10)
-		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-		d.revision = 1
+		d.Owner = e.authorizationDomain.Principal(10)
+		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+		d.ObjectRevision = 1
 		e.catalog.state.setDescriptor(d.Address(), d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
@@ -429,7 +429,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		b.dependencies = append(b.dependencies, program.events...)
 		for _, command := range program.commands {
 			if command.binding.relation != nil {
-				b.dependencies = append(b.dependencies, expressionDependency{ref: command.binding.ref, revision: command.binding.relation.revision})
+				b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 			}
 			b.dependencies = append(b.dependencies, command.binding.dependencies...)
 			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
@@ -621,15 +621,15 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, err
 				}
 				source := auth.catalog.MustRelation(ref.Address)
-				if source.relationKind != tableRelation && source.relationKind != foreignRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
+				if source.RelationKind != tableRelation && source.RelationKind != foreignRelation && source.RelationKind != viewRelation && source.RelationKind != compositeRelation {
 					kind := "relations of this kind"
-					if source.relationKind == sequenceRelation {
+					if source.RelationKind == sequenceRelation {
 						kind = "sequences"
 					}
-					if source.relationKind == indexRelation {
+					if source.RelationKind == indexRelation {
 						kind = "indexes"
 					}
-					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.name)).(*sqlstate.Error)
+					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.Name())).(*sqlstate.Error)
 					diagnostic.Detail = "This operation is not supported for " + kind + "."
 					if pos := like.Name.Parts[0].Pos.Character; pos > 0 {
 						diagnostic.Position = strconv.Itoa(pos)
@@ -637,11 +637,11 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, diagnostic
 				}
 				var sourceType *typeDescriptor
-				if source.relationKind == compositeRelation {
-					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
+				if source.RelationKind == compositeRelation {
+					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
-					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
+					if !ok || sourceType.OwningRelation != source.Address() || sourceType.SQLType.ID() != source.RowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
 					if err := auth.CanUse(typeRef); err != nil {
@@ -653,8 +653,8 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				offset := len(columns)
 				b.createLikes = append(b.createLikes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
 				start := len(inherited)
-				for _, constraint := range source.notNullConstraints {
-					for i, attribute := range source.attributes {
+				for _, constraint := range source.NotNullConstraints {
+					for i, attribute := range source.Attributes {
 						if constraint.Attribute == attribute {
 							inherited = append(inherited, createLikeConstraint{Element: elementIndex, notNullConstraint: notNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
 							break
@@ -665,7 +665,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				slices.SortFunc(inherited[start:], func(a, b createLikeConstraint) int {
 					return strings.Compare(a.Name, b.Name)
 				})
-				for _, c := range source.columns {
+				for _, c := range source.Columns {
 					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 					declarations = append(declarations, createColumnDeclaration{})
 				}
@@ -765,7 +765,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) {
+			if ns := auth.catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}
@@ -778,7 +778,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	// Virtual catalog views still undergo the existing semantic
 	// analysis. Reject only after predicates, assignments, RETURNING and
 	// parameters have bound, without ever requiring storage or evaluating writes.
-	if b.relation != nil && b.relation.virtualView {
+	if b.relation != nil && b.relation.VirtualView {
 		switch stmt.(type) {
 		case *parser.Insert:
 			return b, virtualViewWriteError(b.relation, "insert", b.targets)
@@ -822,7 +822,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 		// Auxiliary commands share this binder; borrow its completed original
 		// manifest, including bindings discovered after the auxiliary body.
 		mutation.dependencies = b.dependencies
-		if mutation.relation.virtualView {
+		if mutation.relation.VirtualView {
 			switch definition.statement.(type) {
 			case *parser.Insert:
 				return b, virtualViewWriteError(mutation.relation, "insert", mutation.targets)
@@ -913,12 +913,12 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
 	if auth.session != nil {
-		namespace, _ := auth.definitionDescriptor(d.namespace)
-		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
+		namespace, _ := auth.definitionDescriptor(d.Namespace())
+		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}
-	return e.catalog.domain.Ref(view.Epoch(), a), nil
+	return e.catalog.Domain.Ref(view.Epoch(), a), nil
 }
 
 func insertError(code, message string, pos parser.Position) error {

@@ -9,14 +9,14 @@ import (
 // TYPE recreates affected NN identities without changing names or validity.
 // New attachments already describe the completed shape and are not recreated.
 func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relationDescriptor, changes []columnTransformation) (*relationDescriptor, error) {
-	original, ok := stage.base.Relation(parent.address)
+	original, ok := stage.base.Relation(parent.Address())
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}
 	var next *relationDescriptor
-	for i, n := range parent.notNullConstraints {
+	for i, n := range parent.NotNullConstraints {
 		incumbent := false
-		for _, old := range original.notNullConstraints {
+		for _, old := range original.NotNullConstraints {
 			if old.OID == n.OID {
 				incumbent = true
 				break
@@ -37,14 +37,14 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relatio
 		}
 		if next == nil {
 			copy := *parent
-			copy.notNullConstraints = slices.Clone(parent.notNullConstraints)
+			copy.NotNullConstraints = slices.Clone(parent.NotNullConstraints)
 			next = &copy
 		}
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		next.notNullConstraints[i].OID = oid
+		next.NotNullConstraints[i].OID = oid
 	}
 	if next == nil {
 		return parent, nil

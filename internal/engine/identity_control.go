@@ -8,15 +8,15 @@ import (
 
 func sequenceNumericSQL(options sequenceOptions) string {
 	cycle := "NO CYCLE"
-	if options.cycle {
+	if options.Cycle {
 		cycle = "CYCLE"
 	}
-	return fmt.Sprintf("INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s", options.increment, options.min, options.max, options.start, options.cache, cycle)
+	return fmt.Sprintf("INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s", options.Increment, options.Min, options.Max, options.Start, options.Cache, cycle)
 }
 
 func identityDumpDivergent(options sequenceOptions, column sqltype.ID) bool {
 	lo, hi, _ := sequenceTypeLimits(column)
-	return options.persistence != "logged" || options.typ != column || options.min < lo || options.max > hi || options.start < lo || options.start > hi
+	return options.Persistence != "logged" || options.SQLType != column || options.Min < lo || options.Max > hi || options.Start < lo || options.Start > hi
 }
 
 // Restore admits only the parameter-free configuration of an existing internal
@@ -33,7 +33,7 @@ func (e *Engine) validateRestoreIdentityConfiguration(op *Operation, syntax *par
 		return err
 	}
 	relation, ok := auth.catalog.Relation(ref.Address)
-	if !ok || relation.sequence == nil || !relation.sequence.identity {
+	if !ok || relation.Sequence == nil || !relation.Sequence.Identity {
 		return sqlError("0A000", "restore accepts only generated sequence ownership or identity configuration")
 	}
 	if syntax.Action == "logged" || syntax.Action == "unlogged" {

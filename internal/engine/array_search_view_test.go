@@ -64,7 +64,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := parser.FunctionExpr{Name: name("array_replace"), Args: []parser.Expr{rawArray, rawWide, parser.FunctionExpr{Name: name("array_position"), Args: []parser.Expr{rawArray, rawWide}}}}
-	ref, err := sqltype.RegisteredCollation(uint32(sourceCollation.oid), sourceCollation.semantics)
+	ref, err := sqltype.RegisteredCollation(uint32(sourceCollation.OID), sourceCollation.Semantics)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	assertValue(mappedProject.expressions[1], targetBinder.typ(array.ID()), "{1,2}")
 	newPlan := mappedProject.expressions[1].(functions.ArraySearch).Plan
 	newRef, conflict := newPlan.InputCollation()
-	if conflict || !newRef.Valid() || newRef.ID != uint32(targetCollation.oid) {
+	if conflict || !newRef.Valid() || newRef.ID != uint32(targetCollation.OID) {
 		t.Fatal("retained stale comparison collation", newRef, conflict)
 	}
 	// Re-render and execute the original after the real remap: its presentation,
@@ -171,7 +171,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	assertValue(outer, wideArray, "{1,2}")
 	assertValue(positions, array, "{1,2}")
 	oldRef, conflict := positions.(functions.ArraySearch).Plan.InputCollation()
-	if conflict || oldRef.ID != uint32(sourceCollation.oid) || oldNumeric.Type() != wideArray || oldPositions.Type() != array || project.Schema()[0].Usage.Type != wideArray {
+	if conflict || oldRef.ID != uint32(sourceCollation.OID) || oldNumeric.Type() != wideArray || oldPositions.Type() != array || project.Schema()[0].Usage.Type != wideArray {
 		t.Fatal("remap mutated original authority or exported values")
 	}
 }

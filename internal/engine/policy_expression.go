@@ -11,15 +11,15 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if raw == nil {
 		return nil, nil
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
-	columns := make([]queryColumn, len(d.columns))
-	for i, c := range d.columns {
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	columns := make([]queryColumn, len(d.Columns))
+	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	ns := queryNamespace{
 		columns:    columns,
-		qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}},
-		frame:      d.columns,
+		qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}},
+		frame:      d.Columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 	b.policyConsumer, b.noParameters = true, true
@@ -36,7 +36,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
-	source := &sourceNode{querySchema: d.columns, ref: ref, occurrence: 0}
+	source := &sourceNode{querySchema: d.Columns, ref: ref, occurrence: 0}
 	root := &projectNode{child: source, expressions: []expr.Expr{node}, frame: 1, querySchema: []ColumnDescriptor{{Usage: node.ResultUsage()}}}
 	capture := binding{
 		query: &BoundQuery{Root: root}, dependencies: b.dependencies, querySources: b.querySources,
@@ -63,8 +63,8 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		whole := address
 		whole.SubID = 0
 		frozen.dependencies = append(frozen.dependencies, expressionDependency{
-			ref:      e.catalog.domain.Ref(auth.catalog.Epoch(), address),
-			revision: auth.catalog.Get(whole).Revision(),
+			Ref:      e.catalog.Domain.Ref(auth.catalog.Epoch(), address),
+			Revision: auth.catalog.Get(whole).Revision(),
 		})
 	}
 	return &policyExpression{syntax: raw, expression: node, presentation: frozen}, nil

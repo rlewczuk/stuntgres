@@ -13,10 +13,10 @@ func capturePGRange(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if source == nil || len(source.columns) != 7 {
+	if source == nil || len(source.Columns) != 7 {
 		return nil, fmt.Errorf("stuntgres: invalid range source shape")
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		id := sqltype.Oid
 		if i >= 5 {
 			id = sqltype.Regproc
@@ -54,9 +54,9 @@ func capturePGRange(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef,
 			var value sqltype.Value
 			var err error
 			if j < 5 {
-				value, err = sqltype.OIDValue(source.columns[j].Usage.Type, oid)
+				value, err = sqltype.OIDValue(source.Columns[j].Usage.Type, oid)
 			} else {
-				value, err = sqltype.RegprocValue(source.columns[j].Usage.Type, oid)
+				value, err = sqltype.RegprocValue(source.Columns[j].Usage.Type, oid)
 			}
 			if err != nil {
 				return nil, err

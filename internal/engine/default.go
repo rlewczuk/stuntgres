@@ -19,10 +19,10 @@ import (
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
 	OID                    ids.OID
-	expression             expr.Expr
-	dependencies           []ids.ObjectRef
-	catalogSnapshot        bool
-	catalogAliasReferences bool
+	Expression             expr.Expr
+	Dependencies           []ids.ObjectRef
+	CatalogSnapshot        bool
+	CatalogAliasReferences bool
 }
 
 // Raw and cooked DEFAULT consumers share the physical TEMP provider boundary.
@@ -104,8 +104,8 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 		if structuralNull(node) {
 			continue
 		}
-		definition := columnDefault{expression: node}
-		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(b.ctx, view, node)
+		definition := columnDefault{Expression: node}
+		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		return "", err
 	}
 	if u.Collation.ID != 0 {
-		r.recordStoredCollation(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
+		r.recordStoredCollation(view, view.owner.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
 	}
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
@@ -182,7 +182,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
+	r.recordStoredType(view, view.owner.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.Usage {
@@ -241,17 +241,17 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+deparseSignatures[n.signature].name, n.args)
 	case tableOIDExpression:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.owner) || n.owner.Address != r.owner.address || u.Type.ID() != sqltype.Oid {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.owner) || n.owner.Address != r.owner.Address() || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
 		}
 		r.record(n.owner)
 		return "tableoid", nil
 	case columnExpression:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.Address().ClassID || n.origin.Address.ObjectID != r.owner.Address().ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.Columns) || r.owner.Attributes[n.slot] != n.origin.Address.SubID || u != r.owner.Columns[n.slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
 		}
 		r.record(n.origin)
-		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
+		return quoteIdentifier(r.owner.Columns[n.slot].Name), nil
 	case functions.DatetimeSleep:
 		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
@@ -445,15 +445,15 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
 			sequence, ok := target.(*relationDescriptor)
-			if !ok || sequence.relationKind != sequenceRelation {
+			if !ok || sequence.RelationKind != sequenceRelation {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
 			}
 			r.record(n.ref)
-			namespace, ok := view.Descriptor(sequence.namespace)
+			namespace, ok := view.Descriptor(sequence.Namespace())
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing stored sequence namespace")
 			}
-			name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(sequence.name)
+			name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(sequence.Name())
 			parts := []string{"CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)"}
 			for _, arg := range args[1:] {
 				text, err := r.sql(ctx, view, arg)
@@ -503,7 +503,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
-				r.record(view.owner.domain.Ref(view.Epoch(), address))
+				r.record(view.owner.Domain.Ref(view.Epoch(), address))
 			}
 		}
 		if err := r.recordCatalogAliasDependencies(view, n.value); err != nil {
@@ -679,8 +679,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing default operator")
 		}
-		namespace := view.Get(d.namespace).Name()
-		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.name + ")"
+		namespace := view.Get(d.Namespace()).Name()
+		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.Name() + ")"
 		var operands []expr.Expr
 		boundExpressionChildren(n.provider, func(arg expr.Expr) {
 			if arg != nil {
@@ -695,10 +695,10 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 				return "", err
 			}
 		}
-		if d.left == 0 && len(text) == 1 {
+		if d.Left == 0 && len(text) == 1 {
 			return "(" + op + " " + text[0] + ")", nil
 		}
-		if d.left != 0 && len(text) == 2 {
+		if d.Left != 0 && len(text) == 2 {
 			return "(" + text[0] + " " + op + " " + text[1] + ")", nil
 		}
 		return "", fmt.Errorf("stuntgres: invalid default operator operands")

@@ -35,32 +35,32 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 	if len(raw.Keys) == 0 || len(raw.Keys) > 32 {
 		return nil, sqlError("54011", "cannot partition using more than 32 columns")
 	}
-	definition := &partitionDefinition{strategy: raw.Strategy, keys: make([]partitionKeyEntry, len(raw.Keys))}
+	definition := &partitionDefinition{Strategy: raw.Strategy, Keys: make([]partitionKeyEntry, len(raw.Keys))}
 	for i, r := range raw.Keys {
 		key := partitionKeyEntry{}
 		var usage sqltype.Usage
 		if r.Expression == nil {
-			slot, ok := d.index[r.Column.Text]
+			slot, ok := d.Index[r.Column.Text]
 			if !ok {
 				if id, _ := sqltype.SystemAttributeType(r.Column.Text); id != 0 {
 					return nil, expr.ErrorAt("42P17", fmt.Sprintf(`cannot use system column "%s" in partition key`, r.Column.Text), r.Pos)
 				}
 				return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" named in partition key does not exist`, r.Column.Text), r.Pos)
 			}
-			key.attribute = d.attributes[slot]
-			usage = d.columns[slot].Usage
-			key.label = r.Column.Text
-			if _, generated := d.generations[key.attribute]; generated {
+			key.Attribute = d.Attributes[slot]
+			usage = d.Columns[slot].Usage
+			key.Label = r.Column.Text
+			if _, generated := d.Generations[key.Attribute]; generated {
 				diagnostic := sqlError("42P17", "cannot use generated column in partition key")
-				return nil, partitionGeneratedError(diagnostic, r.Pos, key.label)
+				return nil, partitionGeneratedError(diagnostic, r.Pos, key.Label)
 			}
 		} else {
-			ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
-			columns := make([]queryColumn, len(d.columns))
-			for j, c := range d.columns {
+			ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+			columns := make([]queryColumn, len(d.Columns))
+			for j, c := range d.Columns {
 				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}
 			}
-			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}}, frame: d.columns}
+			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}}, frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.partitionConsumer, binder.noParameters, binder.queryAuth = "partition key expression", true, &auth
 			binder.queryNamespace = &namespace
@@ -81,16 +81,16 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
 			for _, slot := range binder.querySources[0].uses {
-				if _, generated := d.generations[d.attributes[slot]]; generated {
-					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.columns[slot].Name)
+				if _, generated := d.Generations[d.Attributes[slot]]; generated {
+					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}
-			key.derived = &derivedIndexKey{definition: node, execution: planned, attributes: d.attributes}
-			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &key.derived.dependencies}).sql(op.Context(), auth.catalog, node)
+			key.Derived = &derivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
+			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &key.Derived.Dependencies}).sql(op.Context(), auth.catalog, node)
 			if err != nil {
 				return nil, err
 			}
-			key.label = text
+			key.Label = text
 			usage = planned.ResultUsage()
 		}
 		method := btreeMethod
@@ -106,17 +106,17 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			}
 			return nil, err
 		}
-		key.usage = indexKeyCollation(usage, bound)
-		key.class, key.collation, key.explicitClass = bound.class, bound.collation, bound.explicitClass
+		key.Usage = indexKeyCollation(usage, bound)
+		key.Class, key.Collation, key.ExplicitClass = bound.Class, bound.Collation, bound.ExplicitClass
 		if raw.Strategy == parser.PartitionHash {
-			key.hash, err = sqltype.BindPartitionHash(key.usage, key.class)
+			key.Hash, err = sqltype.BindPartitionHash(key.Usage, key.Class)
 		} else {
-			key.comparison, err = sqltype.BindIndexOrdering(key.usage, key.class)
+			key.Comparison, err = sqltype.BindIndexOrdering(key.Usage, key.Class)
 		}
 		if err != nil {
 			return nil, err
 		}
-		definition.keys[i] = key
+		definition.Keys[i] = key
 	}
 	return definition, nil
 }
@@ -125,8 +125,8 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 // Transformation remains deferred: a later bind error must not mask an earlier
 // NULL or prevent a required nontransactional sequence draw.
 func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBound) (*partitionMembership, error) {
-	bound := &partitionMembership{parent: parent.address, strategy: parent.partition.strategy, defaultBound: raw.Default}
-	if parent.partition.strategy == parser.PartitionHash {
+	bound := &partitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
+	if parent.Partition.Strategy == parser.PartitionHash {
 		if raw.Default {
 			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")
 		}
@@ -139,7 +139,7 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 		if raw.Remainder >= raw.Modulus {
 			return nil, sqlError("42P16", "remainder for hash partition must be less than modulus")
 		}
-		bound.modulus, bound.remainder = raw.Modulus, raw.Remainder
+		bound.Modulus, bound.Remainder = raw.Modulus, raw.Remainder
 		return bound, nil
 	}
 	if raw.Strategy == parser.PartitionHash {
@@ -148,14 +148,14 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 	if raw.Default {
 		return bound, nil
 	}
-	keys := parent.partition.keys
+	keys := parent.Partition.Keys
 	if len(raw.Lower) != len(keys) {
 		return nil, sqlError("42P16", "FROM must specify exactly one value per partitioning column")
 	}
 	if len(raw.Upper) != len(keys) {
 		return nil, sqlError("42P16", "TO must specify exactly one value per partitioning column")
 	}
-	bound.lower, bound.upper = make([]partitionDatum, len(keys)), make([]partitionDatum, len(keys))
+	bound.Lower, bound.Upper = make([]partitionDatum, len(keys)), make([]partitionDatum, len(keys))
 	return bound, nil
 }
 
@@ -180,47 +180,47 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	binder.queryAuth = &p.auth
 	binder.noParameters = true
 	binder.partitionConsumer = "partition bound"
-	node, err := binder.bind(datum.Expression, expressionPolicy{context: projectionContext, expected: key.usage.Type.Usage()})
+	node, err := binder.bind(datum.Expression, expressionPolicy{context: projectionContext, expected: key.Usage.Type.Usage()})
 	if err != nil {
 		return nil, err
 	}
-	if node.ResultUsage() != key.usage {
-		input, annotations := domainCoercionInput(node, key.usage)
-		info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(key.usage, datum.Pos, input.Properties()), input)
+	if node.ResultUsage() != key.Usage {
+		input, annotations := domainCoercionInput(node, key.Usage)
+		info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(key.Usage, datum.Pos, input.Properties()), input)
 		if err != nil {
 			return nil, err
 		}
 		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if err != nil {
-			return nil, expr.ErrorAt("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.usage.Type.DiagnosticName(), key.label), datum.Pos)
+			return nil, expr.ErrorAt("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.Usage.Type.DiagnosticName(), key.Label), datum.Pos)
 		}
 		info.Property = coercionProperties(input, plan)
 		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	}
-	return storageDestination(node, key.usage, node.SourcePosition())
+	return storageDestination(node, key.Usage, node.SourcePosition())
 }
 
 func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *EvalContext) error {
-	if p.bound.strategy == parser.PartitionHash {
+	if p.bound.Strategy == parser.PartitionHash {
 		return scope.op.Context().Err()
 	}
 	for side, raw := range [2][]parser.PartitionDatum{p.rawBounds.Lower, p.rawBounds.Upper} {
-		tuple := p.bound.lower
+		tuple := p.bound.Lower
 		if side == 1 {
-			tuple = p.bound.upper
+			tuple = p.bound.Upper
 		}
 		finite := 0
 		for i, datum := range raw {
 			if err := evaluation.Context.Err(); err != nil {
 				return err
 			}
-			tuple[i] = partitionDatum{kind: datum.Kind, pos: datum.Pos}
+			tuple[i] = partitionDatum{Kind: datum.Kind, Pos: datum.Pos}
 			if datum.Kind != 0 {
 				continue
 			}
 			// PostgreSQL advances the key type cursor only for finite datums,
 			// including malformed finite entries after an infinite datum.
-			node, err := p.bindPartitionDatum(scope, datum, p.parent.partition.keys[finite])
+			node, err := p.bindPartitionDatum(scope, datum, p.parent.Partition.Keys[finite])
 			if err != nil {
 				return err
 			}
@@ -231,20 +231,20 @@ func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evalu
 			if value.IsNull() {
 				return sqlError("42P17", "cannot specify NULL in range bound")
 			}
-			tuple[i].value = value
+			tuple[i].Value = value
 			finite++
 		}
 		var sentinel int8
 		for _, datum := range tuple {
-			if sentinel != 0 && datum.kind != sentinel {
+			if sentinel != 0 && datum.Kind != sentinel {
 				name := "MINVALUE"
 				if sentinel > 0 {
 					name = "MAXVALUE"
 				}
-				return expr.ErrorAt("42804", "every bound following "+name+" must also be "+name, datum.pos)
+				return expr.ErrorAt("42804", "every bound following "+name+" must also be "+name, datum.Pos)
 			}
-			if datum.kind != 0 {
-				sentinel = datum.kind
+			if datum.Kind != 0 {
+				sentinel = datum.Kind
 			}
 		}
 	}

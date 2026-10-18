@@ -21,7 +21,7 @@ func TestAlterRenamePrivileges(t *testing.T) {
 	schemaOwner, _ := e.Roles().Lookup("rename_schema_owner")
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})
-	ns := e.catalog.domain.Ref(view.Epoch(), address)
+	ns := e.catalog.Domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -78,11 +78,11 @@ func TestAlterRenameDependencies(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE t RENAME c TO renamed")
 	roleExecute(t, e, op, "ALTER TABLE t RENAME TO newtable")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if !reflect.DeepEqual(next.columnACL, old.columnACL) || !reflect.DeepEqual(next.notNullConstraints, old.notNullConstraints) || len(next.notNullConstraints) != 1 || next.notNullConstraints[0].Name != "nn" || next.notNullConstraints[0].Attribute != 3 || next.notNullConstraints[0].OID == 0 || next.columnComments[3] != "keep" {
+	if !reflect.DeepEqual(next.ColumnACL, old.ColumnACL) || !reflect.DeepEqual(next.NotNullConstraints, old.NotNullConstraints) || len(next.NotNullConstraints) != 1 || next.NotNullConstraints[0].Name != "nn" || next.NotNullConstraints[0].Attribute != 3 || next.NotNullConstraints[0].OID == 0 || next.ColumnComments[3] != "keep" {
 		t.Fatal(next)
 	}
 	roleExecute(t, e, op, "COMMENT ON COLUMN newtable.renamed IS 'updated'")
-	if e.catalog.state.MustRelation(ref.Address).columnComments[3] != "updated" || old.columnComments[3] != "keep" {
+	if e.catalog.state.MustRelation(ref.Address).ColumnComments[3] != "updated" || old.ColumnComments[3] != "keep" {
 		t.Fatal("comment identity")
 	}
 	_, err := e.Execute(op, statement(t, "DROP ROLE rename_reader"), 0, nil)

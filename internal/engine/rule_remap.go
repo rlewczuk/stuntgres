@@ -67,13 +67,13 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 			next[i].ref = ref(next[i].ref)
 			next[i].relation, _ = view.Relation(next[i].ref.Address)
 			next[i].storage = nil
-			if old != nil && next[i].relation != nil && !slices.Equal(old.attributes, next[i].relation.attributes) {
+			if old != nil && next[i].relation != nil && !slices.Equal(old.Attributes, next[i].relation.Attributes) {
 				next[i].uses = slices.Clone(next[i].uses)
 				for j, slot := range next[i].uses {
-					if slot < 0 || slot >= len(old.attributes) {
+					if slot < 0 || slot >= len(old.Attributes) {
 						return nil, ids.ErrCatalogReplaced
 					}
-					next[i].uses[j] = next[i].relation.indexForAttribute(old.attributes[slot])
+					next[i].uses[j] = next[i].relation.indexForAttribute(old.Attributes[slot])
 					if next[i].uses[j] < 0 {
 						return nil, ids.ErrCatalogReplaced
 					}
@@ -192,7 +192,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 	}
 	b.dependencies = slices.Clone(b.dependencies)
 	for i := range b.dependencies {
-		b.dependencies[i].ref = ref(b.dependencies[i].ref)
+		b.dependencies[i].Ref = ref(b.dependencies[i].Ref)
 	}
 	b.sequenceConstants = slices.Clone(b.sequenceConstants)
 	for i := range b.sequenceConstants {
@@ -261,13 +261,13 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 }
 
 func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
-	if ns, ok := view.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
+	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.domain.Ref(old.Epoch, old.Address)
+			old = view.owner.Domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}
@@ -276,13 +276,13 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 				return nil
 			}
 			if d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
-				return d.typ
+				return d.SQLType
 			}
 			return old
 		}
 	}
 	copy := *d
-	copy.rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+	copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
 	for i := range rulesOf(&copy) {
 		r := &rulesOf(&copy)[i]
 		var err error
@@ -359,7 +359,7 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 		}
 		if replacement == nil {
 			copy := *d
-			copy.rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+			copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
 			replacement = &copy
 		}
 		r.references = references
@@ -405,8 +405,8 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}
-		ns, ok := e.catalog.state.Namespace(d.namespace)
-		if !ok || ns.temporary == (ids.SessionToken{}) {
+		ns, ok := e.catalog.state.Namespace(d.Namespace())
+		if !ok || ns.Temporary == (ids.SessionToken{}) {
 			continue
 		}
 		for _, rule := range rulesOf(d) {
@@ -427,7 +427,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 					return ids.ErrCatalogReplaced
 				}
 				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
-				if !ok || providerNS.temporary != ns.temporary {
+				if !ok || providerNS.Temporary != ns.Temporary {
 					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
 				}
 			}

@@ -21,7 +21,7 @@ func TestTableCoreLikeColumnOrigins(t *testing.T) {
 	if !ok {
 		t.Fatal("missing clone descriptor")
 	}
-	for i, c := range d.(*relationDescriptor).columns {
+	for i, c := range d.(*relationDescriptor).Columns {
 		if c.OriginTable != uint32(ref.Address.ObjectID) || c.OriginAttribute != int16(i+1) {
 			t.Fatal("incorrect clone column origin", c)
 		}
@@ -70,7 +70,7 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
 	})
 	clone := e.CatalogRead().MustRelation(roleTableRef(t, e, "clone").Address)
-	if clone.owner != reader.Ref || clone.acl.Explicit || len(clone.columnACL) != 0 {
+	if clone.Owner != reader.Ref || clone.ACL.Explicit || len(clone.ColumnACL) != 0 {
 		t.Fatal("LIKE copied ACL/owner")
 	}
 }
@@ -100,7 +100,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	replacement := cloneCatalog(e.CatalogRead().state)
 	nsaddr := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	ns := *replacement.MustNamespace(nsaddr)
-	ns.owner = owner.Ref
+	ns.Owner = owner.Ref
 	replacement.setDescriptor(nsaddr, &ns)
 	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
@@ -128,8 +128,8 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			var winner CatalogRead
 			var winnerRef ids.ObjectRef
 			var loser ids.ObjectAddress
-			e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.catalog.providers[ids.RelationClassID],
+			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+				CatalogProvider: e.catalog.Providers[ids.RelationClassID],
 				publishWinner: func(d Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE "+tc.identifier+"(id INT NOT NULL)")

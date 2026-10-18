@@ -12,13 +12,13 @@ import (
 // Eligibility is captured once from the actual ordered provider input. TYPE
 // reminting remains the existing stage owner's separate metadata effect.
 func captureUsingIndexDefinition(reader definitionReader, parent *relationDescriptor, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
-	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.Index.Text})
+	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.Index.Text})
 	descriptor, _ := reader.descriptor(address)
 	if descriptor == nil {
 		return usingIndexAttachment{}, expr.ErrorAt("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
 	}
 	index, ok := descriptor.(*relationDescriptor)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		return usingIndexAttachment{}, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, raw.Index.Text))
 	}
 	attributes, err := usingIndexEligibility(parent, index, raw)
@@ -58,7 +58,7 @@ func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definiti
 		if slot < 0 {
 			return nil, ids.ErrCatalogReplaced
 		}
-		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.columns[slot].Name}}
+		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.Columns[slot].Name}}
 		var err error
 		next, err = notNullCandidate(op, view, next, action, notNullDirect)
 		if err != nil {
@@ -86,43 +86,43 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		}
 		parent = candidate
 	}
-	descriptor, present := reader.descriptor(captured.index.address)
+	descriptor, present := reader.descriptor(captured.index.Address())
 	index, ok := descriptor.(*relationDescriptor)
-	if !present || !ok || index.sqlIndex == nil {
+	if !present || !ok || index.SQLIndex == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	prepared.index = index
 	name := captured.syntax.Name.Text
 	if name == "" {
-		name = index.name
+		name = index.Name()
 	}
-	if name != index.name {
-		prepared.notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.name, name)}
+	if name != index.Name() {
+		prepared.notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.Name(), name)}
 	}
-	destination := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name})
-	if destination != (ids.ObjectAddress{}) && destination != index.address {
+	destination := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
+	if destination != (ids.ObjectAddress{}) && destination != index.Address() {
 		prepared.err = sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		return prepared, nil
 	}
 	if captured.syntax.Primary {
-		for _, constraint := range parent.uniqueConstraints {
+		for _, constraint := range parent.UniqueConstraints {
 			if constraint.Primary {
-				prepared.err = sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.name))
+				prepared.err = sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.Name()))
 				return prepared, nil
 			}
 		}
-		if index.sqlIndex.nullsNotDistinct {
+		if index.SQLIndex.NullsNotDistinct {
 			prepared.err = sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
 			return prepared, nil
 		}
-		for _, constraint := range parent.notNullConstraints {
+		for _, constraint := range parent.NotNullConstraints {
 			if constraint.NotValid && slices.Contains(captured.attributes, constraint.Attribute) {
-				prepared.err = incompatibleNotValid(constraint.Name, parent.name)
+				prepared.err = incompatibleNotValid(constraint.Name, parent.Name())
 				return prepared, nil
 			}
 		}
 	}
-	if index.sqlIndex.constraint != nil || relationConstraintNameExists(parent, name) {
+	if index.SQLIndex.Constraint != nil || relationConstraintNameExists(parent, name) {
 		prepared.err = usingIndexCatalogDuplicate(parent, name)
 		return prepared, nil
 	}
@@ -133,21 +133,21 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		prepared.err = err
 		return prepared, nil
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.sqlIndex.nullsNotDistinct, Index: index.address}
+	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.Address()}
 	next := *parent
-	next.uniqueConstraints = make([]uniqueConstraint, len(parent.uniqueConstraints)+1)
-	copy(next.uniqueConstraints, parent.uniqueConstraints)
-	next.uniqueConstraints[len(parent.uniqueConstraints)] = constraint
-	if index.revision == ids.DefinitionRevision(^uint64(0)) {
+	next.UniqueConstraints = make([]uniqueConstraint, len(parent.UniqueConstraints)+1)
+	copy(next.UniqueConstraints, parent.UniqueConstraints)
+	next.UniqueConstraints[len(parent.UniqueConstraints)] = constraint
+	if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		prepared.err = fmt.Errorf("stuntgres: definition revision exhausted")
 		return prepared, nil
 	}
 	clone := *index
-	clone.name = name
-	clone.revision++
-	definition := *index.sqlIndex
-	definition.constraint = uniqueBacking(&constraint)
-	clone.sqlIndex = &definition
+	clone.ObjectName = name
+	clone.ObjectRevision++
+	definition := *index.SQLIndex
+	definition.Constraint = uniqueBacking(&constraint)
+	clone.SQLIndex = &definition
 	prepared.next, prepared.replacement = &next, &clone
 	return prepared, nil
 }

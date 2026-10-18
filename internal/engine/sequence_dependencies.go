@@ -22,7 +22,7 @@ func (provider *dropProvider) ownedExpressionDependencies(targets []ids.ObjectAd
 	// earlier pass. Ordinary column projection retains its existing ordering.
 	for address, descriptor := range provider.removalDescriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.relationKind != tableRelation || !inheritanceParticipant(provider.base, relation) {
+		if !ok || relation.RelationKind != tableRelation || !inheritanceParticipant(provider.base, relation) {
 			continue
 		}
 		present := false
@@ -68,10 +68,10 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 			d = replacement
 		}
 		r, ok := d.(*relationDescriptor)
-		if !ok || r.relationKind != sequenceRelation || r.sequence.owned == (ids.ObjectAddress{}) {
+		if !ok || r.RelationKind != sequenceRelation || r.Sequence.Owned == (ids.ObjectAddress{}) {
 			continue
 		}
-		owned := r.sequence.owned
+		owned := r.Sequence.Owned
 		remove := false
 		for _, target := range targets {
 			if owned.ClassID == target.ClassID && owned.ObjectID == target.ObjectID && (target.SubID == 0 || owned.SubID == target.SubID) {
@@ -82,7 +82,7 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 		if !remove {
 			continue
 		}
-		ref := provider.owner.catalog.domain.Ref(provider.base.Epoch(), a)
+		ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), a)
 		if err := prepare(ref); err != nil {
 			return err
 		}
@@ -93,22 +93,22 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 	return nil
 }
 func relationDiagnosticKind(r *relationDescriptor) string {
-	if r.relationKind == foreignRelation {
+	if r.RelationKind == foreignRelation {
 		return "foreign table"
 	}
-	if r.relationKind == compositeRelation {
+	if r.RelationKind == compositeRelation {
 		return "composite type"
 	}
-	if r.relationKind == materializedViewRelation {
+	if r.RelationKind == materializedViewRelation {
 		return "materialized view"
 	}
-	if r.relationKind == indexRelation {
+	if r.RelationKind == indexRelation {
 		return "index"
 	}
-	if r.relationKind == viewRelation {
+	if r.RelationKind == viewRelation {
 		return "view"
 	}
-	if r.relationKind == sequenceRelation {
+	if r.RelationKind == sequenceRelation {
 		return "sequence"
 	}
 	return "table"

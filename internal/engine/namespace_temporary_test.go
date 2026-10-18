@@ -12,23 +12,23 @@ import (
 func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
 	ns, ok := e.catalog.state.Namespace(table)
-	if !ok || ns.temporary != token || ns.temporaryToast || ns.owner.ID() != 10 || ns.acl.Explicit || len(ns.acl.Entries) != 0 {
+	if !ok || ns.Temporary != token || ns.TemporaryToast || ns.Owner.ID() != 10 || ns.ACL.Explicit || len(ns.ACL.Entries) != 0 {
 		t.Fatal("real table TEMP authority", ns)
 	}
-	suffix, ok := strings.CutPrefix(ns.name, "pg_temp_")
+	suffix, ok := strings.CutPrefix(ns.Name(), "pg_temp_")
 	if !ok {
-		t.Fatal(ns.name)
+		t.Fatal(ns.Name())
 	}
 	var toast ids.ObjectAddress
 	count := 0
 	for a, d := range e.catalog.state.Descriptors() {
 		other, ok := d.(*namespaceDescriptor)
-		if !ok || other.temporary != token {
+		if !ok || other.Temporary != token {
 			continue
 		}
 		count++
-		if other.temporaryToast {
-			if other.name != "pg_toast_temp_"+suffix || other.owner != ns.owner || other.acl.Explicit || len(other.acl.Entries) != 0 || other.address == table {
+		if other.TemporaryToast {
+			if other.Name() != "pg_toast_temp_"+suffix || other.Owner != ns.Owner || other.ACL.Explicit || len(other.ACL.Entries) != 0 || other.Address() == table {
 				t.Fatal("real toast TEMP authority", other)
 			}
 			toast = a
@@ -54,8 +54,8 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
 	object := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table, Name: "namespace_table"}))
 	actor := e.Roles().LookupRef("namespace_actor")
-	if object.owner != actor || object.owner.ID() == 10 {
-		t.Fatal("namespace owner replaced object actor", object.owner)
+	if object.Owner != actor || object.Owner.ID() == 10 {
+		t.Fatal("namespace owner replaced object actor", object.Owner)
 	}
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -68,7 +68,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	}
 	for _, a := range []ids.ObjectAddress{table, toast} {
 		ns := auth.catalog.MustNamespace(a)
-		rights, err := auth.Effective(e.catalog.domain.Ref(auth.catalog.Epoch(), a), false)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), a), false)
 		want := authorization.Privileges(0)
 		if a == table {
 			want = authorization.UsagePrivilege | authorization.CreatePrivilege
@@ -95,7 +95,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if s.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(object.address) != nil {
+	if s.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(object.Address()) != nil {
 		t.Fatal("physical cleanup left active object authority")
 	}
 	assertTemporaryNamespacePair(t, e, s.token, table)
@@ -125,10 +125,10 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 		committed := namespaceUnitCapture(t, e, e.CatalogRead())
 		count := 0
 		for _, d := range auth.catalog.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == creator.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == creator.token {
 				count++
-				namespaceUnitRow(t, private, uint32(ns.address.ObjectID))
-				if e.catalog.state.Get(ns.address) != nil {
+				namespaceUnitRow(t, private, uint32(ns.Address().ObjectID))
+				if e.catalog.state.Get(ns.Address()) != nil {
 					op.Done()
 					t.Fatal("uncommitted pair leaked")
 				}
@@ -225,7 +225,7 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"})
 	view, ok := e.catalog.state.Relation(address)
-	if !ok || view.owner != e.Roles().LookupRef("namespace_view_creator") || view.namespace != namespace || view.relationKind != viewRelation || view.view == nil {
+	if !ok || view.Owner != e.Roles().LookupRef("namespace_view_creator") || view.Namespace() != namespace || view.RelationKind != viewRelation || view.View == nil {
 		t.Fatal("physical creator did not own staged TEMP view", view)
 	}
 	roleExecute(t, e, op, "SELECT v FROM owned_temp")

@@ -13,12 +13,12 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.columns) != 4 {
+	if len(source.Columns) != 4 {
 		return nil, fmt.Errorf("stuntgres: invalid enum source shape")
 	}
 	for i, id := range [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Float4, sqltype.Name} {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign enum source type")
 		}
 	}
@@ -28,13 +28,13 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 			return nil, err
 		}
 		d, ok := descriptor.(*typeDescriptor)
-		if !ok || !d.typ.IsEnum() {
+		if !ok || !d.SQLType.IsEnum() {
 			continue
 		}
-		if address != d.Address() || address.ClassID != ids.TypeClassID || address.ObjectID == 0 || sqltype.ID(address.ObjectID) != d.typ.ID() {
+		if address != d.Address() || address.ClassID != ids.TypeClassID || address.ObjectID == 0 || sqltype.ID(address.ObjectID) != d.SQLType.ID() {
 			return nil, fmt.Errorf("stuntgres: invalid enum owner identity")
 		}
-		count += d.typ.EnumMemberCount()
+		count += d.SQLType.EnumMemberCount()
 	}
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*4)
@@ -44,32 +44,32 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 			return nil, err
 		}
 		d, ok := descriptor.(*typeDescriptor)
-		if !ok || !d.typ.IsEnum() {
+		if !ok || !d.SQLType.IsEnum() {
 			continue
 		}
-		for i := range d.typ.EnumMemberCount() {
+		for i := range d.SQLType.EnumMemberCount() {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			member, ok := d.typ.EnumMemberAt(i)
+			member, ok := d.SQLType.EnumMemberAt(i)
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: missing enum member metadata")
 			}
 			row := values[at*4 : (at+1)*4 : (at+1)*4]
 			var err error
-			row[0], err = sqltype.OIDValue(source.columns[0].Usage.Type, uint32(member.ID))
+			row[0], err = sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(member.ID))
 			if err != nil {
 				return nil, err
 			}
-			row[1], err = sqltype.OIDValue(source.columns[1].Usage.Type, uint32(d.typ.ID()))
+			row[1], err = sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(d.SQLType.ID()))
 			if err != nil {
 				return nil, err
 			}
-			row[2], err = sqltype.Float(source.columns[2].Usage.Type, float64(member.SortOrder))
+			row[2], err = sqltype.Float(source.Columns[2].Usage.Type, float64(member.SortOrder))
 			if err != nil {
 				return nil, err
 			}
-			row[3] = sqltype.String(source.columns[3].Usage.Type, member.Label)
+			row[3] = sqltype.String(source.Columns[3].Usage.Type, member.Label)
 			rows[at] = row
 			at++
 		}

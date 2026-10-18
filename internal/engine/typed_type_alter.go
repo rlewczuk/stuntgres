@@ -24,21 +24,21 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 		if err == nil {
 			source = auth.catalog.MustRelation(ref.Address)
-			if source.relationKind != compositeRelation {
-				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.name))
+			if source.RelationKind != compositeRelation {
+				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.Name()))
 			} else {
-				typ = auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
+				typ = auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 			}
 		}
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), source.address), OwnerOnly: true})
+		err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address()), OwnerOnly: true})
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), source.address), lock.AccessExclusive, true); err != nil {
+	if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address()), lock.AccessExclusive, true); err != nil {
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -54,7 +54,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			restrict = restrict || action.Mode != parser.DropCascade
 		}
 		if restrict {
-			diagnostic := sqlError("2BP01", fmt.Sprintf(`cannot alter type "%s" because it is the type of a typed table`, source.name)).(*sqlstate.Error)
+			diagnostic := sqlError("2BP01", fmt.Sprintf(`cannot alter type "%s" because it is the type of a typed table`, source.Name())).(*sqlstate.Error)
 			diagnostic.Hint = "Use ALTER ... CASCADE to alter the typed tables too."
 			return Result{}, diagnostic
 		}
@@ -63,13 +63,13 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	// independently parent-before-child for multiple-parent inheritance.
 	addresses := typedSortedAddresses(targets)
 	for _, address := range addresses {
-		if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
+		if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
 	e.mu.Lock()
 	current := e.catalog.read(e.catalog.state)
-	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.Get(source.address) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
+	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
 		return Result{}, CatalogConflict{}
@@ -87,10 +87,10 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		if renameErr != nil {
 			return Result{}, renameErr
 		}
-		if source.revision == ids.DefinitionRevision(^uint64(0)) {
+		if source.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next.revision = source.revision + 1
+		next.ObjectRevision = source.Revision() + 1
 		sourceMutation = typedRelationMutation{old: source, next: next}
 	} else {
 		actions := make([]typedColumnAction, len(s.Actions))
@@ -110,12 +110,12 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		if action.Action == parser.DropColumn {
 			continue
 		}
-		slot, exists := sourceMutation.next.index[name]
+		slot, exists := sourceMutation.next.Index[name]
 		if !exists {
 			continue
 		}
-		usage := sourceMutation.next.columns[slot].Usage
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		usage := sourceMutation.next.Columns[slot].Usage
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}
@@ -127,11 +127,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	forced := make(map[ids.ObjectAddress]map[int32]bool, len(targets)+1)
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
-			if slot, ok := source.index[action.Column.Text]; ok {
-				if forced[source.address] == nil {
-					forced[source.address] = make(map[int32]bool)
+			if slot, ok := source.Index[action.Column.Text]; ok {
+				if forced[source.Address()] == nil {
+					forced[source.Address()] = make(map[int32]bool)
 				}
-				forced[source.address][source.attributes[slot]] = true
+				forced[source.Address()][source.Attributes[slot]] = true
 			}
 		}
 	}
@@ -140,9 +140,9 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		var renames map[int32]string
 		var graph *tableInheritance
 		view := e.stageRead(stage)
-		table = view.MustRelation(table.address)
-		if table.ofType == typ.Address() {
-			actions, renames = typedShapeActions(source, sourceMutation.next, table, forced[source.address])
+		table = view.MustRelation(table.Address())
+		if table.OfType == typ.Address() {
+			actions, renames = typedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
 		} else {
 			actions, renames, graph, err = typedInheritedActions(view, table, forced)
 			if err != nil {
@@ -157,9 +157,9 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			if forced == nil {
 				forced = make(map[ids.ObjectAddress]map[int32]bool)
 			}
-			forced[table.address] = typedTransformAttributes(mutation.transforms)
+			forced[table.Address()] = typedTransformAttributes(mutation.transforms)
 		}
-		for _, attribute := range table.attributes {
+		for _, attribute := range table.Attributes {
 			destination, rename := renames[attribute]
 			if !rename {
 				continue
@@ -168,17 +168,17 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			if slot < 0 {
 				continue
 			}
-			mutation.next, err = renameColumnCandidate(mutation.next, mutation.next.columns[slot].Name, destination)
+			mutation.next, err = renameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
 			if err != nil {
 				return Result{}, err
 			}
 		}
 		if graph != nil || len(renames) != 0 {
 			next := *mutation.next
-			if table.revision == ids.DefinitionRevision(^uint64(0)) {
+			if table.Revision() == ids.DefinitionRevision(^uint64(0)) {
 				return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 			}
-			next.revision = table.revision + 1
+			next.ObjectRevision = table.Revision() + 1
 			mutation.next = &next
 			if graph != nil {
 				finishTypedInheritance(view, &next, graph)

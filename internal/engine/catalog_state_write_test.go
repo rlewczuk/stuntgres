@@ -11,17 +11,17 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 
 	copied := *base
 	copied.cloneDescriptors()
-	copied.removeDescriptor(rel.address)
-	if _, ok := base.Relation(rel.address); !ok {
+	copied.removeDescriptor(rel.Address())
+	if _, ok := base.Relation(rel.Address()); !ok {
 		t.Fatal("removal from a cloned state changed its source")
 	}
-	if _, ok := copied.Find(rel.address); ok {
+	if _, ok := copied.Find(rel.Address()); ok {
 		t.Fatal("removal did not apply to the clone")
 	}
 
-	other := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 902}, namespace: ns.address, name: "u", revision: 1}
-	copied.setDescriptor(other.address, other)
-	if base.Get(other.address) != nil || copied.Get(other.address) != other {
+	other := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 902}, ObjectNamespace: ns.Address(), ObjectName: "u", ObjectRevision: 1}
+	copied.setDescriptor(other.Address(), other)
+	if base.Get(other.Address()) != nil || copied.Get(other.Address()) != other {
 		t.Fatal("setDescriptor did not stay on the clone")
 	}
 
@@ -30,8 +30,8 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 	if _, ok := copied.LookupName(key); ok {
 		t.Fatal("unbindName kept the binding")
 	}
-	copied.bindName(key, other.address)
-	if copied.NameAddress(key) != other.address {
+	copied.bindName(key, other.Address())
+	if copied.NameAddress(key) != other.Address() {
 		t.Fatal("bindName did not bind")
 	}
 
@@ -39,7 +39,7 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 	if copied.DescriptorCount() != 0 || copied.NameCount() != 0 {
 		t.Fatal("resetMaps left entries")
 	}
-	if previous[other.address] != other || previous[ns.address] != ns {
+	if previous[other.Address()] != other || previous[ns.Address()] != ns {
 		t.Fatal("resetMaps lost the previous descriptors")
 	}
 	if base.DescriptorCount() != 2 {

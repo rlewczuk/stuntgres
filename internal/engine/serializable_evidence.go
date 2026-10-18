@@ -8,21 +8,21 @@ import (
 
 func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogChanges) bool {
 	d, ok := e.privateCatalogLocked(catalog).Relation(ref.Address)
-	if !ok || d.relationKind != tableRelation {
+	if !ok || d.RelationKind != tableRelation {
 		return false
 	}
-	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.namespace)
-	return ok && ns.temporary == (ids.SessionToken{}) && d.namespace.ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
+	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.Namespace())
+	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {
-	if ref.Domain() != e.catalog.domain || ref.Address.SubID != 0 {
+	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 {
 		return errors.New("stuntgres: foreign SSI relation")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if s.txRef.Domain() != e.catalog.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
+	if s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	node := e.serializable.nodes[s.txRef]
@@ -56,7 +56,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 }
 
 func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []serializableWrite) error {
-	if ref.Domain() != e.catalog.domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
+	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {

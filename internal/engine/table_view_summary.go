@@ -13,23 +13,23 @@ import (
 func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 	for _, descriptor := range stage.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		address := index.sqlIndex.parent
+		address := index.SQLIndex.Parent
 		descriptor, staged := stage.descriptors[address]
 		if !staged {
 			descriptor = stage.base.Get(address)
 		}
 		parent, ok := descriptor.(*relationDescriptor)
-		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) {
+		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
-		if parent.hasIndexes {
+		if parent.HasIndexes {
 			continue
 		}
 		next := *parent
-		next.hasIndexes = true
+		next.HasIndexes = true
 		if staged {
 			// Preserve the complete already-staged parent and its revision/rowtype;
 			// UNIQUE can create the parent and its indexes in this same candidate.
@@ -39,7 +39,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 			if err != nil {
 				return err
 			}
-			next.revision = revision
+			next.ObjectRevision = revision
 			if err := stage.Replace(&next); err != nil {
 				return err
 			}
@@ -58,17 +58,17 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 			return err
 		}
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.sqlIndex.parent)
-		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) {
+		parent, ok := catalog.Relation(index.SQLIndex.Parent)
+		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
-		if !parent.hasIndexes {
+		if !parent.HasIndexes {
 			next := *parent
-			next.hasIndexes = true
-			catalog.state.setDescriptor(parent.address, &next)
+			next.HasIndexes = true
+			catalog.state.setDescriptor(parent.Address(), &next)
 		}
 	}
 	return nil
@@ -86,8 +86,8 @@ func representedSummaryTable(oid ids.OID) bool {
 
 func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
 	var rows [][]sqltype.Value
-	text := func(i int, value string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, value) }
-	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, value) }
+	text := func(i int, value string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, value) }
+	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, value) }
 	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -96,41 +96,41 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		if !ok {
 			continue
 		}
-		builtinTable := relation.relationKind == catalogRelation && representedSummaryTable(relation.address.ObjectID)
+		builtinTable := relation.RelationKind == catalogRelation && representedSummaryTable(relation.Address().ObjectID)
 		builtinDefinition := ""
-		if relation.relationKind == catalogRelation {
-			builtinDefinition = representedSummaryViewDefinition(relation.address.ObjectID)
+		if relation.RelationKind == catalogRelation {
+			builtinDefinition = representedSummaryViewDefinition(relation.Address().ObjectID)
 		}
-		if source.address.ObjectID == 12003 {
-			if relation.relationKind != tableRelation && relation.relationKind != partitionedRelation && !builtinTable {
+		if source.Address().ObjectID == 12003 {
+			if relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation && !builtinTable {
 				continue
 			}
-		} else if source.address.ObjectID == 12006 {
-			if relation.relationKind != materializedViewRelation {
+		} else if source.Address().ObjectID == 12006 {
+			if relation.RelationKind != materializedViewRelation {
 				continue
 			}
-		} else if relation.relationKind != viewRelation && builtinDefinition == "" {
+		} else if relation.RelationKind != viewRelation && builtinDefinition == "" {
 			continue
 		}
-		owner, err := roles.Descriptor(relation.owner)
+		owner, err := roles.Descriptor(relation.Owner)
 		if err != nil {
 			return nil, err
 		}
-		schema := catalog.Get(relation.namespace).Name()
-		if source.address.ObjectID == 12003 {
-			tablespace := sqltype.Null(source.columns[3].Usage.Type)
+		schema := catalog.Get(relation.Namespace()).Name()
+		if source.Address().ObjectID == 12003 {
+			tablespace := sqltype.Null(source.Columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.
 			// Represented shared catalogs belong to pg_global.
-			if builtinTable && (relation.address.ObjectID == 2396 || relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ids.ParameterClassID) {
+			if builtinTable && (relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
 				tablespace = text(3, "pg_global")
 			}
-			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), tablespace, boolean(4, relation.hasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.rlsEnabled)})
+			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.RLSEnabled)})
 		} else {
 			definition := builtinDefinition
-			if relation.view != nil {
+			if relation.View != nil {
 				// Follow current physical names without changing the caller's
 				// replay/display policy or the view's frozen output labels.
-				presentation.columns = relation.columns
+				presentation.columns = relation.Columns
 				renderer := newViewRenderer(viewOf(relation))
 				renderer.presentation = presentation
 				renderer.currentNames = true
@@ -140,10 +140,10 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 				}
 				definition += ";"
 			}
-			if source.address.ObjectID == 12006 {
-				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), sqltype.Null(source.columns[3].Usage.Type), boolean(4, relation.hasIndexes), boolean(5, relation.populated), text(6, definition)})
+			if source.Address().ObjectID == 12006 {
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), sqltype.Null(source.Columns[3].Usage.Type), boolean(4, relation.HasIndexes), boolean(5, relation.Populated), text(6, definition)})
 			} else {
-				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), text(3, definition)})
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), text(3, definition)})
 			}
 		}
 	}

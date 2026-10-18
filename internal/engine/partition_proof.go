@@ -47,8 +47,8 @@ func partitionProofOr(a, b *partitionProofGoal) *partitionProofGoal {
 // prefix; they are not ordinary type infinity values.
 func partitionProofTuple(tuple []partitionDatum, at int, greater bool) *partitionProofGoal {
 	datum := tuple[at]
-	if datum.kind != 0 {
-		truth := datum.kind < 0
+	if datum.Kind != 0 {
+		truth := datum.Kind < 0
 		if !greater {
 			truth = !truth
 		}
@@ -62,66 +62,66 @@ func partitionProofTuple(tuple []partitionDatum, at int, greater bool) *partitio
 		op = ">="
 	}
 	if at == len(tuple)-1 {
-		return &partitionProofGoal{key: at, op: op, value: datum.value}
+		return &partitionProofGoal{key: at, op: op, value: datum.Value}
 	}
 	rest := partitionProofTuple(tuple, at+1, greater)
 	strict := "<"
 	if greater {
 		strict = ">"
 	}
-	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.value}, rest))
+	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
 }
 
 func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, parent, relation *relationDescriptor, bound *partitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
-	if bound.strategy == parser.PartitionHash {
+	if bound.Strategy == parser.PartitionHash {
 		return false, scope.op.Context().Err()
 	}
 	var keys [32]expr.Expr
-	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
-	for i, column := range parent.columns {
-		slot, ok := relation.index[column.Name]
+	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+	for i, column := range parent.Columns {
+		slot, ok := relation.Index[column.Name]
 		if !ok {
 			return false, ids.ErrCatalogReplaced
 		}
 		in.targetSlots[i] = slot
 	}
-	for i, key := range parent.partition.keys {
+	for i, key := range parent.Partition.Keys {
 		var node expr.Expr
-		if key.derived != nil {
+		if key.Derived != nil {
 			var err error
-			node, err = in.remap(key.derived.definition, relation, catalog)
+			node, err = in.remap(key.Derived.Definition, relation, catalog)
 			if err != nil {
 				return false, err
 			}
 		} else {
-			slot := in.targetSlots[parent.indexForAttribute(key.attribute)]
-			ref := catalog.owner.domain.Ref(catalog.Epoch(), relation.address)
-			ref.Address.SubID = relation.attributes[slot]
-			node = columnExpression{Info: expr.Info{Usage: relation.columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+			slot := in.targetSlots[parent.indexForAttribute(key.Attribute)]
+			ref := catalog.owner.Domain.Ref(catalog.Epoch(), relation.Address())
+			ref.Address.SubID = relation.Attributes[slot]
+			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}
-		if node.ResultUsage().Collation.ID != key.usage.Collation.ID {
-			node = collationExpression{Info: expr.Info{Usage: key.usage, Property: node.Properties()}, child: node}
+		if node.ResultUsage().Collation.ID != key.Usage.Collation.ID {
+			node = collationExpression{Info: expr.Info{Usage: key.Usage, Property: node.Properties()}, child: node}
 		}
 		keys[i] = node
 	}
-	proof := partitionProof{scope: scope, relation: relation, keys: keys[:len(parent.partition.keys)], entries: parent.partition.keys}
+	proof := partitionProof{scope: scope, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
 	goalFor := func(membership *partitionMembership, complement bool) (*partitionProofGoal, bool) {
 		if complement {
-			return partitionProofOr(partitionProofTuple(membership.lower, 0, false), partitionProofTuple(membership.upper, 0, true)), true
+			return partitionProofOr(partitionProofTuple(membership.Lower, 0, false), partitionProofTuple(membership.Upper, 0, true)), true
 		}
-		return partitionProofAnd(partitionProofTuple(membership.lower, 0, true), partitionProofTuple(membership.upper, 0, false)), false
+		return partitionProofAnd(partitionProofTuple(membership.Lower, 0, true), partitionProofTuple(membership.Upper, 0, false)), false
 	}
 	goal := &partitionProofGoal{op: "true"}
-	nullAllowed := exclude || bound.defaultBound
-	if bound.defaultBound {
-		for _, address := range parent.partition.children {
+	nullAllowed := exclude || bound.DefaultBound
+	if bound.DefaultBound {
+		for _, address := range parent.Partition.Children {
 			child := catalog.MustRelation(address)
-			if child.membership.defaultBound {
+			if child.Membership.DefaultBound {
 				continue
 			}
-			part, _ := goalFor(child.membership, true)
+			part, _ := goalFor(child.Membership, true)
 			goal = partitionProofAnd(goal, part)
 		}
 	} else {
@@ -154,14 +154,14 @@ func partitionProofSame(a, b expr.Expr) bool {
 
 func (p *partitionProof) nonNull(key expr.Expr) bool {
 	if column, ok := key.(columnExpression); ok {
-		for _, constraint := range p.relation.notNullConstraints {
+		for _, constraint := range p.relation.NotNullConstraints {
 			if constraint.Attribute == column.origin.Address.SubID && !constraint.NotValid {
 				return true
 			}
 		}
 	}
-	for _, check := range p.relation.checkConstraints {
-		if !check.NotValid && partitionCheckNonNull(check.expression, key) {
+	for _, check := range p.relation.CheckConstraints {
+		if !check.NotValid && partitionCheckNonNull(check.Expression, key) {
 			return true
 		}
 	}
@@ -197,11 +197,11 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 		}
 		return p.implies(goal.right)
 	}
-	for _, check := range p.relation.checkConstraints {
+	for _, check := range p.relation.CheckConstraints {
 		if check.NotValid {
 			continue
 		}
-		ok, err := p.fact(check.expression, goal)
+		ok, err := p.fact(check.Expression, goal)
 		if err != nil || ok {
 			return ok, err
 		}
@@ -288,25 +288,25 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		}
 	}
 	entry := p.entries[goal.key]
-	if literal.value.IsNull() || literal.value.Type() != entry.usage.Type {
+	if literal.value.IsNull() || literal.value.Type() != entry.Usage.Type {
 		return false, nil
 	}
 	// A custom index ordering is not automatically the CHECK operator's family.
-	class, supported := sqltype.DefaultIndexClass(entry.usage.Type)
+	class, supported := sqltype.DefaultIndexClass(entry.Usage.Type)
 	if !supported {
 		return false, nil
 	}
-	ordering, err := sqltype.BindIndexOrdering(entry.usage, class)
-	if err != nil || ordering != entry.comparison {
+	ordering, err := sqltype.BindIndexOrdering(entry.Usage, class)
+	if err != nil || ordering != entry.Comparison {
 		return false, nil
 	}
 	collation, indeterminate := e.predicate.InputCollation()
-	if indeterminate || collation.ID != entry.usage.Collation.ID {
+	if indeterminate || collation.ID != entry.Usage.Collation.ID {
 		return false, nil
 	}
 	order := 0
 	if !sqltype.SameDatum(literal.value, goal.value) {
-		order, err = entry.comparison.Compare(p.scope.op.Context(), literal.value, goal.value, p.scope.input)
+		order, err = entry.Comparison.Compare(p.scope.op.Context(), literal.value, goal.value, p.scope.input)
 		if err != nil {
 			return false, err
 		}

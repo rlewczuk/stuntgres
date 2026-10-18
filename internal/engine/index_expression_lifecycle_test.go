@@ -37,7 +37,7 @@ func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *
 	if got := expressionRootTuples(t, root); !reflect.DeepEqual(got, want) {
 		t.Fatal(name, got, want)
 	}
-	store := e.storage[index.sqlIndex.parent]
+	store := e.storage[index.SQLIndex.Parent]
 	if store == nil {
 		t.Fatal("missing real parent storage")
 	}
@@ -80,8 +80,8 @@ func TestExpressionIndexSQLLifecycleRoots(t *testing.T) {
 	run(t, e, "ALTER TABLE t ALTER n TYPE BIGINT USING n::bigint")
 	widened := expressionWantRoot(t, e, "ix", compacted)
 	index, _ := btreeRoot(t, e, "ix")
-	if index.columns[1].Usage.Type.ID() != 20 || index.columns[2].Usage.Type.ID() != 20 || original.columns[1].Usage.Type.ID() != 23 || original.columns[2].Usage.Type.ID() != 23 {
-		t.Fatal("TYPE lost final usages or mutated predecessor", original.columns, index.columns)
+	if index.Columns[1].Usage.Type.ID() != 20 || index.Columns[2].Usage.Type.ID() != 20 || original.Columns[1].Usage.Type.ID() != 23 || original.Columns[2].Usage.Type.ID() != 23 {
+		t.Fatal("TYPE lost final usages or mutated predecessor", original.Columns, index.Columns)
 	}
 	run(t, e, "INSERT INTO t VALUES(10,'Beta')")
 	final := [][]string{{"alpha", "5", "6", "alpha"}, {"alpha", "3", "4", "alpha"}, {"alpha", "1", "2", "alpha"}, {"beta", "10", "11", "beta"}, {"beta", "4", "5", "beta"}, {"beta", "2", "3", "beta"}, {"NULL", "NULL", "NULL", "NULL"}}
@@ -119,8 +119,8 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		t.Fatal("failed evaluation replaced predecessor")
 	}
 	sourceIndex, _ := btreeRoot(t, source, "ix")
-	if sourceIndex.sqlIndex.parent != temporary {
-		t.Fatal("fixture did not establish a retained persistent/TEMP address collision", sourceIndex.sqlIndex.parent, temporary)
+	if sourceIndex.SQLIndex.Parent != temporary {
+		t.Fatal("fixture did not establish a retained persistent/TEMP address collision", sourceIndex.SQLIndex.Parent, temporary)
 	}
 	run(t, target, "CREATE TABLE unrelated(n INT)")
 	run(t, target, "INSERT INTO unrelated VALUES(99),(99),(99),(99),(99)")
@@ -151,24 +151,24 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		t.Fatal("destination write changed source authority")
 	}
 	index, _ := btreeRoot(t, target, "ix")
-	if index.sqlIndex.parent == temporary {
+	if index.SQLIndex.Parent == temporary {
 		t.Fatal("replacement did not remap collided parent dependency")
 	}
-	for _, key := range index.sqlIndex.keys {
-		if key.derived == nil {
+	for _, key := range index.SQLIndex.Keys {
+		if key.Derived == nil {
 			t.Fatal("replacement lost derived definition")
 		}
 		parentDependency := false
-		for _, dependency := range key.derived.dependencies {
-			if dependency.Domain() != target.catalog.domain || dependency.Epoch != target.CatalogRead().Epoch() {
+		for _, dependency := range key.Derived.Dependencies {
+			if dependency.Domain() != target.catalog.Domain || dependency.Epoch != target.CatalogRead().Epoch() {
 				t.Fatal("replacement retained source dependency authority", dependency)
 			}
-			if dependency.Address.ClassID == ids.RelationClassID && dependency.Address.ObjectID == index.sqlIndex.parent.ObjectID {
+			if dependency.Address.ClassID == ids.RelationClassID && dependency.Address.ObjectID == index.SQLIndex.Parent.ObjectID {
 				parentDependency = true
 			}
 		}
 		if !parentDependency {
-			t.Fatal("replacement lost remapped parent dependency", key.derived.dependencies)
+			t.Fatal("replacement lost remapped parent dependency", key.Derived.Dependencies)
 		}
 	}
 }

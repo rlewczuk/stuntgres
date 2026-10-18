@@ -248,34 +248,34 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
 	switch d := d.(type) {
 	case *databaseDescriptor:
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *foreignDescriptor:
-		if d.address.ClassID == ids.ForeignMappingClassID {
-			return d.mappedRole, authorization.ACLValue{}, nil
+		if d.Address().ClassID == ids.ForeignMappingClassID {
+			return d.MappedRole, authorization.ACLValue{}, nil
 		}
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *extensionDescriptor:
-		return d.owner, authorization.ACLValue{}, nil
+		return d.Owner, authorization.ACLValue{}, nil
 	case *procedureDescriptor:
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *parameterDescriptor:
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *tablespaceDescriptor:
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *tsDictionaryDescriptor:
-		return d.owner, authorization.ACLValue{}, nil
+		return d.Owner, authorization.ACLValue{}, nil
 	case *namespaceDescriptor:
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *relationDescriptor:
-		return d.owner, d.acl, d.columnACL
+		return d.Owner, d.ACL, d.ColumnACL
 	case *typeDescriptor:
-		return d.owner, d.acl, nil
+		return d.Owner, d.ACL, nil
 	case *collationDescriptor:
-		return d.owner, authorization.ACLValue{}, nil
+		return d.Owner, authorization.ACLValue{}, nil
 	case *conversionDescriptor:
-		return d.owner, authorization.ACLValue{}, nil
+		return d.Owner, authorization.ACLValue{}, nil
 	case *operatorDescriptor:
-		return d.owner, authorization.ACLValue{}, nil
+		return d.Owner, authorization.ACLValue{}, nil
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
@@ -310,13 +310,13 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	if d.Kind() == ids.NamespaceObject {
 		return authorization.UsagePrivilege | authorization.CreatePrivilege
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
 		return authorization.SelectPrivilege | authorization.UsagePrivilege | authorization.UpdatePrivilege
 	}
 	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.owner != v.engine.catalog.owner() || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(currentDatabaseAddress).owner || ref.Domain() != v.engine.catalog.domain || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.owner != v.engine.catalog.owner() || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(currentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -398,8 +398,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	if err != nil {
 		return err
 	}
-	if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && !req.OwnerOnly && req.Privileges == authorization.UsagePrivilege {
-		req.Object.Address.ObjectID = ids.OID(t.typ.Element().ID())
+	if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsArray() && !req.OwnerOnly && req.Privileges == authorization.UsagePrivilege {
+		req.Object.Address.ObjectID = ids.OID(t.SQLType.Element().ID())
 		return v.Check(req)
 	}
 	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
@@ -444,18 +444,18 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "foreign-data wrapper"
 		} else if d.Kind() == ids.ForeignServerObject {
 			kind = "foreign server"
-		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+		} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
 			kind = "sequence"
-		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == foreignRelation {
+		} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == foreignRelation {
 			kind = "foreign table"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == viewRelation {
 			kind = "view"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == materializedViewRelation {
 			kind = "materialized view"
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == indexRelation {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == indexRelation {
 			kind = "index"
 		}
 		if req.Object.Address.SubID > 0 && d.Kind() == ids.RelationObject {
@@ -483,8 +483,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	kind := "table"
 	if t, ok := d.(*typeDescriptor); ok {
-		if t.Namespace().ObjectID == ids.PGCatalogNamespaceOID && !t.typ.IsUserDefined() {
-			return sqlError("42501", "permission denied for type "+t.typ.DiagnosticName())
+		if t.Namespace().ObjectID == ids.PGCatalogNamespaceOID && !t.SQLType.IsUserDefined() {
+			return sqlError("42501", "permission denied for type "+t.SQLType.DiagnosticName())
 		}
 		path, _ := v.engine.referencePath(v)
 		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.catalog, t, path))
@@ -501,15 +501,15 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "foreign-data wrapper"
 	} else if d.Kind() == ids.ForeignServerObject {
 		kind = "foreign server"
-	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+	} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation {
 		kind = "sequence"
-	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == foreignRelation {
+	} else if r, ok := d.(*relationDescriptor); ok && r.RelationKind == foreignRelation {
 		kind = "foreign table"
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
+	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == viewRelation {
 		kind = "view"
 	}
-	if r, ok := d.(*relationDescriptor); ok && r.relationKind == materializedViewRelation {
+	if r, ok := d.(*relationDescriptor); ok && r.RelationKind == materializedViewRelation {
 		kind = "materialized view"
 	}
 	name := d.Name()
@@ -528,11 +528,11 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		if t.address.ClassID == ids.ForeignMappingClassID {
-			if t.mappedRole == (authorization.PrincipalRef{}) {
+		if t.Address().ClassID == ids.ForeignMappingClassID {
+			if t.MappedRole == (authorization.PrincipalRef{}) {
 				return nil
 			}
-			return r.ValidatePrincipal(t.mappedRole)
+			return r.ValidatePrincipal(t.MappedRole)
 		}
 	case *tsTemplateDescriptor:
 		return nil
@@ -542,13 +542,13 @@ func validateACL(r authorization.Read, d Descriptor) error {
 		return err
 	}
 	if relation, ok := d.(*relationDescriptor); ok {
-		for _, policy := range relation.policies {
-			for _, role := range policy.roles {
-				if role.public {
-					if role.ref != (authorization.PrincipalRef{}) {
+		for _, policy := range relation.Policies {
+			for _, role := range policy.Roles {
+				if role.Public {
+					if role.Ref != (authorization.PrincipalRef{}) {
 						return fmt.Errorf("stuntgres: PUBLIC policy principal")
 					}
-				} else if _, err := r.Descriptor(role.ref); err != nil {
+				} else if _, err := r.Descriptor(role.Ref); err != nil {
 					return err
 				}
 			}
@@ -571,11 +571,11 @@ func validateACL(r authorization.Read, d Descriptor) error {
 func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		if t.address.ClassID == ids.ForeignMappingClassID {
-			if t.mappedRole == (authorization.PrincipalRef{}) {
+		if t.Address().ClassID == ids.ForeignMappingClassID {
+			if t.MappedRole == (authorization.PrincipalRef{}) {
 				return nil
 			}
-			return []authorization.PrincipalRef{t.mappedRole}
+			return []authorization.PrincipalRef{t.MappedRole}
 		}
 	case *tsTemplateDescriptor:
 		return nil
@@ -583,10 +583,10 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	owner, acl, cols := descriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*relationDescriptor); ok {
-		for _, policy := range relation.policies {
-			for _, role := range policy.roles {
-				if !role.public {
-					refs = append(refs, role.ref)
+		for _, policy := range relation.Policies {
+			for _, role := range policy.Roles {
+				if !role.Public {
+					refs = append(refs, role.Ref)
 				}
 			}
 		}
@@ -718,7 +718,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if source.relation.relationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
+		if source.relation.RelationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
 			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.state.CurrentUser); err != nil {
 				return err
 			}
@@ -727,7 +727,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	return nil
 }
 func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
-	if b.relation.relationKind == sequenceRelation && mask != authorization.SelectPrivilege {
+	if b.relation.RelationKind == sequenceRelation && mask != authorization.SelectPrivilege {
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
 	whole, err := v.Effective(b.ref, false)
@@ -740,7 +740,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 	if len(indices) == 0 {
 		// An empty SELECT/INSERT manifest still needs authority, but any
 		// live column can supply it. Attribute IDs survive dense-slot edits.
-		for _, attribute := range b.relation.attributes {
+		for _, attribute := range b.relation.Attributes {
 			ref := b.ref
 			ref.Address.SubID = attribute
 			rights, err := v.Effective(ref, false)
@@ -757,8 +757,8 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 	// Larger column-only ACL manifests use one bit per stable column position.
 	var small uint64
 	var seen []uint64
-	if len(b.relation.columns) > 64 {
-		seen = make([]uint64, (len(b.relation.columns)+63)/64)
+	if len(b.relation.Columns) > 64 {
+		seen = make([]uint64, (len(b.relation.Columns)+63)/64)
 	}
 	check := func(index int) error {
 		word := &small
@@ -771,7 +771,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 		}
 		*word |= bit
 		ref := b.ref
-		ref.Address.SubID = b.relation.attributes[index]
+		ref.Address.SubID = b.relation.Attributes[index]
 		return v.Check(AccessRequirement{Object: ref, Privileges: mask})
 	}
 	for _, index := range indices {
@@ -786,7 +786,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address
@@ -806,43 +806,43 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 			return fmt.Errorf("stuntgres: database subobject")
 		}
 		n := *d
-		n.acl = acl
+		n.ACL = acl
 		next = &n
 	case *namespaceDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: namespace subobject")
 		}
 		n := *d
-		n.acl = acl
+		n.ACL = acl
 		next = &n
 	case *typeDescriptor:
-		if ref.Address.SubID != 0 || d.typ.IsArray() {
+		if ref.Address.SubID != 0 || d.SQLType.IsArray() {
 			return fmt.Errorf("stuntgres: invalid type ACL target")
 		}
 		n := *d
-		n.acl = acl
-		n.aclSyntheticDefault = false
+		n.ACL = acl
+		n.ACLSyntheticDefault = false
 		next = &n
 	case *procedureDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: procedure subobject")
 		}
 		n := *d
-		n.acl = acl
+		n.ACL = acl
 		next = &n
 	case *parameterDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: parameter subobject")
 		}
 		n := *d
-		n.acl = acl
+		n.ACL = acl
 		next = &n
 	case *tablespaceDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: tablespace subobject")
 		}
 		n := *d
-		n.acl = acl
+		n.ACL = acl
 		next = &n
 	case *relationDescriptor:
 		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.hasAttribute(ref.Address.SubID) {
@@ -850,16 +850,16 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		}
 		n := *d
 		if ref.Address.SubID == 0 {
-			n.acl = acl
+			n.ACL = acl
 		} else {
-			n.columnACL = make(map[int32]authorization.ACLValue, len(d.columnACL)+1)
-			for k, v := range d.columnACL {
-				n.columnACL[k] = v
+			n.ColumnACL = make(map[int32]authorization.ACLValue, len(d.ColumnACL)+1)
+			for k, v := range d.ColumnACL {
+				n.ColumnACL[k] = v
 			}
 			if acl.Explicit {
-				n.columnACL[ref.Address.SubID] = acl
+				n.ColumnACL[ref.Address.SubID] = acl
 			} else {
-				delete(n.columnACL, ref.Address.SubID)
+				delete(n.ColumnACL, ref.Address.SubID)
 			}
 		}
 		next = &n
@@ -882,12 +882,12 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if n, ok := next.(*relationDescriptor); ok && n.relationKind == sequenceRelation && ref.Address.SubID == 0 {
+	if n, ok := next.(*relationDescriptor); ok && n.RelationKind == sequenceRelation && ref.Address.SubID == 0 {
 		stamp, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
-		n.sequencePlanStamp = stamp
+		n.SequencePlanStamp = stamp
 	}
 	if _, ok := next.(*namespaceDescriptor); ok {
 		if err := state.advanceNamespaceGeneration(); err != nil {
@@ -907,7 +907,7 @@ func (e *Engine) roleRead(catalog CatalogRead, root *roleCatalog) authorization.
 	if !ok {
 		return authorization.Read{}
 	}
-	read := root.root.Read(database.owner)
+	read := root.root.Read(database.Owner)
 	if !read.BelongsTo(&e.authorizationDomain) {
 		return authorization.Read{}
 	}

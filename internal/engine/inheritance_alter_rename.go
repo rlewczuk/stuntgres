@@ -15,7 +15,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if only && inheritanceHasChildren(auth.catalog, root.address) {
+	if only && inheritanceHasChildren(auth.catalog, root.Address()) {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited column "%s" must be renamed in child tables too`, column))
 	}
@@ -37,17 +37,17 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 	defer e.DiscardCatalogStage(stage)
 	selected := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, old := range targets {
-		selected[old.address] = true
+		selected[old.Address()] = true
 	}
 	for _, old := range targets {
 		next := candidate
 		if old != root {
-			slot, exists := old.index[column]
+			slot, exists := old.Index[column]
 			if !exists {
 				return Result{}, ids.ErrCatalogReplaced
 			}
-			for _, origin := range old.inheritance.columns[old.attributes[slot]].origins {
-				if !selected[origin.parent] {
+			for _, origin := range old.Inheritance.Columns[old.Attributes[slot]].Origins {
+				if !selected[origin.Parent] {
 					return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited column "%s"`, column))
 				}
 			}
@@ -56,10 +56,10 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 				return Result{}, err
 			}
 		}
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next.revision = old.revision + 1
+		next.ObjectRevision = old.Revision() + 1
 		if err := stage.Replace(next); err != nil {
 			return Result{}, err
 		}
@@ -81,13 +81,13 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	name := raw.Constraint.Text
 	inherited := false
 	noInherit := false
-	if root.inheritance != nil {
+	if root.Inheritance != nil {
 		if kind == 'c' {
-			inherited = root.inheritance.checks[name].count() != 0
+			inherited = root.Inheritance.Checks[name].count() != 0
 		} else {
-			for _, c := range root.notNullConstraints {
+			for _, c := range root.NotNullConstraints {
 				if c.Name == name {
-					inherited = root.inheritance.notNull[c.Attribute].count() != 0
+					inherited = root.Inheritance.NotNull[c.Attribute].count() != 0
 				}
 			}
 		}
@@ -97,19 +97,19 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
 	}
 	if kind == 'c' {
-		for _, c := range root.checkConstraints {
+		for _, c := range root.CheckConstraints {
 			if c.Name == name {
 				noInherit = c.NoInherit
 			}
 		}
 	} else {
-		for _, c := range root.notNullConstraints {
+		for _, c := range root.NotNullConstraints {
 			if c.Name == name {
 				noInherit = c.NoInherit
 			}
 		}
 	}
-	if raw.Only && !noInherit && inheritanceHasChildren(auth.catalog, root.address) {
+	if raw.Only && !noInherit && inheritanceHasChildren(auth.catalog, root.Address()) {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited constraint "%s" must be renamed in child tables too`, name))
 	}
@@ -124,23 +124,23 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	defer e.DiscardCatalogStage(stage)
 	selected := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, old := range targets {
-		selected[old.address] = true
+		selected[old.Address()] = true
 	}
 	for _, old := range targets {
 		if old != root {
-			provenance := old.inheritance.checks[name]
+			provenance := old.Inheritance.Checks[name]
 			if kind == 'n' {
-				for _, c := range old.notNullConstraints {
+				for _, c := range old.NotNullConstraints {
 					if c.Name == name {
-						provenance = old.inheritance.notNull[c.Attribute]
+						provenance = old.Inheritance.NotNull[c.Attribute]
 					}
 				}
 			}
-			if len(provenance.retired) != 0 {
+			if len(provenance.Retired) != 0 {
 				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
 			}
-			for _, origin := range provenance.origins {
-				if !selected[origin.parent] {
+			for _, origin := range provenance.Origins {
+				if !selected[origin.Parent] {
 					return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
 				}
 			}
@@ -149,11 +149,11 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		if err != nil {
 			return Result{}, err
 		}
-		if next.inheritance != nil {
-			next.inheritance = cloneInheritance(next.inheritance)
+		if next.Inheritance != nil {
+			next.Inheritance = cloneInheritance(next.Inheritance)
 			if kind == 'c' {
-				next.inheritance.checks[raw.NewName.Text] = next.inheritance.checks[name]
-				delete(next.inheritance.checks, name)
+				next.Inheritance.Checks[raw.NewName.Text] = next.Inheritance.Checks[name]
+				delete(next.Inheritance.Checks, name)
 			}
 		}
 		if err := stage.Replace(next); err != nil {
@@ -176,7 +176,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescriptor, recurse bool) ([]*relationDescriptor, AuthorizationView, error) {
 	e := scope.op.session.Engine()
 	epoch := scope.lockedRef.Epoch
-	captured := map[ids.ObjectAddress]*relationDescriptor{root.address: root}
+	captured := map[ids.ObjectAddress]*relationDescriptor{root.Address(): root}
 	fail := func(err error) ([]*relationDescriptor, AuthorizationView, error) {
 		e.mu.Unlock()
 		return nil, AuthorizationView{}, err
@@ -202,7 +202,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 				captured[address] = current
 			}
 		}
-		root = captured[root.address]
+		root = captured[root.Address()]
 		var targets []*relationDescriptor
 		if recurse {
 			targets = inheritanceAlterOrder(catalog, root)
@@ -212,20 +212,20 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		var pending *relationDescriptor
 		for _, old := range targets {
 			ref := scope.lockedRef
-			ref.Address = old.address
+			ref.Address = old.Address()
 			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 				return fail(err)
 			}
-			if captured[old.address] == nil && pending == nil {
+			if captured[old.Address()] == nil && pending == nil {
 				pending = old
 			}
 		}
 		if pending == nil {
 			return targets, auth, nil
 		}
-		captured[pending.address] = pending
+		captured[pending.Address()] = pending
 		ref := scope.lockedRef
-		ref.Address = pending.address
+		ref.Address = pending.Address()
 		e.mu.Unlock()
 		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return nil, AuthorizationView{}, err

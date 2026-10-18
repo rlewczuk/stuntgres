@@ -15,8 +15,8 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 			continue
 		}
 		if d, ok := next.Relation(target); ok {
-			for _, g := range d.generations {
-				needed = needed || generationHasTableOID(g.planned)
+			for _, g := range d.Generations {
+				needed = needed || generationHasTableOID(g.Planned)
 			}
 		}
 	}

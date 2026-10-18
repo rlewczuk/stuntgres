@@ -15,10 +15,10 @@ type operatorGroups map[string][]*operatorDescriptor
 
 func collectOperatorGroups(view CatalogRead) operatorGroups {
 	groups := make(operatorGroups)
-	for key, addresses := range view.state.operatorNames.buckets {
+	for key, addresses := range view.state.operatorNames.Buckets {
 		for _, address := range addresses {
 			d := view.MustOperator(address)
-			groups[key.name] = append(groups[key.name], d)
+			groups[key.Name] = append(groups[key.Name], d)
 		}
 	}
 	return groups
@@ -30,10 +30,10 @@ func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name stri
 	seen := make(map[operatorSignature]bool)
 	for _, ns := range path {
 		for _, d := range groups[name] {
-			if d.namespace != ns {
+			if d.Namespace() != ns {
 				continue
 			}
-			signature := operatorSignature{d.left, d.right}
+			signature := operatorSignature{d.Left, d.Right}
 			if !seen[signature] {
 				seen[signature] = true
 				result = append(result, d)
@@ -112,7 +112,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 		if ns == (ids.ObjectAddress{}) {
 			return nil, nil
 		}
-		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
+		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
 			return nil, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -139,7 +139,7 @@ func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) 
 	if len(candidates) > 1 {
 		return 0, sqlError("42725", "more than one operator named "+text)
 	}
-	return uint32(candidates[0].address.ObjectID), nil
+	return uint32(candidates[0].Address().ObjectID), nil
 }
 func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
@@ -199,8 +199,8 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 		return 0, err
 	}
 	for _, d := range candidates {
-		if d.left == oids[0] && d.right == oids[1] {
-			return uint32(d.address.ObjectID), nil
+		if d.Left == oids[0] && d.Right == oids[1] {
+			return uint32(d.Address().ObjectID), nil
 		}
 	}
 	return 0, sqlError("42883", "operator does not exist: "+text)

@@ -9,18 +9,18 @@ import (
 )
 
 type derivedIndexKey struct {
-	definition, execution expr.Expr
-	dependencies          []ids.ObjectRef
-	attributes            []int32 // Immutable parent layout used by both bound row frames.
+	Definition, Execution expr.Expr
+	Dependencies          []ids.ObjectRef
+	Attributes            []int32 // Immutable parent layout used by both bound row frames.
 }
 
 func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor) *expressionBinder {
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.address)
-	columns := make([]queryColumn, len(parent.columns))
-	for i, c := range parent.columns {
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
+	columns := make([]queryColumn, len(parent.Columns))
+	for i, c := range parent.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.name, original: parent.name, schema: auth.catalog.Get(parent.namespace).Name(), ref: ref, columns: columns}}, frame: parent.columns}
+	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.Name(), original: parent.Name(), schema: auth.catalog.Get(parent.Namespace()).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
 	binder.queryNamespace = &namespace
@@ -58,8 +58,8 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if plannedVolatility(execution) != expr.Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
-	key := &derivedIndexKey{definition: definition, execution: execution, attributes: parent.attributes}
-	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &key.dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
+	key := &derivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
+	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
 		return nil, "", err
 	}
 	label := "expr"
@@ -85,26 +85,26 @@ func indexKeyUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, err
 }
 
 func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, error) {
-	if key.derived != nil {
-		return key.derived.execution.ResultUsage(), nil
+	if key.Derived != nil {
+		return key.Derived.Execution.ResultUsage(), nil
 	}
-	for i, a := range parent.attributes {
-		if a == key.attribute {
-			return parent.columns[i].Usage, nil
+	for i, a := range parent.Attributes {
+		if a == key.Attribute {
+			return parent.Columns[i].Usage, nil
 		}
 	}
 	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
 }
 
 func indexExpressionDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	if d.sqlIndex == nil {
+	if d.SQLIndex == nil {
 		return false
 	}
-	for _, key := range d.sqlIndex.keys {
-		if key.derived == nil {
+	for _, key := range d.SQLIndex.Keys {
+		if key.Derived == nil {
 			continue
 		}
-		for _, ref := range key.derived.dependencies {
+		for _, ref := range key.Derived.Dependencies {
 			a := ref.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 				return true
@@ -115,7 +115,7 @@ func indexExpressionDepends(d *relationDescriptor, target ids.ObjectAddress) boo
 }
 
 func (d *indexDefinition) hasRuntimeDomainConversion() bool {
-	if d.predicate != nil && d.predicate.execution.Properties().RuntimeDomainConversion {
+	if d.Predicate != nil && d.Predicate.Execution.Properties().RuntimeDomainConversion {
 		return true
 	}
 	return d.hasRuntimeDomainKeyConversion()
@@ -128,18 +128,18 @@ func (d *indexDefinition) requiresInsertionOutput() bool {
 	if d.hasRuntimeDomainConversion() {
 		return true
 	}
-	if d.predicate != nil {
-		for _, ref := range d.predicate.dependencies {
+	if d.Predicate != nil {
+		for _, ref := range d.Predicate.Dependencies {
 			if ref.Address.ClassID == ids.ProcedureClassID {
 				return true
 			}
 		}
 	}
-	for _, key := range d.keys {
-		if key.derived == nil {
+	for _, key := range d.Keys {
+		if key.Derived == nil {
 			continue
 		}
-		for _, ref := range key.derived.dependencies {
+		for _, ref := range key.Derived.Dependencies {
 			if ref.Address.ClassID == ids.ProcedureClassID {
 				return true
 			}
@@ -149,8 +149,8 @@ func (d *indexDefinition) requiresInsertionOutput() bool {
 }
 
 func (d *indexDefinition) hasRuntimeDomainKeyConversion() bool {
-	for _, key := range d.keys {
-		if key.derived != nil && key.derived.execution.Properties().RuntimeDomainConversion {
+	for _, key := range d.Keys {
+		if key.Derived != nil && key.Derived.Execution.Properties().RuntimeDomainConversion {
 			return true
 		}
 	}

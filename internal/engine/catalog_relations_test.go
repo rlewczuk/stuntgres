@@ -51,8 +51,8 @@ func TestCatalogRelationsBinding(t *testing.T) {
 		t.Fatal("physical signature")
 	}
 	for _, declaration := range builtinRoutineDeclarations {
-		if declaration.identity.id == 1642 || declaration.identity.id == 6159 {
-			if !declaration.strict || declaration.volatility != expr.Stable || declaration.parallel != 's' || declaration.returnsSet != (declaration.identity.id == 6159) {
+		if declaration.Identity.ID == 1642 || declaration.Identity.ID == 6159 {
+			if !declaration.Strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != (declaration.Identity.ID == 6159) {
 				t.Fatal("release declaration flags", declaration)
 			}
 		}

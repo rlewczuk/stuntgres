@@ -37,7 +37,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil {
+	if d.RelationKind == tableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil {
 		op.restorePartitionCheck = d
 	}
 	return nil
@@ -57,7 +57,7 @@ func partitionCheckReplayActions(raw *parser.AlterTable) bool {
 
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
 func partitionConstraintReplayImport(e *Engine, op *Operation, auth AuthorizationView) bool {
-	if e == nil || op == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
+	if e == nil || op == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.Domain != e.catalog.Domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -68,5 +68,5 @@ func partitionConstraintReplayImport(e *Engine, op *Operation, auth Authorizatio
 }
 
 func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *relationDescriptor) bool {
-	return op != nil && op.restorePartitionCheck == d && d != nil && d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil && auth.catalog.Get(d.address) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return op != nil && op.restorePartitionCheck == d && d != nil && d.RelationKind == tableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

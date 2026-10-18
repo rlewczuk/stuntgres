@@ -9,11 +9,11 @@ import (
 )
 
 func (in createLikeInput) attribute(destination *relationDescriptor, old int32) (int32, error) {
-	slot := slices.Index(in.source.attributes, old)
+	slot := slices.Index(in.source.Attributes, old)
 	if slot < 0 {
 		return 0, fmt.Errorf("stuntgres: missing LIKE index attribute")
 	}
-	return destination.attributes[in.targetSlot(slot)], nil
+	return destination.Attributes[in.targetSlot(slot)], nil
 }
 
 // Clone live definitions, not source roots or validity flags. Invalid concurrent
@@ -27,98 +27,98 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 		var sources []*relationDescriptor
 		for _, descriptor := range auth.catalog.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if ok && index.sqlIndex != nil && index.sqlIndex.parent == in.source.address && index.sqlIndex.live {
+			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.source.Address() && index.SQLIndex.Live {
 				sources = append(sources, index)
 			}
 		}
 		slices.SortFunc(sources, func(a, b *relationDescriptor) int {
-			if a.address.ObjectID < b.address.ObjectID {
+			if a.Address().ObjectID < b.Address().ObjectID {
 				return -1
 			}
-			if a.address.ObjectID > b.address.ObjectID {
+			if a.Address().ObjectID > b.Address().ObjectID {
 				return 1
 			}
 			return 0
 		})
 		for _, source := range sources {
-			old := source.sqlIndex
+			old := source.SQLIndex
 			// Copied PK was bound and staged before explicit UNIQUE. Keep the
 			// remaining independent LIKE index copies in source index order.
-			if old.constraint != nil && old.constraint.Primary {
+			if old.Constraint != nil && old.Constraint.Primary {
 				continue
 			}
 			stage.captureLikeSource(source)
 			definition := *old
-			definition.parent = destination.address
-			definition.partitionParent = ids.ObjectAddress{}
-			definition.ready, definition.valid, definition.live = true, true, true
-			definition.constraint = nil
-			definition.keys = slices.Clone(old.keys)
-			definition.include = make([]int32, len(old.include))
-			for i, attribute := range old.include {
+			definition.Parent = destination.Address()
+			definition.PartitionParent = ids.ObjectAddress{}
+			definition.Ready, definition.Valid, definition.Live = true, true, true
+			definition.Constraint = nil
+			definition.Keys = slices.Clone(old.Keys)
+			definition.Include = make([]int32, len(old.Include))
+			for i, attribute := range old.Include {
 				mapped, err := in.attribute(destination, attribute)
 				if err != nil {
 					return err
 				}
-				definition.include[i] = mapped
+				definition.Include[i] = mapped
 			}
-			for i := range definition.keys {
-				key := &definition.keys[i]
-				if key.derived == nil {
-					mapped, err := in.attribute(destination, key.attribute)
+			for i := range definition.Keys {
+				key := &definition.Keys[i]
+				if key.Derived == nil {
+					mapped, err := in.attribute(destination, key.Attribute)
 					if err != nil {
 						return err
 					}
-					key.attribute = mapped
+					key.Attribute = mapped
 					continue
 				}
-				node, err := in.remap(key.derived.definition, destination, auth.catalog)
+				node, err := in.remap(key.Derived.Definition, destination, auth.catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := in.remap(key.derived.execution, destination, auth.catalog)
+				execution, err := in.remap(key.Derived.Execution, destination, auth.catalog)
 				if err != nil {
 					return err
 				}
-				derived := &derivedIndexKey{definition: node, execution: execution, attributes: destination.attributes}
-				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &derived.dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+				derived := &derivedIndexKey{Definition: node, Execution: execution, Attributes: destination.Attributes}
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &derived.Dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
-				key.derived = derived
+				key.Derived = derived
 			}
-			if old.predicate != nil {
-				node, err := in.remap(old.predicate.definition, destination, auth.catalog)
+			if old.Predicate != nil {
+				node, err := in.remap(old.Predicate.Definition, destination, auth.catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := in.remap(old.predicate.execution, destination, auth.catalog)
+				execution, err := in.remap(old.Predicate.Execution, destination, auth.catalog)
 				if err != nil {
 					return err
 				}
-				predicate := &indexPredicate{definition: node, execution: execution, attributes: destination.attributes}
+				predicate := &indexPredicate{Definition: node, Execution: execution, Attributes: destination.Attributes}
 				// The analyzed tree retains external dependencies even when the
 				// execution tree has folded their containing arm away.
-				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &predicate.dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &predicate.Dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
-				definition.predicate = predicate
+				definition.Predicate = predicate
 			}
-			labels := make([]string, len(source.columns))
-			for i, column := range source.columns {
+			labels := make([]string, len(source.Columns))
+			for i, column := range source.Columns {
 				labels[i] = column.Name
 			}
 			read := e.stageRead(stage)
 			label := "idx"
 			var constraints map[string]bool
-			if old.constraint != nil {
+			if old.Constraint != nil {
 				label = "key"
 				if old.isExclusion() {
 					label = "excl"
 				}
-				constraints = constraintNames(read, destination.namespace, destination)
+				constraints = constraintNames(read, destination.Namespace(), destination)
 			}
-			name := generatedRelationName(destination.name, strings.Join(labels, "_"), label, func(name string) bool {
-				return constraints[name] || name == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: name})) != 0
+			name := generatedRelationName(destination.Name(), strings.Join(labels, "_"), label, func(name string) bool {
+				return constraints[name] || name == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: name})) != 0
 			})
 			oid, err := e.catalog.allocateOIDLocked()
 			if err != nil {
@@ -129,13 +129,13 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				return err
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-			if old.constraint != nil && old.constraint.kind == uniqueBackingKind {
-				c := uniqueConstraint{Name: name, IsLocal: true, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.keys))}
+			if old.Constraint != nil && old.Constraint.Kind == uniqueBackingKind {
+				c := uniqueConstraint{Name: name, IsLocal: true, Primary: old.Constraint.Primary, NullsNotDistinct: old.NullsNotDistinct, Index: address, Attributes: make([]int32, len(old.Keys))}
 				c.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				for i, key := range old.keys {
+				for i, key := range old.Keys {
 					attribute, expression, keyErr := indexCatalogKey(in.source, key)
 					if keyErr != nil || expression != nil {
 						return fmt.Errorf("stuntgres: invalid LIKE unique key")
@@ -145,8 +145,8 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 				}
-				destination.uniqueConstraints = append(destination.uniqueConstraints, c)
-				definition.constraint = uniqueBacking(&c)
+				destination.UniqueConstraints = append(destination.UniqueConstraints, c)
+				definition.Constraint = uniqueBacking(&c)
 			}
 			if old.isExclusion() {
 				original := exclusionDefinition(in.source, source)
@@ -156,28 +156,28 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				c := *original
 				c.Name, c.Index = name, address
 				c.Parent, c.IsLocal = 0, true
-				definition.exclusion, err = rebindExclusionOperators(destination, &definition)
+				definition.Exclusion, err = rebindExclusionOperators(destination, &definition)
 				if err != nil {
 					return err
 				}
-				c.Operators = definition.exclusion
+				c.Operators = definition.Exclusion
 				c.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				destination.exclusionConstraints = append(destination.exclusionConstraints, c)
-				definition.constraint = exclusionBacking(&c)
+				destination.ExclusionConstraints = append(destination.ExclusionConstraints, c)
+				definition.Constraint = exclusionBacking(&c)
 			}
-			columns := slices.Clone(source.columns)
+			columns := slices.Clone(source.Columns)
 			lookup := make(map[string]int, len(columns))
 			for i := range columns {
 				columns[i].OriginTable = uint32(oid)
 				columns[i].OriginAttribute = int16(i + 1)
 				lookup[columns[i].Name] = i
 			}
-			index := &relationDescriptor{address: address, namespace: destination.namespace, name: name, revision: revision, owner: destination.owner, columns: columns, attributes: slices.Clone(source.attributes), attributeHighWater: source.attributeHighWater, index: lookup, relationKind: indexRelation, sqlIndex: &definition}
+			index := &relationDescriptor{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), AttributeHighWater: source.AttributeHighWater, Index: lookup, RelationKind: indexRelation, SQLIndex: &definition}
 			if in.options&likeComments != 0 {
-				index.comment = source.comment
+				index.Comment = source.Comment
 			}
 			if err := stage.Create(index); err != nil {
 				return err

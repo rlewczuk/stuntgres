@@ -76,7 +76,7 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 	commentWant(t, e, e.CatalogRead(), b, "")
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.b IS ' '")
 	commentWant(t, e, e.CatalogRead(), b, " ")
-	for _, bad := range []ids.ObjectRef{{}, New().catalog.domain.Ref(table.Epoch, table.Address), e.catalog.domain.Ref(table.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.catalog.domain.Ref(ns.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
+	for _, bad := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(table.Epoch, table.Address), e.catalog.Domain.Ref(table.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.catalog.Domain.Ref(ns.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
 		if _, _, err := e.Comment(e.CatalogRead(), bad); err == nil {
 			t.Fatal("accepted invalid comment reference", bad)
 		}

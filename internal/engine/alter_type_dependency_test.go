@@ -47,10 +47,10 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 			}
 			removeView(view)
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			var added ids.ObjectAddress
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				e.mu.Lock()
 				oid, allocationErr := e.catalog.allocateOIDLocked()
 				if allocationErr != nil {
@@ -68,14 +68,14 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 					t.Fatal(allocationErr)
 				}
 				next := *originalView
-				next.address.ObjectID, next.name, next.revision = oid, "late_view", revision
-				next.rowType = 0
+				next.ObjectAddress.ObjectID, next.ObjectName, next.ObjectRevision = oid, "late_view", revision
+				next.RowType = 0
 				definition := *viewOf(originalView)
 				definition.rule = rule
-				next.view = &definition
-				next.columns = append([]ColumnDescriptor(nil), originalView.columns...)
-				for i := range next.columns {
-					next.columns[i].OriginTable = uint32(oid)
+				next.View = &definition
+				next.Columns = append([]ColumnDescriptor(nil), originalView.Columns...)
+				for i := range next.Columns {
+					next.Columns[i].OriginTable = uint32(oid)
 				}
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(stage)
@@ -95,7 +95,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: table.Epoch}); err != nil {
 					t.Fatal(err)
 				}
-				added = next.address
+				added = next.Address()
 			}}
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+action), nil)
 			var conflict CatalogConflict

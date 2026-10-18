@@ -32,7 +32,7 @@ func remappedCollationCapabilities(next *catalogState, mapping map[ids.ObjectAdd
 		if !ok || !old.Valid() {
 			return sqltype.CollationRef{}, fmt.Errorf("stuntgres: missing imported collation capability")
 		}
-		mapped, err := sqltype.RegisteredCollation(uint32(to.ObjectID), d.semantics)
+		mapped, err := sqltype.RegisteredCollation(uint32(to.ObjectID), d.Semantics)
 		if err != nil {
 			return sqltype.CollationRef{}, err
 		}

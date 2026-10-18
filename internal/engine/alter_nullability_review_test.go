@@ -44,15 +44,15 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					if explicit {
 						tx = transactionBegin(t, s)
 					}
-					original := e.catalog.providers[ids.RelationClassID]
+					original := e.catalog.Providers[ids.RelationClassID]
 					calls := 0
 					entered := make(chan struct{})
-					e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						calls++
 						if calls != at {
 							return
 						}
-						e.catalog.providers[ids.RelationClassID] = original
+						e.catalog.Providers[ids.RelationClassID] = original
 						close(entered)
 						var err error
 						if restore {

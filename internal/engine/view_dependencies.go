@@ -16,7 +16,7 @@ import (
 )
 
 func viewDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	return d.view != nil && d.view.DependsOn(target)
+	return d.View != nil && d.View.DependsOn(target)
 }
 
 type viewDependencyEdge struct {
@@ -38,11 +38,11 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		if d, ok := descriptor.(*relationDescriptor); ok && d.view != nil {
+		if d, ok := descriptor.(*relationDescriptor); ok && d.View != nil {
 			views = append(views, d)
 		}
 	}
-	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
+	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
 	seen := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, target := range targets {
 		if target.SubID == 0 {
@@ -53,10 +53,10 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 	var visit func(ids.ObjectAddress)
 	visit = func(target ids.ObjectAddress) {
 		for _, view := range views {
-			if !seen[view.address] && viewDepends(view, target) {
-				seen[view.address] = true
+			if !seen[view.Address()] && viewDepends(view, target) {
+				seen[view.Address()] = true
 				edges = append(edges, viewDependencyEdge{view, target})
-				visit(view.address)
+				visit(view.Address())
 			}
 		}
 	}
@@ -72,27 +72,27 @@ func constraintName(parent *relationDescriptor, address ids.ObjectAddress) strin
 	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return ""
 	}
-	for _, c := range parent.uniqueConstraints {
+	for _, c := range parent.UniqueConstraints {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.checkConstraints {
+	for _, c := range parent.CheckConstraints {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.notNullConstraints {
+	for _, c := range parent.NotNullConstraints {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.foreignKeys {
+	for _, c := range parent.ForeignKeys {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
@@ -119,45 +119,45 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "constraint " + dependencyIdentifier(constraintName(parent, base)) + " on table " + dependencyRelationName(catalog, parent, path)
 	}
 	if d, ok := catalog.Namespace(base); ok {
-		return "schema " + dependencyIdentifier(d.name)
+		return "schema " + dependencyIdentifier(d.Name())
 	}
 	if d, ok := catalog.Database(base); ok {
-		return "database " + dependencyIdentifier(d.name)
+		return "database " + dependencyIdentifier(d.Name())
 	}
 	if d, ok := catalog.Foreign(base); ok {
-		if d.address.ClassID == ids.ForeignMappingClassID {
+		if d.Address().ClassID == ids.ForeignMappingClassID {
 			user := "public"
-			if d.mappedRole != (authorization.PrincipalRef{}) {
-				user = dependencyIdentifier(d.mappedName)
+			if d.MappedRole != (authorization.PrincipalRef{}) {
+				user = dependencyIdentifier(d.MappedName)
 			}
-			server := catalog.Get(d.server)
+			server := catalog.Get(d.Server)
 			return "user mapping for " + user + " on server " + dependencyIdentifier(server.Name())
 		}
-		return foreignLabel(d.address.ClassID) + " " + dependencyIdentifier(d.name)
+		return foreignLabel(d.Address().ClassID) + " " + dependencyIdentifier(d.Name())
 	}
 	if d, ok := catalog.Extension(base); ok {
-		return "extension " + dependencyIdentifier(d.name)
+		return "extension " + dependencyIdentifier(d.Name())
 	}
 	if _, ok := catalog.Operator(base); ok {
 		return "operator " + operatorSpelling(catalog, path, collectOperatorGroups(catalog), base.ObjectID, sqltype.Regoperator)
 	}
 	if d, ok := catalog.Procedure(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, namespace := range path {
-			if n, ok := catalog.Namespace(namespace); ok && n.temporary != (ids.SessionToken{}) {
+			if n, ok := catalog.Namespace(namespace); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}); ok {
-				visible = address == d.address
+			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.Name(), Signature: string(d.Signature)}); ok {
+				visible = address == d.Address()
 				break
 			}
 		}
 		if !visible {
-			name = dependencyIdentifier(catalog.Get(d.namespace).Name()) + "." + name
+			name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
 		}
 		var arguments string
-		switch d.signature {
+		switch d.Signature {
 		case "23":
 			arguments = "integer"
 		case "1007":
@@ -182,19 +182,19 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "function " + name + "(" + arguments + ")"
 	}
 	if d, ok := catalog.TSDictionary(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, ns := range path {
-			if n, ok := catalog.Namespace(ns); ok && n.temporary != (ids.SessionToken{}) {
+			if n, ok := catalog.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}); ok {
-				visible = address == d.address
+			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()}); ok {
+				visible = address == d.Address()
 				break
 			}
 		}
 		if !visible {
-			name = dependencyIdentifier(catalog.Get(d.namespace).Name()) + "." + name
+			name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
 		}
 		return "text search dictionary " + name
 	}
@@ -202,14 +202,14 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "type " + typeDiagnosticNameAt(catalog, t, path)
 	}
 	if d, ok := catalog.Collation(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.Namespace(ns); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}); ok {
+				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.Name()}); ok {
 					visible = a == d.Address()
 					break
 				}
@@ -221,14 +221,14 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "collation " + name
 	}
 	if d, ok := catalog.Conversion(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.Namespace(ns); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.name}); ok {
+				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.Name()}); ok {
 					visible = a == d.Address()
 					break
 				}
@@ -240,15 +240,15 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "conversion " + name
 	}
 	d := catalog.MustRelation(base)
-	if d.sqlIndex != nil && d.sqlIndex.constraint != nil {
-		parent := catalog.MustRelation(d.sqlIndex.parent)
-		return "constraint " + dependencyIdentifier(d.sqlIndex.constraint.Name) + " on table " + dependencyRelationName(catalog, parent, path)
+	if d.SQLIndex != nil && d.SQLIndex.Constraint != nil {
+		parent := catalog.MustRelation(d.SQLIndex.Parent)
+		return "constraint " + dependencyIdentifier(d.SQLIndex.Constraint.Name) + " on table " + dependencyRelationName(catalog, parent, path)
 	}
 	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
 	if target.SubID != 0 {
-		for i, attribute := range d.attributes {
+		for i, attribute := range d.Attributes {
 			if attribute == target.SubID {
-				return "column " + d.columns[i].Name + " of " + object
+				return "column " + d.Columns[i].Name + " of " + object
 			}
 		}
 	}
@@ -259,7 +259,7 @@ func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []i
 	// Internal provider stages have no SQL visibility context. SQL utilities
 	// supply their actual lookup path, including an empty effective path.
 	if path == nil {
-		return dependencyIdentifier(d.name)
+		return dependencyIdentifier(d.Name())
 	}
 	return relationDiagnosticNameAt(catalog, d, path)
 }
@@ -281,7 +281,7 @@ func supportedDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, 
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
 		copy(policyTargets, targets)
 		for _, edge := range views {
-			policyTargets = append(policyTargets, edge.view.address)
+			policyTargets = append(policyTargets, edge.view.Address())
 		}
 	}
 	dependents := policyDependentLabels(catalog, policyTargets, path)
@@ -295,14 +295,14 @@ func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ids.Obj
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
 		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.relation.defaults[edge.attribute].OID, target: edge.target, label: label})
+		dependents = append(dependents, supportedDependent{oid: edge.relation.Defaults[edge.attribute].OID, target: edge.target, label: label})
 	}
 	for _, edge := range checks {
 		label := "constraint " + dependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalog, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.address.ObjectID, checkOrdinal: edge.check.ordinal})
+		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.Address().ObjectID, checkOrdinal: edge.check.Ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.view.Address().ObjectID, target: edge.target, view: edge.view.Address(), label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
 	}
 	for _, edge := range foreign {
 		if !edge.automatic {
@@ -360,7 +360,7 @@ func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdg
 		provider := dependencyObject(catalog, dependent.target, path)
 		// The dependency targets the physical supporting index. Its owning
 		// constraint identifies the requested DROP in Message, not this edge.
-		if index, ok := catalog.Relation(dependent.target); ok && index.sqlIndex != nil {
+		if index, ok := catalog.Relation(dependent.target); ok && index.SQLIndex != nil {
 			provider = "index " + dependencyRelationName(catalog, index, path)
 		}
 		details[i] = dependent.label + " depends on " + provider
@@ -371,7 +371,7 @@ func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdg
 	if !multipleDeletion {
 		target := dependents[0].target
 		for i := len(views) - 1; i >= 0; i-- {
-			if views[i].view.address == target {
+			if views[i].view.Address() == target {
 				target = views[i].target
 			}
 		}
@@ -399,7 +399,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		expanded = make([]ids.ObjectAddress, len(targets), len(targets)+len(edges))
 		copy(expanded, targets)
 		for _, edge := range edges {
-			expanded = append(expanded, edge.view.address)
+			expanded = append(expanded, edge.view.Address())
 		}
 	}
 	policies := provider.policyDependentLabels(expanded)
@@ -433,10 +433,10 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	activeEdges := edges[:0]
 	for _, edge := range edges {
 		d := edge.view
-		if provider.removed(d.address) {
+		if provider.removed(d.Address()) {
 			continue
 		}
-		if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), d.address), false); err != nil {
+		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 		activeEdges = append(activeEdges, edge)
@@ -460,16 +460,16 @@ func emitViewCascade(op *Operation, details []string) {
 }
 
 func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
-	if d.view == nil {
+	if d.View == nil {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
-	return d.view.Validate(v, d)
+	return d.View.Validate(v, d)
 }
 
 // Validate implements viewPayload: it checks the frozen definition against
 // its owning relation d in catalog v.
 func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor) error {
-	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.columns) {
+	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.Columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
 	for _, usage := range definition.castUsages {
@@ -497,9 +497,9 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 		if !ok || !storedViewReferenceValid(v, d, leaf.ref) || leaf.ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid view source identity")
 		}
-		namespace, ok := v.Namespace(source.namespace)
-		consumerNamespace, consumerOK := v.Namespace(d.namespace)
-		if !ok || namespace.temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.temporary != namespace.temporary) {
+		namespace, ok := v.Namespace(source.Namespace())
+		consumerNamespace, consumerOK := v.Namespace(d.Namespace())
+		if !ok || namespace.Temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.Temporary != namespace.Temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
 		for _, attribute := range leaf.reads {
@@ -516,7 +516,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 		}
 	}
 	for _, dependency := range definition.dependencies {
-		ref := dependency.ref
+		ref := dependency.Ref
 		address := ref.Address
 		address.SubID = 0
 		if !storedViewReferenceValid(v, d, ref) {
@@ -720,8 +720,8 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					if frozen != attribute {
 						continue
 					}
-					for current, live := range source.attributes {
-						if live == attribute && n.Schema()[slot].Usage != source.columns[current].Usage {
+					for current, live := range source.Attributes {
+						if live == attribute && n.Schema()[slot].Usage != source.Columns[current].Usage {
 							return fmt.Errorf("stuntgres: invalid view source usage")
 						}
 					}

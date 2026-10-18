@@ -81,20 +81,20 @@ func (in createLikeInput) targetSlot(slot int) int {
 // Captures are transient CREATE inputs. Source rows, authority and object-literal
 // references are never imported; row owners and stable attributes are mapped.
 func (in createLikeInput) rowMapper(destination *relationDescriptor, authority CatalogRead) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
-	attributes := make(map[int32]int32, len(in.source.attributes))
-	slots := make(map[int32]int, len(in.source.attributes))
-	for slot, attribute := range in.source.attributes {
-		target := destination.attributes[in.targetSlot(slot)]
+	attributes := make(map[int32]int32, len(in.source.Attributes))
+	slots := make(map[int32]int, len(in.source.Attributes))
+	for slot, attribute := range in.source.Attributes {
+		target := destination.Attributes[in.targetSlot(slot)]
 		attributes[attribute] = target
 		slots[target] = in.targetSlot(slot)
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
-	target := authority.owner.domain.Ref(authority.Epoch(), destination.address)
+	target := authority.owner.Domain.Ref(authority.Epoch(), destination.Address())
 	return func(ref ids.ObjectRef) ids.ObjectRef {
 		address := ref.Address
 		address.SubID = 0
-		if address == in.source.address {
+		if address == in.source.Address() {
 			attribute := ref.Address.SubID
 			ref = target
 			ref.Address.SubID = attributes[attribute]
@@ -134,7 +134,7 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 			captured, sourceOK := source.(*relationDescriptor)
 			// Private index-history normalization may replace the pointer while
 			// retaining the staged incarnation and definition revision.
-			if !ok || !sourceOK || staged.Revision() != source.Revision() || staged.relationKind != captured.relationKind {
+			if !ok || !sourceOK || staged.Revision() != source.Revision() || staged.RelationKind != captured.RelationKind {
 				return fmt.Errorf("stuntgres: invalid staged LIKE source")
 			}
 		}
@@ -149,93 +149,93 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 		if in.sourceType != nil {
 			stage.domainBases = append(stage.domainBases, in.sourceType)
 		}
-		for slot, attribute := range in.source.attributes {
-			target := destination.attributes[in.targetSlot(slot)]
+		for slot, attribute := range in.source.Attributes {
+			target := destination.Attributes[in.targetSlot(slot)]
 			if in.options&likeIdentity != 0 {
-				if identity, ok := in.source.identities[attribute]; ok {
-					sequence, ok := auth.catalog.Relation(identity.sequence)
-					if !ok || sequence.sequence == nil {
+				if identity, ok := in.source.Identities[attribute]; ok {
+					sequence, ok := auth.catalog.Relation(identity.Sequence)
+					if !ok || sequence.Sequence == nil {
 						return fmt.Errorf("stuntgres: missing LIKE identity provider")
 					}
 					stage.captureLikeSource(sequence)
-					options := *sequence.sequence
-					options.persistence = "logged"
+					options := *sequence.Sequence
+					options.Persistence = "logged"
 					read := e.stageRead(stage)
-					name := ownedSequenceName(destination.name, destination.columns[in.targetSlot(slot)].Name, func(n string) bool {
-						return n == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: n})) != 0
+					name := ownedSequenceName(destination.Name(), destination.Columns[in.targetSlot(slot)].Name, func(n string) bool {
+						return n == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: n})) != 0
 					})
-					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.mode, options, nil); err != nil {
+					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.Mode, options, nil); err != nil {
 						return err
 					}
 				}
 			}
 			if in.options&likeDefaults != 0 {
-				if old, ok := in.source.defaults[attribute]; ok {
+				if old, ok := in.source.Defaults[attribute]; ok {
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
-					node := old.expression
-					temporary := auth.catalog.MustNamespace(destination.namespace).temporary
+					node := old.Expression
+					temporary := auth.catalog.MustNamespace(destination.Namespace()).Temporary
 					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
-					definition := columnDefault{expression: node}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: in.source, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+					definition := columnDefault{Expression: node}
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: in.source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					// Validate the original published recipe first. Old callable
 					// identities may be copied unchanged only into its same physical
 					// TEMP lifetime, not certified through an unpublished destination.
-					for _, dependency := range old.dependencies {
+					for _, dependency := range old.Dependencies {
 						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
 							continue
 						}
-						sourceNamespace := auth.catalog.MustNamespace(in.source.namespace)
-						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.temporary || temporary.Domain() != domainOf(e) {
+						sourceNamespace := auth.catalog.MustNamespace(in.source.Namespace())
+						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.Temporary || temporary.Domain() != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
 					}
-					if destination.defaults == nil {
-						destination.defaults = make(map[int32]columnDefault)
+					if destination.Defaults == nil {
+						destination.Defaults = make(map[int32]columnDefault)
 					}
-					destination.defaults[target] = definition
-					if destination.inheritance != nil {
-						provenance := destination.inheritance.columns[target]
-						provenance.explicitDefault = true
-						destination.inheritance.columns[target] = provenance
+					destination.Defaults[target] = definition
+					if destination.Inheritance != nil {
+						provenance := destination.Inheritance.Columns[target]
+						provenance.ExplicitDefault = true
+						destination.Inheritance.Columns[target] = provenance
 					}
 				}
 			}
 			if in.options&likeGenerated != 0 {
-				if old, ok := in.source.generations[attribute]; ok {
-					if _, inherited := destination.generations[target]; inherited {
-						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.columns[in.targetSlot(slot)].Name, destination.name, destination.columns[in.targetSlot(slot)].Name, destination.name)).(*sqlstate.Error)
-						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.columns[in.targetSlot(slot)].Name, destination.name)
+				if old, ok := in.source.Generations[attribute]; ok {
+					if _, inherited := destination.Generations[target]; inherited {
+						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.targetSlot(slot)].Name, destination.Name(), destination.Columns[in.targetSlot(slot)].Name, destination.Name())).(*sqlstate.Error)
+						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.Name())
 						return diagnostic
 					}
-					node, err := in.remap(old.expression, destination, auth.catalog)
+					node, err := in.remap(old.Expression, destination, auth.catalog)
 					if err != nil {
 						return err
 					}
-					planned, err := in.remap(old.planned, destination, auth.catalog)
+					planned, err := in.remap(old.Planned, destination, auth.catalog)
 					if err != nil {
 						return err
 					}
-					definition := columnGeneration{kind: old.kind, expression: node, planned: planned}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+					definition := columnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
-					if destination.generations == nil {
-						destination.generations = make(map[int32]columnGeneration)
+					if destination.Generations == nil {
+						destination.Generations = make(map[int32]columnGeneration)
 					}
-					destination.generations[target] = definition
+					destination.Generations[target] = definition
 				}
 			}
 			if in.options&likeComments != 0 {
-				if comment, ok := in.source.columnComments[attribute]; ok {
-					if destination.columnComments == nil {
-						destination.columnComments = make(map[int32]string)
+				if comment, ok := in.source.ColumnComments[attribute]; ok {
+					if destination.ColumnComments == nil {
+						destination.ColumnComments = make(map[int32]string)
 					}
-					destination.columnComments[target] = comment
+					destination.ColumnComments[target] = comment
 				}
 			}
 		}
@@ -246,13 +246,13 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destination *relationDescriptor, inputs []createLikeInput) error {
 	names := make(map[string]bool)
 	ordinal := 0
-	for _, constraint := range destination.notNullConstraints {
+	for _, constraint := range destination.NotNullConstraints {
 		names[constraint.Name] = true
 	}
-	for _, constraint := range destination.checkConstraints {
+	for _, constraint := range destination.CheckConstraints {
 		names[constraint.Name] = true
-		if constraint.ordinal >= ordinal {
-			ordinal = constraint.ordinal + 1
+		if constraint.Ordinal >= ordinal {
+			ordinal = constraint.Ordinal + 1
 		}
 	}
 	for i := range inputs {
@@ -262,37 +262,37 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 		}
 		for _, old := range orderedChecks(in.source) {
 			if names[old.Name] {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.Name()))
 			}
 			if ordinal == int(^uint(0)>>1) {
 				return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 			}
-			node, err := in.remap(old.expression, destination, auth.catalog)
+			node, err := in.remap(old.Expression, destination, auth.catalog)
 			if err != nil {
 				return err
 			}
-			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, ordinal: ordinal, expression: node}
+			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {
 				address := ref.Address
 				address.SubID = 0
-				revision := destination.revision
+				revision := destination.Revision()
 				if provider, ok := auth.catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}
-				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
+				definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
 			}
-			destination.checkConstraints = append(destination.checkConstraints, definition)
-			if destination.inheritance != nil {
-				destination.inheritance.checks[definition.Name] = inheritedConstraint{local: true}
+			destination.CheckConstraints = append(destination.CheckConstraints, definition)
+			if destination.Inheritance != nil {
+				destination.Inheritance.Checks[definition.Name] = inheritedConstraint{Local: true}
 			}
 			names[old.Name] = true
 			ordinal++
 		}
 	}
-	slices.SortFunc(destination.checkConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(destination.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }

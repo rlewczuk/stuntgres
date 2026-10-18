@@ -195,16 +195,16 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	for ref, node := range e.serializable.nodes {
-		if ref.Domain() != e.catalog.domain || ref.Epoch() != e.catalog.state.epoch || ref.Session() != (e.catalog.domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch() != e.catalog.state.epoch || ref.Session() != (e.catalog.Domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
 		}
 		var values []sqltype.Value
 		for writer := range node.possible {
-			if writer.ref.Domain() != e.catalog.domain || writer.ref.Epoch() != ref.Epoch() || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
+			if writer.ref.Domain() != e.catalog.Domain || writer.ref.Epoch() != ref.Epoch() || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
 				continue
 			}
 			var err error
-			values, err = appendBlockingPid(values, typ, writer.ref.Session(), writer.prepared, e.catalog.domain)
+			values, err = appendBlockingPid(values, typ, writer.ref.Session(), writer.prepared, e.catalog.Domain)
 			if err != nil {
 				return nil, err
 			}

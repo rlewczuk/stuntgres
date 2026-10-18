@@ -103,7 +103,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
 				next := *base.MustRelation(p.Address)
-				next.revision++
+				next.ObjectRevision++
 				replacement := &relationStorage{versions: oldP.versions, ends: oldP.ends, generation: oldP.generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, oldP, replacement, len(oldP.versions), oldP.generation, oldP.ends); err != nil {
 					t.Fatal(err)
@@ -164,8 +164,8 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	for _, name := range []string{"p", "p_pkey"} {
 		ref := roleTableRef(t, e, name)
 		next := *base.MustRelation(ref.Address)
-		next.namespace = destination
-		next.revision++
+		next.ObjectNamespace = destination
+		next.ObjectRevision++
 		if err := stage.Replace(&next); err != nil {
 			t.Fatal(err)
 		}

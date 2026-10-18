@@ -23,7 +23,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 	}
 	byAddress := make(map[ids.ObjectAddress]*dumpRelation, len(tables))
 	for i := range tables {
-		byAddress[tables[i].descriptor.address] = &tables[i]
+		byAddress[tables[i].descriptor.Address()] = &tables[i]
 	}
 	var include func(*dumpRelation)
 	var component []*dumpRelation
@@ -33,15 +33,15 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 		}
 		table.recipePlaceholders = true
 		component = append(component, table)
-		if inheritance := table.descriptor.inheritance; inheritance != nil {
-			for _, address := range inheritance.parents {
+		if inheritance := table.descriptor.Inheritance; inheritance != nil {
+			for _, address := range inheritance.Parents {
 				if parent := byAddress[address]; parent != nil {
 					include(parent)
 				}
 			}
 		}
-		for _, child := range inheritanceChildren(view, table.descriptor.address) {
-			if target := byAddress[child.address]; target != nil {
+		for _, child := range inheritanceChildren(view, table.descriptor.Address()) {
+			if target := byAddress[child.Address()]; target != nil {
 				include(target)
 			}
 		}
@@ -52,10 +52,10 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 		}
 		component = nil
 		include(&tables[i])
-		leader := component[0].descriptor.address
+		leader := component[0].descriptor.Address()
 		for _, table := range component {
-			if table.descriptor.address.ObjectID < leader.ObjectID {
-				leader = table.descriptor.address
+			if table.descriptor.Address().ObjectID < leader.ObjectID {
+				leader = table.descriptor.Address()
 			}
 		}
 		for _, table := range component {
@@ -64,7 +64,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 	}
 	for i := range tables {
 		if tables[i].recipePlaceholders {
-			for _, check := range tables[i].descriptor.checkConstraints {
+			for _, check := range tables[i].descriptor.CheckConstraints {
 				if !check.NotValid {
 					if tables[i].deferredChecks == nil {
 						tables[i].deferredChecks = make(map[string]bool)
@@ -91,7 +91,7 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 	}
 	byOID := make(map[ids.OID]*dumpRelation, len(tables))
 	for i := range tables {
-		byOID[tables[i].descriptor.address.ObjectID] = &tables[i]
+		byOID[tables[i].descriptor.Address().ObjectID] = &tables[i]
 	}
 	components := make(map[ids.ObjectAddress][]dumpEventKey)
 	var order []ids.ObjectAddress
@@ -118,17 +118,17 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 		prerequisites := components[component]
 		for _, declaration := range prerequisites {
 			table := byOID[declaration.oid]
-			if len(table.descriptor.generations) == 0 {
+			if len(table.descriptor.Generations) == 0 {
 				continue
 			}
 			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceRecipes}
 			graph[event] = append([]dumpEventKey(nil), prerequisites...)
 			add := addProvider(event)
-			for _, definition := range table.descriptor.generations {
-				if err := regclassReplayReferences(view, definition.expression, add); err != nil {
+			for _, definition := range table.descriptor.Generations {
+				if err := regclassReplayReferences(view, definition.Expression, add); err != nil {
 					return err
 				}
-				for _, dependency := range definition.dependencies {
+				for _, dependency := range definition.Dependencies {
 					if err := add(dependency.Address); err != nil {
 						return err
 					}
@@ -142,7 +142,7 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 		for _, declaration := range prerequisites {
 			table := byOID[declaration.oid]
 			local := false
-			for _, check := range table.descriptor.checkConstraints {
+			for _, check := range table.descriptor.CheckConstraints {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
 					local = true
 					break
@@ -154,13 +154,13 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceChecks}
 			graph[event] = append([]dumpEventKey(nil), prerequisites...)
 			add := addProvider(event)
-			for _, check := range table.descriptor.checkConstraints {
+			for _, check := range table.descriptor.CheckConstraints {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
-					if err := regclassReplayReferences(view, check.expression, add); err != nil {
+					if err := regclassReplayReferences(view, check.Expression, add); err != nil {
 						return err
 					}
-					for _, dependency := range check.dependencies {
-						if err := add(dependency.ref.Address); err != nil {
+					for _, dependency := range check.Dependencies {
+						if err := add(dependency.Ref.Address); err != nil {
 							return err
 						}
 					}
@@ -183,8 +183,8 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view CatalogRead, emit func(string) error) error {
 	prefix := "ALTER TABLE ONLY " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
-		if definition, exists := t.descriptor.generations[t.attributes[i]]; exists {
-			text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, view, definition.expression)
+		if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists {
+			text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, view, definition.Expression)
 			if err != nil {
 				return err
 			}
@@ -201,7 +201,7 @@ func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view CatalogRead
 		if !t.deferredChecks[check.Name] || !dumpCheckDeclaration(view, t.descriptor, check) {
 			continue
 		}
-		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, view, check.expression)
+		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, view, check.Expression)
 		if err != nil {
 			return err
 		}
@@ -234,8 +234,8 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 	if !ok {
 		return
 	}
-	for attribute, definition := range table.generations {
-		column := table.columns[table.indexForAttribute(attribute)].Name
+	for attribute, definition := range table.Generations {
+		column := table.Columns[table.indexForAttribute(attribute)].Name
 		declared := false
 		for _, element := range raw.Elements {
 			if element.Column != nil && element.Column.Name == column {
@@ -247,30 +247,30 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 				}
 			}
 		}
-		if !declared && table.inheritance != nil {
+		if !declared && table.Inheritance != nil {
 			inherited := false
 			compatible := true
-			for _, origin := range table.inheritance.columns[attribute].origins {
-				parent, ok := view.Relation(origin.parent)
+			for _, origin := range table.Inheritance.Columns[attribute].Origins {
+				parent, ok := view.Relation(origin.Parent)
 				if !ok {
 					compatible = false
 					break
 				}
-				generation, exists := parent.generations[origin.attribute]
+				generation, exists := parent.Generations[origin.Attribute]
 				if !exists {
 					continue
 				}
 				inherited = true
-				record, exists := origins[restoredGenerationKey{origin.parent, origin.attribute}]
-				if !exists || record.ref.Domain() != created.Domain() || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.kind || record.usage != parent.columns[parent.indexForAttribute(origin.attribute)].Usage {
+				record, exists := origins[restoredGenerationKey{origin.Parent, origin.Attribute}]
+				if !exists || record.ref.Domain() != created.Domain() || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.Kind || record.usage != parent.Columns[parent.indexForAttribute(origin.Attribute)].Usage {
 					compatible = false
 					break
 				}
 			}
-			declared = inherited && compatible && !table.inheritance.columns[attribute].explicitGeneration
+			declared = inherited && compatible && !table.Inheritance.Columns[attribute].ExplicitGeneration
 		}
 		if declared {
-			origins[restoredGenerationKey{created.Address, attribute}] = restoredGenerationRecipe{ref: created, attribute: attribute, generation: definition.OID, usage: table.columns[table.indexForAttribute(attribute)].Usage, kind: definition.kind}
+			origins[restoredGenerationKey{created.Address, attribute}] = restoredGenerationRecipe{ref: created, attribute: attribute, generation: definition.OID, usage: table.Columns[table.indexForAttribute(attribute)].Usage, kind: definition.Kind}
 		}
 	}
 }
@@ -303,18 +303,18 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	if !ok {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.Namespace(table.namespace)
-	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
+	namespace, namespaceOK := auth.catalog.Namespace(table.Namespace())
+	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
-	slot, exists := table.index[raw.Actions[0].Column.Text]
+	slot, exists := table.Index[raw.Actions[0].Column.Text]
 	if !exists {
 		return reject()
 	}
-	attribute := table.attributes[slot]
+	attribute := table.Attributes[slot]
 	record, exists := origins[restoredGenerationKey{ref.Address, attribute}]
-	definition, generated := table.generations[attribute]
-	if !exists || !generated || record.ref != ref || record.attribute != attribute || record.generation != definition.OID || record.usage != table.columns[slot].Usage || record.kind != definition.kind {
+	definition, generated := table.Generations[attribute]
+	if !exists || !generated || record.ref != ref || record.attribute != attribute || record.generation != definition.OID || record.usage != table.Columns[slot].Usage || record.kind != definition.Kind {
 		return reject()
 	}
 	if (relationProvider{}).Validate(auth.catalog, table) != nil {
@@ -336,13 +336,13 @@ func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable
 	if !ok {
 		return restoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
-	slot, ok := table.index[raw.Actions[0].Column.Text]
+	slot, ok := table.Index[raw.Actions[0].Column.Text]
 	if !ok {
 		return restoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
-	attribute := table.attributes[slot]
-	generation := table.generations[attribute]
-	return restoredGenerationRecipe{ref: ref, attribute: attribute, generation: generation.OID, usage: table.columns[slot].Usage, kind: generation.kind}, nil
+	attribute := table.Attributes[slot]
+	generation := table.Generations[attribute]
+	return restoredGenerationRecipe{ref: ref, attribute: attribute, generation: generation.OID, usage: table.Columns[slot].Usage, kind: generation.Kind}, nil
 }
 
 func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, repairs []restoredGenerationRecipe) error {
@@ -383,11 +383,11 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		return err
 	}
 	target, ok := auth.catalog.Relation(ref.Address)
-	if !ok || target.relationKind != tableRelation || target.partition != nil || target.membership != nil {
+	if !ok || target.RelationKind != tableRelation || target.Partition != nil || target.Membership != nil {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.Namespace(target.namespace)
-	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
+	namespace, namespaceOK := auth.catalog.Namespace(target.Namespace())
+	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if validateInheritance(auth.catalog, target) != nil {
@@ -401,15 +401,15 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		if !ok {
 			continue
 		}
-		generation, ok := table.generations[repair.attribute]
+		generation, ok := table.Generations[repair.attribute]
 		slot := table.indexForAttribute(repair.attribute)
-		if !ok || slot < 0 || generation.OID != repair.generation || generation.kind != repair.kind || table.columns[slot].Usage != repair.usage {
+		if !ok || slot < 0 || generation.OID != repair.generation || generation.Kind != repair.kind || table.Columns[slot].Usage != repair.usage {
 			continue
 		}
 		if (relationProvider{}).Validate(auth.catalog, table) != nil {
 			continue
 		}
-		if inheritedRecipeConnected(auth.catalog, target.address, table.address) {
+		if inheritedRecipeConnected(auth.catalog, target.Address(), table.Address()) {
 			return nil
 		}
 	}
@@ -439,15 +439,15 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 			}
 			return false
 		}
-		if table.inheritance != nil {
-			for _, parent := range table.inheritance.parents {
+		if table.Inheritance != nil {
+			for _, parent := range table.Inheritance.Parents {
 				if appendTarget(parent) {
 					return true
 				}
 			}
 		}
 		for _, child := range inheritanceChildren(view, address) {
-			if appendTarget(child.address) {
+			if appendTarget(child.Address()) {
 				return true
 			}
 		}
@@ -458,8 +458,8 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.inheritance != nil && len(table.generations) != 0 {
-			if namespace, ok := view.Namespace(table.namespace); ok && namespace.temporary == (ids.SessionToken{}) {
+		if table, ok := descriptor.(*relationDescriptor); ok && table.Inheritance != nil && len(table.Generations) != 0 {
+			if namespace, ok := view.Namespace(table.Namespace()); ok && namespace.Temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
 			}
@@ -471,16 +471,16 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 	var tables []dumpRelation
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.relationKind != tableRelation || table.partition != nil || table.membership != nil {
+		if !ok || table.RelationKind != tableRelation || table.Partition != nil || table.Membership != nil {
 			continue
 		}
-		if namespace, ok := view.Namespace(table.namespace); !ok || namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := view.Namespace(table.Namespace()); !ok || namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if !inheritanceParticipant(view, table) {
 			continue
 		}
-		captured := dumpRelation{descriptor: table, columns: table.columns, attributes: table.attributes, defaults: table.defaults}
+		captured := dumpRelation{descriptor: table, columns: table.Columns, attributes: table.Attributes, defaults: table.Defaults}
 		if err := captured.prepareInheritedRecipes(view); err != nil {
 			return nil, err
 		}
@@ -493,7 +493,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 			if selected == nil {
 				selected = make(map[ids.ObjectAddress]*dumpRelation)
 			}
-			selected[tables[i].descriptor.address] = &tables[i]
+			selected[tables[i].descriptor.Address()] = &tables[i]
 		}
 	}
 	return selected, nil
@@ -518,11 +518,11 @@ func (e *Engine) closeRestoredRecipesForData(op *Operation, raw *parser.Insert, 
 }
 
 func (t *dumpRelation) needsGenerationPlaceholders() bool {
-	if t.descriptor.inheritance == nil {
+	if t.descriptor.Inheritance == nil {
 		return false
 	}
 	for attribute, recipe := range t.recipes {
-		if _, generated := t.descriptor.generations[attribute]; generated && recipe.explicitGeneration && (!recipe.local || !t.descriptor.inheritance.columns[attribute].explicitGeneration) {
+		if _, generated := t.descriptor.Generations[attribute]; generated && recipe.ExplicitGeneration && (!recipe.Local || !t.descriptor.Inheritance.Columns[attribute].ExplicitGeneration) {
 			return true
 		}
 	}

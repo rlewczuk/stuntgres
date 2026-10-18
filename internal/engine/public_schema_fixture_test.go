@@ -26,7 +26,7 @@ func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func(
 		t.Fatal("public schema fixture has a non-namespace descriptor")
 	}
 	roles := e.Roles()
-	prior, err := roles.Descriptor(namespace.owner)
+	prior, err := roles.Descriptor(namespace.Owner)
 	if err != nil {
 		t.Fatal(err)
 	}

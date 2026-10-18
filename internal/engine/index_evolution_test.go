@@ -17,7 +17,7 @@ func TestBtreeIndexUnchangedParentEvolution(t *testing.T) {
 	ref := roleTableRef(t, e, "unrelated")
 	original := base.MustRelation(ref.Address)
 	replacement := *original
-	replacement.revision++
+	replacement.ObjectRevision++
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&replacement); err != nil {
@@ -28,7 +28,7 @@ func TestBtreeIndexUnchangedParentEvolution(t *testing.T) {
 	if evolutionErr != nil || allocations != 0 {
 		t.Fatal("untouched parent performs evolution work", evolutionErr, allocations)
 	}
-	if stage.descriptors[index.address] != nil {
+	if stage.descriptors[index.Address()] != nil {
 		t.Fatal("unrelated metadata staged an index change")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)

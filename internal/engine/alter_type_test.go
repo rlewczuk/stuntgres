@@ -21,10 +21,10 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a TYPE BIGINT USING a+1")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.address != old.address || next.owner != old.owner || !reflect.DeepEqual(next.attributes, old.attributes) || !reflect.DeepEqual(next.columnComments, old.columnComments) || len(next.notNullConstraints) != len(old.notNullConstraints) {
+	if next == old || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || len(next.NotNullConstraints) != len(old.NotNullConstraints) {
 		t.Fatal(old, next)
 	}
-	beforeNN, afterNN := old.notNullConstraints[0], next.notNullConstraints[0]
+	beforeNN, afterNN := old.NotNullConstraints[0], next.NotNullConstraints[0]
 	if afterNN.OID == 0 || afterNN.OID == beforeNN.OID || afterNN.Name != beforeNN.Name || afterNN.Attribute != beforeNN.Attribute || afterNN.NotValid != beforeNN.NotValid || beforeNN.Name != "nn" || beforeNN.NotValid {
 		t.Fatal("TYPE failed to rebuild the same valid logical NN definition", beforeNN, afterNN)
 	}
@@ -144,7 +144,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	run(t, e, "CREATE USER alter_reader")
 	run(t, e, "CREATE SCHEMA denied")
 	schema := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
-	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, schema), authorization.ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, schema), authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	s := sessionStart(t, e, nil)

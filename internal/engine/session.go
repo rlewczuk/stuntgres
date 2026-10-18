@@ -178,9 +178,9 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{engine: e, token: e.catalog.domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{engine: e, token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	if private {
-		s.token = e.catalog.domain.PrivateSession(s)
+		s.token = e.catalog.Domain.PrivateSession(s)
 	}
 	s.databaseName = e.databaseName
 	s.cond = sync.NewCond(&s.mu)

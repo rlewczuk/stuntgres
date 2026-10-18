@@ -26,7 +26,7 @@ func (c indexRootCandidate) matchesIndex(index *relationDescriptor, store *relat
 }
 
 func simpleConcurrentIndex(parent *relationDescriptor, definition *indexDefinition) (bool, error) {
-	for _, key := range definition.keys {
+	for _, key := range definition.Keys {
 		_, node, err := indexCatalogKey(parent, key)
 		if err != nil {
 			return false, err
@@ -39,23 +39,23 @@ func simpleConcurrentIndex(parent *relationDescriptor, definition *indexDefiniti
 }
 
 func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.CreateIndex, initial *relationDescriptor) (Result, error) {
-	if err := scope.waitIndexWriters(initial.address); err != nil {
+	if err := scope.waitIndexWriters(initial.Address()); err != nil {
 		return Result{}, err
 	}
-	if _, err := e.publishConcurrentIndexRoot(scope, syntax, initial.address, true); err != nil {
+	if _, err := e.publishConcurrentIndexRoot(scope, syntax, initial.Address(), true); err != nil {
 		return Result{}, err
 	}
-	if err := scope.waitIndexWriters(initial.address); err != nil {
+	if err := scope.waitIndexWriters(initial.Address()); err != nil {
 		return Result{}, err
 	}
-	xmin, err := e.publishConcurrentIndexRoot(scope, syntax, initial.address, false)
+	xmin, err := e.publishConcurrentIndexRoot(scope, syntax, initial.Address(), false)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.waitOlderIndexSnapshots(xmin, initial.address); err != nil {
+	if err := scope.waitOlderIndexSnapshots(xmin, initial.Address()); err != nil {
 		return Result{}, err
 	}
-	if err := e.publishConcurrentIndexValid(scope, syntax, initial.address); err != nil {
+	if err := e.publishConcurrentIndexValid(scope, syntax, initial.Address()); err != nil {
 		return Result{}, err
 	}
 	scope.completed = true
@@ -74,14 +74,14 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 		return nil, nil, auth, err
 	}
 	index, ok := e.catalog.state.Relation(address)
-	if !ok || index.sqlIndex == nil || index.sqlIndex.parent != scope.lockedRef.Address {
+	if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != scope.lockedRef.Address {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
-	parent, ok := e.catalog.state.Relation(index.sqlIndex.parent)
+	parent, ok := e.catalog.state.Relation(index.SQLIndex.Parent)
 	if !ok {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
-	if err = auth.CheckCreate(e.catalog.domain.Ref(e.catalog.state.epoch, parent.namespace)); err != nil {
+	if err = auth.CheckCreate(e.catalog.Domain.Ref(e.catalog.state.epoch, parent.Namespace())); err != nil {
 		return nil, nil, auth, err
 	}
 	return index, parent, auth, nil
@@ -95,7 +95,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.mu.Unlock()
 			return 0, err
 		}
-		if index.sqlIndex.valid || !index.sqlIndex.live || index.sqlIndex.ready == first {
+		if index.SQLIndex.Valid || !index.SQLIndex.Live || index.SQLIndex.Ready == first {
 			e.mu.Unlock()
 			return 0, fmt.Errorf("stuntgres: invalid concurrent index phase")
 		}
@@ -107,7 +107,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		visibility := e.visibility[scope.txRef]
 		visibility.snapshot = false
 		e.visibility[scope.txRef] = visibility
-		safe, err := simpleConcurrentIndex(parent, index.sqlIndex)
+		safe, err := simpleConcurrentIndex(parent, index.SQLIndex)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -117,24 +117,24 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.mu.Unlock()
 			return 0, err
 		}
-		store := e.storage[parent.address]
+		store := e.storage[parent.Address()]
 		if store == nil {
 			e.mu.Unlock()
 			return 0, ids.ErrCatalogReplaced
 		}
 		snapshot := *store
-		next, definition := *index, *index.sqlIndex
-		definition.ready = true
-		next.sqlIndex = &definition
-		next.revision, err = e.catalog.revisionLocked()
+		next, definition := *index, *index.SQLIndex
+		definition.Ready = true
+		next.SQLIndex = &definition
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
-		namespace := auth.catalog.Get(parent.namespace).Name()
+		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
+		namespace := auth.catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.catalog}
 		evaluation.routineAuthority = &auth
@@ -182,7 +182,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		if !index.sqlIndex.ready || !index.sqlIndex.live || index.sqlIndex.valid || e.indexRoots[address] == nil {
+		if !index.SQLIndex.Ready || !index.SQLIndex.Live || index.SQLIndex.Valid || e.indexRoots[address] == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: invalid concurrent index validity phase")
 		}
@@ -190,17 +190,17 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		next, definition := *index, *index.sqlIndex
-		definition.valid = true
-		next.sqlIndex = &definition
-		next.revision, err = e.catalog.revisionLocked()
+		next, definition := *index, *index.SQLIndex
+		definition.Valid = true
+		next.SQLIndex = &definition
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return err
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
+		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {

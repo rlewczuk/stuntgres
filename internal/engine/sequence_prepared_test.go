@@ -51,12 +51,12 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		}
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 		original := d.sequences.constants[0].ref
-		oldStamp := e.catalog.state.MustRelation(original.Address).sequencePlanStamp
+		oldStamp := e.catalog.state.MustRelation(original.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		if err := e.SetObjectACL(context.Background(), original, authorization.ACLValue{}); err != nil {
 			t.Fatal(err)
 		}
-		if e.catalog.state.MustRelation(original.Address).sequencePlanStamp == oldStamp {
+		if e.catalog.state.MustRelation(original.Address).SequencePlanStamp == oldStamp {
 			t.Fatal("ACL publication did not invalidate relation plan stamp")
 		}
 		r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -80,7 +80,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		path := &cell.path.namespaces[0]
 		key := s.sequencePath.key
 		ref := cell.constants[0].ref
-		stamp := e.catalog.state.MustRelation(ref.Address).sequencePlanStamp
+		stamp := e.catalog.state.MustRelation(ref.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		for _, want := range []int64{10, 11, 12} {
 			r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -98,7 +98,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		}
 		for _, q := range []string{"ALTER SEQUENCE b.s OWNED BY NONE", "ALTER SEQUENCE b.s OWNER TO postgres", "ALTER SEQUENCE b.s SET LOGGED"} {
 			sessionSQL(t, s, q)
-			if e.catalog.state.MustRelation(ref.Address).sequencePlanStamp != stamp {
+			if e.catalog.state.MustRelation(ref.Address).SequencePlanStamp != stamp {
 				t.Fatal("source-grounded no-op invalidated", q)
 			}
 		}
@@ -129,7 +129,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			t.Fatal("unchanged sequence cache validation allocated", allocations)
 		}
 		sessionSQL(t, s, "ALTER SEQUENCE b.s START 10")
-		if e.catalog.state.MustRelation(ref.Address).sequencePlanStamp == stamp {
+		if e.catalog.state.MustRelation(ref.Address).SequencePlanStamp == stamp {
 			t.Fatal("unchanged START failed to invalidate")
 		}
 		sequenceScalar(t, s, "SELECT nextval('b.s')", 13)
@@ -237,7 +237,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 		t.Helper()
 		var ref ids.ObjectRef
 		if a, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}); ok {
-			ref = e.catalog.domain.Ref(e.catalog.state.epoch, a)
+			ref = e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 		} else {
 			ref = roleTableRef(t, e, name)
 		}
@@ -293,18 +293,18 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	stamp := od.sequences.constants[0].stamp
 	sessionSQL(t, s, "ALTER SEQUENCE b.s OWNER TO reader")
 	result(shadow, &sd, 500)
-	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).sequencePlanStamp == stamp {
+	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp == stamp {
 		t.Fatal("real owner change retained plan stamp")
 	}
 	result(owned, &od, 10)
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET UNLOGGED")
-	stamp = e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).sequencePlanStamp
+	stamp = e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET UNLOGGED")
-	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).sequencePlanStamp != stamp {
+	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp != stamp {
 		t.Fatal("same unlogged persistence invalidated")
 	}
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET LOGGED")
-	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).sequencePlanStamp == stamp {
+	if e.catalog.state.MustRelation(od.sequences.constants[0].ref.Address).SequencePlanStamp == stamp {
 		t.Fatal("real logged persistence transition did not invalidate")
 	}
 }
@@ -316,7 +316,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.sequences.constants[0].ref
 	descriptor := e.catalog.state.MustRelation(ref.Address)
-	namespace := e.catalog.state.MustNamespace(descriptor.namespace)
+	namespace := e.catalog.state.MustNamespace(descriptor.Namespace())
 	for _, action := range []string{"LOGGED", "UNLOGGED"} {
 		op, err := s.Acquire(context.Background())
 		if err != nil {
@@ -325,7 +325,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 		_, err = e.Execute(op, statement(t, "ALTER SEQUENCE s SET "+action), 0, nil)
 		op.Done()
 		var diagnostic *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: `cannot change logged status of table "s" because it is temporary`, Schema: namespace.name, Table: "s"}
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: `cannot change logged status of table "s" because it is temporary`, Schema: namespace.Name(), Table: "s"}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("got=%#v want=%#v", diagnostic, want)
 		}

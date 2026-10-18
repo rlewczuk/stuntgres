@@ -12,9 +12,9 @@ func catalogDescription(d Descriptor, sub int32) string {
 	if sub == 0 {
 		switch d := d.(type) {
 		case *collationDescriptor:
-			return collationDescription(d.oid)
+			return collationDescription(d.OID)
 		case *conversionDescriptor:
-			return conversionDescription(d.oid)
+			return conversionDescription(d.OID)
 		}
 	}
 	return descriptorComment(d, sub)
@@ -60,19 +60,19 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		if text == "" {
 			return nil
 		}
-		object, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(address.ObjectID))
+		object, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(address.ObjectID))
 		if err != nil {
 			return err
 		}
-		class, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(address.ClassID))
+		class, err := sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(address.ClassID))
 		if err != nil {
 			return err
 		}
-		attribute, err := sqltype.Integer(source.columns[2].Usage.Type, int64(sub))
+		attribute, err := sqltype.Integer(source.Columns[2].Usage.Type, int64(sub))
 		if err != nil {
 			return err
 		}
-		rows = append(rows, []sqltype.Value{object, class, attribute, sqltype.String(source.columns[3].Usage.Type, text)})
+		rows = append(rows, []sqltype.Value{object, class, attribute, sqltype.String(source.Columns[3].Usage.Type, text)})
 		return nil
 	}
 	for _, descriptor := range catalog.Descriptors() {
@@ -83,11 +83,11 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 			return nil, err
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok {
-			for _, attribute := range relation.attributes {
+			for _, attribute := range relation.Attributes {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if err := appendDescription(relation.address, attribute, descriptorComment(relation, attribute)); err != nil {
+				if err := appendDescription(relation.Address(), attribute, descriptorComment(relation, attribute)); err != nil {
 					return nil, err
 				}
 			}

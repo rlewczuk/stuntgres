@@ -73,7 +73,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			return nil, false, failure
 		}
 		if view.state != nil {
-			address := captured.address
+			address := captured.Address()
 			switch installed := node.(type) {
 			case installedFunctionExpression:
 				address = installed.ref.Address
@@ -94,7 +94,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			}
 			descriptor, _ := definitionDescriptorAt(view, reader, address)
 			current, ok := descriptor.(*procedureDescriptor)
-			if !ok || current.name != captured.name || current.signature != captured.signature || current.routineKind != captured.routineKind || current.builtin != captured.builtin {
+			if !ok || current.Name() != captured.Name() || current.Signature != captured.Signature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
 			}
 			changed = changed || current != captured
@@ -294,12 +294,12 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		var dict *tsDictionaryDescriptor
 		var tmpl *tsTemplateDescriptor
 		if proc.unaccentProvider() != nil {
-			descriptor, _ = definitionDescriptorAt(view, reader, proc.dictionary)
+			descriptor, _ = definitionDescriptorAt(view, reader, proc.Dictionary)
 			dict, ok = descriptor.(*tsDictionaryDescriptor)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
 			}
-			descriptor, _ = definitionDescriptorAt(view, reader, dict.template)
+			descriptor, _ = definitionDescriptorAt(view, reader, dict.Template)
 			tmpl, ok = descriptor.(*tsTemplateDescriptor)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
@@ -665,7 +665,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			arm := old
 			arm.condition, arm.result = child(arm.condition), child(arm.result)
 			if arm.routine != nil && view.state != nil {
-				current, ok := view.Procedure(arm.routine.address)
+				current, ok := view.Procedure(arm.routine.Address())
 				if !ok || !sameRoutineDeclaration(current, arm.routine) {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}

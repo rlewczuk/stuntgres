@@ -65,7 +65,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.targets, c.updateTargets, c.reads, c.actionReads, c.sources)
 	}
 	integer := func(n int64) sqltype.Value {
-		v, err := sqltype.Integer(b.relation.columns[0].Usage.Type, n)
+		v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +295,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 		_, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t SELECT k,v FROM t ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		integer := func(n int64) sqltype.Value {
-			v, err := sqltype.Integer(b.relation.columns[0].Usage.Type, n)
+			v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -303,7 +303,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		}
 		injected := errors.New("producer veto")
 		secondary := errors.New("close veto")
-		cursor := &insertConflictInputCursor{schema: b.relation.columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(1), integer(11)}}}
+		cursor := &insertConflictInputCursor{schema: b.relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(1), integer(11)}}}
 		if failure != "close" {
 			cursor.nextError = injected
 		}

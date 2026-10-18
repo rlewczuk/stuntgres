@@ -18,13 +18,13 @@ func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.O
 	if !ok {
 		t.Fatal("missing pg_constraint")
 	}
-	return source, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return source, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[string][]sqltype.Value {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
-	ref := e.catalog.domain.Ref(view.Epoch(), address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), address)
 	got, err := capturePGConstraint(context.Background(), view, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -47,11 +47,11 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
 	t.Helper()
 	domain := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256})
-	if len(row) != 28 || len(domain.domainChecks) != 1 {
+	if len(row) != 28 || len(domain.DomainChecks) != 1 {
 		t.Fatal("missing real bootstrap domain CHECK", row)
 	}
 	id, err := row[0].OID()
-	if err != nil || id == 0 || ids.OID(id) != domain.domainChecks[0].OID {
+	if err != nil || id == 0 || ids.OID(id) != domain.DomainChecks[0].OID {
 		t.Fatal("bootstrap CHECK identity detached from recipe", id, err)
 	}
 	for i, value := range row {
@@ -118,18 +118,18 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	names := []string{"oid", "conname", "connamespace", "contype", "condeferrable", "condeferred", "conenforced", "convalidated", "conrelid", "contypid", "conindid", "conparentid", "confrelid", "confupdtype", "confdeltype", "confmatchtype", "conislocal", "coninhcount", "connoinherit", "conperiod", "conkey", "confkey", "conpfeqop", "conppeqop", "conffeqop", "confdelsetcols", "conexclop", "conbin"}
 	typeIDs := []sqltype.ID{26, 19, 26, 18, 16, 16, 16, 16, 26, 26, 26, 26, 26, 18, 18, 18, 16, 21, 16, 16, 1005, 1005, 1028, 1028, 1028, 1005, 1028, 194}
-	if source.rowType != 10003 || source.attributeHighWater != 28 || len(source.columns) != 28 || source.namespace.ObjectID != 11 {
+	if source.RowType != 10003 || source.AttributeHighWater != 28 || len(source.Columns) != 28 || source.Namespace().ObjectID != 11 {
 		t.Fatal("source shape", source)
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		owned, ok := view.LookupType(typeIDs[i])
-		if !ok || column.Name != names[i] || column.Usage.Type != owned || column.Usage.Typmod != -1 || column.Nullable != (i >= 20) || !column.NullabilityKnown || column.OriginTable != 2606 || column.OriginAttribute != int16(i+1) || source.attributes[i] != int32(i+1) || source.index[column.Name] != i {
+		if !ok || column.Name != names[i] || column.Usage.Type != owned || column.Usage.Typmod != -1 || column.Nullable != (i >= 20) || !column.NullabilityKnown || column.OriginTable != 2606 || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) || source.Index[column.Name] != i {
 			t.Fatal("descriptor", i, column)
 		}
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10003})
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10002})
-	if row.owningRelation != source.address || array.owningRelation != source.address || row.array != 10002 {
+	if row.OwningRelation != source.Address() || array.OwningRelation != source.Address() || row.Array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}
 	captured, err := capturePGConstraint(context.Background(), view, ref, source)
@@ -138,7 +138,7 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	}
 	pgConstraintUnitBootstrap(t, view, captured.anonymous[0])
 	invalid := *source
-	invalid.columns = slices.Clone(source.columns[:9])
+	invalid.Columns = slices.Clone(source.Columns[:9])
 	if got, err := capturePGConstraint(context.Background(), view, ref, &invalid); got != nil || err == nil {
 		t.Fatal("old shape admitted", got, err)
 	}
@@ -366,7 +366,7 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE pc_unit_enum AS ENUM ('z','a')"))
 	view = e.CatalogRead()
-	enum := domainUnitType(t, view, "pc_unit_enum").typ
+	enum := domainUnitType(t, view, "pc_unit_enum").SQLType
 	class, _ := sqltype.DefaultIndexClass(enum)
 	bound, err := sqltype.BindIndexForeignKey(enum.Usage(), enum.Usage(), class, view.LookupType)
 	if err != nil {

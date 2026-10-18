@@ -224,11 +224,11 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 		// path, so wrapped zero never becomes a whole-object ACL request.
 		subid := int32(int16(address.SubID))
 		if relation, ok := d.(*relationDescriptor); ok && subid > 0 && relation.hasAttribute(subid) {
-			return relation.columnACL[subid], nil
+			return relation.ColumnACL[subid], nil
 		}
 		return authorization.ACLValue{}, nil
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.aclSyntheticDefault {
+	if typ, ok := d.(*typeDescriptor); ok && typ.ACLSyntheticDefault {
 		return authorization.ACLValue{}, nil
 	}
 	_, acl, _ := descriptorACL(d)

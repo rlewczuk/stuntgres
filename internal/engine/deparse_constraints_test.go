@@ -98,7 +98,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 			}
 			view := scope.commentCatalog
 			d := view.MustRelation(roleTableRef(t, e, "t").Address)
-			node := d.checkConstraints[0].expression
+			node := d.CheckConstraints[0].Expression
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {
@@ -197,7 +197,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
-	saved, err := catalogTree(treeType, d.defaults[1].expression)
+	saved, err := catalogTree(treeType, d.Defaults[1].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 		t.Fatal(structural, err)
 	}
 	calls := 0
-	trap := deparseTrap{Info: expr.Info{Usage: d.columns[0].Usage}, calls: &calls}
+	trap := deparseTrap{Info: expr.Info{Usage: d.Columns[0].Usage}, calls: &calls}
 	if _, err := (pgRenderer{view: view}).sql(context.Background(), trap, pgRenderParent{}); err == nil || calls != 0 {
 		t.Fatal(err, calls)
 	}
@@ -236,20 +236,20 @@ func TestDeparseConstraintsDefinitionIdentityAndNullProducer(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT DEFAULT NULL,b INT DEFAULT (NULL::integer),c INT DEFAULT COALESCE(NULL,1),d INT NOT NULL,CHECK(c>0))")
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
-	if len(d.defaults) != 1 || d.defaults[3].OID == 0 || d.checkConstraints[0].OID == 0 || d.notNullConstraints[0].OID == 0 {
-		t.Fatal(d.defaults, d.checkConstraints, d.notNullConstraints)
+	if len(d.Defaults) != 1 || d.Defaults[3].OID == 0 || d.CheckConstraints[0].OID == 0 || d.NotNullConstraints[0].OID == 0 {
+		t.Fatal(d.Defaults, d.CheckConstraints, d.NotNullConstraints)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
-	old := d.defaults[3].OID
+	old := d.Defaults[3].OID
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT 3")
-	next := e.CatalogRead().MustRelation(d.address)
-	if next.defaults[3].OID == old || next.checkConstraints[0].OID != d.checkConstraints[0].OID {
+	next := e.CatalogRead().MustRelation(d.Address())
+	if next.Defaults[3].OID == old || next.CheckConstraints[0].OID != d.CheckConstraints[0].OID {
 		t.Fatal("definition identity replacement/preservation")
 	}
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT NULL")
-	if len(e.CatalogRead().MustRelation(d.address).defaults) != 0 {
+	if len(e.CatalogRead().MustRelation(d.Address()).Defaults) != 0 {
 		t.Fatal("NULL definition persisted")
 	}
 }
@@ -290,7 +290,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	}
 	run(t, e, "CREATE TABLE t(prefix TEXT,a INT,b INT,CONSTRAINT c CHECK(b>0))")
 	original := e.CatalogRead().MustRelation(roleTableRef(t, e, "t").Address)
-	node := original.checkConstraints[0].expression
+	node := original.CheckConstraints[0].Expression
 	run(t, e, "ALTER TABLE t DROP prefix")
 	run(t, e, `CREATE TABLE supplied(x TEXT,y TEXT,"Renamed value" TEXT)`)
 	current := e.CatalogRead()
@@ -370,7 +370,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT DEFAULT 1 NOT NULL,CHECK(a>0))")
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
-	for _, id := range []ids.OID{d.defaults[1].OID, d.notNullConstraints[0].OID, d.checkConstraints[0].OID} {
+	for _, id := range []ids.OID{d.Defaults[1].OID, d.NotNullConstraints[0].OID, d.CheckConstraints[0].OID} {
 		e.mu.Lock()
 		e.catalog.nextOID = id
 		next, err := e.catalog.allocateOIDLocked()
@@ -381,9 +381,9 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	}
 	bad := cloneCatalog(view.state)
 	copy := *d
-	copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
-	copy.checkConstraints[0].OID = d.defaults[1].OID
-	bad.setDescriptor(d.address, &copy)
+	copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
+	copy.CheckConstraints[0].OID = d.Defaults[1].OID
+	bad.setDescriptor(d.Address(), &copy)
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}
@@ -396,7 +396,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err != nil {
 		t.Fatal(err)
 	}
-	if d.checkConstraints[0].OID == d.defaults[1].OID {
+	if d.CheckConstraints[0].OID == d.Defaults[1].OID {
 		t.Fatal("remap mutated original")
 	}
 }
@@ -408,12 +408,12 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	typ, _ := view.LookupType(sqltype.PgNodeTree)
-	tree, err := catalogTree(typ, d.checkConstraints[0].expression)
+	tree, err := catalogTree(typ, d.CheckConstraints[0].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, pretty := range []bool{false, true} {
-		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
+		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).sql(context.Background(), d.CheckConstraints[0].Expression, pgRenderParent{})
 		want := "((nextval('s'::regclass) > 0) AND (random() > (0)::double precision))"
 		if pretty {
 			want = "nextval('s'::regclass) > 0 AND random() > 0::double precision"

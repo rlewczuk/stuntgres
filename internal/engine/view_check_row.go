@@ -34,7 +34,7 @@ func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.V
 				if err != nil {
 					return err
 				}
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "44000", Message: fmt.Sprintf("new row violates check option for view \"%s\"", group.relation.name), Detail: detail}
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "44000", Message: fmt.Sprintf("new row violates check option for view \"%s\"", group.relation.Name()), Detail: detail}
 			}
 		}
 	}

@@ -28,14 +28,14 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.address)
+			d = e.catalog.state.MustRelation(d.Address())
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, source.address)
+			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, source.Address())
 			definition := *viewOf(d)
-			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
-			d.view = &definition
-			targetRef := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.Attributes, reads: source.Attributes}}
+			d.View = &definition
+			targetRef := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			heldRef := sourceRef
@@ -47,7 +47,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			scope := refreshUnitScope(t, e, ctx)
-			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}, Concurrent: parser.Position{Character: 27}, NoData: tc.noData}
+			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Concurrent: parser.Position{Character: 27}, NoData: tc.noData}
 			done := make(chan error, 1)
 			joined := false
 			defer func() {
@@ -131,8 +131,8 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
-	old := e.storage[d.address]
+	d = e.catalog.state.MustRelation(d.Address())
+	old := e.storage[d.Address()]
 	frontier := e.commitSeq
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -144,11 +144,11 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := buildIndexEntries(&EvalContext{Context: counting, Scope: 1, Frame: 1}, stage.materializedReplacement.descriptor, index.sqlIndex, stage.materializedReplacement.storage, nil)
+	entries, err := buildIndexEntries(&EvalContext{Context: counting, Scope: 1, Frame: 1}, stage.materializedReplacement.descriptor, index.SQLIndex, stage.materializedReplacement.storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}
-	if e.storage[d.address] != old || e.commitSeq != frontier || old.materializedLineage != nil || stage.materializedReplacement.storage.materializedLineage != nil {
+	if e.storage[d.Address()] != old || e.commitSeq != frontier || old.materializedLineage != nil || stage.materializedReplacement.storage.materializedLineage != nil {
 		t.Fatal("canceled index preparation published or stamped")
 	}
 }

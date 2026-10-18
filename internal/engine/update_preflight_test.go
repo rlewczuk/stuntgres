@@ -163,7 +163,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				if scope.view != nil {
 					t.Error("UPDATE captured source before preflight/current ACL")
 				}
-				if scope.lockedRef.Domain() != e.catalog.domain || scope.lockedDescriptor == nil {
+				if scope.lockedRef.Domain() != e.catalog.Domain || scope.lockedDescriptor == nil {
 					t.Error("lost exact locked relation")
 				}
 				switch mode {
@@ -181,21 +181,21 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
-					replacement.revision++
+					replacement.ObjectRevision++
 					switch mode {
 					case "attribute":
-						replacement.attributes = append([]int32(nil), replacement.attributes...)
-						replacement.attributes[0]++
+						replacement.Attributes = append([]int32(nil), replacement.Attributes...)
+						replacement.Attributes[0]++
 					case "type":
-						replacement.columns = append([]ColumnDescriptor(nil), replacement.columns...)
-						replacement.columns[0].Usage = int8Usage
+						replacement.Columns = append([]ColumnDescriptor(nil), replacement.Columns...)
+						replacement.Columns[0].Usage = int8Usage
 					case "width":
-						replacement.columns = nil
-						replacement.attributes = nil
+						replacement.Columns = nil
+						replacement.Attributes = nil
 					case "comment":
-						replacement.comment = "compatible metadata revision"
+						replacement.Comment = "compatible metadata revision"
 					case "acl":
-						replacement.acl = authorization.ACLValue{Explicit: true}
+						replacement.ACL = authorization.ACLValue{Explicit: true}
 					}
 					e.catalog.state.setDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.setDescriptor(address, original) }

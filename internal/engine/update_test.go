@@ -159,7 +159,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 	}
 	sentinel := errors.New("late evaluator failure")
 	calls := 0
-	bound.update.assignments[0] = queryProbe(bound.relation.columns[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
+	bound.update.assignments[0] = queryProbe(bound.relation.Columns[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel

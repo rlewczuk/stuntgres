@@ -26,8 +26,8 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*builtinRoutineDeclarati
 	byDeclaration := make(map[builtinRoutineKey]*builtinRoutineDeclaration, len(builtinRoutineDeclarations))
 	for i := range builtinRoutineDeclarations {
 		d := &builtinRoutineDeclarations[i]
-		key := builtinRoutineKey{name: d.identity.name}
-		remaining := string(d.identity.signature)
+		key := builtinRoutineKey{name: d.Identity.Name}
+		remaining := string(d.Identity.Signature)
 		for remaining != "" {
 			word, rest, _ := strings.Cut(remaining, ",")
 			id, err := strconv.ParseUint(word, 10, 32)
@@ -52,14 +52,14 @@ func (e *Engine) initializeBuiltinRoutines() {
 		declaration := &builtinRoutineDeclarations[i]
 		d := &storage[i]
 		*d = procedureDescriptor{
-			address:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id},
-			namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.identity.namespace},
-			revision:  1, name: declaration.identity.name, signature: declaration.identity.signature,
-			routineKind: declaration.kind, builtin: declaration, owner: owner,
-			result: declaration.result, volatility: declaration.volatility, strict: declaration.strict,
+			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
+			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
+			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
+			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
+			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 		}
-		e.catalog.state.setDescriptor(d.address, d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.address)
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeBuiltinRoutineBodies()
 }
@@ -77,7 +77,7 @@ func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inpu
 		key.inputs[i] = ids.OID(input)
 	}
 	declaration := builtinRoutineByDeclaration[key]
-	if declaration == nil || declaration.providers&provider == 0 {
+	if declaration == nil || declaration.Providers&provider == 0 {
 		return nil, fmt.Errorf("stuntgres: missing successful routine association for %s", name)
 	}
 	return declaration, nil
@@ -111,13 +111,13 @@ func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaratio
 
 func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtinRoutineDeclaration) (*procedureDescriptor, ids.ObjectRef, error) {
 	view := b.bindingCatalog()
-	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id}
+	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID}
 	d, ok := view.Procedure(address)
-	if !ok || d.builtin != declaration {
-		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
+	if !ok || d.Builtin != declaration {
+		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.Identity.Name)
 	}
-	ref := view.owner.domain.Ref(view.Epoch(), address)
-	b.dependency(ref, d.revision)
+	ref := view.owner.Domain.Ref(view.Epoch(), address)
+	b.dependency(ref, d.Revision())
 	if err := b.captureRoutineBody(d); err != nil {
 		return nil, ids.ObjectRef{}, err
 	}

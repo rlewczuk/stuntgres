@@ -72,19 +72,19 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if procedure == nil {
 		return sqlError("42883", "function "+functionName+"(integer, integer, cstring, internal, integer, boolean) does not exist")
 	}
-	if procedure.result != 23 {
+	if procedure.Result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), procedure.address), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
 			return sqlError("42501", "permission denied for function "+functionName)
 		}
 		return err
 	}
-	if procedure.conversion.Name() == "" {
+	if procedure.Conversion.Name() == "" {
 		return sqlError("0A000", "encoding conversion routine has no registered provider")
 	}
-	_, consumed, err := procedure.conversion.Convert(op.Context(), "", source, destination)
+	_, consumed, err := procedure.Conversion.Convert(op.Context(), "", source, destination)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	}
 	if s.Default {
 		for _, descriptor := range e.stageRead(stage).Descriptors() {
-			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.source == source && d.destination == destination && d.defaultConversion {
+			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.Source == source && d.Destination == destination && d.DefaultConversion {
 				return sqlError("42710", "default conversion for "+sqltype.EncodingName(source)+" to "+sqltype.EncodingName(destination)+" already exists")
 			}
 		}
@@ -111,7 +111,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if err != nil {
 		return err
 	}
-	return stage.Create(&conversionDescriptor{oid: oid, name: object, namespace: namespace.Address, revision: revision, owner: auth.state.CurrentUser, source: source, destination: destination, handler: procedure.address, defaultConversion: s.Default})
+	return stage.Create(&conversionDescriptor{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
 func conversionProbeResult(name string, consumed int) error {
@@ -132,13 +132,13 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		if target == d.owner {
+		if target == d.Owner {
 			return nil
 		}
 	}
 	var destination ids.ObjectRef
 	if s.Action == "schema" {
-		destination, err = e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}})
+		destination, err = e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}})
 		if err != nil {
 			return err
 		}
@@ -147,40 +147,40 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		}
 		sourceNamespace := auth.catalog.MustNamespace(d.Namespace())
 		targetNamespace := auth.catalog.MustNamespace(destination.Address)
-		if sourceNamespace.temporary != (ids.SessionToken{}) || targetNamespace.temporary != (ids.SessionToken{}) {
+		if sourceNamespace.Temporary != (ids.SessionToken{}) || targetNamespace.Temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	next := *d
 	switch s.Action {
 	case "rename":
-		if err = e.conversionCheckCreate(op, auth, e.catalog.domain.Ref(ref.Epoch, d.Namespace())); err != nil {
+		if err = e.conversionCheckCreate(op, auth, e.catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 			return err
 		}
-		next.name = s.Target.Text
+		next.ObjectName = s.Target.Text
 	case "schema":
 		if err = e.conversionCheckCreate(op, auth, destination); err != nil {
 			return err
 		}
-		next.namespace = destination.Address
+		next.ObjectNamespace = destination.Address
 	case "owner":
 		if err = ownershipEligibility(auth, target, d.Namespace()); err != nil {
 			return err
 		}
-		next.owner = target
+		next.Owner = target
 	default:
 		return fmt.Errorf("stuntgres: invalid conversion alteration")
 	}
 	if address := stage.lookupName(descriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
-		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.name, auth.catalog.Get(next.Namespace()).Name()))
+		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}
 	// CREATE alone checks default-pair uniqueness; legal schema moves may leave
 	// multiple defaults and must never be rejected by a universal invariant.
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView
 			}
 			return err
 		}
-		if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
+		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				return sqlError("42501", "must be owner of conversion "+objectNameText(name))
 			}

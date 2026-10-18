@@ -94,7 +94,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
 		t.Fatal("nonowner authority")
 	}
-	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: New().catalog.domain.Ref(ref.Epoch, ref.Address), Privileges: authorization.SelectPrivilege}} {
+	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Privileges: authorization.SelectPrivilege}} {
 		if err := view.Check(req); err == nil {
 			t.Fatal("invalid requirement", req)
 		}
@@ -115,7 +115,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("explicit ACL dump loss", err, dump.String())
 	}
-	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
 	entry.Grantor = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
@@ -443,8 +443,8 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	original := e.catalog.state.MustNamespace(namespace.Address).acl
+	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	original := e.catalog.state.MustNamespace(namespace.Address).ACL
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.CreatePrivilege},
@@ -469,7 +469,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("restored sentinel behavior", got)
 	}
 	ref := roleTableRef(t, restored, "sentinel")
-	if restored.catalog.state.MustRelation(ref.Address).owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if restored.catalog.state.MustRelation(ref.Address).Owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -497,7 +497,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	owner, _ := e.Roles().Lookup("namespace_owner")
 	replacement := cloneCatalog(e.catalog.state)
 	ns := *replacement.MustNamespace(namespace.Address)
-	ns.owner = owner.Ref
+	ns.Owner = owner.Ref
 	replacement.setDescriptor(namespace.Address, &ns)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)

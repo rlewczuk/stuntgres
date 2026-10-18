@@ -18,7 +18,7 @@ func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*relationDescriptor, *que
 	if !ok {
 		t.Fatal("missing pg_tablespace")
 	}
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 	source, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.Roles(), ref, d)
 	if err != nil {
 		t.Fatal(err)
@@ -64,34 +64,34 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	e := New()
 	d, source := pgTablespaceUnitCapture(t, e)
 	pgTablespaceUnitRows(t, source)
-	if d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.rowType == 0 || d.relationKind != catalogRelation || d.virtualView || !representedSummaryTable(1213) {
+	if d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalogRelation || d.VirtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
-	if !reflect.DeepEqual(d.attributes, []int32{1, 2, 3, 4, 5}) || d.attributeHighWater != 5 {
-		t.Fatal("attribute positions", d.attributes, d.attributeHighWater)
+	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.AttributeHighWater != 5 {
+		t.Fatal("attribute positions", d.Attributes, d.AttributeHighWater)
 	}
 	for i, want := range []struct {
 		name string
 		typ  sqltype.ID
 		attr int16
 	}{{"oid", sqltype.Oid, 1}, {"spcname", sqltype.Name, 2}, {"spcowner", sqltype.Oid, 3}, {"spcacl", sqltype.ACLItemArray, 4}, {"spcoptions", 1009, 5}} {
-		column := d.columns[i]
+		column := d.Columns[i]
 		if column.Name != want.name || column.Usage.Type.ID() != want.typ || !column.Usage.Type.Concrete() || column.OriginTable != 1213 || column.OriginAttribute != want.attr || !column.NullabilityKnown || column.Nullable != (i >= 3) {
 			t.Fatal("column metadata", i, column)
 		}
-		if index, ok := d.index[want.name]; !ok || index != i {
+		if index, ok := d.Index[want.name]; !ok || index != i {
 			t.Fatal("column lookup", want.name, index, ok)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
-		t.Fatal("public readonly ACL", d.acl)
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
+		t.Fatal("public readonly ACL", d.ACL)
 	}
-	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
-	if row.owningRelation != d.address || row.owner != d.owner {
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
+	if row.OwningRelation != d.Address() || row.Owner != d.Owner {
 		t.Fatal("row identity link", row)
 	}
-	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
-	if array.owningRelation != d.address || array.owner != d.owner {
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+	if array.OwningRelation != d.Address() || array.Owner != d.Owner {
 		t.Fatal("array identity link", array)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -115,8 +115,8 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	putFixtureRole(roles, r)
 	e.roles = roles
 	d, renamed := pgTablespaceUnitCapture(t, e)
-	if d.owner != initial {
-		t.Fatal("role rename changed canonical source owner", d.owner)
+	if d.Owner != initial {
+		t.Fatal("role rename changed canonical source owner", d.Owner)
 	}
 	pgTablespaceUnitRows(t, renamed)
 	// Reset imports a fresh postgres-owned catalog. A renamed target without
@@ -141,8 +141,8 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, renamed = pgTablespaceUnitCapture(t, e)
-	if d.owner != initial {
-		t.Fatal("aligned replacement lost canonical owner", d.owner)
+	if d.Owner != initial {
+		t.Fatal("aligned replacement lost canonical owner", d.Owner)
 	}
 	pgTablespaceUnitRows(t, renamed)
 	// Restore the target name required by Reset's fresh source provenance.
@@ -155,8 +155,8 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, fresh := pgTablespaceUnitCapture(t, e)
-	if d.owner != initial {
-		t.Fatal("Reset rebound bootstrap by name", d.owner)
+	if d.Owner != initial {
+		t.Fatal("Reset rebound bootstrap by name", d.Owner)
 	}
 	pgTablespaceUnitRows(t, retained)
 	pgTablespaceUnitRows(t, fresh)
@@ -171,8 +171,8 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, fresh = pgTablespaceUnitCapture(t, e)
-	if d.owner != initial {
-		t.Fatal("Restore rebound bootstrap by name", d.owner)
+	if d.Owner != initial {
+		t.Fatal("Restore rebound bootstrap by name", d.Owner)
 	}
 	pgTablespaceUnitRows(t, retained)
 	pgTablespaceUnitRows(t, fresh)

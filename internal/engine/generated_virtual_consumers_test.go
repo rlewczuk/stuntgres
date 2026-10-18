@@ -10,7 +10,7 @@ import (
 
 func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
 	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0, rowWidth: 1, queryOccurrence: 1, virtual: generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}}
@@ -34,7 +34,7 @@ func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 
 func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, virtual: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}, queryOccurrence: 1}
 	query := &BoundQuery{Root: &projectNode{expressions: []expr.Expr{column}}}
 	edge := subqueryExpression{Info: expr.Info{Usage: typ.Usage()}, queryPlan: query}
@@ -53,7 +53,7 @@ func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 
 func TestGeneratedVirtualWindowInputIdentityAdapter(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
 	leaf := &querySource{anonymous: [][]sqltype.Value{{one}, {two}}, occurrence: 7}
@@ -82,7 +82,7 @@ func TestGeneratedVirtualWindowInputIdentityAdapter(t *testing.T) {
 
 func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	for _, present := range []bool{false, true} {
 		calls := 0
@@ -96,7 +96,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 		}
 		joined := &querySource{materialized: true, flatWidth: 2, flatCount: 1, anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, occurrence: 4, occurrences: []int{4}, provenance: []int{index}}
 		state := &queryState{source: joined, virtualReads: true}
-		node := &evaluationNode{querySchema: d.columns, child: &sourceNode{querySchema: d.columns, occurrence: 0}, expressions: []expr.Expr{caseExpression{Info: expr.Info{Usage: typ.Usage()}, otherwise: column}}}
+		node := &evaluationNode{querySchema: d.Columns, child: &sourceNode{querySchema: d.Columns, occurrence: 0}, expressions: []expr.Expr{caseExpression{Info: expr.Info{Usage: typ.Usage()}, otherwise: column}}}
 		stage, err := openEvaluationNode(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
@@ -116,7 +116,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 
 func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	for _, present := range []bool{false, true} {
 		calls, index, wantCalls := 0, absentQueryIndex, 0
@@ -126,8 +126,8 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 		input := &querySource{materialized: true, flatWidth: 2, flatCount: 1, anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, occurrence: 4, occurrences: []int{4}, provenance: []int{index}}
 		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 1, rowWidth: 2, queryOccurrence: 1, virtual: probe}
-		schema := querySchema{d.columns[1]}
-		project := &projectNode{querySchema: schema, frame: 1, child: &sourceNode{querySchema: d.columns, occurrence: 0}, expressions: []expr.Expr{column}}
+		schema := querySchema{d.Columns[1]}
+		project := &projectNode{querySchema: schema, frame: 1, child: &sourceNode{querySchema: d.Columns, occurrence: 0}, expressions: []expr.Expr{column}}
 		view := &querySource{materialized: true, flatWidth: 1, nestedRoot: project, nestedInputs: input}
 		state := &queryState{source: view}
 		stage, err := openSourceStage(context.Background(), state, view, schema)
@@ -149,7 +149,7 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 
 func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
 	probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
@@ -165,7 +165,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	}
 	state := &queryState{source: source, virtualReads: true}
 	stage := indexedStage{
-		source: source, schema: []ColumnDescriptor{d.columns[1]},
+		source: source, schema: []ColumnDescriptor{d.Columns[1]},
 		expressions: []expr.Expr{column}, retain: true,
 		permutation: []int{2, 0, 1},
 		evaluation:  EvalContext{Scope: 1, Frame: 1, query: state},

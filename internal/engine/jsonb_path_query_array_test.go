@@ -30,17 +30,17 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		t.Fatal("scalar immutable JSONB contract", call)
 	}
 	captured, err := expressionRoutineDescriptor(call)
-	if err != nil || captured == nil || captured.builtin == nil {
+	if err != nil || captured == nil || captured.Builtin == nil {
 		t.Fatal("missing actual bound declaration", captured, err)
 	}
 	address := ids.ObjectAddress{ids.ProcedureClassID, 4007, 0}
 	identity := routineIdentity{4007, ids.PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}
-	d := captured.builtin
-	if d.identity != identity || d.kind != functionRoutine || d.result != 3802 || !d.strict || d.volatility != expr.Immutable || d.parallel != 's' || d.returnsSet || d.defaults != 2 || d.variadic != 0 || d.providers != jsonRoutineProvider {
+	d := captured.Builtin
+	if d.Identity != identity || d.Kind != functionRoutine || d.Result != 3802 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
 		t.Fatal("released full-IN declaration", d)
 	}
 	view := e.CatalogRead()
-	if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || captured.result != 3802 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != expr.Immutable || captured.revision == 0 || view.Get(address) != captured {
+	if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != identity.Name || captured.Signature != identity.Signature || captured.Result != 3802 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || view.Get(address) != captured {
 		t.Fatal("bound descriptor is not the owned released routine", captured)
 	}
 	for i, id := range []sqltype.ID{3802, 4072, 3802, 16} {
@@ -72,8 +72,8 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	}
 	checks := append([]expressionDependency(nil), b.dependencies...)
 	for i := range checks {
-		if checks[i].ref.Address == address {
-			checks[i].revision++
+		if checks[i].Ref.Address == address {
+			checks[i].Revision++
 		}
 	}
 	if err := admitRoutineDescriptor(auth, checks, captured, nil); err == nil {

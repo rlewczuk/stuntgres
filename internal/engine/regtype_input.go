@@ -145,10 +145,10 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 			return 0, sqlError("3F000", fmt.Sprintf("schema \"%s\" does not exist", parts[0].Text))
 		}
 		namespace, _ := r.auth.definitionNamespace(ns)
-		if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != r.token {
-			return 0, sqlError("42501", "permission denied for schema "+namespace.name)
+		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
+			return 0, sqlError("42501", "permission denied for schema "+namespace.Name())
 		}
-		if err := r.auth.CanUse(r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+		if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 			return 0, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -229,8 +229,8 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	if r.resolved != nil {
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		d, _ := r.auth.definitionDescriptor(address)
-		ref := r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), address)
-		*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.Revision()})
+		ref := r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), address)
+		*r.resolved = append(*r.resolved, expressionDependency{Ref: ref, Revision: d.Revision()})
 	}
 	return uint32(typ.ID()), nil
 }

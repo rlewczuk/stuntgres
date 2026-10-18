@@ -9,10 +9,10 @@ import (
 // These sources admit semantic planning before checking execution-time authority.
 // Other virtual catalogs retain their existing mutation boundaries.
 func guardedCatalogRelation(d *relationDescriptor) bool {
-	if d == nil || d.relationKind != catalogRelation || d.address.ClassID != ids.RelationClassID {
+	if d == nil || d.RelationKind != catalogRelation || d.Address().ClassID != ids.RelationClassID {
 		return false
 	}
-	return d.address.ObjectID == pgAggregateOID || d.address.ObjectID == pgAMOID || d.address.ObjectID == pgTypeOID
+	return d.Address().ObjectID == pgAggregateOID || d.Address().ObjectID == pgAMOID || d.Address().ObjectID == pgTypeOID
 }
 
 // Binding and frame import have completed before mutation admission. Recheck
@@ -27,7 +27,7 @@ func guardedCatalogMutationError(auth AuthorizationView, d *relationDescriptor, 
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}
 	if truncate {
-		return sqlError("42501", fmt.Sprintf("permission denied: %q is a system catalog", d.name))
+		return sqlError("42501", fmt.Sprintf("permission denied: %q is a system catalog", d.Name()))
 	}
-	return sqlError("42501", "permission denied for table "+d.name)
+	return sqlError("42501", "permission denied for table "+d.Name())
 }

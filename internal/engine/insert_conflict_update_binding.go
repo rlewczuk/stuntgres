@@ -10,9 +10,9 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 		return nil
 	}
 	c := b.conflict
-	c.width = len(b.relation.columns)
+	c.width = len(b.relation.Columns)
 	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName, binder.targetAlias = b.relation.name, s.Alias.Text
+	binder.targetName, binder.targetAlias = b.relation.Name(), s.Alias.Text
 	binder.updateParameters = true
 	defer func() { binder.updateParameters = false; binder.updateInputParameters = nil }()
 	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal
@@ -29,7 +29,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	}()
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
-	excluded := rebaseQueryNamespace(target, len(b.relation.columns))
+	excluded := rebaseQueryNamespace(target, len(b.relation.Columns))
 	excluded.qualifiers[0] = queryQualifier{name: "excluded", columns: excluded.columns, lateralForbidden: true}
 	namespace := queryNamespace{
 		columns:    append(target.columns, excluded.columns...),

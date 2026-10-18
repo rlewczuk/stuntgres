@@ -31,7 +31,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.ref.Address != ext.members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+			if n.ref.Address != ext.Members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -52,17 +52,17 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
 			if sameGroupExpression(n, changed) { t.Fatal("argument identity collapsed") }
 			other := n
-			other.ref.Address = ext.members[0]
+			other.ref.Address = ext.Members[0]
 			if sameGroupExpression(n, other) { t.Fatal("procedure identity collapsed") }
-			consumer := &relationDescriptor{generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
+			consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
 			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil { t.Fatal(err) }
 			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil { t.Fatal(err) }
 			for _, mutate := range []func(*procedureDescriptor){
-				func(p *procedureDescriptor) { p.result = 1009 },
-				func(p *procedureDescriptor) { p.signature = "23" },
-				func(p *procedureDescriptor) { p.name = "text_soundex" },
-				func(p *procedureDescriptor) { p.implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}} },
-				func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
+				func(p *procedureDescriptor) { p.Result = 1009 },
+				func(p *procedureDescriptor) { p.Signature = "23" },
+				func(p *procedureDescriptor) { p.ObjectName = "text_soundex" },
+				func(p *procedureDescriptor) { p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}} },
+				func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 			} {
 				state := cloneCatalog(e.catalog.state)
 				bad := *n.procedure
@@ -74,7 +74,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
-				if foreign { stale.ref = New().catalog.domain.Ref(stale.ref.Epoch, stale.ref.Address) } else { stale.ref.Epoch++ }
+				if foreign { stale.ref = New().catalog.Domain.Ref(stale.ref.Epoch, stale.ref.Address) } else { stale.ref.Epoch++ }
 				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil { t.Fatal("foreign/stale reference") }
 			}
 			retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
@@ -93,8 +93,8 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			e, ext := daitchUnitInstalled(t)
 			call := soundexUnitExpression(t, e, name)
 			before := e.CatalogRead()
-			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-			for i, address := range ext.members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+			for i, address := range ext.Members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
 			next := cloneCatalog(before.state)
 			for address := range mapping {
 				next.unbindName(descriptorNameKey(before.Get(address)))
@@ -106,13 +106,13 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.bindName(descriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
-			consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
+			consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 			next.setDescriptor(address, consumer)
 			next.epoch++
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
-			for _, node := range []expr.Expr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
+			for _, node := range []expr.Expr{relocated.Defaults[1].Expression, relocated.Generations[2].Expression, relocated.Generations[2].Planned} {
 				n := node.(installedSoundexFunctionExpression)
 				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) { t.Fatal("stale remapped authority", n.ref) }
 				if err := n.validate(view); err != nil { t.Fatal(err) }

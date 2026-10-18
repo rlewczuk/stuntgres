@@ -15,39 +15,39 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
 	d, ok := view.Type(address)
-	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.typ.IsBuiltin() || !d.typ.Concrete() || !d.typ.HasDomainChecks() {
+	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.ObjectRevision == 0 || !d.SQLType.IsBuiltin() || !d.SQLType.Concrete() || !d.SQLType.HasDomainChecks() {
 		t.Fatal("selected domain wrapper", d)
 	}
 	base, ok := view.LookupType(sqltype.VarChar)
-	if !ok || d.typ.DomainBase() != (sqltype.Usage{Type: base, Typmod: 7, Collation: sqltype.CollationRef{ID: 950, Derivation: sqltype.Default}}) {
-		t.Fatal("selected immediate base generation", d.typ.DomainBase())
+	if !ok || d.SQLType.DomainBase() != (sqltype.Usage{Type: base, Typmod: 7, Collation: sqltype.CollationRef{ID: 950, Derivation: sqltype.Default}}) {
+		t.Fatal("selected immediate base generation", d.SQLType.DomainBase())
 	}
 	namespace, ok := view.Descriptor(d.Namespace())
 	if !ok || namespace.Name() != "information_schema" {
 		t.Fatal("selected namespace", namespace)
 	}
 	array, ok := view.LookupType(13255)
-	if !ok || array.Element() != d.typ || array.Concrete() || d.array != 13255 {
+	if !ok || array.Element() != d.SQLType || array.Concrete() || d.Array != 13255 {
 		t.Fatal("selected companion backlink", array)
 	}
-	if len(d.domainChecks) != 1 {
-		t.Fatal("own recipe count", len(d.domainChecks))
+	if len(d.DomainChecks) != 1 {
+		t.Fatal("own recipe count", len(d.DomainChecks))
 	}
-	check := d.domainChecks[0]
-	if check.OID == 0 || check.Name != "yes_or_no_check" || check.NotValid || check.ordinal != 0 || check.expression == nil || len(check.dependencies) == 0 || !check.expression.Properties().DomainDependent || check.expression.Properties().RowDependent {
+	check := d.DomainChecks[0]
+	if check.OID == 0 || check.Name != "yes_or_no_check" || check.NotValid || check.Ordinal != 0 || check.Expression == nil || len(check.Dependencies) == 0 || !check.Expression.Properties().DomainDependent || check.Expression.Properties().RowDependent {
 		t.Fatal("real validated VALUE recipe", check)
 	}
-	for _, dependency := range check.dependencies {
-		provider, ok := view.Descriptor(dependency.ref.Address)
-		if !ok || dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != view.Epoch() || dependency.revision != provider.Revision() {
+	for _, dependency := range check.Dependencies {
+		provider, ok := view.Descriptor(dependency.Ref.Address)
+		if !ok || dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != view.Epoch() || dependency.Revision != provider.Revision() {
 			t.Fatal("captured recipe dependency", dependency)
 		}
 	}
 	valueLeaves := 0
-	walkBoundExpression(check.expression, func(node expr.Expr) {
+	walkBoundExpression(check.Expression, func(node expr.Expr) {
 		if _, ok := node.(domainValueExpression); ok {
 			valueLeaves++
-			if node.ResultUsage() != d.typ.DomainBase() {
+			if node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base/typmod/C authority", node.ResultUsage())
 			}
 		}
@@ -55,7 +55,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	if valueLeaves == 0 {
 		t.Fatal("recipe does not consume real VALUE")
 	}
-	if err := e.catalog.providers[ids.TypeClassID].Validate(view, d); err != nil {
+	if err := e.catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
@@ -66,17 +66,17 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 
 func infoYesOrNoUnitEvaluate(t *testing.T, view CatalogRead, d *typeDescriptor) {
 	t.Helper()
-	base := d.typ.DomainBase().Type
+	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()
 	eval := EvalContext{Context: ctx, catalog: view}
 	eval.Input.DomainChecks = &eval
-	plan, err := sqltype.PlanCoercion(base.Usage(), d.typ.Usage(), sqltype.Assignment)
+	plan, err := sqltype.PlanCoercion(base.Usage(), d.SQLType.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, value := range []sqltype.Value{sqltype.String(base, "YES"), sqltype.String(base, "NO"), sqltype.Null(base)} {
 		out, err := plan.Apply(ctx, value, eval.Input, eval.Output)
-		if err != nil || out.Type() != d.typ || out.IsNull() != value.IsNull() {
+		if err != nil || out.Type() != d.SQLType || out.IsNull() != value.IsNull() {
 			t.Fatal("real TRUE/UNKNOWN recipe evaluation", out, err)
 		}
 	}
@@ -95,7 +95,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 	before := source.CatalogRead()
 	original := infoYesOrNoUnitCatalog(t, source, before)
 	infoYesOrNoUnitEvaluate(t, before, original)
-	originalRecipe := original.domainChecks[0]
+	originalRecipe := original.DomainChecks[0]
 	target := New()
 	if _, err := target.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if source.CatalogRead().state != before.state || original.domainChecks[0].OID != originalRecipe.OID {
+	if source.CatalogRead().state != before.state || original.DomainChecks[0].OID != originalRecipe.OID {
 		t.Fatal("replacement mutated immutable source recipe")
 	}
 	infoYesOrNoUnitCatalog(t, source, before)
@@ -128,7 +128,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	next := cloneCatalog(originalView.state)
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
 	base := *next.MustType(baseAddress)
-	base.typ, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
+	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.setDescriptor(baseAddress, &base)
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
@@ -139,7 +139,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	}
 	view := source.catalog.read(next)
 	mapped := infoYesOrNoUnitCatalog(t, source, view)
-	if mapped == original || mapped.typ == original.typ || mapped.typ.DomainBase().Type != base.typ || mapped.typ.DomainBase().Type == original.typ.DomainBase().Type {
+	if mapped == original || mapped.SQLType == original.SQLType || mapped.SQLType.DomainBase().Type != base.SQLType || mapped.SQLType.DomainBase().Type == original.SQLType.DomainBase().Type {
 		t.Fatal("changed base did not rebuild logical domain authority")
 	}
 	infoYesOrNoUnitEvaluate(t, view, mapped)
@@ -158,8 +158,8 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.yes_or_no_description(v information_schema.yes_or_no)")
 	view := e.CatalogRead()
 	d, ok := view.LookupType(13256)
-	if !ok || table.columns[0].Usage != d.Usage() {
-		t.Fatal("declaration lost logical domain", table.columns)
+	if !ok || table.Columns[0].Usage != d.Usage() {
+		t.Fatal("declaration lost logical domain", table.Columns)
 	}
 	check := func(query string) {
 		t.Helper()
@@ -173,7 +173,7 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	// Install a private storage fixture, not a public SQL/API witness. Result
 	// analysis must retain the domain even when the only physical datum is NULL.
 	e.mu.Lock()
-	e.storage[table.address] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{sqltype.Null(d)}}}}
+	e.storage[table.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{sqltype.Null(d)}}}}
 	e.commitSeq = 1
 	e.mu.Unlock()
 	check("SELECT v FROM public.yes_or_no_description")

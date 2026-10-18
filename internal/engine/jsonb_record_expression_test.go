@@ -132,17 +132,17 @@ func TestJSONBRecordDomainErrors(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	eval := &EvalContext{Context: context.Background(), catalog: view}
-	parent := domainUnitType(t, view, "jbr_parent").typ
-	child := domainUnitType(t, view, "jbr_child").typ
+	parent := domainUnitType(t, view, "jbr_parent").SQLType
+	child := domainUnitType(t, view, "jbr_child").SQLType
 	castDefinition := domainUnitType(t, view, "jbr_cast")
-	cast := castDefinition.typ
-	nested := domainUnitType(t, view, "jbr_nested").typ
+	cast := castDefinition.SQLType
+	nested := domainUnitType(t, view, "jbr_nested").SQLType
 	integer, _ := view.LookupType(sqltype.Int4)
-	array, ok := view.LookupType(castDefinition.array)
+	array, ok := view.LookupType(castDefinition.Array)
 	if !ok {
 		t.Fatal("missing captured domain array")
 	}
-	record := domainUnitType(t, view, "jbr_record").typ
+	record := domainUnitType(t, view, "jbr_record").SQLType
 	for _, tc := range []struct {
 		name, input, code, dataType string
 		target                      *sqltype.Descriptor
@@ -230,7 +230,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 func TestJSONBRecordSourceProjection(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	view := e.CatalogRead()
-	original, _ := view.LookupType(source.rowType)
+	original, _ := view.LookupType(source.RowType)
 	jsonb, _ := view.LookupType(sqltype.JSONB)
 	document, err := jsonb.InputWithEnvironment(context.Background(), `{}`, -1, sqltype.InputEnvironment{})
 	if err != nil {
@@ -391,7 +391,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 		t.Run(tc.base, func(t *testing.T) {
 			engine, source, _ := typedUnitCatalog(t, false)
 			view := engine.CatalogRead()
-			original, _ := view.LookupType(source.rowType)
+			original, _ := view.LookupType(source.RowType)
 			first := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, `SELECT jsonb_populate_record(`+tc.base+`,'{"id":1}'::jsonb)`).(*parser.Select).Targets[0].(parser.FunctionExpr)
 			if _, err := first.bind(raw, expressionPolicy{context: projectionContext}); err != nil {

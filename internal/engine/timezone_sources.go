@@ -13,24 +13,24 @@ import (
 // input belong to this execution; provider loading never extends catalog locks.
 func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor, input sqltype.InputEnvironment) (*querySource, error) {
 	var rows [][]sqltype.Value
-	offsetIndex := len(d.columns) - 2
+	offsetIndex := len(d.Columns) - 2
 	appendFact := func(name, abbrev string, east int32, daylight bool) error {
-		offset, err := sqltype.IntervalValue(d.columns[offsetIndex].Usage.Type, 0, 0, int64(east)*1000000)
+		offset, err := sqltype.IntervalValue(d.Columns[offsetIndex].Usage.Type, 0, 0, int64(east)*1000000)
 		if err != nil {
 			return err
 		}
-		row := make([]sqltype.Value, len(d.columns))
+		row := make([]sqltype.Value, len(d.Columns))
 		if offsetIndex == 2 {
-			row[0] = sqltype.String(d.columns[0].Usage.Type, name)
+			row[0] = sqltype.String(d.Columns[0].Usage.Type, name)
 		}
-		row[offsetIndex-1] = sqltype.String(d.columns[offsetIndex-1].Usage.Type, abbrev)
+		row[offsetIndex-1] = sqltype.String(d.Columns[offsetIndex-1].Usage.Type, abbrev)
 		row[offsetIndex] = offset
-		row[offsetIndex+1] = sqltype.Boolean(d.columns[offsetIndex+1].Usage.Type, daylight)
+		row[offsetIndex+1] = sqltype.Boolean(d.Columns[offsetIndex+1].Usage.Type, daylight)
 		rows = append(rows, row)
 		return nil
 	}
 	var err error
-	switch d.address.ObjectID {
+	switch d.Address().ObjectID {
 	case 12005:
 		err = sqltype.VisitTimezoneNames(ctx, input.TransactionStart.Unix(), func(f sqltype.TimezoneNameFact) error {
 			return appendFact(f.Name, f.Abbrev, f.East, f.IsDST)
@@ -49,18 +49,18 @@ func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDe
 }
 
 func timezoneViewWriteError(d *relationDescriptor, operation string) error {
-	message := fmt.Sprintf(`cannot update view "%s"`, d.name)
+	message := fmt.Sprintf(`cannot update view "%s"`, d.Name())
 	action := "updating the view"
 	switch operation {
 	case "insert":
-		message = fmt.Sprintf(`cannot insert into view "%s"`, d.name)
+		message = fmt.Sprintf(`cannot insert into view "%s"`, d.Name())
 		action = "inserting into the view"
 	case "delete":
-		message = fmt.Sprintf(`cannot delete from view "%s"`, d.name)
+		message = fmt.Sprintf(`cannot delete from view "%s"`, d.Name())
 		action = "deleting from the view"
 	}
 	detail := "Views that do not select from a single table or view are not automatically updatable."
-	if d.address.ObjectID == 12004 {
+	if d.Address().ObjectID == 12004 {
 		detail = "Views containing UNION, INTERSECT, or EXCEPT are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)

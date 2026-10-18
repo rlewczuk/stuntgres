@@ -3,7 +3,7 @@ package engine
 import "stuntgres/internal/engine/ids"
 
 // viewPayload is the frozen stored-SQL presentation of a view or
-// materialized view, as relationDescriptor.view holds it. It exposes only
+// materialized view, as relationDescriptor.View holds it. It exposes only
 // what catalog code needs: the rewrite rule identity, dependencies, temporary
 // ownership and validation. The concrete *viewDefinition, which holds plan IR,
 // stays in the engine behind viewOf.
@@ -26,7 +26,7 @@ type viewPayload interface {
 
 // viewOf returns d's concrete view definition, or nil when d stores none.
 func viewOf(d *relationDescriptor) *viewDefinition {
-	v, _ := d.view.(*viewDefinition)
+	v, _ := d.View.(*viewDefinition)
 	return v
 }
 
@@ -48,7 +48,7 @@ func (v *viewDefinition) DependsOn(target ids.ObjectAddress) bool {
 		}
 	}
 	for _, dependency := range v.dependencies {
-		a := dependency.ref.Address
+		a := dependency.Ref.Address
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
 		}

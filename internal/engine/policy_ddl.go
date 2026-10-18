@@ -61,18 +61,18 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	index := policyIndex(old, name)
 	if drop && index < 0 {
 		if stmt.(*parser.DropPolicy).IfExists {
-			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`policy "%s" for relation "%s" does not exist, skipping`, name, old.name))
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`policy "%s" for relation "%s" does not exist, skipping`, name, old.Name()))
 		}
 		return fail(policyMissing(name, old))
 	}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
 		return fail(err)
 	}
-	if old.relationKind == catalogRelation {
-		return fail(sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, old.name)))
+	if old.RelationKind == catalogRelation {
+		return fail(sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, old.Name())))
 	}
-	if old.relationKind != tableRelation && old.relationKind != partitionedRelation {
-		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, old.name)))
+	if old.RelationKind != tableRelation && old.RelationKind != partitionedRelation {
+		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, old.Name())))
 	}
 	var using, check *policyExpression
 	if !drop {
@@ -85,7 +85,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		}
 	}
 	next := *old
-	next.policies = slices.Clone(old.policies)
+	next.Policies = slices.Clone(old.Policies)
 	if create {
 		if index >= 0 {
 			return fail(policyDuplicate(name, old))
@@ -95,9 +95,9 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			return fail(err)
 		}
 		s := stmt.(*parser.CreatePolicy)
-		next.policies = append(next.policies, policyDefinition{
-			OID: oid, Name: name, permissive: s.Permissive, command: policyCommand(s.Command),
-			roles: roles, using: policyPayloadOf(using), check: policyPayloadOf(check),
+		next.Policies = append(next.Policies, policyDefinition{
+			OID: oid, Name: name, Permissive: s.Permissive, Command: policyCommand(s.Command),
+			Roles: roles, Using: policyPayloadOf(using), Check: policyPayloadOf(check),
 		})
 	} else if alter {
 		s := stmt.(*parser.AlterPolicy)
@@ -107,34 +107,34 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		if index < 0 {
 			return fail(policyMissing(name, old))
 		}
-		if err = policyClauses(old.policies[index].command, rawUsing, rawCheck, false); err != nil {
+		if err = policyClauses(old.Policies[index].Command, rawUsing, rawCheck, false); err != nil {
 			return fail(err)
 		}
-		p := &next.policies[index]
+		p := &next.Policies[index]
 		if s.Rename != nil {
 			p.Name = s.Rename.Text
 		}
 		if rawRoles != nil {
-			p.roles = roles
+			p.Roles = roles
 		}
 		if rawUsing != nil {
-			p.using = policyPayloadOf(using)
+			p.Using = policyPayloadOf(using)
 		}
 		if rawCheck != nil {
-			p.check = policyPayloadOf(check)
+			p.Check = policyPayloadOf(check)
 		}
 	} else {
-		next.policies = append(next.policies[:index], next.policies[index+1:]...)
+		next.Policies = append(next.Policies[:index], next.Policies[index+1:]...)
 	}
-	slices.SortFunc(next.policies, func(a, b policyDefinition) int { return strings.Compare(a.Name, b.Name) })
-	next.revision, err = e.catalog.revisionLocked()
+	slices.SortFunc(next.Policies, func(a, b policyDefinition) int { return strings.Compare(a.Name, b.Name) })
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	for _, p := range next.policies {
-		for _, expression := range []*policyExpression{policyExpressionOf(p.using), policyExpressionOf(p.check)} {
+	for _, p := range next.Policies {
+		for _, expression := range []*policyExpression{policyExpressionOf(p.Using), policyExpressionOf(p.Check)} {
 			if expression == nil {
 				continue
 			}

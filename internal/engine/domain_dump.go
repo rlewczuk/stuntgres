@@ -61,26 +61,26 @@ func (r *domainReplayNames) reserve(d *typeDescriptor) error {
 		delete(r.occupied, key)
 		r.occupied[moved], r.names[incumbent] = incumbent, moved
 	}
-	r.occupied[key], r.names[d.typ.ID()] = d.typ.ID(), key
+	r.occupied[key], r.names[d.SQLType.ID()] = d.SQLType.ID(), key
 	return nil
 }
 
 func (r *domainReplayNames) associate(d *typeDescriptor) {
-	if d.array == 0 {
+	if d.Array == 0 {
 		return
 	}
-	key := r.arrayName(r.names[d.typ.ID()])
-	r.occupied[key], r.names[d.array] = d.array, key
-	r.arrays[d.typ.ID()], r.elements[d.array] = d.array, d.typ.ID()
+	key := r.arrayName(r.names[d.SQLType.ID()])
+	r.occupied[key], r.names[d.Array] = d.Array, key
+	r.arrays[d.SQLType.ID()], r.elements[d.Array] = d.Array, d.SQLType.ID()
 }
 
 func defaultDomainACL(d *typeDescriptor) bool {
-	if !d.aclSyntheticDefault || !d.acl.Explicit {
+	if !d.ACLSyntheticDefault || !d.ACL.Explicit {
 		return false
 	}
 	var public, owner, options authorization.Privileges
-	for _, entry := range d.acl.Entries {
-		if entry.Grantor != d.owner {
+	for _, entry := range d.ACL.Entries {
+		if entry.Grantor != d.Owner {
 			return false
 		}
 		if entry.Grantee.Public {
@@ -89,7 +89,7 @@ func defaultDomainACL(d *typeDescriptor) bool {
 			}
 			public |= entry.Privileges
 		} else {
-			if entry.Grantee.Role != d.owner {
+			if entry.Grantee.Role != d.Owner {
 				return false
 			}
 			owner |= entry.Privileges
@@ -123,7 +123,7 @@ func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqlty
 		return u.Declaration()
 	}
 	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
-	if !ok || descriptor.(*typeDescriptor).typ != u.Type || !u.Valid() {
+	if !ok || descriptor.(*typeDescriptor).SQLType != u.Type || !u.Valid() {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
 	namespace, ok := definitionDescriptorAt(view, reader, descriptor.Namespace())
@@ -178,28 +178,28 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 	if !defaultDomainACL(d) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
-	qualified, err := catalogTypeDeclaration(view, d.typ.Usage())
+	qualified, err := catalogTypeDeclaration(view, d.SQLType.Usage())
 	if err != nil {
 		return dumpDomain{}, err
 	}
-	owner, err := roles.Descriptor(d.owner)
+	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
 		return dumpDomain{}, err
 	}
-	if d.typ.IsEnum() {
-		labels := d.typ.EnumLabels()
+	if d.SQLType.IsEnum() {
+		labels := d.SQLType.EnumLabels()
 		for i, label := range labels {
 			labels[i] = "'" + strings.ReplaceAll(label, "'", "''") + "'"
 		}
 		return dumpDomain{owner.Name, "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"}, nil
 	}
-	base := d.typ.DomainBase()
+	base := d.SQLType.DomainBase()
 	declaration, err := catalogTypeDeclaration(view, base)
 	if err != nil {
 		return dumpDomain{}, err
 	}
 	if base.Type.IsArray() {
-		if d.dimensions == 0 {
+		if d.Dimensions == 0 {
 			key, exists := replayNames.names[base.Type.ID()]
 			if !exists || replayNames.arrays[base.Type.Element().ID()] != base.Type.ID() {
 				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array identity")
@@ -210,7 +210,7 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 			}
 			declaration = quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(key.Name)
 		} else {
-			declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.dimensions))
+			declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.Dimensions))
 		}
 	}
 	collation := ""
@@ -222,11 +222,11 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 		collation = " COLLATE " + name
 	}
 	var checks strings.Builder
-	for _, check := range d.domainChecks {
+	for _, check := range d.DomainChecks {
 		if check.NotValid {
 			continue
 		}
-		text, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.expression)
+		text, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.Expression)
 		if err != nil {
 			return dumpDomain{}, err
 		}

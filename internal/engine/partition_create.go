@@ -58,8 +58,8 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		if err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, err
 		}
-		if parent.partition == nil {
-			return nil, sqlError("42P17", fmt.Sprintf(`"%s" is not partitioned`, parent.name))
+		if parent.Partition == nil {
+			return nil, sqlError("42P17", fmt.Sprintf(`"%s" is not partitioned`, parent.Name()))
 		}
 	}
 	if parent != nil {
@@ -82,13 +82,13 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		return nil, err
 	}
 	if partition != nil {
-		for _, constraint := range child.checkConstraints {
+		for _, constraint := range child.CheckConstraints {
 			if constraint.NoInherit {
-				return nil, sqlError("42P16", fmt.Sprintf(`cannot add NO INHERIT constraint to partitioned table "%s"`, child.name))
+				return nil, sqlError("42P16", fmt.Sprintf(`cannot add NO INHERIT constraint to partitioned table "%s"`, child.Name()))
 			}
 		}
-		child.partition = partition
-		child.relationKind = partitionedRelation
+		child.Partition = partition
+		child.RelationKind = partitionedRelation
 	}
 	pending := &pendingPartitionDefinition{stage: stage, parent: parent, child: child, auth: auth}
 	if parent != nil {
@@ -97,23 +97,23 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		if err != nil {
 			return nil, err
 		}
-		child.membership = pending.bound
+		child.Membership = pending.bound
 		stage.domainBases = append(stage.domainBases, parent)
-		if pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-			existing := auth.catalog.MustRelation(parent.partition.defaultChild)
-			return nil, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.name), syntax.PartitionOf.Bound.Pos)
+		if pending.bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
+			existing := auth.catalog.MustRelation(parent.Partition.DefaultChild)
+			return nil, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.Name()), syntax.PartitionOf.Bound.Pos)
 		}
-		if !pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-			defaultRelation := auth.catalog.MustRelation(parent.partition.defaultChild)
+		if !pending.bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
+			defaultRelation := auth.catalog.MustRelation(parent.Partition.DefaultChild)
 			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *relationDescriptor) error {
-				ref := e.catalog.domain.Ref(auth.catalog.Epoch(), leaf.address)
+				ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), leaf.Address())
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
 				stage.domainBases = append(stage.domainBases, leaf)
-				storage := e.privateStorageLocked(scope.owner.catalog, leaf.address)
+				storage := e.privateStorageLocked(scope.owner.catalog, leaf.Address())
 				if storage == nil {
 					return ids.ErrCatalogReplaced
 				}
-				stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: leaf.address, storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
+				stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: leaf.Address(), storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
 				return nil
 			})
 			if err != nil {
@@ -127,7 +127,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	}
 	// Invalid keys/bounds and inherited definitions win over this declared
 	// implementation boundary; neither path publishes allocated auxiliaries.
-	pending.unsupportedCombination = len(child.generations) != 0 || len(child.identities) != 0
+	pending.unsupportedCombination = len(child.Generations) != 0 || len(child.Identities) != 0
 	for _, element := range syntax.Elements {
 		if element.Column != nil && serialTypeName(element.Column.TypeName) != "" {
 			pending.unsupportedCombination = true
@@ -140,15 +140,15 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p == nil {
 		return nil
 	}
-	for _, constraint := range p.child.uniqueConstraints {
+	for _, constraint := range p.child.UniqueConstraints {
 		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
-		if err := partitionUniqueCoverage(p.child, index.sqlIndex); err != nil {
+		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
-	for _, constraint := range p.child.exclusionConstraints {
+	for _, constraint := range p.child.ExclusionConstraints {
 		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
-		if err := partitionUniqueCoverage(p.child, index.sqlIndex); err != nil {
+		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
@@ -160,7 +160,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	}
 	ctx := scope.op.Context()
 	evaluation := EvalContext{Context: ctx, statementScope: scope, Input: scope.input, Output: scope.output}
-	if !p.bound.defaultBound {
+	if !p.bound.DefaultBound {
 		if err := p.evaluateBounds(scope, &evaluation); err != nil {
 			return err
 		}
@@ -199,16 +199,16 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 					source.close()
 					return err
 				}
-				contains, err := partitionContains(ctx, p.parent.partition.keys, p.bound, key, scope.input)
+				contains, err := partitionContains(ctx, p.parent.Partition.Keys, p.bound, key, scope.input)
 				if err != nil {
 					source.close()
 					return err
 				}
 				if contains {
 					source.close()
-					defaultRelation := catalog.MustRelation(p.parent.partition.defaultChild)
-					diagnostic := sqlError("23514", fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, defaultRelation.name)).(*sqlstate.Error)
-					diagnostic.Schema, diagnostic.Table = catalog.Get(defaultRelation.namespace).Name(), defaultRelation.name
+					defaultRelation := catalog.MustRelation(p.parent.Partition.DefaultChild)
+					diagnostic := sqlError("23514", fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, defaultRelation.Name())).(*sqlstate.Error)
+					diagnostic.Schema, diagnostic.Table = catalog.Get(defaultRelation.Namespace()).Name(), defaultRelation.Name()
 					return diagnostic
 				}
 			}
@@ -218,17 +218,17 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p.unsupportedCombination {
 		return sqlError("0A000", "partitioned table constraint combination is unsupported")
 	}
-	if p.parent.revision == ids.DefinitionRevision(^uint64(0)) {
+	if p.parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	parent := *p.parent
-	definition := *p.parent.partition
-	definition.children = append(slices.Clone(definition.children), p.child.address)
-	if p.bound.defaultBound {
-		definition.defaultChild = p.child.address
+	definition := *p.parent.Partition
+	definition.Children = append(slices.Clone(definition.Children), p.child.Address())
+	if p.bound.DefaultBound {
+		definition.DefaultChild = p.child.Address()
 	}
-	parent.partition = &definition
-	parent.revision++
+	parent.Partition = &definition
+	parent.ObjectRevision++
 	if err := p.stage.Replace(&parent); err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, index := range partitionIndexDeclarationOrder(p.stage.base, p.parent) {
-		child := e.stageRead(p.stage).MustRelation(p.child.address)
+		child := e.stageRead(p.stage).MustRelation(p.child.Address())
 		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child, true); err != nil {
 			return err
 		}
@@ -250,13 +250,13 @@ func partitionTupleSQL(ctx context.Context, tuple []partitionDatum) (string, err
 		if i > 0 {
 			text.WriteString(", ")
 		}
-		switch datum.kind {
+		switch datum.Kind {
 		case -1:
 			text.WriteString("MINVALUE")
 		case 1:
 			text.WriteString("MAXVALUE")
 		default:
-			value, err := datum.value.Type().SQLLiteral(ctx, datum.value)
+			value, err := datum.Value.Type().SQLLiteral(ctx, datum.Value)
 			if err != nil {
 				return "", err
 			}
@@ -288,27 +288,27 @@ func (e *Engine) partitionReadsValidLocked(stage *CatalogStage) bool {
 // ATTACH transforms datums before opening its candidate, then invokes this
 // validation after that existing relation's eligibility/schema checks.
 func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error {
-	if p.bound.defaultBound {
+	if p.bound.DefaultBound {
 		return nil
 	}
-	if p.bound.strategy == parser.PartitionHash {
+	if p.bound.Strategy == parser.PartitionHash {
 		return nil
 	}
 	ctx := scope.op.Context()
-	order, deciding, err := comparePartitionTuple(ctx, p.parent.partition.keys, p.bound.lower, p.bound.upper, scope.input)
+	order, deciding, err := comparePartitionTuple(ctx, p.parent.Partition.Keys, p.bound.Lower, p.bound.Upper, scope.input)
 	if err != nil {
 		return err
 	}
 	if order >= 0 {
-		lower, err := partitionTupleSQL(ctx, p.bound.lower)
+		lower, err := partitionTupleSQL(ctx, p.bound.Lower)
 		if err != nil {
 			return err
 		}
-		upper, err := partitionTupleSQL(ctx, p.bound.upper)
+		upper, err := partitionTupleSQL(ctx, p.bound.Upper)
 		if err != nil {
 			return err
 		}
-		d := expr.ErrorAt("42P17", fmt.Sprintf(`empty range bound specified for partition "%s"`, p.child.name), p.bound.lower[deciding].pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42P17", fmt.Sprintf(`empty range bound specified for partition "%s"`, p.child.Name()), p.bound.Lower[deciding].Pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("Specified lower bound (%s) is greater than or equal to upper bound (%s).", lower, upper)
 		return d
 	}
@@ -324,11 +324,11 @@ type partitionBoundary struct {
 }
 
 func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
-	if p.bound.strategy == parser.PartitionHash {
+	if p.bound.Strategy == parser.PartitionHash {
 		return p.checkHashOverlap(scope)
 	}
-	count := len(p.parent.partition.children)
-	if p.parent.partition.defaultChild != (ids.ObjectAddress{}) {
+	count := len(p.parent.Partition.Children)
+	if p.parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 		count--
 	}
 	if count == 0 {
@@ -341,17 +341,17 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 	if count > len(local)/2 {
 		bounds = make([]partitionBoundary, 0, 2*count)
 	}
-	for _, address := range p.parent.partition.children {
+	for _, address := range p.parent.Partition.Children {
 		sibling := p.stage.base.MustRelation(address)
-		if sibling.membership.defaultBound {
+		if sibling.Membership.DefaultBound {
 			continue
 		}
 		bounds = append(bounds,
-			partitionBoundary{sibling.membership.lower, sibling, true},
-			partitionBoundary{sibling.membership.upper, sibling, false})
+			partitionBoundary{sibling.Membership.Lower, sibling, true},
+			partitionBoundary{sibling.Membership.Upper, sibling, false})
 	}
 	compare := func(a, b partitionBoundary) (int, int, error) {
-		order, component, err := comparePartitionTuple(scope.op.Context(), p.parent.partition.keys, a.tuple, b.tuple, scope.input)
+		order, component, err := comparePartitionTuple(scope.op.Context(), p.parent.Partition.Keys, a.tuple, b.tuple, scope.input)
 		if err == nil && order == 0 && a.lower != b.lower {
 			order = -1
 			if a.lower {
@@ -378,7 +378,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 	unique := bounds[:0]
 	for _, bound := range bounds {
 		if len(unique) != 0 {
-			order, _, err := comparePartitionTuple(scope.op.Context(), p.parent.partition.keys, unique[len(unique)-1].tuple, bound.tuple, scope.input)
+			order, _, err := comparePartitionTuple(scope.op.Context(), p.parent.Partition.Keys, unique[len(unique)-1].tuple, bound.tuple, scope.input)
 			if err != nil {
 				return err
 			}
@@ -389,7 +389,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		unique = append(unique, bound)
 	}
 	bounds = unique
-	probe := partitionBoundary{tuple: p.bound.lower, lower: true}
+	probe := partitionBoundary{tuple: p.bound.Lower, lower: true}
 	lo, hi := -1, len(bounds)-1
 	lastOrder, lastComponent := 0, 0
 	for lo < hi {
@@ -412,24 +412,24 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		return nil
 	}
 	next := bounds[lo+1]
-	position := p.bound.lower[lastComponent].pos
+	position := p.bound.Lower[lastComponent].Pos
 	if !next.lower {
 		// The lower endpoint is already inside a sibling. PostgreSQL exposes
 		// the search's final comparison component, with equality at the first.
 		if lastOrder == 0 {
-			position = p.bound.lower[0].pos
+			position = p.bound.Lower[0].Pos
 		}
 	} else {
 		// The lower endpoint is in a gap. Only its next partition can be the
 		// first overlap; point to the deciding new upper component.
-		order, component, err := compare(next, partitionBoundary{tuple: p.bound.upper})
+		order, component, err := compare(next, partitionBoundary{tuple: p.bound.Upper})
 		if err != nil {
 			return err
 		}
 		if order >= 0 {
 			return nil
 		}
-		position = p.bound.upper[component].pos
+		position = p.bound.Upper[component].Pos
 	}
-	return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.name, next.relation.name), position)
+	return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.Name(), next.relation.Name()), position)
 }

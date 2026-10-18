@@ -139,7 +139,7 @@ func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltyp
 	if err != nil || procedure == nil {
 		return nil, err
 	}
-	return &procedure.conversion, nil
+	return &procedure.Conversion, nil
 }
 
 func (c *EvalContext) FunctionPropertiesMatch(properties expr.Properties, rule expr.IntrinsicPropertyRule) bool {
@@ -233,7 +233,7 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
 	recipe := e.virtual
 	if e.virtualOwner != nil {
-		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.generations[e.virtualAttribute])
+		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.Generations[e.virtualAttribute])
 	} else if e.origin != (ids.ObjectRef{}) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -1990,8 +1990,8 @@ type expressionPolicy struct {
 	operand bool
 }
 type expressionDependency struct {
-	ref      ids.ObjectRef
-	revision ids.DefinitionRevision
+	Ref      ids.ObjectRef
+	Revision ids.DefinitionRevision
 }
 type expressionBinder struct {
 	engine                *Engine
@@ -2149,7 +2149,7 @@ func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
 }
 func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.DefinitionRevision) {
 	for _, d := range b.dependencies {
-		if d.ref == ref {
+		if d.Ref == ref {
 			return
 		}
 	}
@@ -2169,11 +2169,11 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Pro
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
-	b.dependency(b.engine.catalog.domain.Ref(view.Epoch(), address), revision)
+	b.dependency(b.engine.catalog.Domain.Ref(view.Epoch(), address), revision)
 	if u.Collation.ID != 0 {
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
-			b.dependency(b.engine.catalog.domain.Ref(view.Epoch(), address), d.Revision())
+			b.dependency(b.engine.catalog.Domain.Ref(view.Epoch(), address), d.Revision())
 		}
 	}
 	return expr.Info{Usage: u, Pos: pos, Property: p}
@@ -2238,7 +2238,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		owner := b.generatedOwner
-		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.name || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.name && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
+		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
 		if qualified {
 			if name == "tableoid" {
 				ref := b.querySources[0].ref
@@ -2252,7 +2252,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		if err != nil {
 			// A bare relation name is a whole-row reference only after ordinary
 			// column lookup has failed; a same-named attribute takes precedence.
-			if name == owner.name && len(raw.Name.Parts) == 1 {
+			if name == owner.Name() && len(raw.Name.Parts) == 1 {
 				diagnostic := expr.ErrorAt("42P17", "cannot use whole-row variable in column generation expression", raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "This would cause the generated column to depend on its own value."
 				return nil, diagnostic
@@ -2265,7 +2265,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, diagnostic
 		}
 		if column, ok := node.(columnExpression); ok {
-			if _, generated := owner.generations[column.origin.Address.SubID]; generated {
+			if _, generated := owner.Generations[column.origin.Address.SubID]; generated {
 				diagnostic := expr.ErrorAt("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "A generated column cannot reference another generated column."
 				return nil, diagnostic
@@ -2311,7 +2311,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, qualifier), raw.Pos)
 		}
 	}
-	i, ok := b.relation.index[name]
+	i, ok := b.relation.Index[name]
 	if !ok {
 		if len(raw.Name.Parts) == 2 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", raw.Name.Parts[0].Text, name), raw.Pos)
@@ -2326,8 +2326,8 @@ func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
 
 func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.ObjectRef {
 	ref := b.ref
-	ref.Address.SubID = relation.attributes[i]
-	b.dependency(ref, relation.revision)
+	ref.Address.SubID = relation.Attributes[i]
+	b.dependency(ref, relation.Revision())
 	used := false
 	for _, slot := range b.uses {
 		if slot == i {
@@ -2338,7 +2338,7 @@ func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.
 	if !used {
 		b.uses = append(b.uses, i)
 	}
-	b.info(relation.columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
+	b.info(relation.Columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
 	return ref
 }
 func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
@@ -2347,7 +2347,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
 
 func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
-	column := columnExpression{Info: expr.Info{Usage: relation.columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 	if b.generatedOwner == nil {
 		column = column.withGeneration(relation, i, 0)
 	}
@@ -2782,7 +2782,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 				if descriptor, exists := auth.catalog.Descriptor(address); exists {
-					b.dependency(b.engine.catalog.domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
+					b.dependency(b.engine.catalog.Domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:

@@ -34,18 +34,18 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 	var relations []*relationDescriptor
 	var domains []*typeDescriptor
 	for _, descriptor := range provider.descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.checkConstraints) != 0 {
+		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.CheckConstraints) != 0 {
 			relations = append(relations, relation)
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
 			domains = append(domains, domain)
 		}
 	}
 	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -53,18 +53,18 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 	var details []string
 	for _, relation := range relations {
 		var kept []checkConstraint
-		for _, check := range relation.checkConstraints {
-			if !expressionUsesCompositeField(check.expression, source.rowType, attribute) {
+		for _, check := range relation.CheckConstraints {
+			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				kept = append(kept, check)
 				continue
 			}
-			label := fmt.Sprintf("constraint %s on table %s", dependencyIdentifier(check.Name), dependencyIdentifier(relation.name))
-			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.name)))
+			label := fmt.Sprintf("constraint %s on table %s", dependencyIdentifier(check.Name), dependencyIdentifier(relation.Name()))
+			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.Columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
 				provider.compositeFieldNotice("drop cascades to " + label)
 			}
 		}
-		if len(kept) == len(relation.checkConstraints) || mode != parser.DropCascade {
+		if len(kept) == len(relation.CheckConstraints) || mode != parser.DropCascade {
 			continue
 		}
 		if provider.stage == nil || !typedFieldCheckOwner(provider.stage, relation) {
@@ -73,20 +73,20 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 			}
 		}
 		next := *relation
-		revision, err := provider.revision(next.revision)
+		revision, err := provider.revision(next.Revision())
 		if err != nil {
 			return err
 		}
-		next.revision, next.checkConstraints = revision, kept
-		if next.inheritance != nil {
-			graph := *next.inheritance
-			graph.checks = maps.Clone(graph.checks)
-			for name := range graph.checks {
+		next.ObjectRevision, next.CheckConstraints = revision, kept
+		if next.Inheritance != nil {
+			graph := *next.Inheritance
+			graph.Checks = maps.Clone(graph.Checks)
+			for name := range graph.Checks {
 				if !slices.ContainsFunc(kept, func(check checkConstraint) bool { return check.Name == name }) {
-					delete(graph.checks, name)
+					delete(graph.Checks, name)
 				}
 			}
-			next.inheritance = &graph
+			next.Inheritance = &graph
 		}
 		if err := provider.replace(&next); err != nil {
 			return err
@@ -102,12 +102,12 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 		return 0
 	})
 	for _, domain := range domains {
-		for _, check := range domain.domainChecks {
-			if !expressionUsesCompositeField(check.expression, source.rowType, attribute) {
+		for _, check := range domain.DomainChecks {
+			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				continue
 			}
 			label := fmt.Sprintf("constraint %s", dependencyIdentifier(check.Name))
-			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.name)))
+			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.Columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
 				if err := provider.removeDomainCheck(domain, check.OID); err != nil {
 					return err
@@ -117,7 +117,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 		}
 	}
 	if len(details) != 0 && mode == parser.DropRestrict {
-		diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop column %s of composite type %s because other objects depend on it", dependencyIdentifier(source.columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.name))).(*sqlstate.Error)
+		diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop column %s of composite type %s because other objects depend on it", dependencyIdentifier(source.Columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.Name()))).(*sqlstate.Error)
 		diagnostic.Detail = strings.Join(details, "\n")
 		diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 		return diagnostic
@@ -138,14 +138,14 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 
 // Only the already admitted typed propagation closure may prune inherited CHECKs.
 func typedFieldCheckOwner(stage *CatalogStage, relation *relationDescriptor) bool {
-	if stage.typedSource == (ids.ObjectAddress{}) || stage.typedObserved[relation.address] == nil {
+	if stage.typedSource == (ids.ObjectAddress{}) || stage.typedObserved[relation.Address()] == nil {
 		return false
 	}
-	if relation.ofType == stage.typedSource {
+	if relation.OfType == stage.typedSource {
 		return true
 	}
-	if relation.inheritance != nil {
-		for _, address := range relation.inheritance.parents {
+	if relation.Inheritance != nil {
+		for _, address := range relation.Inheritance.Parents {
 			parent, ok := stage.base.Relation(address)
 			if ok && typedFieldCheckOwner(stage, parent) {
 				return true

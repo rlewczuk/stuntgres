@@ -70,7 +70,7 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 			}
 			columns := 0
 			for _, d := range bound.dependencies {
-				if d.ref.Address.SubID != 0 {
+				if d.Ref.Address.SubID != 0 {
 					columns++
 				}
 			}

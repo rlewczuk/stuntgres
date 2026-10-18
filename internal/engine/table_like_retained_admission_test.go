@@ -21,20 +21,20 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TEMP TABLE src(v BIGINT DEFAULT nextval('pg_temp.seed'))")
 			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 			provider := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
-			original := source.defaults[1]
-			manifest := slices.Clone(original.dependencies)
+			original := source.Defaults[1]
+			manifest := slices.Clone(original.Dependencies)
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			run(t, e, "CREATE TABLE barrier(v INT)")
-			current := e.catalog.domain.Ref(e.CatalogRead().Epoch(), provider.address)
-			old := e.catalog.domain.Ref(manifest[0].Epoch, provider.address)
+			current := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), provider.Address())
+			old := e.catalog.Domain.Ref(manifest[0].Epoch, provider.Address())
 			for _, ref := range manifest {
-				if ref.Address == provider.address {
+				if ref.Address == provider.Address() {
 					old = ref
 				}
 			}
-			if old.Epoch == current.Epoch || e.CatalogRead().Get(provider.address) != provider {
+			if old.Epoch == current.Epoch || e.CatalogRead().Get(provider.Address()) != provider {
 				t.Fatal("fixture is not an actual retained old-epoch provider", old, current)
 			}
 			holderOp, holderDone, err := testOperation(e, context.Background())
@@ -86,10 +86,10 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			copied := destination.defaults[1]
+			copied := destination.Defaults[1]
 			assertStored := func() {
 				t.Helper()
-				if !reflect.DeepEqual(copied.expression, original.expression) || !slices.Equal(copied.dependencies, manifest) || !reflect.DeepEqual(source.defaults[1].expression, original.expression) || !slices.Equal(source.defaults[1].dependencies, manifest) {
+				if !reflect.DeepEqual(copied.Expression, original.Expression) || !slices.Equal(copied.Dependencies, manifest) || !reflect.DeepEqual(source.Defaults[1].Expression, original.Expression) || !slices.Equal(source.Defaults[1].Dependencies, manifest) {
 					t.Fatal("acquisition rewrote stored node or manifest")
 				}
 			}
@@ -121,19 +121,19 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}
 			if outcome == "pointer" {
 				replacement := *provider
-				replacement.revision++
+				replacement.ObjectRevision++
 				change := e.BeginCatalogStage(e.CatalogRead())
 				if err := change.Replace(&replacement); err != nil {
 					t.Fatal(err)
 				}
 				queryCreatePublish(t, e, change)
-				if e.CatalogRead().Get(current.Address) != &replacement || replacement.address != provider.address || replacement.relationKind != provider.relationKind {
+				if e.CatalogRead().Get(current.Address) != &replacement || replacement.Address() != provider.Address() || replacement.RelationKind != provider.RelationKind {
 					t.Fatal("same-address provider replacement fixture failed")
 				}
 			}
 			if outcome == "delete" || outcome == "recreate" {
 				change := e.BeginCatalogStage(e.CatalogRead())
-				if err := change.Remove(e.catalog.domain.Ref(current.Epoch, source.address)); err != nil {
+				if err := change.Remove(e.catalog.Domain.Ref(current.Epoch, source.Address())); err != nil {
 					t.Fatal(err)
 				}
 				if err := change.Remove(current); err != nil {
@@ -148,15 +148,15 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if allocationErr != nil {
 						t.Fatal(allocationErr)
 					}
-					replacement.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-					replacement.revision = 1
+					replacement.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
+					replacement.ObjectRevision = 1
 					change := e.BeginCatalogStage(e.CatalogRead())
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.sequence.start, generation: replacement.revision}}
+					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.Address(): {last: replacement.Sequence.Start, generation: replacement.Revision()}}
 					queryCreatePublish(t, e, change)
-					if replacement.address == provider.address {
+					if replacement.Address() == provider.Address() {
 						t.Fatal("recreated provider reused old identity")
 					}
 				}
@@ -194,13 +194,13 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 						t.Fatal(err)
 					}
-					if e.CatalogRead().Get(destination.address) != destination {
+					if e.CatalogRead().Get(destination.Address()) != destination {
 						t.Fatal("candidate not published")
 					}
 					assertHold()
 				} else {
 					err = context.Canceled
-					if e.CatalogRead().Get(destination.address) != nil || e.storage[destination.address] != nil {
+					if e.CatalogRead().Get(destination.Address()) != nil || e.storage[destination.Address()] != nil {
 						t.Fatal("rolled back candidate published")
 					}
 				}
@@ -214,7 +214,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "pointer" && err.Error() != "stuntgres: definition provider disappeared before publication" {
 					t.Fatal("retained pointer fence not exercised", err)
 				}
-				if e.CatalogRead().Get(destination.address) != nil || e.storage[destination.address] != nil || e.indexRoots[destination.address] != nil {
+				if e.CatalogRead().Get(destination.Address()) != nil || e.storage[destination.Address()] != nil || e.indexRoots[destination.Address()] != nil {
 					t.Fatal("failed admission published candidate fragments")
 				}
 			}

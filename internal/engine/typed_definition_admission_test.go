@@ -39,14 +39,14 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			reset := make(chan error, 1)
-			original := e.catalog.providers[ids.RelationClassID]
+			original := e.catalog.Providers[ids.RelationClassID]
 			called := false
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				if called {
 					return
 				}
 				called = true
-				e.catalog.providers[ids.RelationClassID] = original
+				e.catalog.Providers[ids.RelationClassID] = original
 				go func() { reset <- e.Reset(context.Background()) }()
 				deadline := time.Now().Add(3 * time.Second)
 				for {
@@ -88,7 +88,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 				t.Fatal("released replacement did not win catalog epoch")
 			}
 			for _, descriptor := range e.CatalogRead().Descriptors() {
-				if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == "late" {
+				if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == "late" {
 					t.Fatal("canceled typed definition published")
 				}
 			}

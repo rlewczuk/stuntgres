@@ -21,7 +21,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	view := e.CatalogRead()
 	view.state = cloneCatalog(view.state)
 	var installed *tsDictionaryDescriptor
-	for _, address := range ext.members {
+	for _, address := range ext.Members {
 		if d, ok := view.TSDictionary(address); ok {
 			installed = d
 		}
@@ -31,20 +31,20 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	}
 	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg.TS", "reg_ts_left", "reg_ts_right", `Reg"TS`} {
-		ns := *view.MustNamespace(ext.targetNamespace)
-		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
-		ns.name = name
+		ns := *view.MustNamespace(ext.TargetNamespace)
+		ns.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
+		ns.ObjectName = name
 		if i == 3 {
-			ns.temporary = e.catalog.domain.Session(99)
+			ns.Temporary = e.catalog.Domain.Session(99)
 		}
-		view.state.setDescriptor(ns.address, &ns)
-		view.state.bindName(descriptorNameKey(&ns), ns.address)
-		namespaces[i] = ns.address
+		view.state.setDescriptor(ns.Address(), &ns)
+		view.state.bindName(descriptorNameKey(&ns), ns.Address())
+		namespaces[i] = ns.Address()
 		d := *installed
-		d.address = ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(91000 + i)}
-		d.namespace = ns.address
-		view.state.setDescriptor(d.address, &d)
-		view.state.bindName(descriptorNameKey(&d), d.address)
+		d.ObjectAddress = ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(91000 + i)}
+		d.ObjectNamespace = ns.Address()
+		view.state.setDescriptor(d.Address(), &d)
+		view.state.bindName(descriptorNameKey(&d), d.Address())
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -116,8 +116,8 @@ func TestRegTSProviderResolution(t *testing.T) {
 	next := view
 	next.state = cloneCatalog(view.state)
 	ns := *next.MustNamespace(namespaces[0])
-	ns.name = "renamed"
-	next.state.setDescriptor(ns.address, &ns)
+	ns.ObjectName = "renamed"
+	next.state.setDescriptor(ns.Address(), &ns)
 	if got := regTSSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
 		t.Fatal("fresh spelling", got)
 	}
@@ -128,10 +128,10 @@ func TestRegTSProviderResolution(t *testing.T) {
 	quoted.state = cloneCatalog(view.state)
 	for i, name := range []string{`Odd".TS`, strings.Repeat("x", 63), "select"} {
 		d := *view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
-		d.address.ObjectID = ids.OID(92001 + i)
-		d.name = name
-		quoted.state.setDescriptor(d.address, &d)
-		quoted.state.bindName(descriptorNameKey(&d), d.address)
+		d.ObjectAddress.ObjectID = ids.OID(92001 + i)
+		d.ObjectName = name
+		quoted.state.setDescriptor(d.Address(), &d)
+		quoted.state.bindName(descriptorNameKey(&d), d.Address())
 	}
 	quotedInput := input
 	quotedInput.auth.recaptureCatalog(quoted)
@@ -232,8 +232,8 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 		t.Fatal("immutable literal remap", id, original)
 	}
 	d := view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
-	predecessor, err := dumpPredecessor(view, d.address, ids.ObjectAddress{})
-	if err != nil || predecessor != d.extension.ObjectID {
+	predecessor, err := dumpPredecessor(view, d.Address(), ids.ObjectAddress{})
+	if err != nil || predecessor != d.Extension.ObjectID {
 		t.Fatal("extension predecessor", predecessor, err)
 	}
 	order, err := viewDumpOrder(ctx, map[dumpEventKey][]dumpEventKey{{oid: 1}: {{oid: predecessor}}, {oid: predecessor}: nil}, nil)
@@ -284,7 +284,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "reg_ts_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, revision: 1, name: "reg_ts_acl", owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), acl: authorization.ACLValue{Explicit: true}}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -312,8 +312,8 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	denied := capture()
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns.Address()), acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()
@@ -329,7 +329,7 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	e, _, extension := extensionUnitInstalled(t)
 	view := e.CatalogRead()
 	var dictionary *tsDictionaryDescriptor
-	for _, address := range extension.members {
+	for _, address := range extension.Members {
 		if d, ok := view.TSDictionary(address); ok {
 			dictionary = d
 		}
@@ -337,13 +337,13 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	if dictionary == nil {
 		t.Fatal("real dictionary provider missing")
 	}
-	ref := e.catalog.domain.Ref(view.Epoch(), dictionary.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), dictionary.Address())
 	consumer := func(ref ids.ObjectRef) *relationDescriptor {
 		return &relationDescriptor{
-			address:          ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
-			checkConstraints: []checkConstraint{{dependencies: []expressionDependency{{ref: ref, revision: dictionary.revision}}}},
-			defaults:         map[int32]columnDefault{1: {dependencies: []ids.ObjectRef{ref}}},
-			generations:      map[int32]columnGeneration{1: {dependencies: []ids.ObjectRef{ref}}},
+			ObjectAddress:    ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
+			CheckConstraints: []checkConstraint{{Dependencies: []expressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
+			Defaults:         map[int32]columnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
+			Generations:      map[int32]columnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
 		}
 	}
 	for name, validate := range map[string]func(CatalogRead, *relationDescriptor) error{

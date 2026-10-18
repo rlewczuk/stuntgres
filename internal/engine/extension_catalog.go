@@ -23,79 +23,79 @@ const (
 )
 
 type extensionDescriptor struct {
-	address         ids.ObjectAddress
-	revision        ids.DefinitionRevision
-	name, version   string
-	targetNamespace ids.ObjectAddress
-	owner           authorization.PrincipalRef
-	members         []ids.ObjectAddress // immutable after detached staging
+	ObjectAddress       ids.ObjectAddress
+	ObjectRevision      ids.DefinitionRevision
+	ObjectName, Version string
+	TargetNamespace     ids.ObjectAddress
+	Owner               authorization.PrincipalRef
+	Members             []ids.ObjectAddress // immutable after detached staging
 }
 
-func (d *extensionDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *extensionDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *extensionDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *extensionDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (d *extensionDescriptor) Namespace() ids.ObjectAddress     { return ids.ObjectAddress{} }
-func (d *extensionDescriptor) Name() string                     { return d.name }
+func (d *extensionDescriptor) Name() string                     { return d.ObjectName }
 func (*extensionDescriptor) Kind() ids.ObjectKind               { return ids.ExtensionObject }
 
 type procedureDescriptor struct {
-	address, namespace, extension ids.ObjectAddress
-	revision                      ids.DefinitionRevision
-	name                          string
-	signature                     procedureSignature
-	routineKind                   routineKind
-	builtin                       *builtinRoutineDeclaration
-	body                          []routineBodyEdge
-	owner                         authorization.PrincipalRef
-	result                        ids.OID
-	volatility                    expr.Volatility
-	strict                        bool
-	// implementation is the extension implementation that installed this
+	ObjectAddress, ObjectNamespace, Extension ids.ObjectAddress
+	ObjectRevision                            ids.DefinitionRevision
+	ObjectName                                string
+	Signature                                 procedureSignature
+	RoutineKind                               routineKind
+	Builtin                                   *builtinRoutineDeclaration
+	Body                                      []routineBodyEdge
+	Owner                                     authorization.PrincipalRef
+	Result                                    ids.OID
+	Volatility                                expr.Volatility
+	Strict                                    bool
+	// Implementation is the extension implementation that installed this
 	// routine; nil for builtin, conversion and foreign routines.
-	implementation extensionImplementation
-	aggregate      *ownedAggregate
-	conversion     sqltype.EncodingConversionHandler
-	acl            authorization.ACLValue
-	dictionary     ids.ObjectAddress
-	foreign        *foreignProcedure
+	Implementation extensionImplementation
+	Aggregate      *ownedAggregate
+	Conversion     sqltype.EncodingConversionHandler
+	ACL            authorization.ACLValue
+	Dictionary     ids.ObjectAddress
+	Foreign        *foreignProcedure
 }
 
-func (d *procedureDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *procedureDescriptor) Revision() ids.DefinitionRevision { return d.revision }
-func (d *procedureDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
-func (d *procedureDescriptor) Name() string                     { return d.name }
+func (d *procedureDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *procedureDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
+func (d *procedureDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
+func (d *procedureDescriptor) Name() string                     { return d.ObjectName }
 func (*procedureDescriptor) Kind() ids.ObjectKind               { return ids.ProcedureObject }
 
 type tsTemplateDescriptor struct {
-	address, namespace, extension, init, lexize ids.ObjectAddress
-	revision                                    ids.DefinitionRevision
-	name                                        string
-	implementation                              extensionImplementation
+	ObjectAddress, ObjectNamespace, Extension, Init, Lexize ids.ObjectAddress
+	ObjectRevision                                          ids.DefinitionRevision
+	ObjectName                                              string
+	Implementation                                          extensionImplementation
 }
 
-func (d *tsTemplateDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *tsTemplateDescriptor) Revision() ids.DefinitionRevision { return d.revision }
-func (d *tsTemplateDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
-func (d *tsTemplateDescriptor) Name() string                     { return d.name }
+func (d *tsTemplateDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *tsTemplateDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
+func (d *tsTemplateDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
+func (d *tsTemplateDescriptor) Name() string                     { return d.ObjectName }
 func (*tsTemplateDescriptor) Kind() ids.ObjectKind               { return ids.TSTemplateObject }
 
 type tsDictionaryDescriptor struct {
-	address, namespace, extension, template ids.ObjectAddress
-	revision                                ids.DefinitionRevision
-	name                                    string
-	owner                                   authorization.PrincipalRef
-	implementation                          extensionImplementation
+	ObjectAddress, ObjectNamespace, Extension, Template ids.ObjectAddress
+	ObjectRevision                                      ids.DefinitionRevision
+	ObjectName                                          string
+	Owner                                               authorization.PrincipalRef
+	Implementation                                      extensionImplementation
 }
 
-func (d *tsDictionaryDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *tsDictionaryDescriptor) Revision() ids.DefinitionRevision { return d.revision }
-func (d *tsDictionaryDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
-func (d *tsDictionaryDescriptor) Name() string                     { return d.name }
+func (d *tsDictionaryDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *tsDictionaryDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
+func (d *tsDictionaryDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
+func (d *tsDictionaryDescriptor) Name() string                     { return d.ObjectName }
 func (*tsDictionaryDescriptor) Kind() ids.ObjectKind               { return ids.TSDictionaryObject }
 
 func descriptorNameKey(d Descriptor) ids.NameKey {
 	key := ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
 	if p, ok := d.(*procedureDescriptor); ok {
-		key.Signature = string(p.signature)
+		key.Signature = string(p.Signature)
 	}
 	if operator, ok := d.(*operatorDescriptor); ok {
 		key.Signature = operator.signature()
@@ -121,21 +121,21 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	var ext ids.ObjectAddress
 	switch d := d.(type) {
 	case *extensionDescriptor:
-		implementation, registered := v.owner.extensions[d.name]
-		if !registered || d.version != implementation.Control().version || d.Namespace() != (ids.ObjectAddress{}) {
+		implementation, registered := v.owner.Extensions[d.Name()]
+		if !registered || d.Version != implementation.Control().Version || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
 		}
-		if _, ok := v.Namespace(d.targetNamespace); !ok {
+		if _, ok := v.Namespace(d.TargetNamespace); !ok {
 			return invalid()
 		}
 		seen := map[ids.ObjectAddress]bool{}
-		for _, a := range d.members {
+		for _, a := range d.Members {
 			if seen[a] {
 				return invalid()
 			}
 			seen[a] = true
 			member := v.Get(a)
-			if member == nil || member.Namespace() != d.targetNamespace || extensionMembership(member) != d.address {
+			if member == nil || member.Namespace() != d.TargetNamespace || extensionMembership(member) != d.Address() {
 				return invalid()
 			}
 		}
@@ -143,29 +143,29 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
-		if d.uuidOsspProvider() != nil && (d.aggregate != nil || d.foreign != nil || d.builtin != nil) {
+		if d.uuidOsspProvider() != nil && (d.Aggregate != nil || d.Foreign != nil || d.Builtin != nil) {
 			return invalid()
 		}
-		if d.aggregate != nil && d.intaggProvider() != stockIntagg {
+		if d.Aggregate != nil && d.intaggProvider() != stockIntagg {
 			return invalid()
 		}
-		if d.foreign != nil {
-			p := d.foreign
-			if p.name.Name != d.name || d.extension != (ids.ObjectAddress{}) || d.implementation != nil || d.conversion.Name() != "" || d.builtin != nil {
+		if d.Foreign != nil {
+			p := d.Foreign
+			if p.Name.Name != d.Name() || d.Extension != (ids.ObjectAddress{}) || d.Implementation != nil || d.Conversion.Name() != "" || d.Builtin != nil {
 				return invalid()
 			}
-			if p.wrapper != nil {
-				if p.validator != nil || d.signature != foreignHandlerSignature || d.result != 3115 {
+			if p.Wrapper != nil {
+				if p.Validator != nil || d.Signature != foreignHandlerSignature || d.Result != 3115 {
 					return invalid()
 				}
-			} else if p.validator == nil || d.signature != foreignValidatorSignature || d.result != 2278 {
+			} else if p.Validator == nil || d.Signature != foreignValidatorSignature || d.Result != 2278 {
 				return invalid()
 			}
 			break
 		}
-		if d.builtin != nil {
-			declared := d.builtin
-			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.signature != declared.identity.signature || d.routineKind != declared.kind || d.result != declared.result || d.strict != declared.strict || d.volatility != declared.volatility || d.implementation != nil || d.conversion.Name() != "" || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.foreign != nil {
+		if d.Builtin != nil {
+			declared := d.Builtin
+			if builtinRoutineByOID[d.Address().ObjectID] != declared || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.Name() != declared.Identity.Name || d.Signature != declared.Identity.Signature || d.RoutineKind != declared.Kind || d.Result != declared.Result || d.Strict != declared.Strict || d.Volatility != declared.Volatility || d.Implementation != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
 				return invalid()
 			}
 			break
@@ -174,46 +174,46 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			if err := d.intaggProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
-			ext = d.extension
+			ext = d.Extension
 			break
 		}
-		if d.routineKind != functionRoutine {
+		if d.RoutineKind != functionRoutine {
 			return invalid()
 		}
 		if d.uuidOsspProvider() != nil {
-			if d.conversion.Name() != "" || d.dictionary != (ids.ObjectAddress{}) {
+			if d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) {
 				return invalid()
 			}
 			if err := d.uuidOsspProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
-			ext = d.extension
+			ext = d.Extension
 			break
 		}
 		if d.fuzzystrmatchProvider() != nil {
 			if err := d.fuzzystrmatchProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
-			ext = d.extension
+			ext = d.Extension
 			break
 		}
 		if d.pgcryptoProvider() != nil {
 			if err := d.pgcryptoProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
-			ext = d.extension
+			ext = d.Extension
 			break
 		}
 		if d.intarrayProvider() != nil {
 			if err := d.intarrayProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
-			ext = d.extension
+			ext = d.Extension
 			break
 		}
-		if d.conversion.Name() != "" {
-			registered, ok := sqltype.RegisteredEncodingConversion(d.name)
-			if !ok || d.conversion != registered || d.unaccentProvider() != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != expr.Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
+		if d.Conversion.Name() != "" {
+			registered, ok := sqltype.RegisteredEncodingConversion(d.Name())
+			if !ok || d.Conversion != registered || d.unaccentProvider() != nil || d.Signature != conversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.Address().ObjectID) != d.Name() {
 				return invalid()
 			}
 			break
@@ -221,47 +221,47 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		if d.unaccentProvider() != stockUnaccent {
 			return invalid()
 		}
-		ext = d.extension
-		switch d.signature {
+		ext = d.Extension
+		switch d.Signature {
 		case unaccentTextSignature, unaccentDictionarySignature:
-			if d.name != "unaccent" || d.result != 25 || d.volatility != expr.Stable || !d.strict {
+			if d.Name() != "unaccent" || d.Result != 25 || d.Volatility != expr.Stable || !d.Strict {
 				return invalid()
 			}
 			if ext != (ids.ObjectAddress{}) {
-				dict, ok := v.TSDictionary(d.dictionary)
-				if !ok || dict.namespace != d.namespace || dict.extension != ext {
+				dict, ok := v.TSDictionary(d.Dictionary)
+				if !ok || dict.Namespace() != d.Namespace() || dict.Extension != ext {
 					return invalid()
 				}
 			}
 		case unaccentInitSignature:
-			if d.name != "unaccent_init" || d.result != 2281 || d.volatility != expr.Volatile || d.strict {
+			if d.Name() != "unaccent_init" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
 				return invalid()
 			}
 		case unaccentLexizeSignature:
-			if d.name != "unaccent_lexize" || d.result != 2281 || d.volatility != expr.Volatile || d.strict {
+			if d.Name() != "unaccent_lexize" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
 				return invalid()
 			}
 		default:
 			return invalid()
 		}
 	case *tsTemplateDescriptor:
-		if d.name != "unaccent" || d.unaccentProvider() != stockUnaccent {
+		if d.Name() != "unaccent" || d.unaccentProvider() != stockUnaccent {
 			return invalid()
 		}
-		ext = d.extension
-		for i, a := range [2]ids.ObjectAddress{d.init, d.lexize} {
+		ext = d.Extension
+		for i, a := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
 			proc, ok := v.Procedure(a)
-			if !ok || ext != (ids.ObjectAddress{}) && proc.namespace != d.namespace || proc.extension != ext || proc.signature != [2]procedureSignature{unaccentInitSignature, unaccentLexizeSignature}[i] {
+			if !ok || ext != (ids.ObjectAddress{}) && proc.Namespace() != d.Namespace() || proc.Extension != ext || proc.Signature != [2]procedureSignature{unaccentInitSignature, unaccentLexizeSignature}[i] {
 				return invalid()
 			}
 		}
 	case *tsDictionaryDescriptor:
-		if d.name != "unaccent" || d.unaccentProvider() != stockUnaccent {
+		if d.Name() != "unaccent" || d.unaccentProvider() != stockUnaccent {
 			return invalid()
 		}
-		ext = d.extension
-		tmpl, ok := v.TSTemplate(d.template)
-		if !ok || ext != (ids.ObjectAddress{}) && tmpl.namespace != d.namespace || tmpl.extension != ext {
+		ext = d.Extension
+		tmpl, ok := v.TSTemplate(d.Template)
+		if !ok || ext != (ids.ObjectAddress{}) && tmpl.Namespace() != d.Namespace() || tmpl.Extension != ext {
 			return invalid()
 		}
 	default:
@@ -269,11 +269,11 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	if ext != (ids.ObjectAddress{}) {
 		parent, ok := v.Extension(ext)
-		if !ok || parent.targetNamespace != namespace {
+		if !ok || parent.TargetNamespace != namespace {
 			return invalid()
 		}
 		found := false
-		for _, member := range parent.members {
+		for _, member := range parent.Members {
 			found = found || member == a
 		}
 		if !found {
@@ -285,21 +285,21 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 func extensionMembership(d Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
 	case *typeDescriptor:
-		return d.extension
+		return d.Extension
 	case *procedureDescriptor:
-		return d.extension
+		return d.Extension
 	case *tsTemplateDescriptor:
-		return d.extension
+		return d.Extension
 	case *tsDictionaryDescriptor:
-		return d.extension
+		return d.Extension
 	}
 	return ids.ObjectAddress{}
 }
 func procedureArity(p *procedureDescriptor) int64 {
-	if p.signature == "" {
+	if p.Signature == "" {
 		return 0
 	}
-	return int64(strings.Count(string(p.signature), ",") + 1)
+	return int64(strings.Count(string(p.Signature), ",") + 1)
 }
 
 // Namespace retirement owns complete installations by their real target, not
@@ -310,11 +310,11 @@ func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) 
 		if namespaces[descriptor.Namespace()] {
 			selected[address] = true
 		}
-		if extension, ok := descriptor.(*extensionDescriptor); ok && namespaces[extension.targetNamespace] {
+		if extension, ok := descriptor.(*extensionDescriptor); ok && namespaces[extension.TargetNamespace] {
 			selected[address] = true
-			for _, member := range extension.members {
+			for _, member := range extension.Members {
 				d := base.Get(member)
-				if d == nil || d.Namespace() != extension.targetNamespace || extensionMembership(d) != address {
+				if d == nil || d.Namespace() != extension.TargetNamespace || extensionMembership(d) != address {
 					return nil, fmt.Errorf("stuntgres: invalid namespace extension membership")
 				}
 				selected[member] = true
@@ -347,28 +347,28 @@ func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name st
 
 func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
-	if p != stockUnaccent || len(d.members) != 6 {
+	if p != stockUnaccent || len(d.Members) != 6 {
 		return invalid()
 	}
 	classes := [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID}
-	for i, member := range d.members {
+	for i, member := range d.Members {
 		if member.ClassID != classes[i] {
 			return invalid()
 		}
 	}
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
-		proc, ok := v.Procedure(d.members[i])
-		if !ok || proc.signature != signature || proc.implementation != p {
+		proc, ok := v.Procedure(d.Members[i])
+		if !ok || proc.Signature != signature || proc.Implementation != p {
 			return invalid()
 		}
 	}
-	tmpl, ok := v.TSTemplate(d.members[4])
-	if !ok || tmpl.init != d.members[2] || tmpl.lexize != d.members[3] || tmpl.unaccentProvider() != p {
+	tmpl, ok := v.TSTemplate(d.Members[4])
+	if !ok || tmpl.Init != d.Members[2] || tmpl.Lexize != d.Members[3] || tmpl.unaccentProvider() != p {
 		return invalid()
 	}
-	dict, ok := v.TSDictionary(d.members[5])
-	if !ok || dict.template != d.members[4] || dict.unaccentProvider() != p {
+	dict, ok := v.TSDictionary(d.Members[5])
+	if !ok || dict.Template != d.Members[4] || dict.unaccentProvider() != p {
 		return invalid()
 	}
 	return nil

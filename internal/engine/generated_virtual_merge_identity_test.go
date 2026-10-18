@@ -45,7 +45,7 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 			}
 			seen[id-1] = true
 		case 3:
-			if !row[1].IsNull() || row[1].Type() != b.relation.columns[1].Usage.Type {
+			if !row[1].IsNull() || row[1].Type() != b.relation.Columns[1].Usage.Type {
 				t.Fatal("absent drained candidate recomputed generation", row)
 			}
 			seen[2] = true

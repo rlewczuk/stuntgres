@@ -16,7 +16,7 @@ import (
 func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, right *sqltype.Descriptor) (expr.Expr, error) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, attributes: []int32{1, 2}, index: map[string]int{"l": 0, "r": 1}}
+	b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
@@ -67,7 +67,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 				t.Fatal("released generic identity", tc, row)
 			}
 			identity := catalog.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: tc.oid})
-			if strconv.FormatUint(uint64(identity.left), 10) != tc.declaredLeft || strconv.FormatUint(uint64(identity.right), 10) != tc.declaredRight {
+			if strconv.FormatUint(uint64(identity.Left), 10) != tc.declaredLeft || strconv.FormatUint(uint64(identity.Right), 10) != tc.declaredRight {
 				t.Fatal("identity became a concrete overload", identity)
 			}
 			bound, err := pgOperatorRelationshipBind(t, e, "||", typ(tc.inputLeft), typ(tc.inputRight))
@@ -98,9 +98,9 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 		if d, ok := d.(*typeDescriptor); ok {
 			switch d.Name() {
 			case "operator_left_enum":
-				leftEnum = d.typ
+				leftEnum = d.SQLType
 			case "operator_right_enum":
-				rightEnum = d.typ
+				rightEnum = d.SQLType
 			}
 		}
 	}

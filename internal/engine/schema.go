@@ -43,7 +43,7 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (authorizat
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
 func checkPersistentCreationNamespace(catalog CatalogRead, namespace ids.ObjectAddress) error {
-	if catalog.MustNamespace(namespace).temporary != (ids.SessionToken{}) {
+	if catalog.MustNamespace(namespace).Temporary != (ids.SessionToken{}) {
 		return sqlError("0A000", "temporary schema creation is unsupported")
 	}
 	return nil
@@ -52,7 +52,7 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ids.ObjectA
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.catalog = stage.base
 	auth.recaptureCatalog(auth.catalog)
-	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.temporaryToast && auth.session != nil && namespace.temporary == auth.session.token {
+	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
@@ -89,7 +89,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	input.EnumMemberSafe = b.enumMemberSafe
 	for _, column := range b.createColumns {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
 		if b.createOfType == nil {
 			if err := auth.CanUse(ref); err != nil {
 				return err
@@ -102,15 +102,15 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		return err
 	}
 	if b.createOfType != nil {
-		d.ofType = b.createOfType.Address()
+		d.OfType = b.createOfType.Address()
 		stage.domainBases = append(stage.domainBases, b.createOfType)
 	}
-	d.acl = stage.creationACL(owner, ns, authorization.DefaultTables)
+	d.ACL = stage.creationACL(owner, ns, authorization.DefaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
-	d.onCommit = s.OnCommit
-	d.notNullConstraints = b.createNotNull
+	d.OnCommit = s.OnCommit
+	d.NotNullConstraints = b.createNotNull
 	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
 		return err
 	}
@@ -134,21 +134,21 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	input.TypeDiagnosticName = nil
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.catalog.MustNamespace(d.namespace).temporary
+	binder.defaultTemporary = auth.catalog.MustNamespace(d.Namespace()).Temporary
 	for slot, declaration := range b.createDeclarations {
 		if declaration.defaultExpr != nil {
-			delete(d.defaults, d.attributes[slot])
+			delete(d.Defaults, d.Attributes[slot])
 		}
 	}
-	defaults, err := bindCreateDefaults(binder, d.columns, b.createDeclarations)
+	defaults, err := bindCreateDefaults(binder, d.Columns, b.createDeclarations)
 	if err != nil {
 		return err
 	}
-	if d.defaults == nil {
-		d.defaults = defaults
+	if d.Defaults == nil {
+		d.Defaults = defaults
 	} else {
 		for attribute, definition := range defaults {
-			d.defaults[attribute] = definition
+			d.Defaults[attribute] = definition
 		}
 	}
 	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
@@ -170,9 +170,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	// relation descriptor, without a parser state/source position.
 	for _, element := range s.Elements {
 		if column := element.Column; column != nil && len(column.TypeName.Modifiers) > 0 {
-			i := d.index[column.Name]
+			i := d.Index[column.Name]
 			// Temporal modifiers emit a second descriptor-build warning.
-			if id := d.columns[i].Usage.Type.ID(); id != sqltype.Interval && id != sqltype.Timestamp && id != sqltype.Time && id != sqltype.Timestamptz && id != sqltype.Timetz {
+			if id := d.Columns[i].Usage.Type.ID(); id != sqltype.Interval && id != sqltype.Timestamp && id != sqltype.Time && id != sqltype.Timestamptz && id != sqltype.Timetz {
 				continue
 			}
 			modifiers := make([]int32, len(column.TypeName.Modifiers))
@@ -187,11 +187,11 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			if !valid {
 				continue
 			}
-			usage, warning, err := d.columns[i].Usage.Type.ResolveModifiers(modifiers...)
+			usage, warning, err := d.Columns[i].Usage.Type.ResolveModifiers(modifiers...)
 			if err != nil {
 				return err
 			}
-			d.columns[i].Usage = usage
+			d.Columns[i].Usage = usage
 			if warning != nil {
 				op.emitNotice(levelWarning, *warning)
 			}
@@ -226,12 +226,12 @@ func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, own
 			index[column.Name] = i
 		}
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: revision, owner: owner, columns: columns, index: index, attributes: make([]int32, len(columns))}
-	d.attributeHighWater = int32(len(columns))
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns, ObjectName: name, ObjectRevision: revision, Owner: owner, Columns: columns, Index: index, Attributes: make([]int32, len(columns))}
+	d.AttributeHighWater = int32(len(columns))
 	for i := range columns {
-		d.attributes[i] = int32(i + 1)
-		d.columns[i].OriginTable = uint32(oid)
-		d.columns[i].OriginAttribute = int16(i + 1)
+		d.Attributes[i] = int32(i + 1)
+		d.Columns[i].OriginTable = uint32(oid)
+		d.Columns[i].OriginAttribute = int16(i + 1)
 	}
 	return d, nil
 }
@@ -260,8 +260,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	var created ids.ObjectRef
 	if _, domain := stmt.(*parser.CreateDomain); domain {
 		for address, descriptor := range stage.descriptors {
-			if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.IsDomain() && stage.base.Get(address) == nil {
-				created = e.catalog.domain.Ref(stage.base.Epoch(), address)
+			if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.IsDomain() && stage.base.Get(address) == nil {
+				created = e.catalog.Domain.Ref(stage.base.Epoch(), address)
 				break
 			}
 		}
@@ -309,8 +309,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
-		if r, ok := stage.base.Relation(a); ok && r.relationKind == sequenceRelation {
-			if err := scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+		if r, ok := stage.base.Relation(a); ok && r.RelationKind == sequenceRelation {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}
@@ -331,8 +331,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err == nil {
 		for _, descriptor := range stage.descriptors {
-			if ns, ok := descriptor.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == op.session.token {
-				op.session.temporaryNamespace = ns.address
+			if ns, ok := descriptor.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == op.session.token {
+				op.session.temporaryNamespace = ns.Address()
 			}
 		}
 		if cascade {
@@ -368,14 +368,14 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
 			return err
 		}
 		if rights&authorization.CreatePrivilege == 0 {
 			database := auth.catalog.MustDatabase(currentDatabaseAddress)
-			name := database.name
+			name := database.Name()
 			if name == "" {
 				name = "stuntgres" // The unnamed native Engine's existing database display.
 			}
@@ -395,7 +395,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return d, nil
 	}
 	own := func(d *namespaceDescriptor) error {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	}
 	switch s := stmt.(type) {
@@ -488,15 +488,15 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		if err != nil {
 			return nil, err
 		}
-		ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: name, revision: rev, owner: owner}
-		ns.acl = stage.creationACL(owner, ids.ObjectAddress{}, authorization.DefaultSchemas)
+		ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: name, ObjectRevision: rev, Owner: owner}
+		ns.ACL = stage.creationACL(owner, ids.ObjectAddress{}, authorization.DefaultSchemas)
 		if err = stage.Create(ns); err != nil {
 			return nil, err
 		}
 		// PostgreSQL analyzes elements as the schema owner with the new namespace
 		// first in the explicit path. Keep both changes local to this stage.
 		auth.state.CurrentUser = owner
-		auth.pathPrefix = ns.address
+		auth.pathPrefix = ns.Address()
 		for _, table := range s.Tables {
 			if table.Persistence == "temporary" {
 				return nil, sqlError("0A000", "temporary tables in CREATE SCHEMA are unsupported")
@@ -507,7 +507,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if len(table.Name.Parts) == 2 && table.Name.Parts[0].Text != name {
 				return nil, sqlError("42P15", fmt.Sprintf("CREATE specifies a schema (%s) different from the one being created (%s)", table.Name.Parts[0].Text, name))
 			}
-			if err = e.schemaTableLocked(op, auth, stage, table, ns.address, owner, input, nil); err != nil {
+			if err = e.schemaTableLocked(op, auth, stage, table, ns.Address(), owner, input, nil); err != nil {
 				return nil, err
 			}
 		}
@@ -530,13 +530,13 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = schemaReserved(s.NewName); err != nil {
 				return nil, err
 			}
-			next.name = s.NewName
+			next.ObjectName = s.NewName
 		} else {
 			target, err := schemaOwner(auth, s.Owner, s.OwnerIdentity)
 			if err != nil {
 				return nil, err
 			}
-			if target == old.owner {
+			if target == old.Owner {
 				return nil, nil
 			}
 			if err = own(old); err != nil {
@@ -548,10 +548,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = ownershipDatabaseCreate(auth); err != nil {
 				return nil, err
 			}
-			next.owner = target
-			next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
+			next.Owner = target
+			next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		}
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
@@ -570,10 +570,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				}
 				return nil, err
 			}
-			if seen[d.address] {
+			if seen[d.Address()] {
 				continue
 			}
-			seen[d.address] = true
+			seen[d.Address()] = true
 			if err = own(d); err != nil {
 				return nil, err
 			}
@@ -591,14 +591,14 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				continue // the extension owns these members as one namespace dependent
 			}
 			if r, ok := d.(*relationDescriptor); ok {
-				if r.relationKind == compositeRelation {
+				if r.RelationKind == compositeRelation {
 					continue
 				}
-				if r.sqlIndex != nil {
+				if r.SQLIndex != nil {
 					continue
 				}
 				dependent = append(dependent, r)
-			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ids.ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.MustRelation(t.owningRelation).relationKind == compositeRelation) {
+			} else if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsUserDefined() && (t.OwningRelation == (ids.ObjectAddress{}) || t.SQLType.IsComposite() && auth.catalog.MustRelation(t.OwningRelation).RelationKind == compositeRelation) {
 				domains = append(domains, t)
 			} else if c, ok := d.(*collationDescriptor); ok {
 				domains = append(domains, c)
@@ -608,9 +608,9 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				domains = append(domains, operator)
 			} else if extension, ok := d.(*extensionDescriptor); ok {
 				domains = append(domains, extension)
-			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.foreign != nil {
+			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.Foreign != nil {
 				domains = append(domains, procedure)
-			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ids.ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
+			} else if t, ok := d.(*typeDescriptor); ok && (t.OwningRelation != (ids.ObjectAddress{}) || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")
@@ -620,7 +620,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		// definitions outside it. Feed its identity to the existing dependency
 		// closure before publication; contained-object removal alone is not enough.
 		for _, schema := range schemas {
-			stage.domainTargets = append(stage.domainTargets, schema.address)
+			stage.domainTargets = append(stage.domainTargets, schema.Address())
 		}
 		stage.dependencyPath, err = e.referencePath(auth)
 		if err != nil {
@@ -632,15 +632,15 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			break
 		}
-		sort.Slice(dependent, func(i, j int) bool { return dependent[i].address.ObjectID < dependent[j].address.ObjectID })
+		sort.Slice(dependent, func(i, j int) bool { return dependent[i].Address().ObjectID < dependent[j].Address().ObjectID })
 		if len(dependent) > 0 && !s.Cascade {
 			message := "cannot drop desired object(s) because other objects depend on them"
 			if len(schemas) == 1 {
-				message = "cannot drop schema " + dependencyIdentifier(schemas[0].name) + " because other objects depend on it"
+				message = "cannot drop schema " + dependencyIdentifier(schemas[0].Name()) + " because other objects depend on it"
 			}
 			details := make([]string, len(dependent))
 			for i, r := range dependent {
-				ns := auth.catalog.Get(r.namespace).Name()
+				ns := auth.catalog.Get(r.Namespace()).Name()
 				details[i] = relationDiagnosticKind(r) + " " + relationDiagnosticName(auth, r) + " depends on schema " + dependencyIdentifier(ns)
 			}
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
@@ -651,12 +651,12 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 		}
 		for _, r := range dependent {
-			if err = stage.removeObjectLocked(e.catalog.domain.Ref(auth.catalog.Epoch(), r.address), false); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(auth.catalog.Epoch(), r.Address()), false); err != nil {
 				return nil, err
 			}
 		}
 		for _, d := range schemas {
-			if err = stage.removeObjectLocked(e.catalog.domain.Ref(auth.catalog.Epoch(), d.address), true); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), true); err != nil {
 				return nil, err
 			}
 		}

@@ -18,8 +18,8 @@ type defaultDependencyEdge struct {
 }
 
 func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	for _, definition := range d.defaults {
-		for _, dependency := range definition.dependencies {
+	for _, definition := range d.Defaults {
+		for _, dependency := range definition.Dependencies {
 			a := dependency.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 				return true
@@ -32,7 +32,7 @@ func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 // Validate only captured provider authority against the merged publication root.
 // Full expression/dependency agreement is already checked on the private stage.
 func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
-	for _, definition := range d.defaults {
+	for _, definition := range d.Defaults {
 		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
 			return err
 		}
@@ -41,7 +41,7 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 }
 
 func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, definition columnDefault) error {
-	for _, ref := range definition.dependencies {
+	for _, ref := range definition.Dependencies {
 		address := ref.Address
 		address.SubID = 0
 		provider, ok := view.Descriptor(address)
@@ -52,15 +52,15 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 			if ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid default relation provider")
 			}
-			namespace := view.MustNamespace(relation.namespace)
-			if namespace.temporary != (ids.SessionToken{}) {
-				owner := view.MustNamespace(d.namespace)
-				if owner.temporary != namespace.temporary {
+			namespace := view.MustNamespace(relation.Namespace())
+			if namespace.Temporary != (ids.SessionToken{}) {
+				owner := view.MustNamespace(d.Namespace())
+				if owner.Temporary != namespace.Temporary {
 					return fmt.Errorf("stuntgres: foreign temporary default provider")
 				}
 			}
 		} else if provider.Kind() == ids.CollationObject {
-			if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
+			if err := validateStoredCollationDependency(view, ref, definition.Expression); err != nil {
 				return err
 			}
 		} else if provider.Kind() == ids.NamespaceObject {
@@ -92,7 +92,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			continue
 		}
 		var removed []int32
-		for slot, attribute := range d.attributes {
+		for slot, attribute := range d.Attributes {
 			owner := address
 			owner.SubID = attribute
 			dropping := false
@@ -105,12 +105,12 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			if dropping {
 				continue
 			}
-			definition, ok := d.defaults[attribute]
+			definition, ok := d.Defaults[attribute]
 			if !ok {
 				continue
 			}
 			var dependency ids.ObjectAddress
-			for _, ref := range definition.dependencies {
+			for _, ref := range definition.Dependencies {
 				for _, target := range targets {
 					a := ref.Address
 					if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
@@ -125,7 +125,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			if dependency == (ids.ObjectAddress{}) {
 				continue
 			}
-			edges = append(edges, defaultDependencyEdge{d, attribute, d.columns[slot].Name, dependency})
+			edges = append(edges, defaultDependencyEdge{d, attribute, d.Columns[slot].Name, dependency})
 			removed = append(removed, attribute)
 		}
 		if len(removed) != 0 && mode != parser.DropRestrict {
@@ -133,14 +133,14 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 				return nil, err
 			}
 			copy := *d
-			revision, err := provider.revision(copy.revision)
+			revision, err := provider.revision(copy.Revision())
 			if err != nil {
 				return nil, err
 			}
-			copy.revision = revision
-			copy.defaults = maps.Clone(d.defaults)
+			copy.ObjectRevision = revision
+			copy.Defaults = maps.Clone(d.Defaults)
 			for _, attribute := range removed {
-				delete(copy.defaults, attribute)
+				delete(copy.Defaults, attribute)
 			}
 			if err := provider.replace(&copy); err != nil {
 				return nil, err
@@ -148,7 +148,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 		}
 	}
 	slices.SortFunc(edges, func(a, b defaultDependencyEdge) int {
-		if order := cmp.Compare(a.relation.address.ObjectID, b.relation.address.ObjectID); order != 0 {
+		if order := cmp.Compare(a.relation.Address().ObjectID, b.relation.Address().ObjectID); order != 0 {
 			return order
 		}
 		return cmp.Compare(a.attribute, b.attribute)

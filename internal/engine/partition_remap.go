@@ -9,78 +9,78 @@ import (
 
 func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation collationRemapper) (*relationDescriptor, error) {
 	next := *d
-	if d.partition != nil {
-		definition := *d.partition
-		definition.keys = slices.Clone(definition.keys)
+	if d.Partition != nil {
+		definition := *d.Partition
+		definition.Keys = slices.Clone(definition.Keys)
 		if !typesOnly {
-			definition.children = slices.Clone(definition.children)
-			for i, address := range definition.children {
-				definition.children[i] = ref(ids.ObjectRef{Address: address}).Address
+			definition.Children = slices.Clone(definition.Children)
+			for i, address := range definition.Children {
+				definition.Children[i] = ref(ids.ObjectRef{Address: address}).Address
 			}
-			definition.defaultChild = ref(ids.ObjectRef{Address: definition.defaultChild}).Address
+			definition.DefaultChild = ref(ids.ObjectRef{Address: definition.DefaultChild}).Address
 		}
-		for i, key := range definition.keys {
-			key.usage.Type = typ(key.usage.Type)
+		for i, key := range definition.Keys {
+			key.Usage.Type = typ(key.Usage.Type)
 			var err error
 			if collation != nil {
-				key.usage.Collation, err = collation(key.usage.Collation)
+				key.Usage.Collation, err = collation(key.Usage.Collation)
 				if err != nil {
 					return nil, err
 				}
-				if key.collation != 0 {
-					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
-						key.collation = uint32(target.ObjectID)
+				if key.Collation != 0 {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)}]; ok {
+						key.Collation = uint32(target.ObjectID)
 					}
 				}
 			}
-			if definition.strategy == parser.PartitionHash {
-				key.hash, err = sqltype.BindPartitionHash(key.usage, key.class)
+			if definition.Strategy == parser.PartitionHash {
+				key.Hash, err = sqltype.BindPartitionHash(key.Usage, key.Class)
 			} else {
-				key.comparison, err = sqltype.BindIndexOrdering(key.usage, key.class)
+				key.Comparison, err = sqltype.BindIndexOrdering(key.Usage, key.Class)
 			}
 			if err != nil {
 				return nil, err
 			}
-			if key.derived != nil {
-				derived := *key.derived
-				derived.definition, _, err = retagBoundTypes(view, derived.definition, typ, collation)
+			if key.Derived != nil {
+				derived := *key.Derived
+				derived.Definition, _, err = retagBoundTypes(view, derived.Definition, typ, collation)
 				if err != nil {
 					return nil, err
 				}
-				derived.definition, err = remapBoundExpression(derived.definition, ref, nil)
+				derived.Definition, err = remapBoundExpression(derived.Definition, ref, nil)
 				if err != nil {
 					return nil, err
 				}
-				derived.execution, _, err = retagBoundTypes(view, derived.execution, typ, collation)
+				derived.Execution, _, err = retagBoundTypes(view, derived.Execution, typ, collation)
 				if err != nil {
 					return nil, err
 				}
-				derived.execution, err = remapBoundExpression(derived.execution, ref, nil)
+				derived.Execution, err = remapBoundExpression(derived.Execution, ref, nil)
 				if err != nil {
 					return nil, err
 				}
 				if !typesOnly {
-					derived.dependencies = slices.Clone(derived.dependencies)
-					for j, dependency := range derived.dependencies {
-						derived.dependencies[j] = ref(dependency)
+					derived.Dependencies = slices.Clone(derived.Dependencies)
+					for j, dependency := range derived.Dependencies {
+						derived.Dependencies[j] = ref(dependency)
 					}
 				}
-				key.derived = &derived
+				key.Derived = &derived
 			}
-			definition.keys[i] = key
+			definition.Keys[i] = key
 		}
-		next.partition = &definition
+		next.Partition = &definition
 	}
-	if d.membership != nil {
-		membership := *d.membership
-		membership.parent = ref(ids.ObjectRef{Address: membership.parent}).Address
-		membership.lower, membership.upper = slices.Clone(membership.lower), slices.Clone(membership.upper)
-		for _, tuple := range [][]partitionDatum{membership.lower, membership.upper} {
+	if d.Membership != nil {
+		membership := *d.Membership
+		membership.Parent = ref(ids.ObjectRef{Address: membership.Parent}).Address
+		membership.Lower, membership.Upper = slices.Clone(membership.Lower), slices.Clone(membership.Upper)
+		for _, tuple := range [][]partitionDatum{membership.Lower, membership.Upper} {
 			for i, datum := range tuple {
-				if datum.kind != 0 {
+				if datum.Kind != 0 {
 					continue
 				}
-				value, err := reownDomainDatum(datum.value, typ(datum.value.Type()), collation, view.state.scalarImports, view.state.aclItemImport)
+				value, err := reownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.state.scalarImports, view.state.aclItemImport)
 				if err != nil {
 					return nil, err
 				}
@@ -139,10 +139,10 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 						return nil, err
 					}
 				}
-				tuple[i].value = value
+				tuple[i].Value = value
 			}
 		}
-		next.membership = &membership
+		next.Membership = &membership
 	}
 	return &next, nil
 }

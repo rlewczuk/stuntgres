@@ -11,13 +11,13 @@ import (
 // use execution simplification: native execution/original trees stay untouched.
 // Both catalog projection and compact index deparsing use this one decision.
 func indexCatalogKey(parent *relationDescriptor, key indexKey) (int32, expr.Expr, error) {
-	if key.derived == nil {
-		if !parent.hasAttribute(key.attribute) {
+	if key.Derived == nil {
+		if !parent.hasAttribute(key.Attribute) {
 			return 0, nil, fmt.Errorf("stuntgres: index attribute is missing")
 		}
-		return key.attribute, nil, nil
+		return key.Attribute, nil, nil
 	}
-	node := key.derived.definition
+	node := key.Derived.Definition
 	for {
 		collated, ok := node.(collationExpression)
 		if !ok {
@@ -27,7 +27,7 @@ func indexCatalogKey(parent *relationDescriptor, key indexKey) (int32, expr.Expr
 	}
 	if column, ok := node.(columnExpression); ok {
 		a := column.origin.Address
-		if a.ClassID != parent.address.ClassID || a.ObjectID != parent.address.ObjectID || !parent.hasAttribute(a.SubID) {
+		if a.ClassID != parent.Address().ClassID || a.ObjectID != parent.Address().ObjectID || !parent.hasAttribute(a.SubID) {
 			return 0, nil, fmt.Errorf("stuntgres: index catalog column has a foreign origin")
 		}
 		return a.SubID, nil, nil

@@ -11,10 +11,10 @@ import (
 )
 
 func copyTargets(relation *relationDescriptor, columns []parser.Identifier) ([]int, error) {
-	targets := make([]int, 0, len(relation.columns))
+	targets := make([]int, 0, len(relation.Columns))
 	if len(columns) == 0 {
-		for i, attribute := range relation.attributes {
-			if _, generated := relation.generations[attribute]; !generated {
+		for i, attribute := range relation.Attributes {
+			if _, generated := relation.Generations[attribute]; !generated {
 				targets = append(targets, i)
 			}
 		}
@@ -22,21 +22,21 @@ func copyTargets(relation *relationDescriptor, columns []parser.Identifier) ([]i
 	}
 	for _, name := range columns {
 		target := -1
-		for i, c := range relation.columns {
+		for i, c := range relation.Columns {
 			if c.Name == name.Text {
 				target = i
 				break
 			}
 		}
 		if target < 0 {
-			return nil, sqlError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", name.Text, relation.name))
+			return nil, sqlError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", name.Text, relation.Name()))
 		}
 		for _, prior := range targets {
 			if prior == target {
 				return nil, sqlError("42701", fmt.Sprintf("column \"%s\" specified more than once", name.Text))
 			}
 		}
-		if _, generated := relation.generations[relation.attributes[target]]; generated {
+		if _, generated := relation.Generations[relation.Attributes[target]]; generated {
 			d := sqlError("42P10", fmt.Sprintf("column \"%s\" is a generated column", name.Text)).(*sqlstate.Error)
 			d.Detail = "Generated columns cannot be used in COPY."
 			return nil, d
@@ -160,21 +160,21 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return 0, err
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: auth.catalog}
-	selected := make([]bool, len(b.relation.columns))
+	selected := make([]bool, len(b.relation.Columns))
 	for _, target := range b.targets {
 		selected[target] = true
 	}
 	binaryInput := options.format == copyFormatBinary && (s.protocolCommand || s.protocolSimple)
 	inputColumns := len(b.defaults)
 	if binaryInput {
-		inputColumns = len(b.relation.columns)
+		inputColumns = len(b.relation.Columns)
 	}
 	for i := range inputColumns {
 		if binaryInput {
 			// The live descriptor excludes dropped attributes, but includes
 			// omitted COPY targets. Resolve each receive provider before that
 			// attribute's default planning and before CopyInResponse.
-			if err = b.relation.columns[i].Usage.Type.CheckBinaryInputDeclaration(); err != nil {
+			if err = b.relation.Columns[i].Usage.Type.CheckBinaryInputDeclaration(); err != nil {
 				return 0, err
 			}
 		}
@@ -191,7 +191,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		defaultEvaluation := evaluation
 		defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-		defaultEvaluation.routineReferences = b.relation.defaults[b.relation.attributes[i]].dependencies
+		defaultEvaluation.routineReferences = b.relation.Defaults[b.relation.Attributes[i]].Dependencies
 		defaultEvaluation.routineConsumer = b.relation
 		folded, _, planErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
@@ -226,7 +226,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	schema := ""
 	if err == nil {
-		schema = auth.catalog.Get(b.relation.namespace).Name()
+		schema = auth.catalog.Get(b.relation.Namespace()).Name()
 		s.routineAuth = auth
 		e.markTemporaryAccessLocked(s, b.ref)
 	}
@@ -316,14 +316,14 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 }
 
 func copyRelationKind(relation *relationDescriptor, from bool) error {
-	if !from && relation.relationKind == materializedViewRelation && !relation.populated {
-		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.name)).(*sqlstate.Error)
+	if !from && relation.RelationKind == materializedViewRelation && !relation.Populated {
+		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.Name())).(*sqlstate.Error)
 		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
 		return d
 	}
-	if relation.relationKind != tableRelation && !(from && relation.relationKind == partitionedRelation) && !(!from && relation.relationKind == materializedViewRelation) {
+	if relation.RelationKind != tableRelation && !(from && relation.RelationKind == partitionedRelation) && !(!from && relation.RelationKind == materializedViewRelation) {
 		kind := "non-table relation"
-		switch relation.relationKind {
+		switch relation.RelationKind {
 		case viewRelation:
 			kind = "view"
 		case partitionedRelation:
@@ -337,11 +337,11 @@ func copyRelationKind(relation *relationDescriptor, from bool) error {
 		if from {
 			direction = "to"
 		}
-		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.name)).(*sqlstate.Error)
-		if !from && (relation.relationKind == viewRelation || relation.relationKind == partitionedRelation) {
+		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.Name())).(*sqlstate.Error)
+		if !from && (relation.RelationKind == viewRelation || relation.RelationKind == partitionedRelation) {
 			d.Hint = "Try the COPY (SELECT ...) TO variant."
 		}
-		if from && relation.relationKind == viewRelation {
+		if from && relation.RelationKind == viewRelation {
 			d.Hint = "To enable copying to a view, provide an INSTEAD OF INSERT trigger."
 		}
 		return d
@@ -354,13 +354,13 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	binder.queryAuth = &auth
 	binder.insertTarget = b.relation
 	e.bindInsertDefaults(b, auth, parser.OverrideSystem)
-	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.generations, b.relation.checkConstraints); err != nil {
+	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.Generations, b.relation.CheckConstraints); err != nil {
 		return err
 	}
 	s.input = binder.input
 	for _, target := range b.targets {
 		var err error
-		usage := b.relation.columns[target].Usage
+		usage := b.relation.Columns[target].Usage
 		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
 			s.input.Regclass, err = e.captureRegclassInput(auth)
 		}
@@ -422,7 +422,7 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*fina
 	}
 	schema := make([]ColumnDescriptor, len(b.targets))
 	for i, target := range b.targets {
-		schema[i] = b.relation.columns[target]
+		schema[i] = b.relation.Columns[target]
 	}
 	rows := newFinalRows(schema, source.count())
 	rows.source = source

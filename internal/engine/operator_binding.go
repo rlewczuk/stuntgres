@@ -86,9 +86,9 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
+			for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
 				d := auth.catalog.MustOperator(address)
-				if d.left == 0 {
+				if d.Left == 0 {
 					continue
 				}
 				available = true
@@ -107,12 +107,12 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
+		for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
 			d := auth.catalog.MustOperator(address)
-			if (d.left == 0) != unary {
+			if (d.Left == 0) != unary {
 				continue
 			}
-			key := operatorSignature{d.left, d.right}
+			key := operatorSignature{d.Left, d.Right}
 			if seen[key] {
 				continue
 			}
@@ -128,7 +128,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 	candidates := set.descriptors
 	signatures := make([]sqltype.OperatorInputs, len(candidates))
 	for i, d := range candidates {
-		signatures[i] = sqltype.OperatorInputs{Left: sqltype.ID(d.left), Right: sqltype.ID(d.right)}
+		signatures[i] = sqltype.OperatorInputs{Left: sqltype.ID(d.Left), Right: sqltype.ID(d.Right)}
 	}
 	selected, err := sqltype.ResolveOperator(signatures, left, right, unary)
 	diagnosticLeft := left
@@ -139,8 +139,8 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]
-	if d.function == 0 && !d.seeded() {
-		message := operatorInputName(set.catalog, d.left, d.right, raw.Name)
+	if d.Function == 0 && !d.seeded() {
+		message := operatorInputName(set.catalog, d.Left, d.Right, raw.Name)
 		diagnostic := sqlError("42883", "operator is only a shell: "+message).(*sqlstate.Error)
 		if raw.Pos.Character > 0 {
 			diagnostic.Position = strconv.Itoa(raw.Pos.Character)
@@ -203,9 +203,9 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	targets := []ids.OID{d.right}
+	targets := []ids.OID{d.Right}
 	if len(operands) == 2 {
-		targets = []ids.OID{d.left, d.right}
+		targets = []ids.OID{d.Left, d.Right}
 	}
 	args := make([]expr.Expr, len(operands))
 	for i, o := range operands {
@@ -242,7 +242,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		}
 		return b.bindBuiltinOperator(raw, policy)
 	}
-	routine, _ := set.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function})
+	routine, _ := set.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Function})
 	if routine == nil {
 		return nil, fmt.Errorf("stuntgres: missing operator implementation")
 	}
@@ -250,8 +250,8 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.catalog.domain.Ref(set.catalog.Epoch(), d.address)
-	b.dependency(ref, d.revision)
+	ref := b.engine.catalog.Domain.Ref(set.catalog.Epoch(), d.Address())
+	b.dependency(ref, d.Revision())
 	info := expr.InfoOf(provider)
 	info.Pos = raw.Pos
 	// Admission belongs to the actual provider only, not twice to the wrapper.
@@ -272,10 +272,10 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 	}
 	var node expr.Expr
 	var err error
-	if d.builtin != nil && d.builtin.providers&operatorRoutineProvider != 0 {
+	if d.Builtin != nil && d.Builtin.Providers&operatorRoutineProvider != 0 {
 		found := false
 		for key, declaration := range builtinOperatorRoutineByDeclaration {
-			if declaration != d.builtin {
+			if declaration != d.Builtin {
 				continue
 			}
 			if len(args) == 1 && key.left != 0 || len(args) == 2 && key.left == 0 {
@@ -285,7 +285,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 			if key.left != 0 {
 				signature = strconv.FormatUint(uint64(key.left), 10) + "," + signature
 			}
-			if procedureSignature(signature) != d.signature {
+			if procedureSignature(signature) != d.Signature {
 				continue
 			}
 			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: key.name, Pos: pos}}}, Args: rawArgs, Pos: pos}
@@ -297,8 +297,8 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 			return nil, sqlError("0A000", "operator implementation has no registered provider")
 		}
 	} else {
-		namespace := b.bindingCatalog().Get(d.namespace).Name()
-		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace, Pos: pos}, {Text: d.name, Pos: pos}}}, Args: rawArgs, Pos: pos}
+		namespace := b.bindingCatalog().Get(d.Namespace()).Name()
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace, Pos: pos}, {Text: d.Name(), Pos: pos}}}, Args: rawArgs, Pos: pos}
 		node, err = b.bindFunctionProvider(raw)
 	}
 	if err != nil {
@@ -308,7 +308,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 	if err != nil {
 		return nil, err
 	}
-	if actual == nil || actual.address != d.address {
+	if actual == nil || actual.Address() != d.Address() {
 		return nil, sqlError("0A000", "operator implementation has no registered provider")
 	}
 	return node, nil

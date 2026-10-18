@@ -119,10 +119,10 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*relationDescriptor)
 				shape := scope.catalog.storage[ref.Address]
-				if candidate == old || candidate.attributeHighWater != old.attributeHighWater+1 || len(candidate.columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.last != 6 {
+				if candidate == old || candidate.AttributeHighWater != old.AttributeHighWater+1 || len(candidate.Columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.last != 6 {
 					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.last)
 				}
-				if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || old.AttributeHighWater != 1 {
 					t.Fatal("Execute published private ADD")
 				}
 				for _, row := range storage.versions {
@@ -176,7 +176,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					if injectedStorage != nil {
 						wantStorage = injectedStorage
 					}
-					if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != wantStorage || old.attributeHighWater != 1 || len(old.columns) != 1 || generator.last != 6 {
+					if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != wantStorage || old.AttributeHighWater != 1 || len(old.Columns) != 1 || generator.last != 6 {
 						t.Fatal("veto published ADD or rewound sequence")
 					}
 					if explicit && (!sameVersionRoot(worker.transactions.writes[ref.Address], priorWrites) || worker.transactions.deletes[ref.Address] != priorDeletes || worker.transactions.catalog != priorCatalog) {

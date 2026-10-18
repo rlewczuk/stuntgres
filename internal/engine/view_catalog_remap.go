@@ -21,7 +21,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			target.SubID = old.Address.SubID
 			old.Address = target
 		}
-		old = e.catalog.domain.Ref(old.Epoch, old.Address)
+		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
 		old.Epoch = next.epoch
 		return old
 	}
@@ -34,28 +34,28 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			address = target
 		}
 		if d, ok := next.Type(address); ok {
-			return d.typ
+			return d.SQLType
 		}
 		return old
 	}
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
 			if typesOnly {
 				changed := false
-				for _, check := range domain.domainChecks {
-					walkQueryArgumentExpression(check.expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
+				for _, check := range domain.DomainChecks {
+					walkQueryArgumentExpression(check.Expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
 				}
 				if !changed {
 					continue
 				}
 			}
 			copy := *domain
-			copy.domainChecks = append([]domainCheckConstraint(nil), domain.domainChecks...)
-			for i := range copy.domainChecks {
-				check := &copy.domainChecks[i]
-				node, err := remapBoundExpression(check.expression, ref, nil)
+			copy.DomainChecks = append([]domainCheckConstraint(nil), domain.DomainChecks...)
+			for i := range copy.DomainChecks {
+				check := &copy.DomainChecks[i]
+				node, err := remapBoundExpression(check.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -63,14 +63,14 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				check.expression = node
-				check.dependencies = append([]expressionDependency(nil), check.dependencies...)
-				for j := range check.dependencies {
-					check.dependencies[j].ref = ref(check.dependencies[j].ref)
-					address := check.dependencies[j].ref.Address
+				check.Expression = node
+				check.Dependencies = append([]expressionDependency(nil), check.Dependencies...)
+				for j := range check.Dependencies {
+					check.Dependencies[j].Ref = ref(check.Dependencies[j].Ref)
+					address := check.Dependencies[j].Ref.Address
 					address.SubID = 0
 					if provider, exists := view.Descriptor(address); exists {
-						check.dependencies[j].revision = provider.Revision()
+						check.Dependencies[j].Revision = provider.Revision()
 					}
 				}
 			}
@@ -92,11 +92,11 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if typesOnly && next.aclItemImport == nil && !catalogExpressionTypesChanged(d, typ) {
 			continue
 		}
-		if len(d.defaults) != 0 {
+		if len(d.Defaults) != 0 {
 			copy := *d
-			copy.defaults = make(map[int32]columnDefault, len(d.defaults))
-			for attribute, definition := range d.defaults {
-				node, err := remapBoundExpression(definition.expression, ref, nil)
+			copy.Defaults = make(map[int32]columnDefault, len(d.Defaults))
+			for attribute, definition := range d.Defaults {
+				node, err := remapBoundExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -104,21 +104,21 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				definition.expression = node
-				definition.dependencies = append([]ids.ObjectRef(nil), definition.dependencies...)
-				for i := range definition.dependencies {
-					definition.dependencies[i] = ref(definition.dependencies[i])
+				definition.Expression = node
+				definition.Dependencies = append([]ids.ObjectRef(nil), definition.Dependencies...)
+				for i := range definition.Dependencies {
+					definition.Dependencies[i] = ref(definition.Dependencies[i])
 				}
-				copy.defaults[attribute] = definition
+				copy.Defaults[attribute] = definition
 			}
 			d = &copy
 			next.setDescriptor(address, d)
 		}
-		if len(d.generations) != 0 {
+		if len(d.Generations) != 0 {
 			copy := *d
-			copy.generations = make(map[int32]columnGeneration, len(d.generations))
-			for attribute, definition := range d.generations {
-				node, err := remapBoundExpression(definition.expression, ref, nil)
+			copy.Generations = make(map[int32]columnGeneration, len(d.Generations))
+			for attribute, definition := range d.Generations {
+				node, err := remapBoundExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -126,8 +126,8 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				definition.expression = node
-				planned, err := remapBoundExpression(definition.planned, ref, nil)
+				definition.Expression = node
+				planned, err := remapBoundExpression(definition.Planned, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -135,22 +135,22 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				definition.planned = planned
-				definition.dependencies = append([]ids.ObjectRef(nil), definition.dependencies...)
-				for i := range definition.dependencies {
-					definition.dependencies[i] = ref(definition.dependencies[i])
+				definition.Planned = planned
+				definition.Dependencies = append([]ids.ObjectRef(nil), definition.Dependencies...)
+				for i := range definition.Dependencies {
+					definition.Dependencies[i] = ref(definition.Dependencies[i])
 				}
-				copy.generations[attribute] = definition
+				copy.Generations[attribute] = definition
 			}
 			d = &copy
 			next.setDescriptor(address, d)
 		}
-		if len(d.checkConstraints) != 0 {
+		if len(d.CheckConstraints) != 0 {
 			copy := *d
-			copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
-			for i := range copy.checkConstraints {
-				c := &copy.checkConstraints[i]
-				node, err := remapBoundExpression(c.expression, ref, nil)
+			copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
+			for i := range copy.CheckConstraints {
+				c := &copy.CheckConstraints[i]
+				node, err := remapBoundExpression(c.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -158,16 +158,16 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				c.expression = node
-				c.dependencies = append([]expressionDependency(nil), c.dependencies...)
-				for j := range c.dependencies {
-					c.dependencies[j].ref = ref(c.dependencies[j].ref)
-					if c.dependencies[j].ref.Address.ClassID == ids.ProcedureClassID {
-						provider, exists := view.Descriptor(c.dependencies[j].ref.Address)
+				c.Expression = node
+				c.Dependencies = append([]expressionDependency(nil), c.Dependencies...)
+				for j := range c.Dependencies {
+					c.Dependencies[j].Ref = ref(c.Dependencies[j].Ref)
+					if c.Dependencies[j].Ref.Address.ClassID == ids.ProcedureClassID {
+						provider, exists := view.Descriptor(c.Dependencies[j].Ref.Address)
 						if !exists {
 							return fmt.Errorf("stuntgres: missing reconstructed CHECK routine")
 						}
-						c.dependencies[j].revision = provider.Revision()
+						c.Dependencies[j].Revision = provider.Revision()
 					}
 				}
 			}
@@ -177,26 +177,26 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			d = &copy
 			next.setDescriptor(address, d)
 		}
-		if d.sqlIndex != nil {
+		if d.SQLIndex != nil {
 			copy := *d
-			definition := *d.sqlIndex
-			definition.keys = append([]indexKey(nil), definition.keys...)
-			for i, key := range definition.keys {
+			definition := *d.SQLIndex
+			definition.Keys = append([]indexKey(nil), definition.Keys...)
+			for i, key := range definition.Keys {
 				if collation != nil {
-					capability, err := collation(key.collationRef)
+					capability, err := collation(key.CollationRef)
 					if err != nil {
 						return err
 					}
-					definition.keys[i].collationRef = capability
-					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
-						definition.keys[i].collation = uint32(target.ObjectID)
+					definition.Keys[i].CollationRef = capability
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)}]; ok {
+						definition.Keys[i].Collation = uint32(target.ObjectID)
 					}
 				}
-				if key.derived == nil {
+				if key.Derived == nil {
 					continue
 				}
-				derived := *key.derived
-				node, err := remapBoundExpression(derived.definition, ref, nil)
+				derived := *key.Derived
+				node, err := remapBoundExpression(derived.Definition, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -204,8 +204,8 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				derived.definition = node
-				node, err = remapBoundExpression(derived.execution, ref, nil)
+				derived.Definition = node
+				node, err = remapBoundExpression(derived.Execution, ref, nil)
 				if err != nil {
 					return err
 				}
@@ -213,38 +213,38 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				if err != nil {
 					return err
 				}
-				derived.execution = node
-				derived.dependencies = append([]ids.ObjectRef(nil), derived.dependencies...)
-				for j := range derived.dependencies {
-					derived.dependencies[j] = ref(derived.dependencies[j])
+				derived.Execution = node
+				derived.Dependencies = append([]ids.ObjectRef(nil), derived.Dependencies...)
+				for j := range derived.Dependencies {
+					derived.Dependencies[j] = ref(derived.Dependencies[j])
 				}
-				definition.keys[i].derived = &derived
+				definition.Keys[i].Derived = &derived
 			}
-			if predicate := definition.predicate; predicate != nil {
+			if predicate := definition.Predicate; predicate != nil {
 				p := *predicate
-				node, err := remapBoundExpression(p.definition, ref, nil)
+				node, err := remapBoundExpression(p.Definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.definition, _, err = retagBoundTypes(view, node, typ, collation)
+				p.Definition, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(p.execution, ref, nil)
+				node, err = remapBoundExpression(p.Execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.execution, _, err = retagBoundTypes(view, node, typ, collation)
+				p.Execution, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
-				p.dependencies = append([]ids.ObjectRef(nil), p.dependencies...)
-				for j := range p.dependencies {
-					p.dependencies[j] = ref(p.dependencies[j])
+				p.Dependencies = append([]ids.ObjectRef(nil), p.Dependencies...)
+				for j := range p.Dependencies {
+					p.Dependencies[j] = ref(p.Dependencies[j])
 				}
-				definition.predicate = &p
+				definition.Predicate = &p
 			}
-			copy.sqlIndex = &definition
+			copy.SQLIndex = &definition
 			d = &copy
 			next.setDescriptor(address, d)
 		}
@@ -256,7 +256,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			}
 			next.setDescriptor(address, d)
 		}
-		if len(d.policies) != 0 {
+		if len(d.Policies) != 0 {
 			var err error
 			d, err = remapPolicies(view, d, mapping, ref, typ, collation)
 			if err != nil {
@@ -264,7 +264,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			}
 			next.setDescriptor(address, d)
 		}
-		if d.view == nil {
+		if d.View == nil {
 			continue
 		}
 		definition, err := remapFrozenPresentation(view, viewOf(d), mapping, ref, typ, collation)
@@ -272,7 +272,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			return err
 		}
 		copy := *d
-		copy.view = viewPayloadOf(definition)
+		copy.View = viewPayloadOf(definition)
 		next.setDescriptor(address, &copy)
 	}
 	return nil

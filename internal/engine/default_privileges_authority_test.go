@@ -33,9 +33,9 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		base := auth.catalog.MustType(auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}))
-		array := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)})
-		if !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
-			t.Fatal("associated enum array consumed selected TYPES ACL", array.acl)
+		array := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
+		if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
+			t.Fatal("associated enum array consumed selected TYPES ACL", array.ACL)
 		}
 		auth.state.CurrentUser = f.reader
 		return auth, base, array
@@ -43,7 +43,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 	check := func(auth AuthorizationView, base, array *typeDescriptor, allowed bool) {
 		t.Helper()
 		for _, descriptor := range []*typeDescriptor{base, array} {
-			ref := f.e.catalog.domain.Ref(auth.catalog.Epoch(), descriptor.Address())
+			ref := f.e.catalog.Domain.Ref(auth.catalog.Epoch(), descriptor.Address())
 			err := auth.CanUse(ref)
 			if allowed {
 				if err != nil {
@@ -90,7 +90,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	state := cloneCatalog(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
-	namespace.acl = authorization.ACLValue{Explicit: true}
+	namespace.ACL = authorization.ACLValue{Explicit: true}
 	state.setDescriptor(f.schema, &namespace)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
@@ -101,7 +101,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	auth.catalog = f.e.catalog.read(state)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = f.reader
-	ref := f.e.catalog.domain.Ref(state.epoch, f.schema)
+	ref := f.e.catalog.Domain.Ref(state.epoch, f.schema)
 	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: privilege}); err != nil {
 			t.Fatal("physical namespace authority depended on current actor", privilege, err)
@@ -110,43 +110,43 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if rights, err := auth.Effective(ref, true); err != nil || rights != 0 {
 		t.Fatal("physical authority invented namespace delegation", rights, err)
 	}
-	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.name)
+	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.Name())
 	for _, token := range []ids.SessionToken{
 		{},
-		f.e.catalog.domain.Session(f.op.session.token.ID() + 1),
-		New().catalog.domain.Session(f.op.session.token.ID()),
-		f.e.catalog.domain.PrivateSession(f.op.session),
+		f.e.catalog.Domain.Session(f.op.session.token.ID() + 1),
+		New().catalog.Domain.Session(f.op.session.token.ID()),
+		f.e.catalog.Domain.PrivateSession(f.op.session),
 	} {
 		peer := auth
 		peer.session = &Session{token: token}
-		defaultUnitDiagnostic(t, peer.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
+		defaultUnitDiagnostic(t, peer.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	}
 	// Even an exact namespace token cannot elevate zero/foreign/private
 	// maintenance identities into a physical backend.
-	for _, token := range []ids.SessionToken{{}, New().catalog.domain.Session(1), f.e.catalog.domain.PrivateSession(f.op.session)} {
+	for _, token := range []ids.SessionToken{{}, New().catalog.Domain.Session(1), f.e.catalog.Domain.PrivateSession(f.op.session)} {
 		candidate := cloneCatalog(state)
 		invalidNamespace := namespace
-		invalidNamespace.temporary = token
+		invalidNamespace.Temporary = token
 		candidate.setDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
 		invalid.catalog = f.e.catalog.read(candidate)
 		invalid.recaptureCatalog(invalid.catalog)
 		invalid.session = &Session{token: token}
-		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
+		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	}
 	withoutSession := auth
 	withoutSession.session = nil
-	defaultUnitDiagnostic(t, withoutSession.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
+	defaultUnitDiagnostic(t, withoutSession.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	ordinary := cloneCatalog(state)
 	permanent := namespace
-	permanent.temporary = ids.SessionToken{}
+	permanent.Temporary = ids.SessionToken{}
 	ordinary.setDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = f.e.catalog.read(ordinary)
 	ordinaryAuth.recaptureCatalog(ordinaryAuth.catalog)
-	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
+	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	foreign := ref
-	foreign = New().catalog.domain.Ref(foreign.Epoch, foreign.Address)
+	foreign = New().catalog.Domain.Ref(foreign.Epoch, foreign.Address)
 	if err := auth.CanUse(foreign); err == nil {
 		t.Fatal("physical namespace authority admitted foreign object")
 	}
@@ -155,8 +155,8 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if err := staleActor.CanUse(ref); err == nil {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, namespace: f.schema, name: "temp_acl_denied", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}}
-	state.setDescriptor(table.address, table)
-	tableRef := f.e.catalog.domain.Ref(state.epoch, table.address)
+	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}}
+	state.setDescriptor(table.Address(), table)
+	tableRef := f.e.catalog.Domain.Ref(state.epoch, table.Address())
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
 }

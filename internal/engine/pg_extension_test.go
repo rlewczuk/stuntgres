@@ -19,39 +19,39 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Ob
 	if !ok {
 		t.Fatal("missing pg_extension")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if d.name != "pg_extension" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 8 || len(d.columns) != 8 || d.owner != owner || owner.ID() != 10 {
+	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}
 	names := [8]string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}
 	typeIDs := [8]sqltype.ID{26, 19, 26, 26, 16, 25, 1028, 1009}
 	collations := [8]uint32{0, 950, 0, 0, 0, 950, 0, 950}
-	for i, c := range d.columns {
+	for i, c := range d.Columns {
 		owned, ok := e.CatalogRead().LookupType(typeIDs[i])
-		if !ok || c.Name != names[i] || c.Usage.Type != owned || c.Usage.Type.ID() != typeIDs[i] || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collations[i] || c.Nullable != (i >= 6) || !c.NullabilityKnown || c.OriginTable != 3079 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+		if !ok || c.Name != names[i] || c.Usage.Type != owned || c.Usage.Type.ID() != typeIDs[i] || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collations[i] || c.Nullable != (i >= 6) || !c.NullabilityKnown || c.OriginTable != 3079 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal("column", i, c)
 		}
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Explicit || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	if d.rowType != 10074 {
-		t.Fatal("existing native rowtype", d.rowType)
+	if d.RowType != 10074 {
+		t.Fatal("existing native rowtype", d.RowType)
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10074})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10073})
 	ownedRow, ok := e.CatalogRead().LookupType(10074)
 	ownedArray, arrayOK := e.CatalogRead().LookupArray(ownedRow)
-	if !ok || !arrayOK || ownedRow != row.typ || ownedArray != array.typ || row.array != 10073 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
+	if !ok || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10073 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	return d
@@ -62,8 +62,8 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	d := pgExtensionUnitShape(t, e)
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[0].Usage.Type = foreign
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[0].Usage.Type = foreign
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
@@ -80,8 +80,8 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 		}
 		name, _ := row[1].Text()
 		ns, _ := row[2].OID()
-		kind, _ := row[class.index["relkind"]].Text()
-		count, _ := row[class.index["relnatts"]].Integer()
+		kind, _ := row[class.Index["relkind"]].Text()
+		count, _ := row[class.Index["relnatts"]].Integer()
 		if name != "pg_extension" || ns != 11 || kind != "r" || count != 8 {
 			t.Fatal("pg_class projection", row)
 		}
@@ -103,8 +103,8 @@ func TestPGExtensionCapture(t *testing.T) {
 	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
 		t.Fatal("empty immutable capture", old)
 	}
-	root := &projectNode{querySchema: querySchema(d.columns), child: &sourceNode{querySchema: querySchema(d.columns), ref: ref}}
-	for i, c := range d.columns {
+	root := &projectNode{querySchema: querySchema(d.Columns), child: &sourceNode{querySchema: querySchema(d.Columns), ref: ref}}
+	for i, c := range d.Columns {
 		root.expressions = append(root.expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, origin: ref, scope: 1, frame: 1, slot: i})
 	}
 	executable, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, d)
@@ -115,7 +115,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal("empty captured source must execute", err)
 	}
-	if count != 0 || !reflect.DeepEqual(rows.Schema(), d.columns) {
+	if count != 0 || !reflect.DeepEqual(rows.Schema(), d.Columns) {
 		t.Fatal("empty result shape/count", rows.Schema(), count)
 	}
 	var emptyDestination [8]sqltype.Value
@@ -127,16 +127,16 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	for _, width := range []int{0, 7, 9} {
 		invalid := *d
-		invalid.columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]ColumnDescriptor, width)
 		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 			t.Fatal("malformed width", width, rows, err)
 		}
 	}
 	foreign := New()
-	for i, c := range d.columns {
+	for i, c := range d.Columns {
 		invalid := *d
-		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-		invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(c.Usage.Type.ID())
+		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(c.Usage.Type.ID())
 		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 			t.Fatal("foreign column", i, rows, err)
 		}
@@ -161,7 +161,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if rows, err := captureExtensionCatalog(ctx, e.CatalogRead(), ref, d); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
 	}
-	retained := &indexedStage{source: old, schema: d.columns}
+	retained := &indexedStage{source: old, schema: d.Columns}
 	original := append([]ColumnDescriptor(nil), retained.Schema()...)
 	for _, replace := range []func() error{
 		func() error { return e.Reset(context.Background()) },
@@ -171,8 +171,8 @@ func TestPGExtensionCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		fresh := pgExtensionUnitShape(t, e)
-		for i, c := range fresh.columns {
-			if c.Usage.Type == d.columns[i].Usage.Type {
+		for i, c := range fresh.Columns {
+			if c.Usage.Type == d.Columns[i].Usage.Type {
 				t.Fatal("generation not reminted", i)
 			}
 		}
@@ -214,7 +214,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}
 	row := captured.anonymous[0]
-	for i, expected := range []ids.OID{ext.address.ObjectID, ids.OID(ext.owner.ID()), ext.targetNamespace.ObjectID} {
+	for i, expected := range []ids.OID{ext.Address().ObjectID, ids.OID(ext.Owner.ID()), ext.TargetNamespace.ObjectID} {
 		actual, err := row[[]int{0, 2, 3}[i]].OID()
 		if err != nil || actual != uint32(expected) {
 			t.Fatal("descriptor-derived identity", i, actual, expected, err)
@@ -223,7 +223,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	name, nameErr := row[1].Text()
 	version, versionErr := row[5].Text()
 	relocatable, relocatableErr := row[4].Boolean()
-	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.name || version != ext.version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
+	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.Name() || version != ext.Version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
 		t.Fatal("installed descriptor attributes", row, nameErr, versionErr, relocatableErr)
 	}
 	if empty.count() != 0 || captured.ref != ref {

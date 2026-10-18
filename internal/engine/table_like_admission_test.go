@@ -80,23 +80,23 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				}
 			}()
 			if provider == "predicate" {
-				if len(destination.defaults) != 0 || len(destination.checkConstraints) != 0 {
+				if len(destination.Defaults) != 0 || len(destination.CheckConstraints) != 0 {
 					t.Fatal("predicate provider admission masked by another definition")
 				}
 				retained := false
 				for _, descriptor := range stage.descriptors {
 					index, ok := descriptor.(*relationDescriptor)
-					if !ok || index.sqlIndex == nil {
+					if !ok || index.SQLIndex == nil {
 						continue
 					}
-					if index.sqlIndex.keys[0].derived != nil {
+					if index.SQLIndex.Keys[0].Derived != nil {
 						t.Fatal("predicate provider admission masked by an expression key")
 					}
-					for _, dependency := range index.sqlIndex.predicate.dependencies {
+					for _, dependency := range index.SQLIndex.Predicate.Dependencies {
 						retained = retained || dependency == ref
 					}
 					var executionDependencies []ids.ObjectRef
-					if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), index.sqlIndex.predicate.execution); err != nil {
+					if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), index.SQLIndex.Predicate.Execution); err != nil {
 						t.Fatal(err)
 					}
 					for _, dependency := range executionDependencies {

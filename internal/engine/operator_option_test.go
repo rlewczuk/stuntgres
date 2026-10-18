@@ -182,7 +182,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -254,13 +254,13 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	staged := e.stageRead(stage)
-	next := staged.MustOperator(source.address)
-	reciprocal := staged.MustOperator(peer.address)
-	if next.commutator != peer.address.ObjectID || next.negator != peer.address.ObjectID || !next.hash || !next.merge ||
-		reciprocal.commutator != source.address.ObjectID || reciprocal.negator != source.address.ObjectID {
+	next := staged.MustOperator(source.Address())
+	reciprocal := staged.MustOperator(peer.Address())
+	if next.Commutator != peer.Address().ObjectID || next.Negator != peer.Address().ObjectID || !next.Hash || !next.Merge ||
+		reciprocal.Commutator != source.Address().ObjectID || reciprocal.Negator != source.Address().ObjectID {
 		t.Fatal("staged roots lost one link kind", next, reciprocal)
 	}
-	if source.commutator != 0 || source.negator != 0 || peer.commutator != 0 || peer.negator != 0 || e.CatalogRead().state != auth.catalog.state {
+	if source.Commutator != 0 || source.Negator != 0 || peer.Commutator != 0 || peer.Negator != 0 || e.CatalogRead().state != auth.catalog.state {
 		t.Fatal("private reciprocal updates changed published roots")
 	}
 	collationUnitPublish(t, e, stage)
@@ -422,9 +422,9 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	staged := e.stageRead(stage)
 	source := staged.MustOperator(staged.NameAddress(key("#=#")))
 	shell := staged.MustOperator(staged.NameAddress(key("#!#")))
-	if source.commutator != shell.address.ObjectID || source.negator != shell.address.ObjectID ||
-		shell.commutator != source.address.ObjectID || shell.negator != source.address.ObjectID ||
-		shell.function != 0 || shell.result != 0 || shell.owner != auth.state.CurrentUser {
+	if source.Commutator != shell.Address().ObjectID || source.Negator != shell.Address().ObjectID ||
+		shell.Commutator != source.Address().ObjectID || shell.Negator != source.Address().ObjectID ||
+		shell.Function != 0 || shell.Result != 0 || shell.Owner != auth.state.CurrentUser {
 		t.Fatal("same forward shell lost identity, owner or one reciprocal kind", source, shell)
 	}
 	if e.CatalogRead().state != before || before.NameAddress(key("#=#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#!#")) != (ids.ObjectAddress{}) {
@@ -436,10 +436,10 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	completion := operatorUnitDefinition("#!#", "int4ne")
 	completion.Options = append(completion.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#=#)")...)
 	stage = operatorUnitStage(t, e, op, auth, completion)
-	completed := e.stageRead(stage).MustOperator(shell.address)
-	if completed.address != shell.address || completed.function != 144 || completed.result != 16 ||
-		completed.owner != auth.state.CurrentUser || completed.commutator != completed.address.ObjectID ||
-		completed.negator != source.address.ObjectID {
+	completed := e.stageRead(stage).MustOperator(shell.Address())
+	if completed.Address() != shell.Address() || completed.Function != 144 || completed.Result != 16 ||
+		completed.Owner != auth.state.CurrentUser || completed.Commutator != completed.Address().ObjectID ||
+		completed.Negator != source.Address().ObjectID {
 		t.Fatal("shell completion lost stable identity or self/peer links", completed)
 	}
 	if *source != sourceBefore || *shell != shellBefore || e.CatalogRead().state != auth.catalog.state {
@@ -451,8 +451,8 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	// Commutator setup creates and links a private forward shell before the
 	// negator's reciprocal conflict. Ordinary stage discard must suffice.
 	before = auth.catalog.state
-	source = before.MustOperator(source.address)
-	completed = before.MustOperator(completed.address)
+	source = before.MustOperator(source.Address())
+	completed = before.MustOperator(completed.Address())
 	sourceBefore, shellBefore = *source, *completed
 	failed := operatorUnitDefinition("#?#", "int4eq")
 	failed.Options = append(failed.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#=#)")...)
@@ -464,8 +464,8 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	staged = e.stageRead(stage)
 	privateSource := staged.MustOperator(staged.NameAddress(key("#?#")))
 	privateShell := staged.MustOperator(staged.NameAddress(key("#@#")))
-	if privateSource.commutator != privateShell.address.ObjectID || privateShell.commutator != privateSource.address.ObjectID ||
-		privateShell.function != 0 || privateShell.result != 0 {
+	if privateSource.Commutator != privateShell.Address().ObjectID || privateShell.Commutator != privateSource.Address().ObjectID ||
+		privateShell.Function != 0 || privateShell.Result != 0 {
 		t.Fatal("failure did not retain the expected private reciprocal stage", privateSource, privateShell)
 	}
 	e.DiscardCatalogStage(stage)

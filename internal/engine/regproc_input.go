@@ -104,7 +104,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		if namespace == (ids.ObjectAddress{}) {
 			return missing()
 		}
-		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.domain.Ref(r.types.auth.catalog.Epoch(), namespace)); err != nil {
+		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), namespace)); err != nil {
 			return 0, err
 		}
 		if r.types.qualified != nil && !slices.Contains(*r.types.qualified, namespace) {
@@ -120,17 +120,17 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		return 0, sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text))
 	}
 	if r.operands != nil {
-		if owner := routineDescriptorOwner(r.types.auth.catalog, selected.id); owner != nil && owner.address.ObjectID != selected.id {
-			ref := r.types.auth.engine.catalog.domain.Ref(r.types.auth.catalog.Epoch(), owner.address)
+		if owner := routineDescriptorOwner(r.types.auth.catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
+			ref := r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), owner.Address())
 			for _, operand := range *r.operands {
-				if operand.ref == ref {
-					return uint32(selected.id), nil
+				if operand.Ref == ref {
+					return uint32(selected.ID), nil
 				}
 			}
-			*r.operands = append(*r.operands, expressionDependency{ref: ref, revision: owner.revision})
+			*r.operands = append(*r.operands, expressionDependency{Ref: ref, Revision: owner.Revision()})
 		}
 	}
-	return uint32(selected.id), nil
+	return uint32(selected.ID), nil
 }
 
 func (r capturedRoutineInput) RoutineParameter(slot int, empty bool) sqltype.RoutineResolver {

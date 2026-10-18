@@ -14,7 +14,7 @@ import (
 )
 
 func commitTimeUnitRef(e *Engine, id ids.TxID) ids.TxRef {
-	return e.catalog.domain.Tx(ids.SessionToken{}, id, e.catalog.state.epoch, nil, 0)
+	return e.catalog.Domain.Tx(ids.SessionToken{}, id, e.catalog.state.epoch, nil, 0)
 }
 
 func TestCommitTimeAssignment(t *testing.T) {
@@ -139,7 +139,7 @@ func TestCommitTimePublication(t *testing.T) {
 					if route == "catalog" {
 						stage.initialTx = ref
 					}
-					d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
+					d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "commit_time_unit", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}
@@ -152,7 +152,7 @@ func TestCommitTimePublication(t *testing.T) {
 							t.Fatal(err)
 						}
 						old = e.catalog.state
-						value, err := sqltype.Integer(d.columns[0].Usage.Type, 7)
+						value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -160,8 +160,8 @@ func TestCommitTimePublication(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						writes = map[ids.ObjectAddress][]rowVersion{d.address: versions}
-						rowStore = e.storage[d.address]
+						writes = map[ids.ObjectAddress][]rowVersion{d.Address(): versions}
+						rowStore = e.storage[d.Address()]
 					}
 				}
 				barrier := &transactionBarrierContext{Context: ctx, entered: make(chan struct{}), release: make(chan struct{})}

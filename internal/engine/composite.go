@@ -78,7 +78,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return err
 		}
@@ -89,7 +89,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	relation.relationKind = compositeRelation
+	relation.RelationKind = compositeRelation
 	if err := e.stageRowTypeLocked(stage, relation); err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 }
 
 func compositeOpenError(relation *relationDescriptor, pos parser.Position) error {
-	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), pos).(*sqlstate.Error)
+	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), pos).(*sqlstate.Error)
 	d.Detail = "This operation is not supported for composite types."
 	return d
 }
@@ -125,18 +125,18 @@ func containsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
 // PostgreSQL protects physical row codecs even when the proposed SQL type is
 // unchanged. Find the real stored consumer, not an intermediate named wrapper.
 func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
-	if source.rowType == 0 {
+	if source.RowType == 0 {
 		return nil
 	}
 	var consumer *relationDescriptor
 	var column string
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.relationKind.stored() {
+		if !ok || !table.RelationKind.stored() {
 			continue
 		}
-		for _, c := range table.columns {
-			if containsRowType(c.Usage.Type, source.rowType) && (consumer == nil || table.address.ObjectID < consumer.address.ObjectID) {
+		for _, c := range table.Columns {
+			if containsRowType(c.Usage.Type, source.RowType) && (consumer == nil || table.Address().ObjectID < consumer.Address().ObjectID) {
 				consumer, column = table, c.Name
 				break
 			}
@@ -145,8 +145,8 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	if consumer == nil {
 		return nil
 	}
-	if source.relationKind == compositeRelation {
-		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.name, consumer.name, column))
+	if source.RelationKind == compositeRelation {
+		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.Name(), consumer.Name(), column))
 	}
-	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.name, consumer.name, column))
+	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.Name(), consumer.Name(), column))
 }

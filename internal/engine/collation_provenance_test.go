@@ -23,13 +23,13 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.domain.Ref(before.Epoch(), address)
+	ref := e.catalog.Domain.Ref(before.Epoch(), address)
 	expiredAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "expired_provider"})
 	expiredCapability, err := before.MustCollation(expiredAddress).usage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	expiredRef := e.catalog.domain.Ref(before.Epoch(), expiredAddress)
+	expiredRef := e.catalog.Domain.Ref(before.Epoch(), expiredAddress)
 	sessionSQL(t, owner, `DROP COLLATION pg_temp.expired_provider`)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedRef := e.catalog.domain.Ref(before.Epoch(), seedAddress)
+	seedRef := e.catalog.Domain.Ref(before.Epoch(), seedAddress)
 	if !storedCollationReferenceValid(view, consumer, seedRef, seedCapability) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
@@ -74,15 +74,15 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		ref        ids.ObjectRef
 		capability sqltype.CollationRef
 	}{
-		{"foreign engine", consumer, New().catalog.domain.Ref(ref.Epoch, address), capability},
-		{"zero epoch", consumer, e.catalog.domain.Ref(0, address), capability},
-		{"future epoch", consumer, e.catalog.domain.Ref(view.Epoch()+1, address), capability},
-		{"missing identity", consumer, e.catalog.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID + 100000}), capability},
-		{"wrong class", consumer, e.catalog.domain.Ref(ref.Epoch, consumer.Address()), capability},
-		{"wrong subid", consumer, e.catalog.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID, SubID: 1}), capability},
-		{"other physical owner", consumer, e.catalog.domain.Ref(ref.Epoch, foreignAddress), foreignCapability},
+		{"foreign engine", consumer, New().catalog.Domain.Ref(ref.Epoch, address), capability},
+		{"zero epoch", consumer, e.catalog.Domain.Ref(0, address), capability},
+		{"future epoch", consumer, e.catalog.Domain.Ref(view.Epoch()+1, address), capability},
+		{"missing identity", consumer, e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID + 100000}), capability},
+		{"wrong class", consumer, e.catalog.Domain.Ref(ref.Epoch, consumer.Address()), capability},
+		{"wrong subid", consumer, e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID, SubID: 1}), capability},
+		{"other physical owner", consumer, e.catalog.Domain.Ref(ref.Epoch, foreignAddress), foreignCapability},
 		{"persistent consumer", permanent, ref, capability},
-		{"persistent dynamic target", consumer, e.catalog.domain.Ref(ref.Epoch, permanentAddress), permanentCapability},
+		{"persistent dynamic target", consumer, e.catalog.Domain.Ref(ref.Epoch, permanentAddress), permanentCapability},
 		{"incompatible capability", consumer, ref, incompatible},
 		{"invalid capability", consumer, ref, sqltype.CollationRef{ID: uint32(address.ObjectID)}},
 	}
@@ -103,7 +103,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	invalidSeed := *view.MustCollation(seedAddress)
-	invalidSeed.semantics = 811
+	invalidSeed.Semantics = 811
 	if err := stage.Replace(&invalidSeed); err != nil {
 		t.Fatal(err)
 	}
@@ -133,18 +133,18 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 			remaining[ref]--
 		}
 	}
-	for _, definition := range consumer.defaults {
-		assertManifest("DEFAULT", scalarRenderer{provenance: consumer, capturedManifest: definition.dependencies}, definition.expression, definition.dependencies)
+	for _, definition := range consumer.Defaults {
+		assertManifest("DEFAULT", scalarRenderer{provenance: consumer, capturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
-	for _, definition := range consumer.generations {
-		assertManifest("generated", scalarRenderer{owner: consumer, capturedManifest: definition.dependencies}, definition.expression, definition.dependencies)
+	for _, definition := range consumer.Generations {
+		assertManifest("generated", scalarRenderer{owner: consumer, capturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
-	for _, definition := range consumer.checkConstraints {
-		want := make([]ids.ObjectRef, len(definition.dependencies))
-		for i, dependency := range definition.dependencies {
-			want[i] = dependency.ref
+	for _, definition := range consumer.CheckConstraints {
+		want := make([]ids.ObjectRef, len(definition.Dependencies))
+		for i, dependency := range definition.Dependencies {
+			want[i] = dependency.Ref
 		}
-		assertManifest("CHECK", scalarRenderer{owner: consumer, capturedChecks: definition.dependencies}, definition.expression, want)
+		assertManifest("CHECK", scalarRenderer{owner: consumer, capturedChecks: definition.Dependencies}, definition.Expression, want)
 	}
 	// All ordinary validators must accept the retained closed expression trees.
 	sessionSQL(t, owner, `INSERT INTO retained_provider_local DEFAULT VALUES`)

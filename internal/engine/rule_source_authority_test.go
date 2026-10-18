@@ -35,13 +35,13 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					actor, _ := auth.roles.Lookup("pg_monitor")
 					reader, _ := auth.roles.Lookup("pg_read_all_data")
 					auth.state.CurrentUser = actor.Ref
-					src.owner, sink.owner = owner, owner
-					src.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.SelectPrivilege, Grantor: owner}}}
+					src.Owner, sink.Owner = owner, owner
+					src.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.SelectPrivilege, Grantor: owner}}}
 					input := *src
-					input.address.ObjectID += 2
-					input.name, input.rules = "input", nil
+					input.ObjectAddress.ObjectID += 2
+					input.ObjectName, input.Rules = "input", nil
 					next := cloneCatalog(e.catalog.state)
-					next.setDescriptor(input.address, &input)
+					next.setDescriptor(input.Address(), &input)
 					e.catalog.state = next
 					auth.catalog = e.catalog.read(next)
 					auth.pairedCatalog = auth.catalog
@@ -52,7 +52,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if effective {
 						original.querySources[0].principal = reader.Ref
 					}
-					from := &sourceNode{querySchema: querySchema(input.columns), ref: inputRef}
+					from := &sourceNode{querySchema: querySchema(input.Columns), ref: inputRef}
 					var syntax parser.Statement = &parser.Delete{}
 					original.deleteUsing = from
 					if event == "UPDATE" {
@@ -61,18 +61,18 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					}
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
-					ref.Address.SubID = sink.attributes[0]
-					value := expr.Expr(columnExpression{Info: ruleColumnInfo(sink.columns[0]), origin: ref, scope: 1, frame: 1})
+					ref.Address.SubID = sink.Attributes[0]
+					value := expr.Expr(columnExpression{Info: ruleColumnInfo(sink.Columns[0]), origin: ref, scope: 1, frame: 1})
 					if dependent {
 						ref = original.ref
-						ref.Address.SubID = src.attributes[0]
-						value = columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}
+						ref.Address.SubID = src.Attributes[0]
+						value = columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}
 					}
 					action.binding.expressions = nil
 					action.binding.commandQuery = true
-					action.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.columns), child: &sourceNode{querySchema: querySchema(sink.columns), ref: lookupRef}, expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, frame: 1}}
+					action.binding.query = &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), child: &sourceNode{querySchema: querySchema(sink.Columns), ref: lookupRef}, expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, frame: 1}}
 					action.binding.querySources = []queryLeaf{{ref: lookupRef, relation: sink, uses: []int{0}}}
-					src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
+					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
 					_, err = e.expandRulesLocked(nil, auth, syntax, original, nil, &program)
@@ -104,7 +104,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if err := auth.checkQuerySources(sources); err != nil {
 						t.Fatal("canonical source authorization rejected resolved principals", err)
 					}
-					input.acl = authorization.ACLValue{Explicit: true}
+					input.ACL = authorization.ACLValue{Explicit: true}
 					err = auth.checkQuerySources(sources)
 					if dependent && !effective {
 						if err == nil || !strings.Contains(err.Error(), "permission denied for table input") {

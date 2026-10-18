@@ -23,8 +23,8 @@ const (
 )
 
 type routineBodyEdge struct {
-	routine *procedureDescriptor
-	demand  routineBodyDemand
+	Routine *procedureDescriptor
+	Demand  routineBodyDemand
 }
 
 var builtinRoutineBodyEdges = [...]struct {
@@ -73,10 +73,10 @@ func (e *Engine) initializeBuiltinRoutineBodies() {
 			panic("stuntgres: missing genuine SQL body declaration")
 		}
 		storage[i] = routineBodyEdge{inner, edge.demand}
-		if len(outer.body) == 0 {
-			outer.body = storage[i : i+1 : i+1]
+		if len(outer.Body) == 0 {
+			outer.Body = storage[i : i+1 : i+1]
 		} else {
-			outer.body = storage[i-len(outer.body) : i+1 : i+1]
+			outer.Body = storage[i-len(outer.Body) : i+1 : i+1]
 		}
 	}
 }
@@ -103,7 +103,7 @@ func bodyCastMatches(edge routineBodyEdge, argument expr.Expr) bool {
 		return false
 	}
 	id := argument.ResultUsage().Type.BaseType().ID()
-	return edge.demand == bodyBooleanText && id == sqltype.Bool || edge.demand == bodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
+	return edge.Demand == bodyBooleanText && id == sqltype.Bool || edge.Demand == bodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
 }
 
 // Capture at binding, before descriptors can be remapped or published with a new
@@ -114,10 +114,10 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 	if err != nil || outer == nil {
 		return err
 	}
-	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
-	for _, edge := range outer.body {
+	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
+	for _, edge := range outer.Body {
 		if bodyCastMatches(edge, argument) {
-			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.builtin); err != nil {
+			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
 				return err
 			}
 		}
@@ -126,14 +126,14 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 }
 
 func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error {
-	for _, edge := range outer.body {
-		if edge.demand == bodyBooleanText || edge.demand == bodyNetworkText {
+	for _, edge := range outer.Body {
+		if edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText {
 			continue
 		}
-		if edge.routine == nil || edge.routine.builtin == nil {
+		if edge.Routine == nil || edge.Routine.Builtin == nil {
 			return fmt.Errorf("stuntgres: invalid SQL body declaration")
 		}
-		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.builtin); err != nil {
+		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
 			return err
 		}
 	}
@@ -143,15 +143,15 @@ func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error 
 // Lifetime capture is conservative even where strict NULL later removes actual
 // invocation. Only instance-selected polymorphic cast identities participate.
 func walkRoutineBody(outer *procedureDescriptor, node expr.Expr, visit func(*procedureDescriptor) error) error {
-	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
-	for _, edge := range outer.body {
-		if (edge.demand == bodyBooleanText || edge.demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
+	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
+	for _, edge := range outer.Body {
+		if (edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
 			continue
 		}
-		if err := visit(edge.routine); err != nil {
+		if err := visit(edge.Routine); err != nil {
 			return err
 		}
-		if err := walkRoutineBody(edge.routine, nil, visit); err != nil {
+		if err := walkRoutineBody(edge.Routine, nil, visit); err != nil {
 			return err
 		}
 	}

@@ -26,14 +26,14 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		d    Descriptor
 		want authorization.Privileges
 	}{
-		{&namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, name: "private", owner: owner, acl: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, name: "table", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: tableRelation, attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, name: "view", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, name: "materialized", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, name: "sequence", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, name: "index", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: indexRelation}, 0},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, name: "catalog", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: catalogRelation}, authorization.SelectPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, name: "provider", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation, virtualView: true}, authorization.SelectPrivilege},
+		{&namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, ObjectName: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, ObjectName: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: tableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, ObjectName: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, ObjectName: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, ObjectName: "sequence", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, ObjectName: "index", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: indexRelation}, 0},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, ObjectName: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalogRelation}, authorization.SelectPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, ObjectName: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation, VirtualView: true}, authorization.SelectPrivilege},
 	}
 	state := cloneCatalog(e.catalog.state)
 	for _, tc := range descriptors {
@@ -41,7 +41,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	}
 	v := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(state), roleRecord: e.roles, catalog: e.catalog.read(state), roles: e.roleRead(e.catalog.read(state), e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
-		ref := e.catalog.domain.Ref(state.epoch, tc.d.Address())
+		ref := e.catalog.Domain.Ref(state.epoch, tc.d.Address())
 		got, err := v.Effective(ref, false)
 		if err != nil || got != tc.want {
 			t.Fatal(tc.d.Name(), got, tc.want, err)
@@ -58,7 +58,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.authorizationDomain.Principal(6181), e.authorizationDomain.Principal(6182), e.authorizationDomain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
-	column := e.catalog.domain.Ref(state.epoch, descriptors[1].d.Address())
+	column := e.catalog.Domain.Ref(state.epoch, descriptors[1].d.Address())
 	column.Address.SubID = 1
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege {
 		t.Fatal("column mask", got, err)
@@ -67,9 +67,9 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	// only fresh role views, never retained descriptor or authority snapshots.
 	table := descriptors[1].d.(*relationDescriptor)
 	withColumn := *table
-	withColumn.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
+	withColumn.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := cloneCatalog(state)
-	withColumnState.setDescriptor(table.address, &withColumn)
+	withColumnState.setDescriptor(table.Address(), &withColumn)
 	v.catalog = e.catalog.read(withColumnState)
 	v.recaptureCatalog(v.catalog)
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
@@ -86,26 +86,26 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	fresh := v
 	fresh.roleRecord = e.roles
 	fresh.roles = e.roleRead(fresh.catalog, e.roles)
-	if got, err := fresh.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err != nil || got != 0 {
+	if got, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
-	if got, err := v.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err != nil || got != descriptors[1].want {
+	if got, err := v.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err != nil || got != descriptors[1].want {
 		t.Fatal("retained authority changed", got, err)
 	}
-	for _, ref := range []ids.ObjectRef{New().catalog.domain.Ref(state.epoch, table.address), e.catalog.domain.Ref(state.epoch+1, table.address), e.catalog.domain.Ref(state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})} {
+	for _, ref := range []ids.ObjectRef{New().catalog.Domain.Ref(state.epoch, table.Address()), e.catalog.Domain.Ref(state.epoch+1, table.Address()), e.catalog.Domain.Ref(state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})} {
 		if _, err := v.Effective(ref, false); err == nil {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
 	fresh.state.CurrentUser = New().authorizationDomain.Principal(reader.Ref.ID())
-	if _, err := fresh.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err == nil {
+	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
 	fresh.roles = e.Roles()
 	fresh.roleRecord = e.roles
 	fresh.state.CurrentUser = reader.Ref
-	if _, err := fresh.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err == nil {
+	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err == nil {
 		t.Fatal("capability accepted retired actor")
 	}
 }
@@ -123,7 +123,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.CreateIndex{Name: parser.Identifier{Text: "maintained_index"}, Table: predefinedObjectName("maintained"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}})
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"})
 	index := e.catalog.state.MustRelation(address)
-	root, storage := e.indexRoots[address], e.storage[index.sqlIndex.parent]
+	root, storage := e.indexRoots[address], e.storage[index.SQLIndex.Parent]
 	if root == nil || storage == nil {
 		t.Fatal("missing real index or parent storage")
 	}
@@ -138,7 +138,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeApply(t, e, op, utility)
 	next := e.indexRoots[address]
-	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage[index.sqlIndex.parent] != storage {
+	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage[index.SQLIndex.Parent] != storage {
 		t.Fatal("MAINTAIN did not rebuild real isolated root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})
@@ -196,11 +196,11 @@ func TestPredefinedRoleControls(t *testing.T) {
 			t.Fatal("control reseeded shared graph")
 		}
 		public := e.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-		if public.owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
+		if public.Owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
-		for _, entry := range public.acl.Entries {
-			if entry.Grantor != public.owner || !entry.Grantee.Public && entry.Grantee.Role != public.owner {
+		for _, entry := range public.ACL.Entries {
+			if entry.Grantor != public.Owner || !entry.Grantee.Public && entry.Grantee.Role != public.Owner {
 				t.Fatal("public ACL provenance", entry)
 			}
 		}
@@ -210,8 +210,8 @@ func TestPredefinedRoleControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	public := target.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if public.owner != (target.authorizationDomain.Principal(6171)) {
-		t.Fatal("foreign public owner escaped remapping", public.owner)
+	if public.Owner != (target.authorizationDomain.Principal(6171)) {
+		t.Fatal("foreign public owner escaped remapping", public.Owner)
 	}
 	if len(target.Roles().Memberships()) != 3 {
 		t.Fatal("import replaced independent target graph")
@@ -249,7 +249,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 		}
 	}
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"})
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 	view, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)

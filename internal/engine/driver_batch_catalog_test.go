@@ -158,7 +158,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	stage := e.BeginCatalogStage(e.catalog.read(before))
 	defer e.DiscardCatalogStage(stage)
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	}
 	peer := cloneCatalog(before)
 	changed := *old
-	changed.revision += 2
+	changed.ObjectRevision += 2
 	peer.setDescriptor(ref.Address, &changed)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), peer, nil); err == nil {
 		t.Fatal("changed entry predecessor accepted")
@@ -211,7 +211,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal("authentic pre-stage namespace creation rejected", err)
 	}
 	namespace := candidate.descriptors[ns.Address].(*namespaceDescriptor)
-	key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}
+	key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}
 	if original, exists := candidate.originals[ns.Address]; !exists || original != nil {
 		t.Fatal("namespace creation lost its committed absence fence")
 	}
@@ -235,7 +235,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal("namespace without creation-name fence admitted")
 	}
 	changed := *namespace
-	changed.revision++
+	changed.ObjectRevision++
 	replaced := cloneCatalogChanges(candidate)
 	replaced.descriptors[ns.Address] = &changed
 	if err := e.captureCatalogStageLocked(stage, replaced, before, nil); err == nil {
@@ -252,9 +252,9 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	claim.address.ObjectID = oid
-	claimed.setDescriptor(claim.address, &claim)
-	claimed.bindName(key, claim.address)
+	claim.ObjectAddress.ObjectID = oid
+	claimed.setDescriptor(claim.Address(), &claim)
+	claimed.bindName(key, claim.Address())
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), claimed, nil); err == nil {
 		t.Fatal("already claimed entry namespace name admitted")
 	}

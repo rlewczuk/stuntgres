@@ -21,7 +21,7 @@ func domainAlterUnitFence(t *testing.T, e *Engine, view CatalogRead, target ids.
 	}
 	for i := range f.uses {
 		use := &f.uses[i]
-		use.storage = e.storage[use.relation.address]
+		use.storage = e.storage[use.relation.Address()]
 		if use.storage == nil {
 			t.Fatal("missing physical use")
 		}
@@ -50,7 +50,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	prior := &EvalContext{}
 	evaluation.Input.DomainChecks = prior
 	selected := *child
-	selected.domainChecks = []domainCheckConstraint{child.domainChecks[1]}
+	selected.DomainChecks = []domainCheckConstraint{child.DomainChecks[1]}
 	if err := evaluation.prepareOwnDomainChecks(&selected); err != nil {
 		t.Fatal("selected preparation initialized unrelated recipe", err)
 	}
@@ -69,7 +69,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 		}
 	}
 	unknown := *child
-	unknown.domainChecks = []domainCheckConstraint{child.domainChecks[2]}
+	unknown.DomainChecks = []domainCheckConstraint{child.DomainChecks[2]}
 	if err := evaluation.prepareOwnDomainChecks(&unknown); err != nil {
 		t.Fatal(err)
 	}
@@ -85,10 +85,10 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	if evaluation.domainValue != sentinel || evaluation.Input.DomainChecks != prior {
 		t.Fatal("cancellation leaked frame")
 	}
-	leaf := domainValueExpression{Info: expr.Info{Usage: child.typ.DomainBase()}}
+	leaf := domainValueExpression{Info: expr.Info{Usage: child.SQLType.DomainBase()}}
 	evaluation.Context = context.Background()
-	evaluation.domainValue = sqltype.Null(child.typ.DomainBase().Type)
-	evaluation.domainFrameUsage = child.typ.DomainBase()
+	evaluation.domainValue = sqltype.Null(child.SQLType.DomainBase().Type)
+	evaluation.domainFrameUsage = child.SQLType.DomainBase()
 	if _, err := leaf.Eval(&evaluation); err != nil {
 		t.Fatal("immediate domain base frame", err)
 	}
@@ -136,21 +136,21 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	before := e.CatalogRead()
 	d := domainUnitType(t, before, "d")
 	child := domainUnitType(t, before, "child")
-	value, err := child.typ.Input(context.Background(), "-1", -1)
+	value, err := child.SQLType.Input(context.Background(), "-1", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	array := table.columns[1].Usage.Type
+	array := table.Columns[1].Usage.Type
 	arrayValue, err := array.Input(context.Background(), "[0:1]={-1,NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	composite, err := table.columns[2].Usage.Type.Input(context.Background(), "(-1)", -1)
+	composite, err := table.Columns[2].Usage.Type.Input(context.Background(), "(-1)", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, arrayValue, composite}}}}
-	e.storage[table.address] = store
+	e.storage[table.Address()] = store
 	e.commitSeq = 3
 	// A permanently FALSE recipe proves pure retagging does not check old data.
 	raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT positive CHECK(FALSE)").(*parser.CreateDomain)
@@ -162,11 +162,11 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		err = e.bindDomainChecks(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
 	}
 	if err == nil {
-		next.domainChecks[0].NotValid = true
-		next.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), true)
+		next.DomainChecks[0].NotValid = true
+		next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)
 	}
 	if err == nil {
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 	}
 	if err == nil {
 		err = stage.Replace(&next)
@@ -180,24 +180,24 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	current := e.CatalogRead()
 	newD := domainUnitType(t, current, "d")
 	newChild := domainUnitType(t, current, "child")
-	if !newD.domainChecks[0].NotValid || !newChild.typ.HasDomainChecks() || newD.typ.ID() != d.typ.ID() || newChild.typ.ID() != child.typ.ID() || newChild.typ.DomainBase().Type != newD.typ {
+	if !newD.DomainChecks[0].NotValid || !newChild.SQLType.HasDomainChecks() || newD.SQLType.ID() != d.SQLType.ID() || newChild.SQLType.ID() != child.SQLType.ID() || newChild.SQLType.DomainBase().Type != newD.SQLType {
 		t.Fatal("same-ID checked ancestry lost")
 	}
-	mapped := e.storage[table.address]
-	if mapped == store || mapped.versions[0].values[0].Type() != newChild.typ || store.versions[0].values[0].Type() != child.typ || d.typ.HasDomainChecks() {
+	mapped := e.storage[table.Address()]
+	if mapped == store || mapped.versions[0].values[0].Type() != newChild.SQLType || store.versions[0].values[0].Type() != child.SQLType || d.SQLType.HasDomainChecks() {
 		t.Fatal("old row/type roots mutated")
 	}
 	mappedArray := mapped.versions[0].values[1]
-	if mappedArray.ArrayDimension(0) != (sqltype.ArrayDimension{Lower: 0, Length: 2}) || !mappedArray.ArrayElement(1).IsNull() || mappedArray.ArrayElement(0).Type() != newChild.typ || mapped.versions[0].values[2].CompositeField(0).Type() != newChild.typ {
+	if mappedArray.ArrayDimension(0) != (sqltype.ArrayDimension{Lower: 0, Length: 2}) || !mappedArray.ArrayElement(1).IsNull() || mappedArray.ArrayElement(0).Type() != newChild.SQLType || mapped.versions[0].values[2].CompositeField(0).Type() != newChild.SQLType {
 		t.Fatal("container generations/bounds/NULLs lost")
 	}
 	drop := e.BeginCatalogStage(current)
-	if err := drop.removeDomainCheck(newD, newD.domainChecks[0].OID); err != nil {
+	if err := drop.removeDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	drop.domainAlter = context.Background()
 	domainUnitPublish(t, e, drop)
-	if domainUnitType(t, e.CatalogRead(), "child").typ.HasDomainChecks() || !newChild.typ.HasDomainChecks() || !newD.domainChecks[0].NotValid {
+	if domainUnitType(t, e.CatalogRead(), "child").SQLType.HasDomainChecks() || !newChild.SQLType.HasDomainChecks() || !newD.DomainChecks[0].NotValid {
 		t.Fatal("last DROP changed retained generations")
 	}
 	t.Run("index_artifacts", domainAlterGenerationIndexes)
@@ -237,13 +237,13 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	defer e.DiscardCatalogStage(recipeStage)
 	var check domainCheckConstraint
 	for _, descriptor := range recipeStage.descriptors {
-		if domain, ok := descriptor.(*typeDescriptor); ok && domain.typ.IsDomain() {
-			check = domain.domainChecks[0]
+		if domain, ok := descriptor.(*typeDescriptor); ok && domain.SQLType.IsDomain() {
+			check = domain.DomainChecks[0]
 		}
 	}
 	check.NotValid = true
 	copy := *d
-	copy.domainChecks = []domainCheckConstraint{check}
+	copy.DomainChecks = []domainCheckConstraint{check}
 	graph := map[dumpEventKey][]dumpEventKey{{oid: d.Address().ObjectID}: nil, {oid: provider.Address().ObjectID}: {{oid: d.Address().ObjectID}}, {oid: 50002, phase: dumpRows}: {{oid: 50002}}, {oid: 50002}: nil, {oid: 50002, phase: dumpTableCompletion}: {{oid: 50002, phase: dumpRows}}}
 	if err := domainInvalidDumpEvents(context.Background(), view, graph, map[ids.OID]*typeDescriptor{d.Address().ObjectID: &copy}); err != nil {
 		t.Fatal(err)

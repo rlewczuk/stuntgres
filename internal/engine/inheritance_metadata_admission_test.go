@@ -116,7 +116,7 @@ func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *relationD
 		}
 	}
 	view := e.CatalogRead()
-	return e, view.MustRelation(p.address), view.MustRelation(c.address)
+	return e, view.MustRelation(p.Address()), view.MustRelation(c.Address())
 }
 
 func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescriptor, name string, value int64, owner authorization.PrincipalRef) *relationDescriptor {
@@ -126,17 +126,17 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 	// Copying the parent's bound default or NN fact is not a CREATE operation.
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	raw := statement(t, "CREATE TABLE public."+quoteIdentifier(name)+" () INHERITS (public."+quoteIdentifier(parent.name)+")").(*parser.CreateTable)
+	raw := statement(t, "CREATE TABLE public."+quoteIdentifier(name)+" () INHERITS (public."+quoteIdentifier(parent.Name())+")").(*parser.CreateTable)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var stage *CatalogStage
 	var child *relationDescriptor
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.catalog)
-		err = e.schemaTableLocked(op, auth, stage, raw, parent.namespace, owner, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		address := stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}]
+		address := stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}]
 		child, _ = stage.descriptors[address].(*relationDescriptor)
 		if child == nil {
 			err = errors.New("authentic CREATE provider did not stage the descendant")
@@ -151,7 +151,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	return e.CatalogRead().MustRelation(child.address)
+	return e.CatalogRead().MustRelation(child.Address())
 }
 
 func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissionCase, holder *StatementScope, child *relationDescriptor) (<-chan error, func()) {
@@ -171,7 +171,7 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 		}
 	})
 	lockPending(t, command.e, 1)
-	ref := command.e.catalog.domain.Ref(command.auth.catalog.Epoch(), child.address)
+	ref := command.e.catalog.Domain.Ref(command.auth.catalog.Epoch(), child.Address())
 	lockState := command.e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
@@ -190,8 +190,8 @@ var inheritanceMetadataActions = []struct{ name, sql string }{
 
 func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, current *relationDescriptor) {
 	t.Helper()
-	if current == nil || current == old || current.owner != old.owner || !slices.Equal(current.attributes, old.attributes) || current.attributeHighWater != old.attributeHighWater || current.columns[0].Usage != old.columns[0].Usage || len(current.notNullConstraints) != 1 || current.notNullConstraints[0].OID != old.notNullConstraints[0].OID || current.notNullConstraints[0].Attribute != old.notNullConstraints[0].Attribute || current.notNullConstraints[0].NotValid || current.notNullConstraints[0].NoInherit {
-		t.Fatal("metadata operation lost actual attribute/owner/fact identity", old.name, current)
+	if current == nil || current == old || current.Owner != old.Owner || !slices.Equal(current.Attributes, old.Attributes) || current.AttributeHighWater != old.AttributeHighWater || current.Columns[0].Usage != old.Columns[0].Usage || len(current.NotNullConstraints) != 1 || current.NotNullConstraints[0].OID != old.NotNullConstraints[0].OID || current.NotNullConstraints[0].Attribute != old.NotNullConstraints[0].Attribute || current.NotNullConstraints[0].NotValid || current.NotNullConstraints[0].NoInherit {
+		t.Fatal("metadata operation lost actual attribute/owner/fact identity", old.Name(), current)
 	}
 	columnName, constraintName := "i", "metadata_nn"
 	if action == "column_rename" {
@@ -200,34 +200,34 @@ func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, curr
 	if action == "constraint_rename" {
 		constraintName = "renamed_nn"
 	}
-	if current.columns[0].Name != columnName || current.notNullConstraints[0].Name != constraintName {
-		t.Fatal("admitted descendant missed actual metadata operation", current.name, current.columns, current.notNullConstraints)
+	if current.Columns[0].Name != columnName || current.NotNullConstraints[0].Name != constraintName {
+		t.Fatal("admitted descendant missed actual metadata operation", current.Name(), current.Columns, current.NotNullConstraints)
 	}
-	definition, present := current.defaults[current.attributes[0]]
+	definition, present := current.Defaults[current.Attributes[0]]
 	if action == "drop_default" {
 		if present {
-			t.Fatal("admitted descendant retained dropped default", current.name)
+			t.Fatal("admitted descendant retained dropped default", current.Name())
 		}
 	} else {
 		if !present {
-			t.Fatal("metadata operation lost physical default", current.name)
+			t.Fatal("metadata operation lost physical default", current.Name())
 		}
 		want := int64(9)
 		if action == "set_default" {
 			want = 7
 		}
-		value, err := definition.expression.Eval(&EvalContext{Context: context.Background(), catalog: e.CatalogRead()})
+		value, err := definition.Expression.Eval(&EvalContext{Context: context.Background(), catalog: e.CatalogRead()})
 		if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, want)) {
-			t.Fatal("wrong independent physical default value", current.name, value, err)
+			t.Fatal("wrong independent physical default value", current.Name(), value, err)
 		}
 	}
-	if old.inheritance != nil {
-		before, after := old.inheritance.columns[old.attributes[0]], current.inheritance.columns[current.attributes[0]]
-		if before.local != after.local || !reflect.DeepEqual(before.origins, after.origins) || !reflect.DeepEqual(old.inheritance.notNull, current.inheritance.notNull) {
-			t.Fatal("metadata operation localized or changed live inherited origins", current.name)
+	if old.Inheritance != nil {
+		before, after := old.Inheritance.Columns[old.Attributes[0]], current.Inheritance.Columns[current.Attributes[0]]
+		if before.Local != after.Local || !reflect.DeepEqual(before.Origins, after.Origins) || !reflect.DeepEqual(old.Inheritance.NotNull, current.Inheritance.NotNull) {
+			t.Fatal("metadata operation localized or changed live inherited origins", current.Name())
 		}
-		if (action == "set_default" || action == "drop_default") && !after.explicitDefault {
-			t.Fatal("physical recipe authority was not recorded independently of locality", current.name)
+		if (action == "set_default" || action == "drop_default") && !after.ExplicitDefault {
+			t.Fatal("physical recipe authority was not recorded independently of locality", current.Name())
 		}
 	}
 }
@@ -239,36 +239,36 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 			t.Run(action.name+"/"+growth, func(t *testing.T) {
 				e, _, child := inheritanceMetadataFixture(t, "postgres")
 				if sticky {
-					inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.owner)
-					child = e.CatalogRead().MustRelation(child.address)
+					inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.Owner)
+					child = e.CatalogRead().MustRelation(child.Address())
 				}
-				if child.hasSubclasses != sticky {
+				if child.HasSubclasses != sticky {
 					t.Fatal("fixture has wrong authentic sticky subclass state")
 				}
 				holder := inheritanceAlterAXHolder(t, e, child)
 				command := inheritanceMetadataScope(t, e, "postgres", action.sql)
 				result, joined := inheritanceMetadataWorker(t, command, holder, child)
 				before := e.CatalogRead()
-				late := inheritanceMetadataChild(t, e, child, "late_grandchild", 40, child.owner)
+				late := inheritanceMetadataChild(t, e, child, "late_grandchild", 40, child.Owner)
 				grown := e.CatalogRead()
-				currentChild := grown.MustRelation(child.address)
-				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !inheritanceMarkerPublication(child, currentChild) || currentChild.subclassPredecessor != child || currentChild.revision != currentChild.subclassPublication)) || sticky && currentChild != child {
+				currentChild := grown.MustRelation(child.Address())
+				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !inheritanceMarkerPublication(child, currentChild) || currentChild.SubclassPredecessor != child || currentChild.Revision() != currentChild.SubclassPublication)) || sticky && currentChild != child {
 					t.Fatal("fixture did not publish genuine additive growth/marker identity")
 				}
 				originals := inheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))
 				stores := maps.Clone(e.storage)
 				rows := inheritanceAlterRowRoots(e)
 				for _, old := range originals {
-					if old.columns[0].Name != "i" || len(old.notNullConstraints) != 1 || old.notNullConstraints[0].Name != "metadata_nn" {
-						t.Fatal("queued metadata provider exposed a partial rename", old.name)
+					if old.Columns[0].Name != "i" || len(old.NotNullConstraints) != 1 || old.NotNullConstraints[0].Name != "metadata_nn" {
+						t.Fatal("queued metadata provider exposed a partial rename", old.Name())
 					}
-					definition, present := old.defaults[old.attributes[0]]
+					definition, present := old.Defaults[old.Attributes[0]]
 					if !present {
-						t.Fatal("queued metadata provider exposed a partial default removal", old.name)
+						t.Fatal("queued metadata provider exposed a partial default removal", old.Name())
 					}
-					value, err := definition.expression.Eval(&EvalContext{Context: context.Background(), catalog: grown})
+					value, err := definition.Expression.Eval(&EvalContext{Context: context.Background(), catalog: grown})
 					if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, 9)) {
-						t.Fatal("queued metadata provider exposed a partial default change", old.name, value, err)
+						t.Fatal("queued metadata provider exposed a partial default change", old.Name(), value, err)
 					}
 				}
 				holder.Finish(nil)
@@ -279,21 +279,21 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				// the provider; Finish releases statement resources. Observe that
 				// incumbent consumer boundary, not the shape-controller's staging.
 				completed := e.CatalogRead()
-				if completed.Epoch() != grown.Epoch() || completed.Get(late.address) == nil {
+				if completed.Epoch() != grown.Epoch() || completed.Get(late.Address()) == nil {
 					t.Fatal("completed utility lost the actual reconciled descendant/lifetime")
 				}
 				if !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 					t.Fatal("completed metadata utility changed physical row values")
 				}
 				for _, old := range originals {
-					ref := e.catalog.domain.Ref(grown.Epoch(), old.address)
+					ref := e.catalog.Domain.Ref(grown.Epoch(), old.Address())
 					if !command.scope.holdsColumnDropGrant(ref) {
-						t.Fatal("actual reconciled target lacks AX admission", old.name)
+						t.Fatal("actual reconciled target lacks AX admission", old.Name())
 					}
-					current, _ := completed.Relation(old.address)
+					current, _ := completed.Relation(old.Address())
 					inheritanceMetadataAssert(t, e, action.name, old, current)
-					if e.storage[old.address] != stores[old.address] {
-						t.Fatal("completed metadata utility replaced physical storage", old.name)
+					if e.storage[old.Address()] != stores[old.Address()] {
+						t.Fatal("completed metadata utility replaced physical storage", old.Name())
 					}
 				}
 				if err := command.scope.Finish(nil); err != nil {
@@ -301,9 +301,9 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				}
 				published := e.CatalogRead()
 				for _, old := range originals {
-					inheritanceMetadataAssert(t, e, action.name, old, published.MustRelation(old.address))
-					if e.storage[old.address] != stores[old.address] {
-						t.Fatal("metadata-only publication replaced physical storage", old.name)
+					inheritanceMetadataAssert(t, e, action.name, old, published.MustRelation(old.Address()))
+					if e.storage[old.Address()] != stores[old.Address()] {
+						t.Fatal("metadata-only publication replaced physical storage", old.Name())
 					}
 				}
 				if !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
@@ -323,28 +323,28 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 				t.Run(action.name+"/"+growth+"/"+fence, func(t *testing.T) {
 					e, _, child := inheritanceMetadataFixture(t, "metadata_owner")
 					if sticky {
-						inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.owner)
-						child = e.CatalogRead().MustRelation(child.address)
+						inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.Owner)
+						child = e.CatalogRead().MustRelation(child.Address())
 					}
 					holder := inheritanceAlterAXHolder(t, e, child)
 					command := inheritanceMetadataScope(t, e, "metadata_owner", action.sql)
 					result, joined := inheritanceMetadataWorker(t, command, holder, child)
-					owner := child.owner
+					owner := child.Owner
 					if fence == "new_descendant_owner" {
 						owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
 					}
 					inheritanceMetadataChild(t, e, child, "late_grandchild", 40, owner)
 					if fence == "subsequent_replacement" {
-						current := e.CatalogRead().MustRelation(child.address)
+						current := e.CatalogRead().MustRelation(child.Address())
 						next := *current
-						next.revision++
-						next.comment = "genuine subsequent descriptor publication"
+						next.ObjectRevision++
+						next.Comment = "genuine subsequent descriptor publication"
 						stage := e.BeginCatalogStage(e.CatalogRead())
 						if err := stage.Replace(&next); err != nil {
 							t.Fatal(err)
 						}
 						queryCreatePublish(t, e, stage)
-						if inheritanceMarkerPublication(child, e.CatalogRead().MustRelation(child.address)) {
+						if inheritanceMarkerPublication(child, e.CatalogRead().MustRelation(child.Address())) {
 							t.Fatal("actual later mutation accidentally has first-marker authority")
 						}
 					}

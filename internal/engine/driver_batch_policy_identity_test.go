@@ -33,20 +33,20 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(q, err)
 				}
 				private = s.transactions.catalog.descriptors[ownerRef.Address].(*relationDescriptor)
-				if len(private.policies) != 1 || private.policies[0].OID == 0 {
-					t.Fatal("missing actual private policy identity", private.policies)
+				if len(private.Policies) != 1 || private.Policies[0].OID == 0 {
+					t.Fatal("missing actual private policy identity", private.Policies)
 				}
 				if i == 0 {
-					oid = private.policies[0].OID
-				} else if private.policies[0].OID != oid {
-					t.Fatal("ALTER/rename allocated another policy identity", private.policies[0].OID, oid)
+					oid = private.Policies[0].OID
+				} else if private.Policies[0].OID != oid {
+					t.Fatal("ALTER/rename allocated another policy identity", private.Policies[0].OID, oid)
 				}
-				if e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.policies) != 0 {
+				if e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Policies) != 0 {
 					t.Fatal("private policy escaped before owner publication")
 				}
 			}
-			if private.policies[0].Name != "renamed" || private.policies[0].using == nil || private.policies[0].check == nil {
-				t.Fatal("ALTER/rename lost private policy definition", private.policies)
+			if private.Policies[0].Name != "renamed" || private.Policies[0].Using == nil || private.Policies[0].Check == nil {
+				t.Fatal("ALTER/rename lost private policy definition", private.Policies)
 			}
 			e.mu.Lock()
 			view := e.privateCatalogLocked(s.transactions.catalog)
@@ -64,7 +64,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			pruned, ok := stage.descriptors[ownerRef.Address].(*relationDescriptor)
-			if !ok || len(pruned.policies) != 0 || len(private.policies) != 1 || private.policies[0].OID != oid || len(owner.policies) != 0 {
+			if !ok || len(pruned.Policies) != 0 || len(private.Policies) != 1 || private.Policies[0].OID != oid || len(owner.Policies) != 0 {
 				t.Fatal("closure mutated immutable private or committed policy root")
 			}
 			if disposition == "commit" {
@@ -72,7 +72,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				published := e.catalog.state.MustRelation(ownerRef.Address)
-				if published != private || len(published.policies) != 1 || published.policies[0].OID != oid || published.policies[0].Name != "renamed" || e.commitSeq != frontier+1 || len(owner.policies) != 0 {
+				if published != private || len(published.Policies) != 1 || published.Policies[0].OID != oid || published.Policies[0].Name != "renamed" || e.commitSeq != frontier+1 || len(owner.Policies) != 0 {
 					t.Fatal("true end did not retain actual policy identity")
 				}
 				return
@@ -82,12 +82,12 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := s.transactions.catalog.descriptors[ownerRef.Address].(*relationDescriptor)
-				if len(candidate.policies) != 0 || s.transactions.catalog.descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
+				if len(candidate.Policies) != 0 || s.transactions.catalog.descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
 					t.Fatal("private cascade omitted policy pruning or published early")
 				}
 			}
 			_, err = m.step(statement(t, "SELECT missing"))
-			if err == nil || m.end(err) != err || e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.policies) != 0 || e.catalog.state.Get(dependency.Address) == nil {
+			if err == nil || m.end(err) != err || e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Policies) != 0 || e.catalog.state.Get(dependency.Address) == nil {
 				t.Fatal("late failure published policy/dependency roots", err)
 			}
 		})

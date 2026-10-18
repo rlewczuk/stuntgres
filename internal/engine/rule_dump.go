@@ -17,11 +17,11 @@ func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
 	if !ok {
 		return "", ids.ErrCatalogReplaced
 	}
-	ns, ok := view.Namespace(d.namespace)
+	ns, ok := view.Namespace(d.Namespace())
 	if !ok {
 		return "", ids.ErrCatalogReplaced
 	}
-	return quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name), nil
+	return quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name()), nil
 }
 
 func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
@@ -33,7 +33,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, a
 			})
 		}
 		if column.scope != rulePseudoScope && column.scope == 1 && column.frame == 1 && action.binding.relation != nil {
-			offset := len(action.binding.relation.columns)
+			offset := len(action.binding.relation.Columns)
 			var from LogicalNode
 			if action.binding.update != nil {
 				from = action.binding.update.from
@@ -71,7 +71,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, a
 		if column.queryOccurrence > 0 {
 			return quoteIdentifier("_rule_source_"+strconv.Itoa(column.queryOccurrence-1)) + "." + name, nil
 		}
-		return quoteIdentifier(d.name) + "." + name, nil
+		return quoteIdentifier(d.Name()) + "." + name, nil
 	}
 	r.nodeSQL = func(expr expr.Expr) (string, bool, error) {
 		subquery, ok := expr.(subqueryExpression)
@@ -269,7 +269,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 		if len(b.targets) != 0 {
 			names := make([]string, len(b.targets))
 			for i, slot := range b.targets {
-				attribute := b.relation.attributes[slot]
+				attribute := b.relation.Attributes[slot]
 				names[i], err = deparseAttribute(d, attribute)
 				if err != nil {
 					return "", err
@@ -361,7 +361,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := deparseAttribute(d, b.relation.attributes[b.conflict.updateTargets[i]])
+					column, err := deparseAttribute(d, b.relation.Attributes[b.conflict.updateTargets[i]])
 					if err != nil {
 						return "", err
 					}
@@ -392,7 +392,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 			if i != 0 {
 				sql.WriteString(", ")
 			}
-			column, err := deparseAttribute(d, b.relation.attributes[b.targets[i]])
+			column, err := deparseAttribute(d, b.relation.Attributes[b.targets[i]])
 			if err != nil {
 				return "", err
 			}
@@ -459,15 +459,15 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}
-		ns := view.MustNamespace(d.namespace)
-		if ns.temporary != (ids.SessionToken{}) {
+		ns := view.MustNamespace(d.Namespace())
+		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		owner, err := roles.Descriptor(d.owner)
+		owner, err := roles.Descriptor(d.Owner)
 		if err != nil {
 			return nil, err
 		}
-		table, err := ruleRelationSQL(view, ids.ObjectRef{Address: d.address})
+		table, err := ruleRelationSQL(view, ids.ObjectRef{Address: d.Address()})
 		if err != nil {
 			return nil, err
 		}
@@ -491,7 +491,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 				if provider == nil {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 					return nil, fmt.Errorf("stuntgres: dump cannot serialize a rule referencing a temporary relation")
 				}
 			}

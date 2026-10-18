@@ -31,12 +31,12 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing pinned collation")
 		}
-		owner, err := roles.Descriptor(d.owner)
+		owner, err := roles.Descriptor(d.Owner)
 		if err != nil {
 			return nil, err
 		}
-		change := delta{d: d, fixed: fixed.name, owner: owner.Name}
-		if d.name != fixed.name || d.Namespace() != fixed.Namespace() {
+		change := delta{d: d, fixed: fixed.Name(), owner: owner.Name}
+		if d.Name() != fixed.Name() || d.Namespace() != fixed.Namespace() {
 			if occupied == nil {
 				occupied = make(map[string]bool)
 				for _, d := range view.Descriptors() {
@@ -45,17 +45,17 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 					}
 				}
 				for i := range builtinCollations {
-					occupied[builtinCollations[i].name] = true
+					occupied[builtinCollations[i].Name()] = true
 				}
 			}
-			base := "__stuntgres_collation_" + strconv.FormatUint(uint64(d.oid), 10)
+			base := "__stuntgres_collation_" + strconv.FormatUint(uint64(d.OID), 10)
 			change.temporary = base
 			for n := 0; occupied[change.temporary]; n++ {
 				change.temporary = base + "_" + strconv.Itoa(n)
 			}
 			occupied[change.temporary] = true
 		}
-		if change.temporary != "" || change.owner != "postgres" || d.owner.ID() != authorization.BootstrapPrincipalID {
+		if change.temporary != "" || change.owner != "postgres" || d.Owner.ID() != authorization.BootstrapPrincipalID {
 			changes = append(changes, change)
 		}
 	}
@@ -75,11 +75,11 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 			statements = append(statements, "ALTER COLLATION "+from+" SET SCHEMA "+quoteIdentifier(ns.Name())+";\n")
 			from = quoteIdentifier(ns.Name()) + "." + quoteIdentifier(change.temporary)
 		}
-		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+quoteIdentifier(change.d.name)+";\n")
+		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+quoteIdentifier(change.d.Name())+";\n")
 	}
 	for _, change := range changes {
-		if change.owner != "postgres" || change.d.owner.ID() != authorization.BootstrapPrincipalID {
-			statements = append(statements, "ALTER COLLATION "+collationSQLName(view, uint32(change.d.oid))+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
+		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {
+			statements = append(statements, "ALTER COLLATION "+collationSQLName(view, uint32(change.d.OID))+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
 		}
 	}
 	return statements, nil
@@ -91,7 +91,7 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view Catalo
 		if _, ok := d.(*collationDescriptor); !ok {
 			continue
 		}
-		if ns, ok := view.Namespace(d.Namespace()); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			roots = append(roots, a)
 		}
 	}
@@ -113,7 +113,7 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view Catalo
 			return fmt.Errorf("stuntgres: missing temporary collation dependent")
 		}
 		ns, ok := view.Namespace(d.Namespace())
-		if !ok || ns.temporary == (ids.SessionToken{}) {
+		if !ok || ns.Temporary == (ids.SessionToken{}) {
 			return fmt.Errorf("stuntgres: dump cannot serialize persistent temporary collation dependency")
 		}
 	}

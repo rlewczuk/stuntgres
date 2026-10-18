@@ -54,9 +54,9 @@ func TestPreparedRebindValidity(t *testing.T) {
 	}
 	relations := 0
 	for _, dependency := range cell.dependencies {
-		if dependency.ref.Address.ClassID == ids.RelationClassID {
+		if dependency.Ref.Address.ClassID == ids.RelationClassID {
 			relations++
-			if dependency.ref != source {
+			if dependency.Ref != source {
 				t.Fatal("wrong dependency identity", dependency)
 			}
 		}
@@ -218,7 +218,7 @@ func TestPreparedRebindDependencyManifest(t *testing.T) {
 		_, description := sequencePreparedDescription(t, e, s, query)
 		seen := make(map[ids.ObjectAddress]bool)
 		for _, dependency := range description.analysis.dependencies {
-			seen[dependency.ref.Address] = true
+			seen[dependency.Ref.Address] = true
 		}
 		for _, name := range []string{"t", "dep", "inner_view", "outer_view"} {
 			ref := catalogRef(t, e, e.CatalogRead(), name)

@@ -30,7 +30,7 @@ func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) er
 	if old.ref != b.ref || old.catalog == nil || b.catalog == nil ||
 		old.ref.Epoch != old.catalog.epoch || b.ref.Epoch != b.catalog.epoch ||
 		old.catalog.Get(old.ref.Address) != old.parent || b.catalog.Get(b.ref.Address) != b.parent ||
-		old.parent.revision != b.parent.revision || !sameRelationRowShape(old.parent, b.parent) {
+		old.parent.Revision() != b.parent.Revision() || !sameRelationRowShape(old.parent, b.parent) {
 		return ids.ErrCatalogReplaced
 	}
 	for i := range old.keys {
@@ -55,11 +55,11 @@ func (b *uniqueWriteBinding) inheritIndexProgram(original *catalogState, index *
 	if len(programme.calls) == 0 {
 		return nil
 	}
-	if index == nil || original.Get(index.address) != index {
+	if index == nil || original.Get(index.Address()) != index {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := b.catalog.Relation(index.address)
-	if !ok || current.revision != index.revision || !sameIndexKeySemantics(index, current) {
+	current, ok := b.catalog.Relation(index.Address())
+	if !ok || current.Revision() != index.Revision() || !sameIndexKeySemantics(index, current) {
 		return ids.ErrCatalogReplaced
 	}
 	for i := range b.keys {

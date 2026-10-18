@@ -23,7 +23,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	if _, err := e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "generated_actor"}, DefaultLogin: true}, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	d.owner = admin.RoleState().CurrentUser
+	d.Owner = admin.RoleState().CurrentUser
 	generation := &parser.GenerationDefinition{Mode: parser.IdentityAlways, Kind: "stored", Expression: parser.OperatorExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "+"}}},
 		Args: []parser.Expr{
@@ -54,7 +54,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: view.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	actor, actorDone := roleOperation(t, e, "generated_actor")
 	t.Cleanup(actorDone)
 	generatedAuthorizationGrant(t, e, admin, actor, ref, 1, authorization.InsertPrivilege|authorization.UpdatePrivilege)

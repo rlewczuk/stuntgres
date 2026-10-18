@@ -69,8 +69,8 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 		case *relationDescriptor:
 			group[a] = true
 		case *typeDescriptor:
-			if d.owningRelation != (ids.ObjectAddress{}) {
-				group[d.owningRelation] = true
+			if d.OwningRelation != (ids.ObjectAddress{}) {
+				group[d.OwningRelation] = true
 			}
 		}
 	}
@@ -79,11 +79,11 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 		if !ok {
 			continue
 		}
-		if r.sqlIndex != nil && group[r.sqlIndex.parent] {
+		if r.SQLIndex != nil && group[r.SQLIndex.Parent] {
 			group[a] = true
 		}
-		if r.sequence != nil {
-			parent := r.sequence.owned
+		if r.Sequence != nil {
+			parent := r.Sequence.Owned
 			parent.SubID = 0
 			if group[parent] {
 				group[a] = true
@@ -182,19 +182,19 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			var extension ids.ObjectAddress
 			switch d := auth.catalog.Get(a).(type) {
 			case *procedureDescriptor:
-				extension = d.extension
+				extension = d.Extension
 			case *tsDictionaryDescriptor:
-				extension = d.extension
+				extension = d.Extension
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := auth.catalog.MustExtension(extension)
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.name) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.name) + " instead."})
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.Name()) + " instead."})
 			}
 		}
 		end := len(roots)
 		for _, a := range roots[:end] {
 			if extension, ok := auth.catalog.Extension(a); ok {
-				for _, member := range extension.members {
+				for _, member := range extension.Members {
 					if !pending[member] {
 						roots = append(roots, member)
 						pending[member] = true
@@ -212,7 +212,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		ref := e.catalog.domain.Ref(stage.base.Epoch(), a)
+		ref := e.catalog.Domain.Ref(stage.base.Epoch(), a)
 		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
@@ -232,11 +232,11 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			case *foreignDescriptor:
 				foreign := d.(*foreignDescriptor)
 				err = foreignOwnershipEligibility(auth, foreign, target)
-				if err == nil && foreign.address.ClassID == ids.ForeignServerClassID {
-					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.wrapper))
+				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
+					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
 			case *namespaceDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
 				}
@@ -244,7 +244,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					err = ownershipDatabaseCreate(auth)
 				}
 			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
 				}
@@ -280,7 +280,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	} else {
 		for _, a := range roots {
-			if err = stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
 				break
 			}
 		}

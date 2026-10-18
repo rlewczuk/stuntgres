@@ -27,8 +27,8 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 	}
 	db := catalog.MustDatabase(currentDatabaseAddress)
 	// Avoid materializing a default ACL merely to inspect its ordinary rights.
-	rights := authorization.ACLRights(db.acl, db.owner, principals, authorization.DatabasePrivileges, false)
-	if !db.acl.Explicit {
+	rights := authorization.ACLRights(db.ACL, db.Owner, principals, authorization.DatabasePrivileges, false)
+	if !db.ACL.Explicit {
 		rights |= authorization.DatabasePublicPrivileges
 	}
 	return rights & authorization.DatabasePrivileges, nil
@@ -43,7 +43,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 		return err
 	}
 	db := catalog.MustDatabase(currentDatabaseAddress)
-	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.name)).(*sqlstate.Error)
+	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.Name())).(*sqlstate.Error)
 	diagnostic.Detail = "User does not have CONNECT privilege."
 	return diagnostic
 }
@@ -51,7 +51,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
 func (v AuthorizationView) ownTemporaryPrivileges() (authorization.Privileges, error) {
-	rights, err := v.Effective(v.engine.catalog.domain.Ref(v.catalog.Epoch(), currentDatabaseAddress), false)
+	rights, err := v.Effective(v.engine.catalog.Domain.Ref(v.catalog.Epoch(), currentDatabaseAddress), false)
 	if err != nil {
 		return 0, err
 	}

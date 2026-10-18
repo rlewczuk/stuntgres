@@ -30,7 +30,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 	baseAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"})
 	viewAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"})
 	original := before.MustRelation(viewAddress)
-	oldBase := e.catalog.domain.Ref(before.Epoch(), baseAddress)
+	oldBase := e.catalog.Domain.Ref(before.Epoch(), baseAddress)
 	providers := make(map[ids.ObjectAddress]*relationDescriptor)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
 		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: name})
@@ -55,15 +55,15 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			}
 			for address, provider := range providers {
 				if current.Get(address) != provider {
-					t.Fatal("replacement copied certified catalog provider", provider.name)
+					t.Fatal("replacement copied certified catalog provider", provider.Name())
 				}
-				for _, column := range provider.columns {
+				for _, column := range provider.Columns {
 					if typ, ok := current.LookupType(column.Usage.Type.ID()); !ok || typ != column.Usage.Type {
-						t.Fatal("catalog provider lost unused column generation", provider.name, column.Name)
+						t.Fatal("catalog provider lost unused column generation", provider.Name(), column.Name)
 					}
 				}
 			}
-			use := e.catalog.domain.Ref(current.Epoch(), viewAddress)
+			use := e.catalog.Domain.Ref(current.Epoch(), viewAddress)
 			auth := namespaceCapturedAuthorization(t, owner)
 			auth.recaptureCatalog(current)
 			e.mu.Lock()

@@ -19,7 +19,7 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE retained_routine_pair AS (p regprocedure, r regrole, t regtype)"))
-	pair := domainUnitType(t, e.CatalogRead(), "retained_routine_pair").typ
+	pair := domainUnitType(t, e.CatalogRead(), "retained_routine_pair").SQLType
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	value, err := text.Input(context.Background(), `("abs(integer)",postgres,integer)`, -1)
 	if err != nil {
@@ -54,9 +54,9 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 				case "default":
 					defaults = []expr.Expr{node}
 				case "generation":
-					generations = map[int32]columnGeneration{1: {planned: node}}
+					generations = map[int32]columnGeneration{1: {Planned: node}}
 				case "check":
-					checks = []checkConstraint{{expression: node}}
+					checks = []checkConstraint{{Expression: node}}
 				}
 				if err := b.captureRetainedWriteInput(defaults, generations, checks); err != nil {
 					t.Fatal(err)
@@ -103,7 +103,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	ns := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "routine_types"})
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"})
 	typ := e.CatalogRead().MustType(address)
-	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.typ.ID()), 23)
+	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
 	sessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
 	if d.regtypes == nil || len(d.regtypes.constants) != 3 {
@@ -125,8 +125,8 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	int4 := e.CatalogRead().Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	want := []expressionDependency{
-		{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), typ.Address()), revision: typ.Revision()},
-		{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), int4.Address()), revision: int4.Revision()},
+		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
+		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
 	}
 	if !reflect.DeepEqual(c.operands, want) || !slices.Contains(c.qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)
@@ -234,7 +234,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	// neither the operator identity nor the composite value changes.
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	changed := *typ
-	changed.revision++
+	changed.ObjectRevision++
 	if err := stage.Replace(&changed); err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if err != nil || !present || !sqltype.SameDatum(values[0], c.value) || d.analysis == priorAnalysis {
 		t.Fatal("mixed revision did not recapture unchanged actual identities", values, err)
 	}
-	want[0].revision = changed.Revision()
+	want[0].Revision = changed.Revision()
 	if !reflect.DeepEqual(d.regtypes.constants[0].operands, want) {
 		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.constants[0].operands, want)
 	}

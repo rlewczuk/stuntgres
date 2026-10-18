@@ -88,15 +88,15 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("SQL-order JSON/base and physical result usages", call)
 			}
 			captured, err := expressionRoutineDescriptor(call)
-			if err != nil || captured == nil || captured.builtin == nil {
+			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
+			declaration := captured.Builtin
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.kind != functionRoutine || declaration.result != tc.result || declaration.strict != tc.strict || declaration.volatility != expr.Stable || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.variadic != 0 || int(declaration.defaults) != tc.defaults || declaration.providers&jsonRoutineProvider == 0 {
+			if declaration.Kind != functionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&jsonRoutineProvider == 0 {
 				t.Fatal("independent released full-IN/default/strict/set metadata", declaration)
 			}
 			if evaluation.catalog.Get(address) != captured {
@@ -105,12 +105,12 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			original := append([]expressionDependency(nil), binder.dependencies...)
 			selected := 0
 			for _, dependency := range original {
-				if dependency.ref.Address == address {
+				if dependency.Ref.Address == address {
 					selected++
-					if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
-				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {
+				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("implicit JSON codec/helper/body EXECUTE edge", dependency)
 				}
 			}
@@ -158,7 +158,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			missing := make([]expressionDependency, 0, len(original))
 			for _, dependency := range original {
-				if dependency.ref.Address != address {
+				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
@@ -172,11 +172,11 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, epoch := range []bool{false, true} {
 				stale := append([]expressionDependency(nil), original...)
 				for i := range stale {
-					if stale[i].ref.Address == address {
+					if stale[i].Ref.Address == address {
 						if epoch {
-							stale[i].ref.Epoch++
+							stale[i].Ref.Epoch++
 						} else {
-							stale[i].revision++
+							stale[i].Revision++
 						}
 					}
 				}
@@ -214,7 +214,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = !captured.strict
+			replacement.Strict = !captured.Strict
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
@@ -320,7 +320,7 @@ func TestJSONRecordRoutineFailedConstructor(t *testing.T) {
 		t.Fatal("original constructor error not propagated", err)
 	}
 	for _, dependency := range b.dependencies {
-		if dependency.ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3960, 0}) {
+		if dependency.Ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3960, 0}) {
 			t.Fatal("failed constructor captured the unselected outer declaration", dependency)
 		}
 	}

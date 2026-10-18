@@ -15,13 +15,13 @@ func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query exp
 	var chosen *relationDescriptor
 	for _, descriptor := range b.queryAuth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.Address || index.sqlIndex.predicate == nil {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue
 		}
-		if !partialPredicateImpliedBy(query, index.sqlIndex.predicate.definition) {
+		if !partialPredicateImpliedBy(query, index.SQLIndex.Predicate.Definition) {
 			continue
 		}
-		if chosen == nil || index.address.ObjectID < chosen.address.ObjectID {
+		if chosen == nil || index.Address().ObjectID < chosen.Address().ObjectID {
 			chosen = index
 		}
 	}
@@ -37,7 +37,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	data := view.read()
-	if data == nil || data.catalog.state != e.catalog.state || data.catalog.owner != e.catalog.owner() || leaf.ref.Domain() != e.catalog.domain || leaf.ref.Epoch != e.catalog.state.epoch {
+	if data == nil || data.catalog.state != e.catalog.state || data.catalog.owner != e.catalog.owner() || leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.epoch {
 		return nil
 	}
 	parent := leaf.ref.Address
@@ -56,10 +56,10 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if !ok || !sameRelationRowShape(current, leaf.relation) {
 		return nil
 	}
-	if e.catalog.state.Get(candidate.address) != candidate || candidate.sqlIndex.parent != parent {
+	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {
 		return nil
 	}
-	root := e.indexRoots[candidate.address]
+	root := e.indexRoots[candidate.Address()]
 	if root == nil || root.membership == nil {
 		return nil
 	}

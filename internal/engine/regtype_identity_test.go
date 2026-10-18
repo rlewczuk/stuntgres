@@ -21,9 +21,9 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 		if err := (typeProvider{}).Validate(view, typ); err != nil {
 			t.Fatal(address, err)
 		}
-		if typ.array != 0 {
-			array, ok := view.LookupArray(typ.typ)
-			if !ok || array.Element() != typ.typ {
+		if typ.Array != 0 {
+			array, ok := view.LookupArray(typ.SQLType)
+			if !ok || array.Element() != typ.SQLType {
 				t.Fatal("nonreciprocal catalog array", address)
 			}
 		}
@@ -48,13 +48,13 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 				t.Fatal("lookup-only row identity", name)
 			}
 			row := view.MustType(types[0])
-			if row.typ.Concrete() || row.owningRelation != (ids.ObjectAddress{}) {
+			if row.SQLType.Concrete() || row.OwningRelation != (ids.ObjectAddress{}) {
 				t.Fatal("lookup-only identity implies relation execution", name)
 			}
 			continue
 		}
-		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
-		if row.owningRelation != address || row.Name() != relation.Name() || row.typ.Concrete() {
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
+		if row.OwningRelation != address || row.Name() != relation.Name() || row.SQLType.Concrete() {
 			t.Fatal("projection row authority", name)
 		}
 	}

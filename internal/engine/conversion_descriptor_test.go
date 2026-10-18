@@ -11,7 +11,7 @@ import (
 )
 
 func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *conversionDescriptor {
-	return &conversionDescriptor{oid: oid, name: name, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, owner: e.authorizationDomain.Principal(10), source: 6, destination: 8, handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, defaultConversion: def}
+	return &conversionDescriptor{OID: oid, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
 }
 
 func conversionUnitName(parts ...string) parser.ObjectName {
@@ -49,9 +49,9 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, corrupt := range []func(*conversionDescriptor){
-		func(d *conversionDescriptor) { d.source = 0 }, func(d *conversionDescriptor) { d.destination = 9 },
-		func(d *conversionDescriptor) { d.handler.ObjectID = 4374 }, func(d *conversionDescriptor) { d.handler.SubID = 1 },
-		func(d *conversionDescriptor) { d.namespace.ObjectID = 999999 }, func(d *conversionDescriptor) { d.revision = 0 },
+		func(d *conversionDescriptor) { d.Source = 0 }, func(d *conversionDescriptor) { d.Destination = 9 },
+		func(d *conversionDescriptor) { d.Handler.ObjectID = 4374 }, func(d *conversionDescriptor) { d.Handler.SubID = 1 },
+		func(d *conversionDescriptor) { d.ObjectNamespace.ObjectID = 999999 }, func(d *conversionDescriptor) { d.ObjectRevision = 0 },
 	} {
 		bad := *d
 		corrupt(&bad)
@@ -60,8 +60,8 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		}
 	}
 	bad := *d
-	bad.owner = New().authorizationDomain.Principal(10)
-	bad.revision++
+	bad.Owner = New().authorizationDomain.Principal(10)
+	bad.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&bad); err != nil {
@@ -71,21 +71,21 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal("foreign principal admitted")
 	}
 	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
-	seed.defaultConversion = false
+	seed.DefaultConversion = false
 	if err := (conversionProvider{}).Validate(view, &seed); err == nil {
 		t.Fatal("pinned capability/default invariant changed")
 	}
 	seed = *view.MustConversion(seed.Address())
-	seed.name, seed.namespace, seed.revision = "legal_seed", d.Namespace(), 2
+	seed.ObjectName, seed.ObjectNamespace, seed.ObjectRevision = "legal_seed", d.Namespace(), 2
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&seed); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.handler != d.handler {
+	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
-	if original := view.MustConversion(seed.Address()); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+	if original := view.MustConversion(seed.Address()); original.Name() != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("seed mutation changed old snapshot")
 	}
 }
@@ -212,7 +212,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	}
 	for _, address := range []ids.ObjectAddress{{ClassID: ids.ConversionClassID, ObjectID: 4519}, {ClassID: ids.ProcedureClassID, ObjectID: 4375}} {
 		stage = e.BeginCatalogStage(before)
-		if err = stage.Remove(e.catalog.domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
+		if err = stage.Remove(e.catalog.Domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
 			t.Fatal("real provider pin removed", address, err)
 		}
 		e.DiscardCatalogStage(stage)

@@ -201,7 +201,7 @@ func queryRoutineCarriersChanged(view CatalogRead, node LogicalNode) bool {
 	queryExpressions(node, func(expression expr.Expr) {
 		walkBoundExpression(expression, func(expression expr.Expr) {
 			captured, err := expressionRoutineDescriptor(expression)
-			if err != nil || captured != nil && view.Get(captured.address) != captured {
+			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
 			}
 			if subquery, ok := expression.(subqueryExpression); ok && queryRoutineCarriersChanged(view, subquery.queryPlan.Root) {

@@ -27,12 +27,12 @@ func capturePGAM(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, so
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if source == nil || len(source.columns) != 4 {
+	if source == nil || len(source.Columns) != 4 {
 		return nil, fmt.Errorf("stuntgres: invalid access-method source shape")
 	}
 	for i, id := range [...]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Regproc, sqltype.Char} {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign access-method source type")
 		}
 	}
@@ -44,16 +44,16 @@ func capturePGAM(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, so
 		}
 		row := values[i*4 : (i+1)*4 : (i+1)*4]
 		var err error
-		row[0], err = sqltype.OIDValue(source.columns[0].Usage.Type, fact.oid)
+		row[0], err = sqltype.OIDValue(source.Columns[0].Usage.Type, fact.oid)
 		if err != nil {
 			return nil, err
 		}
-		row[1] = sqltype.String(source.columns[1].Usage.Type, fact.name)
-		row[2], err = sqltype.RegprocValue(source.columns[2].Usage.Type, fact.handler)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, fact.name)
+		row[2], err = sqltype.RegprocValue(source.Columns[2].Usage.Type, fact.handler)
 		if err != nil {
 			return nil, err
 		}
-		row[3] = sqltype.String(source.columns[3].Usage.Type, fact.kind)
+		row[3] = sqltype.String(source.Columns[3].Usage.Type, fact.kind)
 		rows[i] = row
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

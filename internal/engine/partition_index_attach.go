@@ -14,18 +14,18 @@ func partitionIndexCoverageComplete(view CatalogRead, index *relationDescriptor)
 }
 
 func (provider *dropProvider) partitionIndexCoverageComplete(index *relationDescriptor) bool {
-	table, ok := provider.liveDescriptor(index.sqlIndex.parent).(*relationDescriptor)
-	if !ok || table.partition == nil {
-		return index.sqlIndex.valid
+	table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*relationDescriptor)
+	if !ok || table.Partition == nil {
+		return index.SQLIndex.Valid
 	}
-	for _, child := range table.partition.children {
+	for _, child := range table.Partition.Children {
 		found := false
 		for address := range provider.descriptors() {
 			if provider.removed(address) {
 				continue
 			}
 			candidate, ok := provider.liveDescriptor(address).(*relationDescriptor)
-			if ok && candidate.sqlIndex != nil && candidate.sqlIndex.partitionParent == index.address && candidate.sqlIndex.parent == child && candidate.sqlIndex.valid {
+			if ok && candidate.SQLIndex != nil && candidate.SQLIndex.PartitionParent == index.Address() && candidate.SQLIndex.Parent == child && candidate.SQLIndex.Valid {
 				found = true
 				break
 			}
@@ -53,27 +53,27 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 			}
 			descriptor := provider.liveDescriptor(address)
 			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.sqlIndex == nil {
+			if !ok || index.SQLIndex == nil {
 				continue
 			}
-			table, ok := provider.liveDescriptor(index.sqlIndex.parent).(*relationDescriptor)
-			if !ok || table.partition == nil {
+			table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*relationDescriptor)
+			if !ok || table.Partition == nil {
 				continue
 			}
 			valid := provider.partitionIndexCoverageComplete(index)
-			if valid && !index.sqlIndex.valid && !provider.partitionIndexPromotionPath(promote, index.address) {
+			if valid && !index.SQLIndex.Valid && !provider.partitionIndexPromotionPath(promote, index.Address()) {
 				continue
 			}
-			if index.sqlIndex.valid == valid {
+			if index.SQLIndex.Valid == valid {
 				continue
 			}
-			if index.revision == ids.DefinitionRevision(^uint64(0)) {
+			if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
 				return fmt.Errorf("stuntgres: definition revision exhausted")
 			}
-			next, definition := *index, *index.sqlIndex
-			definition.valid = valid
-			next.sqlIndex = &definition
-			next.revision++
+			next, definition := *index, *index.SQLIndex
+			definition.Valid = valid
+			next.SQLIndex = &definition
+			next.ObjectRevision++
 			if err := provider.replacePartitionDescriptor(&next); err != nil {
 				return err
 			}
@@ -96,57 +96,57 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 			return true
 		}
 		index, ok := provider.liveDescriptor(start).(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			return false
 		}
-		start = index.sqlIndex.partitionParent
+		start = index.SQLIndex.PartitionParent
 	}
 	return false
 }
 
 func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *relationDescriptor) error {
 	diagnostic := func(code, detail string) error {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.name, parent.name), Detail: detail}
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
-	table := view.MustRelation(parent.sqlIndex.parent)
-	childTable := view.MustRelation(child.sqlIndex.parent)
-	if table.partition == nil || childTable.membership == nil || childTable.membership.parent != table.address {
-		return diagnostic("55000", fmt.Sprintf(`Index "%s" is not an index on any partition of table "%s".`, child.name, table.name))
+	table := view.MustRelation(parent.SQLIndex.Parent)
+	childTable := view.MustRelation(child.SQLIndex.Parent)
+	if table.Partition == nil || childTable.Membership == nil || childTable.Membership.Parent != table.Address() {
+		return diagnostic("55000", fmt.Sprintf(`Index "%s" is not an index on any partition of table "%s".`, child.Name(), table.Name()))
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.address != child.address && index.sqlIndex.partitionParent == parent.address && index.sqlIndex.parent == childTable.address {
-			return diagnostic("55000", fmt.Sprintf(`Another index is already attached for partition "%s".`, childTable.name))
+		if ok && index.SQLIndex != nil && index.Address() != child.Address() && index.SQLIndex.PartitionParent == parent.Address() && index.SQLIndex.Parent == childTable.Address() {
+			return diagnostic("55000", fmt.Sprintf(`Another index is already attached for partition "%s".`, childTable.Name()))
 		}
 	}
-	if child.sqlIndex.partitionParent == parent.address {
+	if child.SQLIndex.PartitionParent == parent.Address() {
 		return nil
 	}
-	if child.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
-		return diagnostic("55000", fmt.Sprintf(`Index "%s" is already attached to another index.`, child.name))
+	if child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+		return diagnostic("55000", fmt.Sprintf(`Index "%s" is already attached to another index.`, child.Name()))
 	}
-	if parent.sqlIndex.isExclusion() || child.sqlIndex.isExclusion() {
+	if parent.SQLIndex.isExclusion() || child.SQLIndex.isExclusion() {
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
-	mapped, err := mapPartitionIndex(op.Context(), view, table, childTable, parent.sqlIndex)
+	mapped, err := mapPartitionIndex(op.Context(), view, table, childTable, parent.SQLIndex)
 	if err != nil {
 		return err
 	}
-	match, err := partitionIndexEquivalent(op.Context(), view, childTable, mapped, child.sqlIndex)
+	match, err := partitionIndexEquivalent(op.Context(), view, childTable, mapped, child.SQLIndex)
 	if err != nil {
 		return err
 	}
 	if !match {
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
-	if parent.sqlIndex.constraint != nil {
-		if child.sqlIndex.constraint == nil || child.sqlIndex.constraint.kind != uniqueBackingKind {
-			return diagnostic("42P17", fmt.Sprintf(`The index "%s" belongs to a constraint in table "%s" but no constraint exists for index "%s".`, parent.name, table.name, child.name))
+	if parent.SQLIndex.Constraint != nil {
+		if child.SQLIndex.Constraint == nil || child.SQLIndex.Constraint.Kind != uniqueBackingKind {
+			return diagnostic("42P17", fmt.Sprintf(`The index "%s" belongs to a constraint in table "%s" but no constraint exists for index "%s".`, parent.Name(), table.Name(), child.Name()))
 		}
-		if parent.sqlIndex.constraint.Primary {
-			for _, key := range child.sqlIndex.keys {
-				if childTable.columns[childTable.indexForAttribute(key.attribute)].Nullable {
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: "invalid primary key definition", Detail: fmt.Sprintf(`Column "%s" of relation "%s" is not marked NOT NULL.`, childTable.columns[childTable.indexForAttribute(key.attribute)].Name, childTable.name)}
+		if parent.SQLIndex.Constraint.Primary {
+			for _, key := range child.SQLIndex.Keys {
+				if childTable.Columns[childTable.indexForAttribute(key.Attribute)].Nullable {
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: "invalid primary key definition", Detail: fmt.Sprintf(`Column "%s" of relation "%s" is not marked NOT NULL.`, childTable.Columns[childTable.indexForAttribute(key.Attribute)].Name, childTable.Name())}
 				}
 			}
 		}
@@ -159,23 +159,23 @@ func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, p
 	if err := partitionIndexAttachCheck(op, view, parent, child); err != nil {
 		return err
 	}
-	if child.sqlIndex.partitionParent != parent.address {
-		next, definition := *child, *child.sqlIndex
-		definition.partitionParent = parent.address
-		next.sqlIndex = &definition
-		next.revision++
+	if child.SQLIndex.PartitionParent != parent.Address() {
+		next, definition := *child, *child.SQLIndex
+		definition.PartitionParent = parent.Address()
+		next.SQLIndex = &definition
+		next.ObjectRevision++
 		if err := stage.Replace(&next); err != nil {
 			return err
 		}
-		if parent.sqlIndex.constraint != nil {
-			table := view.MustRelation(child.sqlIndex.parent)
+		if parent.SQLIndex.Constraint != nil {
+			table := view.MustRelation(child.SQLIndex.Parent)
 			changed := *table
-			changed.uniqueConstraints = slices.Clone(table.uniqueConstraints)
-			changed.revision++
-			for i := range changed.uniqueConstraints {
-				c := &changed.uniqueConstraints[i]
-				if c.Index == child.address {
-					c.Parent = parent.sqlIndex.constraint.OID
+			changed.UniqueConstraints = slices.Clone(table.UniqueConstraints)
+			changed.ObjectRevision++
+			for i := range changed.UniqueConstraints {
+				c := &changed.UniqueConstraints[i]
+				if c.Index == child.Address() {
+					c.Parent = parent.SQLIndex.Constraint.OID
 					c.IsLocal = false
 				}
 			}
@@ -184,42 +184,42 @@ func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, p
 			}
 		}
 	}
-	return e.stagePartitionIndexValidity(stage, parent.address)
+	return e.stagePartitionIndexValidity(stage, parent.Address())
 }
 
 func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) error {
-	d := index.sqlIndex
-	if table.partition != nil && d.valid && !partitionIndexCoverageComplete(view, index) {
+	d := index.SQLIndex
+	if table.Partition != nil && d.Valid && !partitionIndexCoverageComplete(view, index) {
 		return fmt.Errorf("stuntgres: inconsistent virtual index validity")
 	}
 	if err := partitionUniqueCoverage(table, d); err != nil {
 		return err
 	}
-	if d.partitionParent == (ids.ObjectAddress{}) {
-		for _, c := range table.uniqueConstraints {
-			if c.Index == index.address && c.Parent != 0 {
+	if d.PartitionParent == (ids.ObjectAddress{}) {
+		for _, c := range table.UniqueConstraints {
+			if c.Index == index.Address() && c.Parent != 0 {
 				return fmt.Errorf("stuntgres: orphan partition constraint ancestry")
 			}
 		}
-		for _, c := range table.exclusionConstraints {
-			if c.Index == index.address && c.Parent != 0 {
+		for _, c := range table.ExclusionConstraints {
+			if c.Index == index.Address() && c.Parent != 0 {
 				return fmt.Errorf("stuntgres: orphan partition exclusion ancestry")
 			}
 		}
 		return nil
 	}
-	parent, ok := view.Relation(d.partitionParent)
-	if !ok || parent.sqlIndex == nil || table.membership == nil || parent.sqlIndex.parent != table.membership.parent {
+	parent, ok := view.Relation(d.PartitionParent)
+	if !ok || parent.SQLIndex == nil || table.Membership == nil || parent.SQLIndex.Parent != table.Membership.Parent {
 		return fmt.Errorf("stuntgres: invalid partition index ancestry")
 	}
 	for _, descriptor := range view.Descriptors() {
 		other, ok := descriptor.(*relationDescriptor)
-		if ok && other.address != index.address && other.sqlIndex != nil && other.sqlIndex.partitionParent == d.partitionParent && other.sqlIndex.parent == table.address {
+		if ok && other.Address() != index.Address() && other.SQLIndex != nil && other.SQLIndex.PartitionParent == d.PartitionParent && other.SQLIndex.Parent == table.Address() {
 			return fmt.Errorf("stuntgres: duplicate partition index ancestry")
 		}
 	}
-	parentTable := view.MustRelation(parent.sqlIndex.parent)
-	mapped, err := mapPartitionIndex(context.Background(), view, parentTable, table, parent.sqlIndex)
+	parentTable := view.MustRelation(parent.SQLIndex.Parent)
+	mapped, err := mapPartitionIndex(context.Background(), view, parentTable, table, parent.SQLIndex)
 	if err != nil {
 		return err
 	}
@@ -231,32 +231,32 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 		return fmt.Errorf("stuntgres: inconsistent partition index definition")
 	}
 	remaining := view.DescriptorCount()
-	for address := d.partitionParent; address != (ids.ObjectAddress{}); remaining-- {
-		if remaining == 0 || address == index.address {
+	for address := d.PartitionParent; address != (ids.ObjectAddress{}); remaining-- {
+		if remaining == 0 || address == index.Address() {
 			return fmt.Errorf("stuntgres: cyclic partition index ancestry")
 		}
 		ancestor, ok := view.Relation(address)
-		if !ok || ancestor.sqlIndex == nil {
+		if !ok || ancestor.SQLIndex == nil {
 			return fmt.Errorf("stuntgres: orphan partition index")
 		}
-		address = ancestor.sqlIndex.partitionParent
+		address = ancestor.SQLIndex.PartitionParent
 	}
-	if parent.sqlIndex.constraint != nil && d.constraint == nil {
+	if parent.SQLIndex.Constraint != nil && d.Constraint == nil {
 		return fmt.Errorf("stuntgres: missing partition constraint backing")
 	}
-	if d.constraint != nil {
+	if d.Constraint != nil {
 		expected := ids.OID(0)
-		if parent.sqlIndex.constraint != nil {
-			expected = parent.sqlIndex.constraint.OID
+		if parent.SQLIndex.Constraint != nil {
+			expected = parent.SQLIndex.Constraint.OID
 		}
 		found := false
-		for _, c := range table.uniqueConstraints {
-			if c.Index == index.address && c.Parent == expected && c.IsLocal == (expected == 0) {
+		for _, c := range table.UniqueConstraints {
+			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
 				found = true
 			}
 		}
-		for _, c := range table.exclusionConstraints {
-			if c.Index == index.address && c.Parent == expected && c.IsLocal == (expected == 0) {
+		for _, c := range table.ExclusionConstraints {
+			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
 				source := exclusionDefinition(parentTable, parent)
 				found = source != nil && c.Deferrable == source.Deferrable && c.InitiallyDeferred == source.InitiallyDeferred
 			}
@@ -292,11 +292,11 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 			return false
 		}
 		index, ok := auth.catalog.Relation(ref.Address)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			return false
 		}
-		table, ok := auth.catalog.Relation(index.sqlIndex.parent)
-		if !ok || table.partition == nil && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
+		table, ok := auth.catalog.Relation(index.SQLIndex.Parent)
+		if !ok || table.Partition == nil && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			return false
 		}
 	}

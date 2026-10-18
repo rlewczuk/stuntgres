@@ -90,10 +90,10 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			original := expression.presentation
 			next := cloneCatalog(e.CatalogRead().state)
 			owner := *d
-			owner.name = "renamed"
-			owner.columns = append([]ColumnDescriptor(nil), d.columns...)
-			owner.columns[0].Name = "key"
-			next.setDescriptor(d.address, &owner)
+			owner.ObjectName = "renamed"
+			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			owner.Columns[0].Name = "key"
+			next.setDescriptor(d.Address(), &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
@@ -101,7 +101,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if strings.Contains(sql, `"t"."id"`) && !strings.Contains(text, `"renamed"."key"`) {
 				t.Fatal("lost stable owner identity", text)
 			}
-			if expression.presentation != original || d.name != "t" || d.columns[0].Name != "id" {
+			if expression.presentation != original || d.Name() != "t" || d.Columns[0].Name != "id" {
 				t.Fatal("mutated published definition")
 			}
 		})
@@ -134,14 +134,14 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	next := *d
-	next.revision++
+	next.ObjectRevision++
 	e.mu.Lock()
 	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.policies = []policyDefinition{{OID: oid, Name: "p", permissive: true, command: "all", roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
+	next.Policies = []policyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -157,7 +157,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}
-	if e.CatalogRead().state != base.state || len(d.policies) != 0 {
+	if e.CatalogRead().state != base.state || len(d.Policies) != 0 {
 		t.Fatal("canceled publication changed immutable roots")
 	}
 }
@@ -172,14 +172,14 @@ func TestRLSPolicyRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *d
-	next.revision++
+	next.ObjectRevision++
 	e.mu.Lock()
 	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{ref: d.owner}, {ref: d.owner}}, using: policyPayloadOf(expression)}}
+	next.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -200,29 +200,29 @@ func TestRLSPolicyRemap(t *testing.T) {
 	view := imported.CatalogRead()
 	var copied *relationDescriptor
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.name == "t" {
+		if table, ok := descriptor.(*relationDescriptor); ok && table.Name() == "t" {
 			copied = table
 			break
 		}
 	}
-	if copied == nil || len(copied.policies) != 1 || len(copied.policies[0].roles) != 2 {
+	if copied == nil || len(copied.Policies) != 1 || len(copied.Policies[0].Roles) != 2 {
 		t.Fatal("lost attached policy")
 	}
-	p := copied.policies[0]
-	if imported.Roles().ValidatePrincipal(p.roles[0].ref) != nil || p.roles[1].ref != p.roles[0].ref {
+	p := copied.Policies[0]
+	if imported.Roles().ValidatePrincipal(p.Roles[0].Ref) != nil || p.Roles[1].Ref != p.Roles[0].Ref {
 		t.Fatal("lost principal provenance/multiplicity")
 	}
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if policyExpressionOf(p.using) == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.domain {
+	if policyExpressionOf(p.Using) == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.Domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)
 	if err != nil {
 		t.Fatal(err)
 	}
-	importedSQL, err := policyExpressionSQL(context.Background(), view, policyExpressionOf(p.using))
+	importedSQL, err := policyExpressionSQL(context.Background(), view, policyExpressionOf(p.Using))
 	if err != nil || importedSQL != originalSQL {
 		t.Fatal("remapped presentation lost frozen context", originalSQL, importedSQL, err)
 	}
@@ -255,8 +255,8 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := cloneCatalog(base.state)
 			attached := *owner
-			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
-			state.setDescriptor(owner.address, &attached)
+			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+			state.setDescriptor(owner.Address(), &attached)
 			base.state = state
 			var target ids.ObjectAddress
 			for address, descriptor := range state.Descriptors() {
@@ -290,8 +290,8 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			survivor, ok := stage.descriptors[owner.address].(*relationDescriptor)
-			if !ok || len(survivor.policies) != 0 || len(attached.policies) != 1 {
+			survivor, ok := stage.descriptors[owner.Address()].(*relationDescriptor)
+			if !ok || len(survivor.Policies) != 0 || len(attached.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}
 			if strings.Join(stage.viewCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {

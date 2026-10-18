@@ -24,18 +24,18 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if len(changes.descriptors) != 0 {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
-		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.temporaryToast && auth.session != nil && ns.temporary == auth.session.token {
-			auth.stagedTemporary = ns.address
+		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
+			auth.stagedTemporary = ns.Address()
 		}
 	}
 	ns := auth.catalog.MustNamespace(ref.Address)
-	if ns.temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
+	if ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
 		if !actor.Superuser {
-			return ids.ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.name)
+			return ids.ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.Name())
 		}
 	}
 	return ref, nil
@@ -55,7 +55,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		base := e.catalog.read(e.catalog.state)
 		var namespaces []*namespaceDescriptor
 		for _, d := range base.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == source.token {
 				namespaces = append(namespaces, ns)
 			}
 		}
@@ -68,7 +68,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		}
 		owned := make(map[ids.ObjectAddress]bool, len(namespaces))
 		for _, ns := range namespaces {
-			owned[ns.address] = true
+			owned[ns.Address()] = true
 		}
 		children, captureErr := namespaceChildren(base, owned)
 		e.mu.Unlock()
@@ -128,12 +128,12 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	stage.terminalCleanup = true
 	defer e.DiscardCatalogStage(stage)
 	for _, ns := range namespaces {
-		if ns.temporary != token {
+		if ns.Temporary != token {
 			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
 		stage.domainBases = append(stage.domainBases, ns)
 		for key := range base.state.defaultACLs {
-			if key.schema == ns.address {
+			if key.Schema == ns.Address() {
 				if stage.defaultACLs == nil {
 					stage.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 				}
@@ -145,7 +145,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	// table being removed must not also receive a replacement row shape.
 	e.mu.Lock()
 	for _, a := range children {
-		if err = stage.removeObjectLocked(e.catalog.domain.Ref(base.Epoch(), a), false); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(base.Epoch(), a), false); err != nil {
 			break
 		}
 	}
@@ -175,7 +175,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		if i != 0 && a == relations[i-1] {
 			continue
 		}
-		if err = scope.acquireSequence(e.catalog.domain.Ref(base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+		if err = scope.acquireSequence(e.catalog.Domain.Ref(base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 			return false, err
 		}
 	}

@@ -34,13 +34,13 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*relationD
 func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *relationDescriptor {
 	t.Helper()
 	d := inheritanceUnitRelation(e, name, id, "k")
-	d.relationKind = partitionedRelation
-	class, _ := sqltype.DefaultIndexClass(d.columns[0].Usage.Type)
-	comparison, err := sqltype.BindIndexOrdering(d.columns[0].Usage, class)
+	d.RelationKind = partitionedRelation
+	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
+	comparison, err := sqltype.BindIndexOrdering(d.Columns[0].Usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: d.columns[0].Usage, class: class, comparison: comparison, label: "k"}}}
+	d.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: d.Columns[0].Usage, Class: class, Comparison: comparison, Label: "k"}}}
 	return d
 }
 
@@ -49,13 +49,13 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, catalog CatalogRead, pare
 	stage := e.BeginCatalogStage(catalog)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	p, c := *parent, *child
-	definition := *p.partition
-	definition.children = append(append([]ids.ObjectAddress(nil), definition.children...), child.address)
-	definition.defaultChild = child.address
-	p.partition = &definition
-	p.revision++
-	c.membership = &partitionMembership{parent: p.address, defaultBound: true}
-	c.revision++
+	definition := *p.Partition
+	definition.Children = append(append([]ids.ObjectAddress(nil), definition.Children...), child.Address())
+	definition.DefaultChild = child.Address()
+	p.Partition = &definition
+	p.ObjectRevision++
+	c.Membership = &partitionMembership{Parent: p.Address(), DefaultBound: true}
+	c.ObjectRevision++
 	if err := stage.Replace(&p); err != nil {
 		t.Fatal(err)
 	}
@@ -101,13 +101,13 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_fence_parent", 46000)
 			child := inheritanceUnitRelation(e, "attach_fence_child", 46001, "k")
-			child.relationKind = tableRelation
+			child.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
-			parent = e.catalog.state.MustRelation(parent.address)
-			child = e.catalog.state.MustRelation(child.address)
+			parent = e.catalog.state.MustRelation(parent.Address())
+			child = e.catalog.state.MustRelation(child.Address())
 			stage := partitionAttachUnitStage(t, e, e.CatalogRead(), parent, child)
-			store := e.storage[child.address]
-			stage.partitionReads = []partitionReadFence{{address: child.address, storage: store, length: len(store.versions), ends: store.ends, generation: store.generation}}
+			store := e.storage[child.Address()]
+			stage.partitionReads = []partitionReadFence{{address: child.Address(), storage: store, length: len(store.versions), ends: store.ends, generation: store.generation}}
 			// A real captured type provider is an exact publication predecessor.
 			providerAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 			stage.domainBases = append(stage.domainBases, e.catalog.state.Get(providerAddress))
@@ -120,7 +120,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			switch change {
 			case "store":
 				copy := *store
-				e.storage[child.address] = &copy
+				e.storage[child.Address()] = &copy
 			case "length":
 				store.versions = append(store.versions, rowVersion{row: 1, version: 1})
 			case "ends":
@@ -129,7 +129,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 				store.generation++
 			case "provider":
 				typ := *e.catalog.state.MustType(providerAddress)
-				typ.revision++
+				typ.ObjectRevision++
 				next := cloneCatalog(e.catalog.state)
 				next.setDescriptor(providerAddress, &typ)
 				e.catalog.state = next
@@ -148,7 +148,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			if e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || len(changes.Definitions) != 0 {
 				t.Fatal("failed final veto installed partial catalog/storage/index roots")
 			}
-			if e.catalog.state.Get(parent.address) != parent || e.catalog.state.Get(child.address) != child || child.membership != nil || len(parent.partition.children) != 0 {
+			if e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(child.Address()) != child || child.Membership != nil || len(parent.Partition.Children) != 0 {
 				t.Fatal("failed attachment changed original edges")
 			}
 		})

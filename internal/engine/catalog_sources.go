@@ -252,113 +252,113 @@ func (e *Engine) initializeCatalogSources() error {
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
-		d.hasIndexes = representedCatalogHasIndexes(spec.oid)
+		d.HasIndexes = representedCatalogHasIndexes(spec.oid)
 		if spec.oid == 1213 || spec.oid == ids.ParameterClassID {
-			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-			d.acl.Entries[0].Grantor = d.owner
+			d.Owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+			d.ACL.Entries[0].Grantor = d.Owner
 		}
-		d.virtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
+		d.VirtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
 			typ, ok := (e.catalog.read(e.catalog.state)).LookupType(column.typ)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
-			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			d.Columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
 			if spec.oid == pgTypeOID {
-				d.columns[i].Nullable = i >= 29
+				d.Columns[i].Nullable = i >= 29
 				if i == 29 || i == 30 {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 				if i == 31 {
-					d.columns[i].DeclaredDimensions = 1
+					d.Columns[i].DeclaredDimensions = 1
 				}
 			}
 			if spec.oid == pgAttributeOID {
-				d.columns[i].Nullable = i >= 20
+				d.Columns[i].Nullable = i >= 20
 				if column.typ == sqltype.ID(1009) {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 3456 {
-				d.columns[i].Nullable = i >= 7
+				d.Columns[i].Nullable = i >= 7
 				if column.typ == sqltype.Text {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 2615 {
-				d.columns[i].Nullable = i == 3
+				d.Columns[i].Nullable = i == 3
 			}
 			if spec.oid == 1262 {
-				d.columns[i].Nullable = i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14
+				d.Columns[i].Nullable = i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14
 				if column.typ == sqltype.Text {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 2964 {
-				d.columns[i].Nullable = i == 2
+				d.Columns[i].Nullable = i == 2
 				if column.typ == sqltype.ID(1009) {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == ids.ParameterClassID {
-				d.columns[i].Nullable = i == 2
+				d.Columns[i].Nullable = i == 2
 				if column.typ == sqltype.Text {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 1259 {
-				d.columns[i].Nullable = i >= 31
+				d.Columns[i].Nullable = i >= 31
 				if column.typ == sqltype.ID(1009) {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 2606 {
-				d.columns[i].Nullable = i >= 20
+				d.Columns[i].Nullable = i >= 20
 			}
 			if spec.oid == pgAMOID || spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 {
-				d.columns[i].Nullable = false
+				d.Columns[i].Nullable = false
 			}
 			if spec.oid == ids.ProcedureClassID || spec.oid == ids.TSTemplateClassID {
-				d.columns[i].Nullable = false
+				d.Columns[i].Nullable = false
 			}
 			if spec.oid == ids.TSDictionaryClassID {
-				d.columns[i].Nullable = i == 5
+				d.Columns[i].Nullable = i == 5
 			}
 			if spec.oid == 2609 || spec.oid == 2396 {
-				d.columns[i].Nullable = false
+				d.Columns[i].Nullable = false
 				if column.typ == sqltype.Text {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == pgLanguageOID {
-				d.columns[i].Nullable = i == 8
+				d.Columns[i].Nullable = i == 8
 			}
 			if spec.oid == pgAggregateOID {
-				d.columns[i].Nullable = i >= 20
+				d.Columns[i].Nullable = i >= 20
 				if column.typ == sqltype.Text {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 3079 {
-				d.columns[i].Nullable = i >= 6
+				d.Columns[i].Nullable = i >= 6
 				if column.typ == sqltype.Text || column.typ == sqltype.ID(1009) {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
 			if spec.oid == 12081 && column.name == "installed_version" {
-				d.columns[i].Usage.Collation.ID = 950
+				d.Columns[i].Usage.Collation.ID = 950
 			}
 			if spec.oid == 12014 && column.name == "useconfig" || spec.oid == 12007 && column.name == "rolconfig" {
-				d.columns[i].Usage.Collation.ID = 950
+				d.Columns[i].Usage.Collation.ID = 950
 			}
-			d.attributes[i] = int32(i + 1)
+			d.Attributes[i] = int32(i + 1)
 			if spec.oid == 1213 {
-				d.columns[i].Nullable = i >= 3
+				d.Columns[i].Nullable = i >= 3
 				if column.typ == sqltype.ID(1009) {
-					d.columns[i].Usage.Collation.ID = 950
+					d.Columns[i].Usage.Collation.ID = 950
 				}
 			}
-			d.index[column.name] = i
+			d.Index[column.name] = i
 		}
 		e.registerCatalogSource(d)
 	}
@@ -373,35 +373,35 @@ func (e *Engine) initializeCatalogSources() error {
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *relationDescriptor {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]ColumnDescriptor, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	initializeCatalogAttributes(d)
-	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}); ok {
+	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
 		row := e.catalog.state.MustType(address)
-		row.owningRelation, row.owner = d.address, d.owner
-		d.rowType = row.typ.ID()
-		if row.array != 0 {
-			array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
-			array.owningRelation, array.owner = d.address, d.owner
+		row.OwningRelation, row.Owner = d.Address(), d.Owner
+		d.RowType = row.SQLType.ID()
+		if row.Array != 0 {
+			array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+			array.OwningRelation, array.Owner = d.Address(), d.Owner
 		}
 	}
-	e.catalog.state.setDescriptor(d.address, d)
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
+	e.catalog.state.setDescriptor(d.Address(), d)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
-	if source.address.ObjectID == pgTypeOID {
+	if source.Address().ObjectID == pgTypeOID {
 		return e.capturePGType(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == pgAttributeOID {
+	if source.Address().ObjectID == pgAttributeOID {
 		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == ids.ParameterClassID {
+	if source.Address().ObjectID == ids.ParameterClassID {
 		return e.capturePGParameterACL(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == 2964 {
+	if source.Address().ObjectID == 2964 {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -409,64 +409,64 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		// Session defaults and overrides are not stored catalog rows.
 		return &querySource{ref: ref, anonymous: [][]sqltype.Value{}}, nil
 	}
-	if source.address.ObjectID == 2615 {
+	if source.Address().ObjectID == 2615 {
 		return e.capturePGNamespace(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == 1262 {
+	if source.Address().ObjectID == 1262 {
 		return e.capturePGDatabase(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == 1213 {
+	if source.Address().ObjectID == 1213 {
 		return e.capturePGTablespace(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == 3079 || source.address.ObjectID == 1255 || source.address.ObjectID == 3764 || source.address.ObjectID == 3600 {
+	if source.Address().ObjectID == 3079 || source.Address().ObjectID == 1255 || source.Address().ObjectID == 3764 || source.Address().ObjectID == 3600 {
 		return captureExtensionCatalog(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 3456 {
+	if source.Address().ObjectID == 3456 {
 		return capturePGCollation(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 2607 {
+	if source.Address().ObjectID == 2607 {
 		return capturePGConversion(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 2605 {
+	if source.Address().ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == pgLanguageOID {
+	if source.Address().ObjectID == pgLanguageOID {
 		return capturePGLanguage(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == pgAggregateOID {
+	if source.Address().ObjectID == pgAggregateOID {
 		return capturePGAggregate(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 2616 {
+	if source.Address().ObjectID == 2616 {
 		return capturePGOpclass(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == pgAMOID {
+	if source.Address().ObjectID == pgAMOID {
 		return capturePGAM(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == pgRangeOID {
+	if source.Address().ObjectID == pgRangeOID {
 		return capturePGRange(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 2617 {
+	if source.Address().ObjectID == 2617 {
 		return capturePGOperator(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 3501 {
+	if source.Address().ObjectID == 3501 {
 		return capturePGEnum(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 2606 {
+	if source.Address().ObjectID == 2606 {
 		return capturePGConstraint(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 2224 {
+	if source.Address().ObjectID == 2224 {
 		return capturePGSequence(ctx, catalog.state, nil, ref, source)
 	}
-	if source.address.ObjectID == 2609 {
+	if source.Address().ObjectID == 2609 {
 		return capturePGDescription(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 12001 {
+	if source.Address().ObjectID == 12001 {
 		return e.capturePreparedSourceLocked(ctx, ref, source)
 	}
-	if source.address.ObjectID == 2608 {
+	if source.Address().ObjectID == 2608 {
 		return capturePGDepend(ctx, catalog, ref, source)
 	}
-	if source.address.ObjectID == 12000 || source.address.ObjectID == 12003 {
+	if source.Address().ObjectID == 12000 || source.Address().ObjectID == 12003 {
 		return e.captureTableViewSummary(ctx, catalog, roles, ref, source, viewPresentation{})
 	}
 	var relations []*relationDescriptor
@@ -475,48 +475,48 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			relations = append(relations, relation)
 		}
 	}
-	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
+	sort.Slice(relations, func(i, j int) bool { return relations[i].Address().ObjectID < relations[j].Address().ObjectID })
 	rows := make([][]sqltype.Value, 0, len(relations))
 	var captureErr error
 	integer := func(i int, n int64) sqltype.Value {
-		value, err := sqltype.Integer(source.columns[i].Usage.Type, n)
+		value, err := sqltype.Integer(source.Columns[i].Usage.Type, n)
 		if err != nil && captureErr == nil {
 			captureErr = err
 		}
 		return value
 	}
 	oid := func(i int, n uint32) sqltype.Value {
-		value, err := sqltype.OIDValue(source.columns[i].Usage.Type, n)
+		value, err := sqltype.OIDValue(source.Columns[i].Usage.Type, n)
 		if err != nil && captureErr == nil {
 			captureErr = err
 		}
 		return value
 	}
-	text := func(i int, s string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, s) }
-	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, b) }
+	text := func(i int, s string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, s) }
+	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 	for _, relation := range relations {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		switch source.address.ObjectID {
+		switch source.Address().ObjectID {
 		case 2610:
-			if definition := relation.sqlIndex; definition != nil {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), oid(1, uint32(definition.parent.ObjectID)), boolean(2, definition.unique), boolean(3, definition.constraint != nil && definition.constraint.Primary), boolean(4, definition.valid), boolean(5, definition.ready), boolean(6, definition.live), boolean(7, definition.nullsNotDistinct)})
+			if definition := relation.SQLIndex; definition != nil {
+				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.Address().ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct)})
 			}
 		case 2604:
-			for attribute, definition := range relation.defaults {
-				tree, err := catalogTree(source.columns[3].Usage.Type, definition.expression)
+			for attribute, definition := range relation.Defaults {
+				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
 				}
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 			}
-			for attribute, definition := range relation.generations {
-				tree, err := catalogTree(source.columns[3].Usage.Type, definition.expression)
+			for attribute, definition := range relation.Generations {
+				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
 				}
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 			}
 		case 1259:
 			row, err := e.pgClassRow(ctx, catalog, roles, source, relation)
@@ -525,11 +525,11 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			}
 			rows = append(rows, row)
 		case 2618:
-			if relation.view != nil {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.view.RuleOID())), text(1, "_RETURN"), oid(2, uint32(relation.address.ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
+			if relation.View != nil {
+				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.View.RuleOID())), text(1, "_RETURN"), oid(2, uint32(relation.Address().ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
 			}
 			for _, rule := range rulesOf(relation) {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.address.ObjectID)), text(3, ruleEventCode(rule.event)), text(4, "O"), boolean(5, rule.instead)})
+				rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, ruleEventCode(rule.event)), text(4, "O"), boolean(5, rule.instead)})
 			}
 		default:
 			return nil, fmt.Errorf("stuntgres: unknown catalog source")
@@ -542,30 +542,30 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 }
 
 func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescriptor, name string, attribute int32, check bool) (bool, int64) {
-	if graph := table.inheritance; graph != nil {
-		provenance, exists := graph.notNull[attribute]
+	if graph := table.Inheritance; graph != nil {
+		provenance, exists := graph.NotNull[attribute]
 		if check {
-			provenance, exists = graph.checks[name]
+			provenance, exists = graph.Checks[name]
 		}
 		if exists {
-			return provenance.local, int64(provenance.count())
+			return provenance.Local, int64(provenance.count())
 		}
 	}
-	if table.membership != nil {
-		parent := catalog.MustRelation(table.membership.parent)
+	if table.Membership != nil {
+		parent := catalog.MustRelation(table.Membership.Parent)
 		if check {
-			for _, constraint := range parent.checkConstraints {
+			for _, constraint := range parent.CheckConstraints {
 				if constraint.Name == name {
 					return false, 1
 				}
 			}
 		} else {
-			slot := slices.Index(table.attributes, attribute)
+			slot := slices.Index(table.Attributes, attribute)
 			if slot >= 0 {
-				parentSlot, exists := parent.index[table.columns[slot].Name]
+				parentSlot, exists := parent.Index[table.Columns[slot].Name]
 				if exists {
-					parentAttribute := parent.attributes[parentSlot]
-					for _, constraint := range parent.notNullConstraints {
+					parentAttribute := parent.Attributes[parentSlot]
+					for _, constraint := range parent.NotNullConstraints {
 						if constraint.Attribute == parentAttribute {
 							return false, 1
 						}

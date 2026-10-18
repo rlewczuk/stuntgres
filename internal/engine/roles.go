@@ -166,33 +166,33 @@ type roleDependency struct {
 // Admission and final publication share the exact same descriptor classification.
 func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*relationDescriptor); ok {
-		for _, policy := range relation.policies {
-			for _, role := range policy.roles {
-				if !role.public && role.ref == ref {
-					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
+		for _, policy := range relation.Policies {
+			for _, role := range policy.Roles {
+				if !role.Public && role.Ref == ref {
+					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.Address(), policyName: policy.Name}) {
 						return true
 					}
 				}
 			}
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ids.ObjectAddress{}) {
+	if typ, ok := d.(*typeDescriptor); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
 		// Dependent row/array ownership belongs to the relation; independent
 		// composite types still carry their own named ACL dependency.
-		if !typ.typ.IsComposite() {
+		if !typ.SQLType.IsComposite() {
 			return false
 		}
-		if typ.owner == ref {
+		if typ.Owner == ref {
 			return false
 		}
 	}
-	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == indexRelation {
+	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == indexRelation {
 		// Index ownership belongs to its validated parent relation.
 		return false
 	}
 	owner, acl, columns := descriptorACL(d)
 	if owner == ref {
-		if typ, array := d.(*typeDescriptor); array && typ.typ.IsArray() {
+		if typ, array := d.(*typeDescriptor); array && typ.SQLType.IsArray() {
 			// Associated array ownership is represented by its parent.
 			return false
 		}
@@ -280,19 +280,19 @@ func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor
 
 func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
-		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.name}); ok {
-			return a == relation.address
+		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.Name()}); ok {
+			return a == relation.Address()
 		}
 	}
 	return false
 }
 
 func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) string {
-	name := dependencyIdentifier(relation.name)
+	name := dependencyIdentifier(relation.Name())
 	if relationVisibleAt(catalog, relation, path) {
 		return name
 	}
-	return dependencyIdentifier(catalog.Get(relation.namespace).Name()) + "." + name
+	return dependencyIdentifier(catalog.Get(relation.Namespace()).Name()) + "." + name
 }
 
 func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
@@ -328,11 +328,11 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = "text search dictionary "
 	}
 	if foreign, ok := d.(*foreignDescriptor); ok {
-		kind = foreignLabel(foreign.address.ClassID) + " "
-		if foreign.address.ClassID == ids.ForeignMappingClassID {
+		kind = foreignLabel(foreign.Address().ClassID) + " "
+		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
-			mapped, _ := auth.roles.Descriptor(foreign.mappedRole)
-			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.server).Name())
+			mapped, _ := auth.roles.Descriptor(foreign.MappedRole)
+			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.Server).Name())
 		}
 	}
 	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
@@ -345,20 +345,20 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		if dep.address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only
 			// getRelationDescription applies diagnostic identifier quoting.
-			for slot, attribute := range relation.attributes {
+			for slot, attribute := range relation.Attributes {
 				if attribute == dep.address.SubID {
-					kind = "column " + relation.columns[slot].Name + " of table "
+					kind = "column " + relation.Columns[slot].Name + " of table "
 					break
 				}
 			}
 		}
-		if relation.relationKind == compositeRelation {
+		if relation.RelationKind == compositeRelation {
 			path, _ := auth.engine.referencePath(auth)
-			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && (typ.typ.IsUserDefined() || typ.typ.IsArray() && typ.typ.Element().IsDomain()) {
+	if typ, ok := d.(*typeDescriptor); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "type "
 		name = typeDiagnosticNameAt(view, typ, path)

@@ -30,10 +30,10 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 40)
 				peerNamespace := b.temporaryNamespace
-				peerName := e.catalog.state.MustNamespace(peerNamespace).name
+				peerName := e.catalog.state.MustNamespace(peerNamespace).Name()
 				ownName := ""
 				if !fresh {
-					ownName = e.catalog.state.MustNamespace(a.temporaryNamespace).name
+					ownName = e.catalog.state.MustNamespace(a.temporaryNamespace).Name()
 				}
 				query := "CREATE TEMP SEQUENCE created START 60 CACHE 3"
 				code, message := "42P16", "only temporary relations may be created in temporary schemas"
@@ -125,15 +125,15 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 						t.Fatal("valid own temporary creation", err)
 					}
 					ns := e.catalog.state.MustNamespace(a.temporaryNamespace)
-					if ns.temporary != a.token || ns.temporaryToast || ns.owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.address != namespace) {
+					if ns.Temporary != a.token || ns.TemporaryToast || ns.Owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.Address() != namespace) {
 						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
-					assertTemporaryNamespacePair(t, e, a.token, ns.address)
-					address := NameAddressForTempMove(t, e, ns.address, "created")
+					assertTemporaryNamespacePair(t, e, a.token, ns.Address())
+					address := NameAddressForTempMove(t, e, ns.Address(), "created")
 					d := e.catalog.state.MustRelation(address)
-					want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: 9223372036854775807, start: 60, cache: 3, persistence: "temporary"}
+					want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
 					g := e.sequences[address]
-					if d.namespace != ns.address || d.owner != e.Roles().LookupRef("postgres") || d.relationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.sequencePlanStamp != d.revision {
+					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
 					wantGeneration := catalog.namespaceGeneration
@@ -186,7 +186,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
 				ns := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
-				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, s, "SET SESSION AUTHORIZATION creator")

@@ -67,12 +67,12 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 			if !ok {
 				continue
 			}
-			for _, fk := range d.foreignKeys {
+			for _, fk := range d.ForeignKeys {
 				if fence.targets[fk.Target] != 0 {
 					return CatalogConflict{}
 				}
 			}
-			if d.inheritance != nil || d.membership != nil {
+			if d.Inheritance != nil || d.Membership != nil {
 				otherTemporary, err := truncateOtherTemporary(current, d, fence.token)
 				if err != nil {
 					return CatalogConflict{}
@@ -81,14 +81,14 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 					continue
 				}
 			}
-			if d.inheritance != nil {
-				for _, parent := range d.inheritance.parents {
+			if d.Inheritance != nil {
+				for _, parent := range d.Inheritance.Parents {
 					if fence.targets[parent] != 0 {
 						return CatalogConflict{}
 					}
 				}
 			}
-			if d.membership != nil && fence.targets[d.membership.parent] != 0 {
+			if d.Membership != nil && fence.targets[d.Membership.Parent] != 0 {
 				return CatalogConflict{}
 			}
 		}
@@ -123,7 +123,7 @@ func (s *StatementScope) stageTruncate() error {
 		ref := selected.ref
 		d, ok := auth.catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.catalog, ref.Address)
-		if !ok || d.namespace != selected.relation.namespace || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
+		if !ok || d.Namespace() != selected.relation.Namespace() || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
 			err = ids.ErrCatalogReplaced
 			break
 		}
@@ -134,7 +134,7 @@ func (s *StatementScope) stageTruncate() error {
 			break
 		}
 		stage.querySources = append(stage.querySources, d)
-		if d.relationKind == partitionedRelation {
+		if d.RelationKind == partitionedRelation {
 			continue
 		}
 		if store == nil {
@@ -193,7 +193,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
-		if selected.relation.relationKind != partitionedRelation {
+		if selected.relation.RelationKind != partitionedRelation {
 			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.state, changes, stage, address, changes.storage[address].replacement); err != nil {
 				return err
 			}
@@ -218,7 +218,7 @@ func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName)
 		return ids.ErrCatalogReplaced
 	}
 	descriptor, ok := auth.catalog.Relation(ref.Address)
-	if !ok || descriptor.namespace != named.namespace {
+	if !ok || descriptor.Namespace() != named.namespace {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

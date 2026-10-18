@@ -37,7 +37,7 @@ func uniqueKeyHash(ctx context.Context, ordering indexOrdering, grouping []sqlty
 	hash := uint64(14695981039346656037)
 	for i, value := range values {
 		var h uint64
-		class := ordering.keys[i].class
+		class := ordering.keys[i].Class
 		defaultClass, _ := sqltype.DefaultIndexClass(value.Type())
 		// Nondefault equality can be coarser than the type's grouping hash
 		// (TEXT bpchar_ops ignores trailing spaces). Compare within one bucket.

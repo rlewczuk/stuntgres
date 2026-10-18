@@ -12,20 +12,20 @@ import (
 )
 
 func collationSemantics(d *collationDescriptor) (uint32, error) {
-	switch d.provider {
+	switch d.Provider {
 	case "c":
-		if d.collate == nil || d.ctype == nil || d.locale != nil {
+		if d.Collate == nil || d.CType == nil || d.Locale != nil {
 			return 0, sqlError("42P17", "invalid libc collation properties")
 		}
-		if (*d.collate != "C" && *d.collate != "POSIX") || (*d.ctype != "C" && *d.ctype != "POSIX") {
+		if (*d.Collate != "C" && *d.Collate != "POSIX") || (*d.CType != "C" && *d.CType != "POSIX") {
 			return 0, sqlError("0A000", "libc locale provider data is not available in this engine")
 		}
 		return 950, nil
 	case "b":
-		if d.locale == nil || d.collate != nil || d.ctype != nil {
+		if d.Locale == nil || d.Collate != nil || d.CType != nil {
 			return 0, sqlError("42P17", "invalid builtin collation properties")
 		}
-		switch *d.locale {
+		switch *d.Locale {
 		case "C":
 			return 950, nil
 		case "C.UTF-8", "C.UTF8":
@@ -33,38 +33,38 @@ func collationSemantics(d *collationDescriptor) (uint32, error) {
 		case "PG_UNICODE_FAST":
 			return 6411, nil
 		}
-		return 0, sqlError("42809", fmt.Sprintf(`invalid locale name "%s" for builtin provider`, *d.locale))
+		return 0, sqlError("42809", fmt.Sprintf(`invalid locale name "%s" for builtin provider`, *d.Locale))
 	case "i":
 		return 0, sqlError("0A000", "ICU is not supported in this build")
 	}
-	return 0, sqlError("42P17", "unrecognized collation provider: "+d.provider)
+	return 0, sqlError("42P17", "unrecognized collation provider: "+d.Provider)
 }
 
 var builtinCollationVersion = "1"
 
 func collationActualVersion(d *collationDescriptor) (*string, error) {
-	if d.provider == "d" {
+	if d.Provider == "d" {
 		return databaseCollationActualVersion()
 	}
 	if _, err := collationSemantics(d); err != nil {
 		return nil, err
 	}
-	if d.provider == "b" {
+	if d.Provider == "b" {
 		return &builtinCollationVersion, nil
 	}
 	return nil, nil
 }
 
 func collationVersionWarning(op *Operation, d *collationDescriptor, view CatalogRead, actual *string) error {
-	if d.version == nil {
+	if d.Version == nil {
 		return nil
 	}
 	if actual == nil {
-		return sqlError("XX000", fmt.Sprintf(`collation "%s" has no actual version, but a version was recorded`, d.name))
+		return sqlError("XX000", fmt.Sprintf(`collation "%s" has no actual version, but a version was recorded`, d.Name()))
 	}
-	if *d.version != *actual {
+	if *d.Version != *actual {
 		ns := view.Get(d.Namespace()).Name()
-		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.name), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + dependencyIdentifier(ns) + "." + dependencyIdentifier(d.name) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
+		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.Name()), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + dependencyIdentifier(ns) + "." + dependencyIdentifier(d.Name()) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
 	}
 	return nil
 }
@@ -87,7 +87,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	d := collationDescriptor{name: name, namespace: ns.Address, owner: auth.state.CurrentUser, provider: "c", deterministic: true, encoding: 6}
+	d := collationDescriptor{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.state.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
 	from := s.From
 	options := make(map[string]*parser.CollationOption, len(s.Options))
 	for i := range s.Options {
@@ -120,24 +120,24 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		if source.provider == "d" {
+		if source.Provider == "d" {
 			return sqlError("42P17", `collation "default" cannot be copied`)
 		}
-		d.version, err = collationActualVersion(source)
+		d.Version, err = collationActualVersion(source)
 		if err != nil {
 			return err
 		}
-		d.provider, d.deterministic, d.encoding = source.provider, source.deterministic, source.encoding
-		d.collate, d.ctype, d.locale, d.rules = source.collate, source.ctype, source.locale, source.rules
+		d.Provider, d.Deterministic, d.Encoding = source.Provider, source.Deterministic, source.Encoding
+		d.Collate, d.CType, d.Locale, d.Rules = source.Collate, source.CType, source.Locale, source.Rules
 	} else {
 		if o := options["provider"]; o != nil {
 			switch strings.ToLower(o.Value) {
 			case "libc":
-				d.provider = "c"
+				d.Provider = "c"
 			case "builtin":
-				d.provider = "b"
+				d.Provider = "b"
 			case "icu":
-				d.provider = "i"
+				d.Provider = "i"
 			default:
 				return sqlError("42P17", "unrecognized collation provider: "+o.Value)
 			}
@@ -148,13 +148,13 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 				if numericErr != nil || number != 0 && number != 1 {
 					return sqlError("42601", "deterministic requires a Boolean value")
 				}
-				d.deterministic = number == 1
+				d.Deterministic = number == 1
 			} else {
 				switch strings.ToLower(o.Value) {
 				case "true", "on":
-					d.deterministic = true
+					d.Deterministic = true
 				case "false", "off":
-					d.deterministic = false
+					d.Deterministic = false
 				default:
 					return sqlError("42601", "deterministic requires a Boolean value")
 				}
@@ -167,32 +167,32 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 			return nil
 		}
 		locale := textOption("locale")
-		d.collate, d.ctype, d.rules, d.version = textOption("lc_collate"), textOption("lc_ctype"), textOption("rules"), textOption("version")
-		if locale != nil && (d.collate != nil || d.ctype != nil) {
+		d.Collate, d.CType, d.Rules, d.Version = textOption("lc_collate"), textOption("lc_ctype"), textOption("rules"), textOption("version")
+		if locale != nil && (d.Collate != nil || d.CType != nil) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "conflicting or redundant options", Detail: "LOCALE cannot be specified together with LC_COLLATE or LC_CTYPE."}
 		}
-		if d.provider == "c" {
+		if d.Provider == "c" {
 			if locale != nil {
-				d.collate, d.ctype = locale, locale
+				d.Collate, d.CType = locale, locale
 			}
-			if d.collate == nil {
+			if d.Collate == nil {
 				return sqlError("42P17", `parameter "lc_collate" must be specified`)
 			}
-			if d.ctype == nil {
+			if d.CType == nil {
 				return sqlError("42P17", `parameter "lc_ctype" must be specified`)
 			}
 		} else {
 			if locale == nil {
 				return sqlError("42P17", `parameter "locale" must be specified`)
 			}
-			d.locale = locale
-			if d.provider == "b" && *locale == "C.UTF8" {
-				d.locale = collationText("C.UTF-8")
+			d.Locale = locale
+			if d.Provider == "b" && *locale == "C.UTF8" {
+				d.Locale = collationText("C.UTF-8")
 			}
-			d.encoding = -1
-			if d.provider == "b" {
-				if *d.locale != "C" {
-					d.encoding = 6
+			d.Encoding = -1
+			if d.Provider == "b" {
+				if *d.Locale != "C" {
+					d.Encoding = 6
 				}
 				if _, err = collationSemantics(&d); err != nil {
 					return err
@@ -200,16 +200,16 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 			}
 		}
 	}
-	if !d.deterministic && d.provider != "i" {
+	if !d.Deterministic && d.Provider != "i" {
 		return sqlError("0A000", "nondeterministic collations not supported with this provider")
 	}
-	if d.rules != nil && d.provider != "i" {
+	if d.Rules != nil && d.Provider != "i" {
 		return sqlError("42P17", "ICU rules cannot be specified unless locale provider is ICU")
 	}
 	key := ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.Address, Name: name}
 	if old := stage.lookupName(key); old != (ids.ObjectAddress{}) {
 		message := fmt.Sprintf(`collation "%s" already exists`, name)
-		if d.encoding != -1 {
+		if d.Encoding != -1 {
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
 		}
 		if s.IfNotExists {
@@ -218,7 +218,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 		return sqlError("42710", message)
 	}
-	d.semantics, err = collationSemantics(&d)
+	d.Semantics, err = collationSemantics(&d)
 	if err != nil {
 		return err
 	}
@@ -226,17 +226,17 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	if d.version == nil {
-		d.version = actual
+	if d.Version == nil {
+		d.Version = actual
 	}
 	if err = collationVersionWarning(op, &d, auth.catalog, actual); err != nil {
 		return err
 	}
-	d.oid, err = e.catalog.allocateOIDLocked()
+	d.OID, err = e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	d.revision, err = e.catalog.revisionLocked()
+	d.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -254,15 +254,15 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if err != nil {
 			return err
 		}
-		if ownerTarget == d.owner {
+		if ownerTarget == d.Owner {
 			return nil
 		}
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
-	if d.provider == "d" && s.Action == "refresh" {
+	if d.Provider == "d" && s.Action == "refresh" {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "XX000", Message: "cannot refresh version of default collation", Hint: "Use ALTER DATABASE ... REFRESH COLLATION VERSION instead."}
 	}
 	next := *d
@@ -272,22 +272,22 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if err != nil {
 			return err
 		}
-		if (actual == nil) != (d.version == nil) {
+		if (actual == nil) != (d.Version == nil) {
 			return sqlError("XX000", "invalid collation version change")
 		}
-		if actual == nil || *actual == *d.version {
+		if actual == nil || *actual == *d.Version {
 			schemaNotice(op, "00000", "version has not changed")
 			return nil
 		}
-		schemaNotice(op, "00000", fmt.Sprintf("changing version from %s to %s", *d.version, *actual))
-		next.version = actual
+		schemaNotice(op, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
+		next.Version = actual
 	case "rename":
-		if err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, d.Namespace())); err != nil {
+		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 			return err
 		}
-		next.name = s.Target.Text
+		next.ObjectName = s.Target.Text
 	case "schema":
-		dest, err := e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}})
+		dest, err := e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}})
 		if err != nil {
 			return err
 		}
@@ -299,21 +299,21 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if d.Namespace() == dest.Address {
 			return nil
 		}
-		if sourceNamespace.temporary != (ids.SessionToken{}) || targetNamespace.temporary != (ids.SessionToken{}) {
+		if sourceNamespace.Temporary != (ids.SessionToken{}) || targetNamespace.Temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
-		next.namespace = dest.Address
+		next.ObjectNamespace = dest.Address
 	case "owner":
 		if err = ownershipEligibility(auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
-		next.owner = ownerTarget
+		next.Owner = ownerTarget
 	}
 	key := descriptorNameKey(&next)
 	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
-		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.Get(next.Namespace()).Name()))
+		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -331,7 +331,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 			}
 			return err
 		}
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}

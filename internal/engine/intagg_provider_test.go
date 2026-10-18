@@ -20,21 +20,21 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestIntaggProviderManifest(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	registration := e.catalog.extensions["intagg"].Control()
-	if registration.version != "1.1" || registration.trusted || !registration.superuser || !registration.relocatable || registration.comment == nil || *registration.comment != "integer aggregator and enumerator (obsolete)" {
+	registration := e.catalog.Extensions["intagg"].Control()
+	if registration.Version != "1.1" || registration.Trusted || !registration.Superuser || !registration.Relocatable || registration.Comment == nil || *registration.Comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
-	if len(ext.members) != 2 {
-		t.Fatal("documented manifest", ext.members)
+	if len(ext.Members) != 2 {
+		t.Fatal("documented manifest", ext.Members)
 	}
 	if err := stockIntagg.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	addresses := map[ids.ObjectAddress]bool{}
-	for i, address := range ext.members {
+	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
 		member := intaggMembers[i]
-		if addresses[address] || proc.name != member.name || proc.signature != member.signature || proc.result != member.result || proc.strict != member.strict || proc.owner != ext.owner {
+		if addresses[address] || proc.Name() != member.name || proc.Signature != member.signature || proc.Result != member.result || proc.Strict != member.strict || proc.Owner != ext.Owner {
 			t.Fatal("member identity", proc)
 		}
 		addresses[address] = true
@@ -42,16 +42,16 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*procedureDescriptor){
-			func(p *procedureDescriptor) { p.name = "int_agg_state" }, func(p *procedureDescriptor) { p.signature = "25" },
-			func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.strict = !p.strict },
-			func(p *procedureDescriptor) { p.volatility = expr.Stable }, func(p *procedureDescriptor) { p.revision = 0 },
-			func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
-			func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
-			func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
-			func(p *procedureDescriptor) { p.implementation = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
-			func(p *procedureDescriptor) { p.implementation = stockUnaccent }, func(p *procedureDescriptor) { p.implementation = stockIntarray },
+			func(p *procedureDescriptor) { p.ObjectName = "int_agg_state" }, func(p *procedureDescriptor) { p.Signature = "25" },
+			func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Strict = !p.Strict },
+			func(p *procedureDescriptor) { p.Volatility = expr.Stable }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
+			func(p *procedureDescriptor) { p.RoutineKind = procedureRoutine },
+			func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
+			func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
+			func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
+			func(p *procedureDescriptor) { p.Implementation = stockUnaccent }, func(p *procedureDescriptor) { p.Implementation = stockIntarray },
 			func(p *procedureDescriptor) {
-				p.implementation = &intaggProvider{control: extensionControl{version: "1.1"}}
+				p.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
 			},
 		} {
 			state := cloneCatalog(e.catalog.state)
@@ -63,9 +63,9 @@ func TestIntaggProviderManifest(t *testing.T) {
 			}
 		}
 	}
-	for _, members := range [][]ids.ObjectAddress{nil, {ext.members[0]}, {ext.members[0], ext.members[0]}, {ext.members[1], ext.members[1]}} {
+	for _, members := range [][]ids.ObjectAddress{nil, {ext.Members[0]}, {ext.Members[0], ext.Members[0]}, {ext.Members[1], ext.Members[1]}} {
 		bad := *ext
-		bad.members = members
+		bad.Members = members
 		if err := stockIntagg.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("corrupt member inventory", members)
 		}
@@ -76,7 +76,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			if !addresses[edge.dependent] {
 				t.Fatal("foreign member dependency")
 			}
@@ -98,7 +98,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
 			installed := other.catalog.state.MustExtension(other.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
 			var member *procedureDescriptor
-			for _, address := range installed.members {
+			for _, address := range installed.Members {
 				if proc, ok := other.catalog.state.Procedure(address); ok {
 					member = proc
 					break
@@ -109,9 +109,9 @@ func TestIntaggProviderManifest(t *testing.T) {
 			}
 			state := cloneCatalog(other.catalog.state)
 			bad := *member
-			bad.implementation = stockIntagg
-			state.setDescriptor(member.address, &bad)
-			if err := other.catalog.extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
+			bad.Implementation = stockIntagg
+			state.setDescriptor(member.Address(), &bad)
+			if err := other.catalog.Extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}
 		})

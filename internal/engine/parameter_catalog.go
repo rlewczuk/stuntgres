@@ -10,17 +10,17 @@ import (
 // A parameter descriptor represents an ACL, not a setting value or provider.
 // Baseline-equivalent ACLs have no catalog row.
 type parameterDescriptor struct {
-	address  ids.ObjectAddress
-	revision ids.DefinitionRevision
-	name     string
-	owner    authorization.PrincipalRef
-	acl      authorization.ACLValue
+	ObjectAddress  ids.ObjectAddress
+	ObjectRevision ids.DefinitionRevision
+	ObjectName     string
+	Owner          authorization.PrincipalRef
+	ACL            authorization.ACLValue
 }
 
-func (d *parameterDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *parameterDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *parameterDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *parameterDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (*parameterDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *parameterDescriptor) Name() string                     { return d.name }
+func (d *parameterDescriptor) Name() string                     { return d.ObjectName }
 func (*parameterDescriptor) Kind() ids.ObjectKind               { return ids.ParameterObject }
 
 // parameterProvider validates parameter ACL identities against the engine's
@@ -30,11 +30,11 @@ type parameterProvider struct{ definitions map[string]SettingDefinition }
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
-	if !ok || d == nil || v.owner == nil || v.state == nil || v.Get(d.address) != d {
+	if !ok || d == nil || v.owner == nil || v.state == nil || v.Get(d.Address()) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
-	name, err := canonicalGrantParameter(p.definitions, d.name)
-	if err != nil || name != d.name || d.address.ClassID != ids.ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
+	name, err := canonicalGrantParameter(p.definitions, d.Name())
+	if err != nil || name != d.Name() || d.Address().ClassID != ids.ParameterClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
 	return nil
@@ -81,18 +81,18 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	return &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
+	return &parameterDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: key, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
 }
 
 // installParameterGrant changes only the detached central catalog candidate.
 // Both the descriptor and name entry disappear when the ACL returns to sA for
 // the owner alone. Explicit empty ACLs are not the default baseline.
 func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
-	if !d.acl.Explicit || authorization.MatchesDefaultBaseline(d.acl, d.owner, authorization.DefaultParameters, false) {
-		candidate.removeDescriptor(d.address)
+	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
+		candidate.removeDescriptor(d.Address())
 		candidate.unbindName(descriptorNameKey(d))
 		return
 	}
-	candidate.setDescriptor(d.address, d)
-	candidate.bindName(descriptorNameKey(d), d.address)
+	candidate.setDescriptor(d.Address(), d)
+	candidate.bindName(descriptorNameKey(d), d.Address())
 }

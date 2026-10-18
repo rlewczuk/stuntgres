@@ -25,9 +25,9 @@ type alterTypePreparation struct {
 
 // Phase-one lookup uses the statement-original descriptor, before ADD/DROP passes.
 func alterTypeColumn(original *relationDescriptor, name string) (int, error) {
-	slot, ok := original.index[name]
+	slot, ok := original.Index[name]
 	if !ok {
-		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, original.name))
+		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, original.Name()))
 	}
 	return slot, nil
 }
@@ -44,9 +44,9 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 		if index == len(prepared) {
 			break
 		}
-		slot := original.index[action.Column.Text]
-		attribute := original.attributes[slot]
-		if identity, exists := original.identities[attribute]; exists {
+		slot := original.Index[action.Column.Text]
+		attribute := original.Attributes[slot]
+		if identity, exists := original.Identities[attribute]; exists {
 			if stage == nil {
 				if scope.inheritanceAlter != nil {
 					stage = scope.inheritanceAlter.stage
@@ -55,7 +55,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 					stage.authorizeLocked(auth, op.session)
 				}
 			}
-			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.sequence, prepared[index].usage); err != nil {
+			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].usage); err != nil {
 				return stage, err
 			}
 		}
@@ -65,18 +65,18 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 }
 
 func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef) *queryNamespace {
-	columns := make([]queryColumn, len(original.columns))
-	for i, column := range original.columns {
+	columns := make([]queryColumn, len(original.Columns))
+	for i, column := range original.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
-	qualifier := queryQualifier{name: original.name, original: original.name, schema: auth.catalog.Get(original.namespace).Name(), ref: ref, columns: columns}
-	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.columns}
+	qualifier := queryQualifier{name: original.Name(), original: original.Name(), schema: auth.catalog.Get(original.Namespace()).Name(), ref: ref, columns: columns}
+	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.Columns}
 }
 
 func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []expressionDependency, error) {
 	if action.Using == nil {
-		source := original.index[action.Column.Text]
-		return columnExpression{Info: expr.Info{Usage: original.columns[source].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
+		source := original.Index[action.Column.Text]
+		return columnExpression{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)
@@ -116,7 +116,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 	if ref.Epoch != e.catalog.state.epoch {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if _, generated := original.generations[original.attributes[source]]; generated {
+	if _, generated := original.Generations[original.Attributes[source]]; generated {
 		if a.Using != nil {
 			diagnostic := expr.ErrorAt("42611", "cannot specify USING when altering type of generated column", a.Column.Pos).(*sqlstate.Error)
 			diagnostic.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, a.Column.Text)
@@ -138,15 +138,15 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 		return fail(err)
 	}
 	prepared := alterTypePreparation{usage: usage, declaredDimensions: int16(len(a.TypeName.ArrayBounds))}
-	if original.relationKind == compositeRelation {
+	if original.RelationKind == compositeRelation {
 		return prepared, nil
 	}
-	if original.relationKind == foreignRelation {
+	if original.RelationKind == foreignRelation {
 		if a.Using != nil {
 			if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
 				return fail(err)
 			}
-			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.name)))
+			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.Name())))
 		}
 		return prepared, nil
 	}
@@ -154,7 +154,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 	if err != nil {
 		return fail(err)
 	}
-	prepared.transformation = columnTransformation{attribute: original.attributes[source], expression: node, dependencies: dependencies}
+	prepared.transformation = columnTransformation{attribute: original.Attributes[source], expression: node, dependencies: dependencies}
 	return prepared, nil
 }
 
@@ -163,7 +163,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	fail := func(err error) (alterTypePreparation, error) {
 		return alterTypePreparation{}, err
 	}
-	if original.relationKind == compositeRelation || original.relationKind == foreignRelation {
+	if original.RelationKind == compositeRelation || original.RelationKind == foreignRelation {
 		return prepared, nil
 	}
 	usage := prepared.usage
@@ -205,8 +205,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return fail(err)
 	}
-	source := original.index[a.Column.Text]
-	oldUsage := original.columns[source].Usage
+	source := original.Index[a.Column.Text]
+	oldUsage := original.Columns[source].Usage
 	prepared.transformation.expression = node
 	prepared.transformation.rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
 	return prepared, nil
@@ -221,22 +221,22 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if err != nil {
 		return fail(err)
 	}
-	for _, attribute := range next.attributes {
-		definition, generated := next.generations[attribute]
+	for _, attribute := range next.Attributes {
+		definition, generated := next.Generations[attribute]
 		if !generated {
 			continue
 		}
-		for _, dependency := range definition.dependencies {
-			if dependency.Address.ClassID == next.address.ClassID && dependency.Address.ObjectID == next.address.ObjectID && dependency.Address.SubID == next.attributes[slot] {
+		for _, dependency := range definition.Dependencies {
+			if dependency.Address.ClassID == next.Address().ClassID && dependency.Address.ObjectID == next.Address().ObjectID && dependency.Address.SubID == next.Attributes[slot] {
 				diagnostic := sqlError("0A000", "cannot alter type of a column used by a generated column").(*sqlstate.Error)
-				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.columns[next.indexForAttribute(attribute)].Name)
+				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.Columns[next.indexForAttribute(attribute)].Name)
 				return fail(diagnostic)
 			}
 		}
 	}
-	source := original.index[a.Column.Text]
-	oldUsage := original.columns[source].Usage
-	current := next.columns[slot].Usage
+	source := original.Index[a.Column.Text]
+	oldUsage := original.Columns[source].Usage
+	current := next.Columns[slot].Usage
 	if current.Type.ID() != oldUsage.Type.ID() || current.Typmod != oldUsage.Typmod {
 		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter type of column "%s" twice`, a.Column.Text)))
 	}
@@ -246,7 +246,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return fail(ids.ErrCatalogReplaced)
 	}
 	target := ref.Address
-	target.SubID = original.attributes[source]
+	target.SubID = original.Attributes[source]
 	if err := policyTypeChangeError(auth.catalog, target); err != nil {
 		return fail(err)
 	}
@@ -259,20 +259,20 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	if edges := viewDependencyClosure(auth.catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
 		view := edges[0].view
-		name := view.name
+		name := view.Name()
 		if parser.IdentifierNeedsQuotes(name) {
 			name = quoteIdentifier(name)
 		}
-		namespace := auth.catalog.Get(view.namespace).Name()
+		namespace := auth.catalog.Get(view.Namespace()).Name()
 		path, err := e.lookupPath(auth, relationLookup)
 		if err != nil {
 			return fail(err)
 		}
 		visible := false
 		for _, schema := range path {
-			found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.name})
+			found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.Name()})
 			if len(found) != 0 {
-				visible = len(found) == 1 && found[0] == view.address
+				visible = len(found) == 1 && found[0] == view.Address()
 				break
 			}
 		}
@@ -287,31 +287,31 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return fail(d)
 	}
 	usage := prepared.usage
-	if original.relationKind == compositeRelation {
-		if usage == current && next.columns[slot].DeclaredDimensions == prepared.declaredDimensions {
+	if original.RelationKind == compositeRelation {
+		if usage == current && next.Columns[slot].DeclaredDimensions == prepared.declaredDimensions {
 			return next, columnTransformation{}, nil
 		}
 		replacement := *next
-		replacement.columns = append([]ColumnDescriptor(nil), next.columns...)
-		replacement.columns[slot].Usage = usage
-		replacement.columns[slot].DeclaredDimensions = prepared.declaredDimensions
+		replacement.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+		replacement.Columns[slot].Usage = usage
+		replacement.Columns[slot].DeclaredDimensions = prepared.declaredDimensions
 		return &replacement, columnTransformation{}, nil
 	}
-	attribute := original.attributes[source]
+	attribute := original.Attributes[source]
 	transformation := prepared.transformation
 	dimensions := prepared.declaredDimensions
-	if usage == current && next.columns[slot].DeclaredDimensions == dimensions {
+	if usage == current && next.Columns[slot].DeclaredDimensions == dimensions {
 		return next, transformation, nil
 	}
 	replacement := *next
-	replacement.columns = append([]ColumnDescriptor(nil), next.columns...)
-	replacement.columns[slot].Usage = usage
-	replacement.columns[slot].DeclaredDimensions = dimensions
+	replacement.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+	replacement.Columns[slot].Usage = usage
+	replacement.Columns[slot].DeclaredDimensions = dimensions
 	if usage == current {
 		return &replacement, transformation, nil
 	}
-	if definition, exists := next.defaults[attribute]; exists {
-		expression := definition.expression
+	if definition, exists := next.Defaults[attribute]; exists {
+		expression := definition.Expression
 		for {
 			wrapper, ok := expression.(coercionExpression)
 			if !ok || wrapper.mode == sqltype.Explicit {
@@ -334,19 +334,19 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		definition.dependencies = nil
-		definition.catalogSnapshot = false
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, expression)
+		definition.Dependencies = nil
+		definition.CatalogSnapshot = false
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, expression)
 		if err != nil {
 			return fail(err)
 		}
-		replacement.defaults = make(map[int32]columnDefault, len(next.defaults))
-		for id, d := range next.defaults {
-			replacement.defaults[id] = d
+		replacement.Defaults = make(map[int32]columnDefault, len(next.Defaults))
+		for id, d := range next.Defaults {
+			replacement.Defaults[id] = d
 		}
-		definition.expression = expression
+		definition.Expression = expression
 		definition.OID = 0
-		replacement.defaults[attribute] = definition
+		replacement.Defaults[attribute] = definition
 	}
 	if err := e.captureCheckCommentSnapshotLocked(scope, &replacement); err != nil {
 		return fail(err)
@@ -360,7 +360,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 	if store.generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
-	slots := make([]int, len(next.attributes))
+	slots := make([]int, len(next.Attributes))
 	destinations := make([]int, len(transforms))
 	addedSlots := make([]struct {
 		index  int
@@ -371,15 +371,15 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 		generatedSlots[i] = next.indexForAttribute(attribute)
 	}
 	for i, added := range additions {
-		addedSlots[i].index = next.index[added.column.Name]
+		addedSlots[i].index = next.Index[added.column.Name]
 		if added.expression != nil {
 			properties := added.expression.Properties()
 			addedSlots[i].perRow = properties.Volatility > expr.Stable || properties.RuntimeDomainConversion
 		}
 	}
-	for i, attribute := range next.attributes {
+	for i, attribute := range next.Attributes {
 		slots[i] = -1
-		for j, id := range old.attributes {
+		for j, id := range old.Attributes {
 			if id == attribute {
 				slots[i] = j
 				break
@@ -387,7 +387,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 		}
 	}
 	for i, transform := range transforms {
-		for slot, attribute := range next.attributes {
+		for slot, attribute := range next.Attributes {
 			if transform.attribute == attribute {
 				destinations[i] = slot
 				slots[slot] = -1
@@ -395,7 +395,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 			}
 		}
 	}
-	writes, deletes := scope.columnProjectionRoots(old.address)
+	writes, deletes := scope.columnProjectionRoots(old.Address())
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {
@@ -485,7 +485,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 				preparedGeneration = true
 			}
 			for i, attribute := range generations {
-				expression := generationRecipeExpression(next.generations[attribute])
+				expression := generationRecipeExpression(next.Generations[attribute])
 				if generationProgram != nil {
 					expression = generationProgram[generatedSlots[i]]
 				}

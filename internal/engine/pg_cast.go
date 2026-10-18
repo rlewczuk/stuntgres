@@ -11,10 +11,10 @@ func capturePGCast(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(source.columns) != 6 {
+	if len(source.Columns) != 6 {
 		return nil, fmt.Errorf("stuntgres: invalid cast source shape")
 	}
-	for i, column := range source.columns {
+	for i, column := range source.Columns {
 		id := sqltype.Oid
 		if i >= 4 {
 			id = sqltype.Char
@@ -42,7 +42,7 @@ func capturePGCast(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 		}
 		row := values[i*6 : (i+1)*6 : (i+1)*6]
 		for j, oid := range [4]uint32{fact.OID, uint32(fact.Source), uint32(fact.Target), fact.Function} {
-			value, err := sqltype.OIDValue(source.columns[j].Usage.Type, oid)
+			value, err := sqltype.OIDValue(source.Columns[j].Usage.Type, oid)
 			if err != nil {
 				return nil, err
 			}
@@ -56,8 +56,8 @@ func capturePGCast(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 		if err != nil {
 			return nil, err
 		}
-		row[4] = sqltype.String(source.columns[4].Usage.Type, context)
-		row[5] = sqltype.String(source.columns[5].Usage.Type, method)
+		row[4] = sqltype.String(source.Columns[4].Usage.Type, context)
+		row[5] = sqltype.String(source.Columns[5].Usage.Type, method)
 		rows[i] = row
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

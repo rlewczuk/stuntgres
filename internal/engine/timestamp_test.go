@@ -243,7 +243,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 	if err := provider.Validate(view, original); err != nil {
 		t.Fatal("valid precision rejected", err)
 	}
-	current := original.columns[0].Usage.Type
+	current := original.Columns[0].Usage.Type
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Timestamp)
 	for _, usage := range []sqltype.Usage{
 		{Type: current, Typmod: -2}, {Type: current, Typmod: 7},
@@ -251,13 +251,13 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 		{Type: foreign, Typmod: 3},
 	} {
 		copy := *original
-		copy.columns = append([]ColumnDescriptor(nil), original.columns...)
-		copy.columns[0].Usage = usage
+		copy.Columns = append([]ColumnDescriptor(nil), original.Columns...)
+		copy.Columns[0].Usage = usage
 		if err := provider.Validate(view, &copy); err == nil {
 			t.Fatal("invalid/foreign usage admitted", usage)
 		}
 	}
-	if original.columns[0].Usage.Typmod != 3 {
+	if original.Columns[0].Usage.Typmod != 3 {
 		t.Fatal("validation mutated relation")
 	}
 }

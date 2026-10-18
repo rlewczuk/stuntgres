@@ -13,13 +13,13 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
-	original := e.storage[d.address]
+	d = e.catalog.state.MustRelation(d.Address())
+	original := e.storage[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
-	current := e.storage[d.address]
+	current := e.storage[d.Address()]
 	e.mu.Lock()
 	err := scope.refreshRelationGrantsLocked(e)
 	e.mu.Unlock()
@@ -39,7 +39,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	}
 	retained := view.read()
 	frontier := retained.frontier
-	if !sameVersionRoot(retained.committed[d.address], current.versions) {
+	if !sameVersionRoot(retained.committed[d.Address()], current.versions) {
 		t.Fatal("capture did not own current immutable root")
 	}
 	next := concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 2), true, true)
@@ -56,7 +56,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	if err != nil || again != view {
 		t.Fatal("captured data view changed", err)
 	}
-	if again.read().frontier != frontier || !sameVersionRoot(again.read().committed[d.address], current.versions) || len(again.read().committed[d.address]) != 4 {
+	if again.read().frontier != frontier || !sameVersionRoot(again.read().committed[d.Address()], current.versions) || len(again.read().committed[d.Address()]) != 4 {
 		t.Fatal("reader mixed incarnations")
 	}
 	for _, source := range scope.querySources {
@@ -66,9 +66,9 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	}
 	// Shared token alone cannot authorize a metadata/owner rewrite.
 	incompatible := *next
-	incompatible.name = "renamed"
+	incompatible.ObjectName = "renamed"
 	e.mu.Lock()
-	e.catalog.state.setDescriptor(next.address, &incompatible)
+	e.catalog.state.setDescriptor(next.Address(), &incompatible)
 	err = scope.validateLockedRelation(e)
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -82,22 +82,22 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.address)
+			d = e.catalog.state.MustRelation(d.Address())
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
-			original := e.storage[d.address]
+			original := e.storage[d.Address()]
 			original.ends = &deletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			root := scope.owner.roots[d.address]
+			root := scope.owner.roots[d.Address()]
 			frontier := scope.owner.frontier
-			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.address].storage != e.storage[unrelated.address] {
+			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.Address()].storage != e.storage[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
-			ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 			if !beforeCapture {
 				if _, err := scope.AcquireDataView(ref); err != nil {
 					t.Fatal(err)
@@ -114,7 +114,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 					t.Fatal("RR compatible root selection", err)
 				}
 				data := view.read()
-				if data.frontier != frontier || !sameVersionRoot(data.committed[d.address], root.versions) || data.ends[d.address] != root.ends || data.needsBirthFilterAt(d.address) || len(data.committed[d.address]) != 3 {
+				if data.frontier != frontier || !sameVersionRoot(data.committed[d.Address()], root.versions) || data.ends[d.Address()] != root.ends || data.needsBirthFilterAt(d.Address()) || len(data.committed[d.Address()]) != 3 {
 					t.Fatal("RR selected current/birth-filtered rows")
 				}
 			}
@@ -125,7 +125,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.address)
+			d = e.catalog.state.MustRelation(d.Address())
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
@@ -133,7 +133,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			originalEpoch := e.catalog.state.epoch
 			defer func() { e.catalog.state.epoch = originalEpoch }()
-			ref := e.catalog.domain.Ref(originalEpoch, d.address)
+			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
 			d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 			switch phase {
 			case "plain_data":
@@ -143,31 +143,31 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "control_epoch":
 				e.catalog.state.epoch++
 			case "ordinary_incarnation":
-				copy := *e.storage[d.address]
+				copy := *e.storage[d.Address()]
 				copy.materializedLineage = nil
-				e.storage[d.address] = &copy
+				e.storage[d.Address()] = &copy
 			default:
 				copy := *d
 				switch phase {
 				case "owner":
-					copy.owner = authorization.PrincipalRef{}
+					copy.Owner = authorization.PrincipalRef{}
 				case "schema":
-					copy.namespace.ObjectID++
+					copy.ObjectNamespace.ObjectID++
 				case "name":
-					copy.name = "renamed"
+					copy.ObjectName = "renamed"
 				case "view":
 					definition := *viewOf(&copy)
-					copy.view = &definition
+					copy.View = &definition
 				case "columns":
-					copy.columns = append([]ColumnDescriptor(nil), copy.columns...)
+					copy.Columns = append([]ColumnDescriptor(nil), copy.Columns...)
 				case "attributes":
-					copy.attributes = append([]int32(nil), copy.attributes...)
+					copy.Attributes = append([]int32(nil), copy.Attributes...)
 				case "rowtype":
-					copy.rowType++
+					copy.RowType++
 				case "ordinary_table":
-					copy.relationKind = tableRelation
+					copy.RelationKind = tableRelation
 				}
-				e.catalog.state.setDescriptor(d.address, &copy)
+				e.catalog.state.setDescriptor(d.Address(), &copy)
 			}
 			view, err := scope.AcquireDataView(ref)
 			if view != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -181,11 +181,11 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)
-	stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}, Concurrent: parser.Position{Character: 27}}
+	stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Concurrent: parser.Position{Character: 27}}
 	if err := scope.acquireMaterializedRefresh(stmt); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	frontier := e.commitSeq
-	published := e.storage[d.address]
+	published := e.storage[d.Address()]
 	if !scope.completed || len(published.versions) != 1 {
 		t.Fatal("actual refresh did not complete publication")
 	}
@@ -208,7 +208,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal("late cancellation retracted completed utility", err)
 	}
-	if e.storage[d.address] != published || e.commitSeq != frontier {
+	if e.storage[d.Address()] != published || e.commitSeq != frontier {
 		t.Fatal("late completion published twice")
 	}
 }

@@ -134,7 +134,7 @@ func definitionTypeAt(view CatalogRead, reader definitionReader, id sqltype.ID) 
 	if !exists || !ok {
 		return nil, false
 	}
-	return typ.typ, true
+	return typ.SQLType, true
 }
 
 func definitionArrayAt(view CatalogRead, reader definitionReader, element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
@@ -146,10 +146,10 @@ func definitionArrayAt(view CatalogRead, reader definitionReader, element *sqlty
 	}
 	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
 	typ, ok := descriptor.(*typeDescriptor)
-	if !exists || !ok || typ.typ != element {
+	if !exists || !ok || typ.SQLType != element {
 		return nil, false
 	}
-	array, ok := definitionTypeAt(view, reader, typ.array)
+	array, ok := definitionTypeAt(view, reader, typ.Array)
 	return array, ok && array.IsArray() && array.Element() == element
 }
 

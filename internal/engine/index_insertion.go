@@ -18,7 +18,7 @@ type indexInsertionBinding struct {
 }
 
 func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *EvalContext) error {
-	if output, exists := r.indexes[bound.index.address]; exists {
+	if output, exists := r.indexes[bound.index.Address()]; exists {
 		if !output.matches(bound.index) {
 			return ids.ErrCatalogReplaced
 		}
@@ -34,7 +34,7 @@ func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding,
 		r.indexes = maps.Clone(r.indexes)
 	}
 	r.sharedIndexes = false
-	r.indexes[bound.index.address] = output
+	r.indexes[bound.index.Address()] = output
 	return nil
 }
 
@@ -113,10 +113,10 @@ func (s *StatementScope) retainExistingIndexOutput(index *relationDescriptor, ro
 	if s.existingIndexOutputs == nil {
 		s.existingIndexOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput)
 	}
-	outputs := s.existingIndexOutputs[index.address]
+	outputs := s.existingIndexOutputs[index.Address()]
 	if outputs == nil {
 		outputs = make(map[indexRowIdentity]indexRowOutput)
-		s.existingIndexOutputs[index.address] = outputs
+		s.existingIndexOutputs[index.Address()] = outputs
 	}
 	outputs[indexRowIdentity{row: row.row, version: row.version}] = output
 }

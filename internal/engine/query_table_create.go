@@ -102,7 +102,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		if dependencyType.IsUserDefined() {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
-			if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
+			if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}
 			descriptor := auth.catalog.Get(address)
@@ -117,7 +117,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.querySources {
 		stage.querySources = append(stage.querySources, leaf.relation)
-		if descriptor := auth.catalog.Get(leaf.relation.namespace); descriptor != nil {
+		if descriptor := auth.catalog.Get(leaf.relation.Namespace()); descriptor != nil {
 			stage.querySources = append(stage.querySources, descriptor)
 		}
 	}
@@ -138,9 +138,9 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		if err != nil {
 			return nil, nil, false, err
 		}
-		d.relationKind, d.view, d.populated = materializedViewRelation, viewPayloadOf(definition), !s.NoData
+		d.RelationKind, d.View, d.Populated = materializedViewRelation, viewPayloadOf(definition), !s.NoData
 	}
-	d.acl = stage.creationACL(owner, ns.Address, authorization.DefaultTables)
+	d.ACL = stage.creationACL(owner, ns.Address, authorization.DefaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, nil, false, err
 	}
@@ -151,7 +151,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return nil, nil, false, err
 		}
-		d = stage.descriptors[d.address].(*relationDescriptor)
+		d = stage.descriptors[d.Address()].(*relationDescriptor)
 	}
 	return stage, d, false, nil
 }
@@ -164,7 +164,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.address] != d || stage.base.Get(d.address) != nil || stage.initialTables != nil {
+	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.Address()] != d || stage.base.Get(d.Address()) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
 	if stage.base.Epoch() != e.catalog.state.epoch {
@@ -178,7 +178,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	}
 	for _, row := range rows {
 		for i, value := range row {
-			if target := d.columns[i].Usage.Type; target != value.Type() {
+			if target := d.Columns[i].Usage.Type; target != value.Type() {
 				reowned, err := reownDomainDatum(value, target, nil, nil, nil)
 				if err != nil {
 					return err
@@ -191,7 +191,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if err != nil {
 		return err
 	}
-	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.address: {versions: versions}}
+	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.Address(): {versions: versions}}
 	stage.initialTx = ref
 	return nil
 }
@@ -199,15 +199,15 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
 		d, ok := s.descriptors[address].(*relationDescriptor)
-		if !ok || !d.relationKind.stored() || d.relationKind == materializedViewRelation && !d.populated || s.base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		if !ok || !d.RelationKind.stored() || d.RelationKind == materializedViewRelation && !d.Populated || s.base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
 		for _, row := range storage.versions {
-			if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(d.columns) {
+			if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(d.Columns) {
 				return errors.New("stuntgres: invalid initial table row")
 			}
 			for i, value := range row.values {
-				if value.Type() != d.columns[i].Usage.Type {
+				if value.Type() != d.Columns[i].Usage.Type {
 					return errors.New("stuntgres: invalid initial table value type")
 				}
 			}

@@ -39,7 +39,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	sourceCount := stage.count()
 	targetCount := 0
 	if sourceCount != 0 {
-		frame = make([]sqltype.Value, len(b.relation.columns)+b.deleteSourceWidth)
+		frame = make([]sqltype.Value, len(b.relation.Columns)+b.deleteSourceWidth)
 		targetCount = source.count()
 	}
 	var candidates []deleteUsingCandidate
@@ -55,7 +55,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 				return Result{}, err
 			}
 			copy(frame, physical.values(version))
-			copy(frame[len(b.relation.columns):], stage.source.row(stage.index(j)))
+			copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(j)))
 			evaluation.Row = frame
 			evaluation.bindQueryIdentity(stage.source, stage.index(j))
 			evaluation.physicalTable = physical.leaf.ref
@@ -104,7 +104,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 			continue
 		}
 		copy(frame, pair.physical.values(current))
-		copy(frame[len(b.relation.columns):], stage.source.row(stage.index(pair.sourceIndex)))
+		copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(pair.sourceIndex)))
 		evaluation.Row = frame
 		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
 		evaluation.physicalTable = candidate.ref

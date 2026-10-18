@@ -9,10 +9,10 @@ import (
 )
 
 func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
-	if key.collation != 0 {
-		u.Collation = sqltype.CollationRef{ID: key.collation, Derivation: sqltype.Default}
-		if key.collationRef.Valid() && key.collationRef.ID == key.collation {
-			u.Collation = key.collationRef
+	if key.Collation != 0 {
+		u.Collation = sqltype.CollationRef{ID: key.Collation, Derivation: sqltype.Default}
+		if key.CollationRef.Valid() && key.CollationRef.ID == key.Collation {
+			u.Collation = key.CollationRef
 		}
 	}
 	return u
@@ -20,13 +20,13 @@ func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
 
 func reconstructIndexKey(key indexKey, oldUsage, newUsage sqltype.Usage, method indexMethod) indexKey {
 	oldDefault, _ := method.defaultClass(oldUsage.Type)
-	if key.class.Name == "" || key.class == oldDefault {
-		key.class, _ = method.defaultClass(newUsage.Type)
-		key.explicitClass = false
+	if key.Class.Name == "" || key.Class == oldDefault {
+		key.Class, _ = method.defaultClass(newUsage.Type)
+		key.ExplicitClass = false
 	}
-	if key.collation == oldUsage.Collation.ID {
-		key.collation = 0
-		key.collationRef = sqltype.CollationRef{}
+	if key.Collation == oldUsage.Collation.ID {
+		key.Collation = 0
+		key.CollationRef = sqltype.CollationRef{}
 	}
 	return key
 }
@@ -58,7 +58,7 @@ func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName,
 }
 
 func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method indexMethod) (indexKey, error) {
-	key := indexKey{desc: raw.Desc, nullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
+	key := indexKey{Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
 	if raw.Collation != nil {
 		id, err := e.lookupCollation(*raw.Collation, op)
 		if err != nil {
@@ -67,9 +67,9 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		if u.Type.Usage().Collation.ID == 0 {
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
 		}
-		key.collation = id
+		key.Collation = id
 		d := auth.catalog.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
-		key.collationRef, err = d.usage()
+		key.CollationRef, err = d.usage()
 		if err != nil {
 			return key, err
 		}
@@ -84,13 +84,13 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		if !c.Accepts(u.Type) {
 			return key, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, objectNameText(*raw.Opclass), u.Type.DiagnosticName()))
 		}
-		key.explicitClass = true
+		key.ExplicitClass = true
 		exists = true
 	}
 	if !exists {
 		return key, indexDefaultClassError(u.Type.DiagnosticName(), method)
 	}
-	key.class = c
+	key.Class = c
 	if method == gistMethod {
 		if raw.DirectionExplicit || raw.Nulls != parser.NullsDefault {
 			return key, sqlError("0A000", `access method "gist" does not support ordering options`)
@@ -220,12 +220,12 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 
 func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, s *parser.CreateIndex) (*indexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	d := &indexDefinition{method: btreeMethod, parent: parent.address, keys: make([]indexKey, len(s.Keys)), include: make([]int32, len(s.Include)), ready: true, valid: true, live: true}
+	d := &indexDefinition{Method: btreeMethod, Parent: parent.Address(), Keys: make([]indexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	if s.Method == "hash" {
-		d.method = hashMethod
+		d.Method = hashMethod
 	}
 	if s.Method == "gist" {
-		d.method = gistMethod
+		d.Method = gistMethod
 	}
 	columns := make([]ColumnDescriptor, total)
 	attributes := make([]int32, total)
@@ -252,18 +252,18 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 				return fail(err)
 			}
 			label = name
-			key, err := e.bindIndexKey(op, auth, derived.execution.ResultUsage(), raw, d.method)
+			key, err := e.bindIndexKey(op, auth, derived.Execution.ResultUsage(), raw, d.Method)
 			if err != nil {
 				return fail(err)
 			}
-			if column, ok := derived.definition.(columnExpression); ok {
-				key.attribute = column.origin.Address.SubID
-				columns[i] = parent.columns[column.slot]
+			if column, ok := derived.Definition.(columnExpression); ok {
+				key.Attribute = column.origin.Address.SubID
+				columns[i] = parent.Columns[column.slot]
 			} else {
-				key.derived = derived
+				key.Derived = derived
 			}
-			d.keys[i] = key
-			columns[i].Usage = indexKeyCollation(derived.execution.ResultUsage(), key)
+			d.Keys[i] = key
+			columns[i].Usage = indexKeyCollation(derived.Execution.ResultUsage(), key)
 		} else {
 			if isSystemColumn(raw.Column.Text) {
 				system = true
@@ -271,36 +271,36 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 					if err := validateIndexInclude(raw); err != nil {
 						return fail(err)
 					}
-				} else if err := e.validateSystemIndexKey(op, auth, raw, d.method); err != nil {
+				} else if err := e.validateSystemIndexKey(op, auth, raw, d.Method); err != nil {
 					return fail(err)
 				}
-				if !included && d.method == hashMethod {
+				if !included && d.Method == hashMethod {
 					if err := validateHashKeyDirection(raw); err != nil {
 						return fail(err)
 					}
 				}
 				continue
 			}
-			slot, exists := parent.index[raw.Column.Text]
+			slot, exists := parent.Index[raw.Column.Text]
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
 			if err := rejectVirtualIndexUses(parent, []int{slot}); err != nil {
 				return fail(err)
 			}
-			columns[i] = parent.columns[slot]
+			columns[i] = parent.Columns[slot]
 			if included {
 				if err := validateIndexInclude(raw); err != nil {
 					return fail(err)
 				}
-				d.include[i-len(s.Keys)] = parent.attributes[slot]
+				d.Include[i-len(s.Keys)] = parent.Attributes[slot]
 			} else {
-				key, err := e.bindIndexKey(op, auth, columns[i].Usage, raw, d.method)
+				key, err := e.bindIndexKey(op, auth, columns[i].Usage, raw, d.Method)
 				if err != nil {
 					return fail(err)
 				}
-				key.attribute = parent.attributes[slot]
-				d.keys[i] = key
+				key.Attribute = parent.Attributes[slot]
+				d.Keys[i] = key
 				columns[i].Usage = indexKeyCollation(columns[i].Usage, key)
 			}
 		}

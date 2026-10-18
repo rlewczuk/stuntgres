@@ -36,8 +36,8 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(before)
 	next := *before.MustNamespace(ns.Address)
-	next.name = "next"
-	next.revision++
+	next.ObjectName = "next"
+	next.ObjectRevision++
 	if err = stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +52,8 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(before)
 	next = *before.MustNamespace(ns.Address)
-	next.name = "cancelled"
-	next.revision++
+	next.ObjectName = "cancelled"
+	next.ObjectRevision++
 	if err = stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}

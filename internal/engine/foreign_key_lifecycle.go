@@ -40,16 +40,16 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor
 			}
 		}
 	}
-	name := r.identifier(parent.name)
+	name := r.identifier(parent.Name())
 	visible := false
 	for _, namespace := range path {
-		if a, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: parent.name}); ok {
-			visible = a == parent.address
+		if a, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: parent.Name()}); ok {
+			visible = a == parent.Address()
 			break
 		}
 	}
 	if !visible {
-		name = r.identifier(view.Get(parent.namespace).Name()) + "." + name
+		name = r.identifier(view.Get(parent.Namespace()).Name()) + "." + name
 	}
 	text := "FOREIGN KEY (" + strings.Join(local, ", ") + ") REFERENCES " + name
 	if !primary {
@@ -118,7 +118,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		if d, ok := descriptor.(*relationDescriptor); ok && len(d.foreignKeys) != 0 {
+		if d, ok := descriptor.(*relationDescriptor); ok && len(d.ForeignKeys) != 0 {
 			present = true
 			break
 		}
@@ -135,11 +135,11 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue
 		}
-		for _, f := range edge.relation.foreignKeys {
+		for _, f := range edge.relation.ForeignKeys {
 			if f.OID == edge.address.ObjectID {
 				// The column's existing shape pass owns local AUTO removal,
 				// even if discovery first reached this FK through its index.
-				if edge.relation.address.ClassID == target.ClassID && edge.relation.address.ObjectID == target.ObjectID && slices.Contains(f.Attributes, target.SubID) {
+				if edge.relation.Address().ClassID == target.ClassID && edge.relation.Address().ObjectID == target.ObjectID && slices.Contains(f.Attributes, target.SubID) {
 					break
 				}
 				edge.target = target
@@ -154,7 +154,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 			if edge.automatic {
 				continue
 			}
-			ref := provider.owner.catalog.domain.Ref(provider.base.Epoch(), edge.relation.address)
+			ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), edge.relation.Address())
 			if !slices.Contains(owners, ref) {
 				owners = append(owners, ref)
 			}
@@ -195,23 +195,23 @@ func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) err
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue
 		}
-		if provider.removed(edge.relation.address) {
+		if provider.removed(edge.relation.Address()) {
 			continue
 		}
 		old := edge.relation
-		if replacement, ok := provider.replacement(old.address).(*relationDescriptor); ok {
+		if replacement, ok := provider.replacement(old.Address()).(*relationDescriptor); ok {
 			old = replacement
 		}
-		for i, f := range old.foreignKeys {
+		for i, f := range old.ForeignKeys {
 			if f.OID != edge.address.ObjectID {
 				continue
 			}
 			next := *old
-			next.foreignKeys = make([]foreignKeyConstraint, 0, len(old.foreignKeys)-1)
-			next.foreignKeys = append(next.foreignKeys, old.foreignKeys[:i]...)
-			next.foreignKeys = append(next.foreignKeys, old.foreignKeys[i+1:]...)
+			next.ForeignKeys = make([]foreignKeyConstraint, 0, len(old.ForeignKeys)-1)
+			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[:i]...)
+			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[i+1:]...)
 			var err error
-			next.revision, err = provider.revision(old.revision)
+			next.ObjectRevision, err = provider.revision(old.Revision())
 			if err != nil {
 				return err
 			}
@@ -231,30 +231,30 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 	view := e.stageRead(stage)
 	for _, descriptor := range view.Descriptors() {
 		old, ok := descriptor.(*relationDescriptor)
-		if !ok || len(old.foreignKeys) == 0 {
+		if !ok || len(old.ForeignKeys) == 0 {
 			continue
 		}
 		var next *relationDescriptor
-		for i, f := range old.foreignKeys {
+		for i, f := range old.ForeignKeys {
 			affected := false
 			for _, change := range transformations {
-				affected = affected || (old.address == parent.address && slices.Contains(f.Attributes, change.attribute)) || (f.Target == parent.address && slices.Contains(f.Referenced, change.attribute))
+				affected = affected || (old.Address() == parent.Address() && slices.Contains(f.Attributes, change.attribute)) || (f.Target == parent.Address() && slices.Contains(f.Referenced, change.attribute))
 			}
 			if !affected {
 				continue
 			}
 			if next == nil {
 				copy := *old
-				copy.foreignKeys = slices.Clone(old.foreignKeys)
+				copy.ForeignKeys = slices.Clone(old.ForeignKeys)
 				next = &copy
-				if old.address == parent.address {
+				if old.Address() == parent.Address() {
 					*next = *parent
-					next.foreignKeys = slices.Clone(parent.foreignKeys)
+					next.ForeignKeys = slices.Clone(parent.ForeignKeys)
 				}
 			}
-			c := &next.foreignKeys[i]
+			c := &next.ForeignKeys[i]
 			target, ok := view.Relation(c.Target)
-			if c.Target == parent.address {
+			if c.Target == parent.Address() {
 				target = parent
 				ok = true
 			}
@@ -265,7 +265,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 			if err != nil {
 				return nil, err
 			}
-			c.Index = index.address
+			c.Index = index.Address()
 			if _, err := bindForeignKeyComparison(view, next, target, index, *c); err != nil {
 				return nil, err
 			}
@@ -276,14 +276,14 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 		}
 		if next != nil {
 			var err error
-			next.revision, err = e.catalog.revisionLocked()
+			next.ObjectRevision, err = e.catalog.revisionLocked()
 			if err != nil {
 				return nil, err
 			}
 			if err := stage.Replace(next); err != nil {
 				return nil, err
 			}
-			if next.address == parent.address {
+			if next.Address() == parent.Address() {
 				parent = next
 			}
 		}
@@ -299,12 +299,12 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
-			if child.address != address && f.Target != address {
+		for _, f := range child.ForeignKeys {
+			if child.Address() != address && f.Target != address {
 				continue
 			}
-			for _, a := range []ids.ObjectAddress{child.address, f.Target} {
-				ref := e.catalog.domain.Ref(view.Epoch(), a)
+			for _, a := range []ids.ObjectAddress{child.Address(), f.Target} {
+				ref := e.catalog.Domain.Ref(view.Epoch(), a)
 				if !slices.Contains(refs, ref) {
 					refs = append(refs, ref)
 				}
@@ -341,8 +341,8 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
-			if f.NotValid || child.address != address && f.Target != address {
+		for _, f := range child.ForeignKeys {
+			if f.NotValid || child.Address() != address && f.Target != address {
 				continue
 			}
 			parent := view.MustRelation(f.Target)
@@ -351,11 +351,11 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 			if err != nil {
 				return err
 			}
-			children, err := s.captureForeignKeyRows(e.catalog.domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
+			children, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), child.Address()), ids.ObjectAddress{})
 			if err != nil {
 				return err
 			}
-			parents, err := s.captureForeignKeyRows(e.catalog.domain.Ref(view.Epoch(), parent.address), f.Index)
+			parents, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), parent.Address()), f.Index)
 			if err != nil {
 				return err
 			}
@@ -376,7 +376,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if installedForeignKey(stage, address, f) {
 				continue
 			}
@@ -386,7 +386,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if _, external := stage.base.Find(f.Target); !external {
 				continue
 			}
-			ref := stage.owner.catalog.domain.Ref(stage.base.Epoch(), f.Target)
+			ref := stage.owner.catalog.Domain.Ref(stage.base.Epoch(), f.Target)
 			if !slices.Contains(refs, ref) {
 				refs = append(refs, ref)
 			}
@@ -423,7 +423,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if !ok {
 			continue
 		}
-		for _, f := range child.foreignKeys {
+		for _, f := range child.ForeignKeys {
 			if installedForeignKey(stage, address, f) {
 				continue
 			}

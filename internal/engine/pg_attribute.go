@@ -16,56 +16,56 @@ var pgAttributeTypeIDs = [...]sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18,
 // Scalar-only history survives removal of the original type and its dependency.
 // Published maps and entries are immutable; no live query or codec sees them.
 type attributeMetadata struct {
-	name                                string
-	typeID                              uint32
-	number                              int32
-	facts                               sqltype.PostgreSQLAttributeFacts
-	typmod                              int32
-	dimensions                          int16
-	collation                           uint32
-	notNull, hasDefault, dropped, local bool
-	inheritance                         int64
-	identity, generated                 string
+	Name                                string
+	TypeID                              uint32
+	Number                              int32
+	Facts                               sqltype.PostgreSQLAttributeFacts
+	Typmod                              int32
+	Dimensions                          int16
+	Collation                           uint32
+	NotNull, HasDefault, Dropped, Local bool
+	Inheritance                         int64
+	Identity, Generated                 string
 }
 
 func relationAttributeMetadata(relation *relationDescriptor, slot int) attributeMetadata {
-	column := relation.columns[slot]
-	attribute := relation.attributes[slot]
-	metadata := attributeMetadata{name: column.Name, typeID: uint32(column.Usage.Type.ID()), number: attribute, facts: column.Usage.Type.AttributeFacts(), typmod: column.Usage.Typmod, dimensions: column.DeclaredDimensions, collation: column.Usage.Collation.ID, notNull: !column.Nullable, local: true}
-	_, metadata.hasDefault = relation.defaults[attribute]
-	if definition, ok := relation.generations[attribute]; ok {
-		metadata.hasDefault = true
-		metadata.generated = "s"
-		if definition.kind == generationVirtual {
-			metadata.generated = "v"
+	column := relation.Columns[slot]
+	attribute := relation.Attributes[slot]
+	metadata := attributeMetadata{Name: column.Name, TypeID: uint32(column.Usage.Type.ID()), Number: attribute, Facts: column.Usage.Type.AttributeFacts(), Typmod: column.Usage.Typmod, Dimensions: column.DeclaredDimensions, Collation: column.Usage.Collation.ID, NotNull: !column.Nullable, Local: true}
+	_, metadata.HasDefault = relation.Defaults[attribute]
+	if definition, ok := relation.Generations[attribute]; ok {
+		metadata.HasDefault = true
+		metadata.Generated = "s"
+		if definition.Kind == generationVirtual {
+			metadata.Generated = "v"
 		}
 	}
-	if definition, ok := relation.identities[attribute]; ok {
-		metadata.identity = "d"
-		if definition.mode == parser.IdentityAlways {
-			metadata.identity = "a"
+	if definition, ok := relation.Identities[attribute]; ok {
+		metadata.Identity = "d"
+		if definition.Mode == parser.IdentityAlways {
+			metadata.Identity = "a"
 		}
 	}
-	if relation.inheritance != nil {
-		if provenance, ok := relation.inheritance.columns[attribute]; ok {
-			metadata.local, metadata.inheritance = provenance.local, int64(len(provenance.origins))
+	if relation.Inheritance != nil {
+		if provenance, ok := relation.Inheritance.Columns[attribute]; ok {
+			metadata.Local, metadata.Inheritance = provenance.Local, int64(len(provenance.Origins))
 		}
 	}
-	if relation.membership != nil {
-		metadata.local, metadata.inheritance = false, 1
+	if relation.Membership != nil {
+		metadata.Local, metadata.Inheritance = false, 1
 	}
-	if relation.relationKind == viewRelation || relation.relationKind == indexRelation {
-		metadata.notNull = false
+	if relation.RelationKind == viewRelation || relation.RelationKind == indexRelation {
+		metadata.NotNull = false
 	}
-	if relation.sqlIndex != nil {
-		metadata.hasDefault, metadata.identity, metadata.generated = false, "", ""
-		if slot >= len(relation.sqlIndex.keys) {
-			metadata.collation = 0
+	if relation.SQLIndex != nil {
+		metadata.HasDefault, metadata.Identity, metadata.Generated = false, "", ""
+		if slot >= len(relation.SQLIndex.Keys) {
+			metadata.Collation = 0
 		}
 	}
-	if relation.relationKind == catalogRelation {
-		fact := relation.catalogAttributes[slot]
-		metadata.notNull, metadata.dimensions, metadata.collation = fact.notNull, fact.dimensions, fact.collation
+	if relation.RelationKind == catalogRelation {
+		fact := relation.CatalogAttributes[slot]
+		metadata.NotNull, metadata.Dimensions, metadata.Collation = fact.NotNull, fact.Dimensions, fact.Collation
 	}
 	return metadata
 }
@@ -84,22 +84,22 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.Get(source.address) != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.state.epoch || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {
 		return nil, fmt.Errorf("stuntgres: foreign attribute ACL authority")
 	}
-	if len(source.columns) != len(pgAttributeTypeIDs) {
+	if len(source.Columns) != len(pgAttributeTypeIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid attribute source shape")
 	}
 	for i, id := range pgAttributeTypeIDs {
 		owned, ok := catalog.LookupType(id)
-		if !ok || source.columns[i].Usage.Type != owned {
+		if !ok || source.Columns[i].Usage.Type != owned {
 			return nil, fmt.Errorf("stuntgres: foreign attribute source type")
 		}
 	}
-	if !source.columns[24].Usage.CatalogNullUsage() {
+	if !source.Columns[24].Usage.CatalogNullUsage() {
 		return nil, fmt.Errorf("stuntgres: invalid attribute NULL carrier")
 	}
 	count := 0
@@ -108,7 +108,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 			return nil, err
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok {
-			count += len(relation.columns) + len(relation.droppedAttributes)
+			count += len(relation.Columns) + len(relation.DroppedAttributes)
 			if hasSystemAttributes(catalog, relation) {
 				count += 6
 			}
@@ -131,12 +131,12 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 			rows = append(rows, row)
 			return nil
 		}
-		for slot := range relation.columns {
+		for slot := range relation.Columns {
 			if err := appendRow(relationAttributeMetadata(relation, slot)); err != nil {
 				return nil, err
 			}
 		}
-		for _, metadata := range relation.droppedAttributes {
+		for _, metadata := range relation.DroppedAttributes {
 			if err := appendRow(metadata); err != nil {
 				return nil, err
 			}
@@ -152,7 +152,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 			}{
 				{"tableoid", 26, -6, 4, true, "i"}, {"cmax", 29, -5, 4, true, "i"}, {"xmax", 28, -4, 4, true, "i"}, {"cmin", 29, -3, 4, true, "i"}, {"xmin", 28, -2, 4, true, "i"}, {"ctid", 27, -1, 6, false, "s"},
 			} {
-				metadata := attributeMetadata{name: system.name, typeID: system.oid, number: system.number, facts: sqltype.PostgreSQLAttributeFacts{Length: system.length, ByValue: system.byval, Alignment: system.align, Storage: "p"}, typmod: -1, notNull: true, local: true}
+				metadata := attributeMetadata{Name: system.name, TypeID: system.oid, Number: system.number, Facts: sqltype.PostgreSQLAttributeFacts{Length: system.length, ByValue: system.byval, Alignment: system.align, Storage: "p"}, Typmod: -1, NotNull: true, Local: true}
 				if err := appendRow(metadata); err != nil {
 					return nil, err
 				}
@@ -170,22 +170,22 @@ func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *rela
 		}
 		return value
 	}
-	oid := func(i int, n uint32) sqltype.Value { return checked(sqltype.OIDValue(source.columns[i].Usage.Type, n)) }
-	integer := func(i int, n int64) sqltype.Value { return checked(sqltype.Integer(source.columns[i].Usage.Type, n)) }
-	text := func(i int, s string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, s) }
-	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, b) }
-	null := func(i int) sqltype.Value { return sqltype.Null(source.columns[i].Usage.Type) }
+	oid := func(i int, n uint32) sqltype.Value { return checked(sqltype.OIDValue(source.Columns[i].Usage.Type, n)) }
+	integer := func(i int, n int64) sqltype.Value { return checked(sqltype.Integer(source.Columns[i].Usage.Type, n)) }
+	text := func(i int, s string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, s) }
+	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, b) }
+	null := func(i int) sqltype.Value { return sqltype.Null(source.Columns[i].Usage.Type) }
 	acl := null(21)
-	if metadata.number > 0 && !metadata.dropped {
-		if value, exists := relation.columnACL[metadata.number]; exists {
-			acl = checked(e.pgClassACL(roles, source.columns[21].Usage.Type, value))
+	if metadata.Number > 0 && !metadata.Dropped {
+		if value, exists := relation.ColumnACL[metadata.Number]; exists {
+			acl = checked(e.pgClassACL(roles, source.Columns[21].Usage.Type, value))
 		}
 	}
 	row := []sqltype.Value{
-		oid(0, uint32(relation.address.ObjectID)), text(1, metadata.name), oid(2, metadata.typeID), integer(3, int64(metadata.facts.Length)), integer(4, int64(metadata.number)), integer(5, int64(metadata.typmod)), integer(6, int64(metadata.dimensions)), boolean(7, metadata.facts.ByValue), text(8, metadata.facts.Alignment), text(9, metadata.facts.Storage), text(10, ""), boolean(11, metadata.notNull), boolean(12, metadata.hasDefault), boolean(13, false), text(14, metadata.identity), text(15, metadata.generated), boolean(16, metadata.dropped), boolean(17, metadata.local), integer(18, metadata.inheritance), oid(19, metadata.collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.columns[24].Usage),
+		oid(0, uint32(relation.Address().ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, ""), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
 	}
-	if relation.foreign != nil && metadata.number > 0 && !metadata.dropped {
-		row[23] = checked(foreignOptionsValue(source.columns[23].Usage.Type, relation.foreign.columns[metadata.number]))
+	if relation.Foreign != nil && metadata.Number > 0 && !metadata.Dropped {
+		row[23] = checked(foreignOptionsValue(source.Columns[23].Usage.Type, relation.Foreign.Columns[metadata.Number]))
 	}
 	return row, failure
 }

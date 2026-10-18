@@ -25,9 +25,9 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			return err
 		}
 		if proven && !exclude {
-			for child := parent; child.membership != nil; {
-				ancestor := view.MustRelation(child.membership.parent)
-				proven, err = partitionConstraintProven(s, view, ancestor, d, child.membership, false)
+			for child := parent; child.Membership != nil; {
+				ancestor := view.MustRelation(child.Membership.Parent)
+				proven, err = partitionConstraintProven(s, view, ancestor, d, child.Membership, false)
 				if err != nil || !proven {
 					break
 				}
@@ -40,18 +40,18 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 		if proven {
 			return nil
 		}
-		if d.partition == nil {
+		if d.Partition == nil {
 			scans = append(scans, partitionAttachScan{leaf: d, exclude: exclude})
 			return nil
 		}
-		for _, address := range d.partition.children {
+		for _, address := range d.Partition.Children {
 			child, ok := view.Relation(address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
 			childView := view
 			if lockChildren {
-				ref := s.op.session.Engine().catalog.domain.Ref(view.Epoch(), address)
+				ref := s.op.session.Engine().catalog.Domain.Ref(view.Epoch(), address)
 				if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 					return err
 				}
@@ -81,15 +81,15 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		return ids.ErrCatalogReplaced
 	}
 	capture := func(d *relationDescriptor) error {
-		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.address); current != d {
+		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.Address()); current != d {
 			return ids.ErrCatalogReplaced
 		}
 		stage.domainBases = append(stage.domainBases, d)
-		storage := e.privateStorageLocked(scope.owner.catalog, d.address)
+		storage := e.privateStorageLocked(scope.owner.catalog, d.Address())
 		if storage == nil {
 			return ids.ErrCatalogReplaced
 		}
-		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.address, storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
+		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.Address(), storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
 		return nil
 	}
 	if err := partitionPhysicalDescendants(catalog, candidate, capture); err != nil {
@@ -102,7 +102,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 				return err
 			}
 		}
-		refs = append(refs, e.catalog.domain.Ref(catalog.Epoch(), job.leaf.address))
+		refs = append(refs, e.catalog.Domain.Ref(catalog.Epoch(), job.leaf.Address()))
 	}
 	if len(refs) == 0 {
 		return nil
@@ -128,7 +128,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 			if err != nil {
 				return err
 			}
-			constraint := partitionAttachRowConstraint{parent: p, child: relationDescriptor{membership: m}, layout: layout}
+			constraint := partitionAttachRowConstraint{parent: p, child: relationDescriptor{Membership: m}, layout: layout}
 			if layout != nil {
 				constraint.scratch = make([]sqltype.Value, len(layout))
 			}
@@ -139,15 +139,15 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 			return err
 		}
 		if !job.exclude {
-			for child := parent; child.membership != nil; {
-				ancestor := catalog.MustRelation(child.membership.parent)
-				if err := add(ancestor, child.membership); err != nil {
+			for child := parent; child.Membership != nil; {
+				ancestor := catalog.MustRelation(child.Membership.Parent)
+				if err := add(ancestor, child.Membership); err != nil {
 					return err
 				}
 				child = ancestor
 			}
 		}
-		ref := catalog.owner.domain.Ref(catalog.Epoch(), job.leaf.address)
+		ref := catalog.owner.Domain.Ref(catalog.Epoch(), job.leaf.Address())
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err
@@ -172,11 +172,11 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 					continue
 				}
 				source.close()
-				message := fmt.Sprintf(`partition constraint of relation "%s" is violated by some row`, job.leaf.name)
+				message := fmt.Sprintf(`partition constraint of relation "%s" is violated by some row`, job.leaf.Name())
 				if job.exclude {
-					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.leaf.name)
+					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.leaf.Name())
 				}
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: catalog.Get(job.leaf.namespace).Name(), Table: job.leaf.name}
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: catalog.Get(job.leaf.Namespace()).Name(), Table: job.leaf.Name()}
 			}
 		}
 		source.close()

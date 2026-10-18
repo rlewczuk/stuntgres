@@ -153,7 +153,7 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 					matches = false
 					break
 				}
-				if column.leaf >= 0 && captured.attribute != b.querySources[column.leaf].relation.attributes[column.physical] {
+				if column.leaf >= 0 && captured.attribute != b.querySources[column.leaf].relation.Attributes[column.physical] {
 					matches = false
 					break
 				}

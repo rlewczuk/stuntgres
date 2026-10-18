@@ -28,22 +28,22 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	base := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
-	baseRef := e.catalog.domain.Ref(e.catalog.state.epoch, base.address)
+	base := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: tableRelation, Attributes: []int32{7, 11, 19}, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, AttributeHighWater: 19}
+	baseRef := e.catalog.Domain.Ref(e.catalog.state.epoch, base.Address())
 	column := func(slot int) expr.Expr {
 		ref := baseRef
-		ref.Address.SubID = base.attributes[slot]
+		ref.Address.SubID = base.Attributes[slot]
 		return columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 	}
-	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, owner: owner, relationKind: viewRelation, attributes: []int32{1, 2}, attributeHighWater: 2, columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"x": 0, "key": 1}}
+	view := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: viewRelation, Attributes: []int32{1, 2}, AttributeHighWater: 2, Columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
-	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
-	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
-	viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
-	e.catalog.state.setDescriptor(base.address, base)
-	e.catalog.state.setDescriptor(view.address, view)
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.name}, base.address)
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.name}, view.address)
+	project := &projectNode{querySchema: querySchema(view.Columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
+	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
+	viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+	e.catalog.state.setDescriptor(base.Address(), base)
+	e.catalog.state.setDescriptor(view.Address(), view)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -51,7 +51,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		}
 		return v
 	}
-	e.storage[base.address] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value(1), value(10), value(42)}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value(2), value(20), value(42)}}}}
+	e.storage[base.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value(1), value(10), value(42)}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value(2), value(20), value(42)}}}}
 	e.commitSeq = 1
 	e.nextRow = 2
 	e.nextVersion = 2
@@ -108,9 +108,9 @@ func TestViewWriteMapping(t *testing.T) {
 	}
 	// Creation slots survive current dense compaction and column renames.
 	compact := *f.base
-	compact.attributes = []int32{11, 19}
-	compact.columns = []ColumnDescriptor{f.base.columns[1], f.base.columns[2]}
-	compact.columns[0].Name = "renamed"
+	compact.Attributes = []int32{11, 19}
+	compact.Columns = []ColumnDescriptor{f.base.Columns[1], f.base.Columns[2]}
+	compact.Columns[0].Name = "renamed"
 	slot, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 1)
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
@@ -126,7 +126,7 @@ func TestViewWriteMapping(t *testing.T) {
 	syntax.Distinct = &parser.DistinctClause{}
 	syntax.GroupBy = &parser.GroupClause{}
 	definition.syntax = &syntax
-	restricted.view = &definition
+	restricted.View = &definition
 	_, _, _, reason := viewWriteShape(&restricted)
 	if reason != "Views containing DISTINCT are not automatically updatable." {
 		t.Fatal(reason)
@@ -158,7 +158,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
-	f.base.defaults = map[int32]columnDefault{19: {expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: constant}}}
+	f.base.Defaults = map[int32]columnDefault{19: {Expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: constant}}}
 	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]expr.Expr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
@@ -170,8 +170,8 @@ func TestViewWriteDefaults(t *testing.T) {
 	// view address, even when DO NOTHING has no explicit inference keys.
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	f.e.catalog.state.setDescriptor(indexAddress, &relationDescriptor{
-		address:  indexAddress,
-		sqlIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
+		ObjectAddress: indexAddress,
+		SQLIndex:      &indexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
 	conflict := &boundInsertConflict{}
 	evaluation := EvalContext{Context: context.Background()}
@@ -242,7 +242,7 @@ func TestViewWriteDemand(t *testing.T) {
 	t.Run("frozen_live_prefix", func(t *testing.T) {
 		f := viewWriteMechanics(t)
 		f.e.commitSeq = 2
-		store := f.e.storage[f.base.address]
+		store := f.e.storage[f.base.Address()]
 		store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}
 		scope, op := f.scope(t)
 		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
@@ -282,7 +282,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	waiter, _ := f.scope(t)
-	old := f.e.storage[f.base.address].versions[0]
+	old := f.e.storage[f.base.Address()].versions[0]
 	resource := lock.Resource{ObjectRef: f.baseRef, Row: old.row}
 	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
@@ -330,7 +330,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	scope, _ := f.scope(t)
-	originals := f.e.storage[f.base.address].versions
+	originals := f.e.storage[f.base.Address()].versions
 	resource := lock.Resource{ObjectRef: f.baseRef, Row: originals[0].row}
 	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
@@ -352,7 +352,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	current := f.e.storage[f.base.address].versions
+	current := f.e.storage[f.base.Address()].versions
 	if current[0].version != originals[0].version || current[1].version != originals[1].version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}

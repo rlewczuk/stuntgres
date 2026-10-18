@@ -14,7 +14,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
-	d := &relationDescriptor{address: address, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	d := &relationDescriptor{ObjectAddress: address, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "ssi_unit", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	return e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
 	return &StatementScope{owner: txOwnerOf(node.ref), txRef: node.ref}
@@ -153,7 +153,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	catalog := cloneCatalog(e.catalog.state)
 	original := catalog.MustRelation(ref.Address)
 	copy := *original
-	copy.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	copy.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	catalog.setDescriptor(ref.Address, &copy)
 	e.catalog.state = catalog
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
@@ -227,7 +227,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}
-	relation := e.catalog.domain.Ref(view.Epoch(), matches[0])
+	relation := e.catalog.Domain.Ref(view.Epoch(), matches[0])
 	sessionSQL(t, session, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	for _, query := range []string{
 		"SELECT last_value,is_called FROM persistent_s",
@@ -251,7 +251,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	e.mu.Lock()
 	node := e.serializable.nodes[session.transactions.ref]
 	namespace := e.catalog.state.MustNamespace(session.temporaryNamespace)
-	if namespace.temporary != session.token {
+	if namespace.Temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
 	scope := &StatementScope{owner: session.transactions, txRef: session.transactions.ref}
@@ -270,11 +270,11 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	}
 	var persistentGenerator, temporaryGenerator *sequenceGenerator
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok && d.relationKind == sequenceRelation {
-			if d.name == "persistent_s" {
+		if d, ok := descriptor.(*relationDescriptor); ok && d.RelationKind == sequenceRelation {
+			if d.Name() == "persistent_s" {
 				persistentGenerator = e.sequences[address]
 			}
-			if d.name == "temporary_s" {
+			if d.Name() == "temporary_s" {
 				temporaryGenerator = e.sequences[address]
 			}
 		}

@@ -41,7 +41,7 @@ func (b *expressionBinder) operatorConstant(text string, typ *sqltype.Descriptor
 		}
 	}
 	for _, operand := range constant.operands {
-		b.dependency(operand.ref, operand.revision)
+		b.dependency(operand.Ref, operand.Revision)
 	}
 	b.regtypeConstants = append(b.regtypeConstants, constant)
 	return sqltype.OperatorValue(typ, constant.id)
@@ -56,7 +56,7 @@ func (b *expressionBinder) operatorCompoundConstant(text string, usage sqltype.U
 					return sqltype.Value{}, err
 				}
 				for _, operand := range constant.operands {
-					b.dependency(operand.ref, operand.revision)
+					b.dependency(operand.Ref, operand.Revision)
 				}
 				b.regtypeConstants = append(b.regtypeConstants, constant)
 				return value, nil
@@ -80,7 +80,7 @@ func (b *expressionBinder) operatorCompoundConstant(text string, usage sqltype.U
 	}
 	constant.value = value
 	for _, operand := range constant.operands {
-		b.dependency(operand.ref, operand.revision)
+		b.dependency(operand.Ref, operand.Revision)
 	}
 	b.regtypeConstants = append(b.regtypeConstants, constant)
 	return value, nil

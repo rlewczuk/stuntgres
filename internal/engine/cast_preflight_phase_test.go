@@ -82,7 +82,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				if scope.view != nil {
 					t.Error("source view captured before preflight/ACL")
 				}
-				if len(scope.querySources) != 1 || scope.querySources[0].ref.Domain() != e.catalog.domain || scope.querySources[0].relation == nil {
+				if len(scope.querySources) != 1 || scope.querySources[0].ref.Domain() != e.catalog.Domain || scope.querySources[0].relation == nil {
 					t.Error("preflight lost locked source occurrence identity")
 					return // Keep the assertion non-panicking inside execution.
 				}
@@ -100,8 +100,8 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 					replacement := *leaf.relation
 					// Compatible descriptor copies are admissible; invalidate the
 					// captured physical attribute identity instead.
-					replacement.attributes = append([]int32(nil), replacement.attributes...)
-					replacement.attributes[0]++
+					replacement.Attributes = append([]int32(nil), replacement.Attributes...)
+					replacement.Attributes[0]++
 					e.catalog.state.setDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.setDescriptor(address, original) }
 				case "epoch":

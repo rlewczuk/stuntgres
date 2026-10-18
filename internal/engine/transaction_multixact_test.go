@@ -195,7 +195,7 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 		t.Fatal("batch preflight published a prefix", err)
 	}
 	for _, change := range []func(*lock.MultiTuple){func(k *lock.MultiTuple) { k.Row = 0 }, func(k *lock.MultiTuple) { k.Kind = lock.AdvisoryBigintResource }, func(k *lock.MultiTuple) { k.Epoch++ }, func(k *lock.MultiTuple) {
-		k.ObjectRef = New().catalog.domain.Ref(k.ObjectRef.Epoch, k.ObjectRef.Address)
+		k.ObjectRef = New().catalog.Domain.Ref(k.ObjectRef.Epoch, k.ObjectRef.Address)
 	}} {
 		bad := third
 		change(&bad)

@@ -15,7 +15,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		e.mu.Lock()
 		relation := e.catalog.state.MustRelation(ref.Address)
 		e.mu.Unlock()
-		usage := relation.columns[0].Usage
+		usage := relation.Columns[0].Usage
 		typ := usage.Type
 		calls := make([]int, count)
 		expressions := make([][]expr.Expr, count)

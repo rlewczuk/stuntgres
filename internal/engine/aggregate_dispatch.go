@@ -51,11 +51,11 @@ func (b *expressionBinder) valuesAggregateNamespace() func() {
 	b.queryNamespace = &queryNamespace{}
 	hidden := b.queryHidden
 	if target := b.insertTarget; target != nil {
-		columns := make([]queryColumn, len(target.columns))
-		for i, descriptor := range target.columns {
+		columns := make([]queryColumn, len(target.Columns))
+		for i, descriptor := range target.Columns {
 			columns[i].descriptor = descriptor
 		}
-		b.queryHidden = append(b.queryHidden, queryQualifier{name: target.name, columns: columns, lateralForbidden: true})
+		b.queryHidden = append(b.queryHidden, queryQualifier{name: target.Name(), columns: columns, lateralForbidden: true})
 	}
 	return func() { b.queryNamespace, b.queryHidden = nil, hidden }
 }

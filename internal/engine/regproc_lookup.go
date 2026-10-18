@@ -5,10 +5,10 @@ import "stuntgres/internal/engine/ids"
 // routineIdentity is lookup-only metadata. It is deliberately not a Descriptor:
 // finding a routine alias must never grant execution or expand pg_proc SQL rows.
 type routineIdentity struct {
-	id        ids.OID
-	namespace ids.OID
-	name      string
-	signature procedureSignature
+	ID        ids.OID
+	Namespace ids.OID
+	Name      string
+	Signature procedureSignature
 }
 type routineKey struct {
 	name      string
@@ -22,23 +22,23 @@ func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineId
 	byName := make(map[string][]routineIdentity)
 	bySignature := make(map[routineKey]routineIdentity, len(builtinRoutineIdentities))
 	for _, p := range builtinRoutineIdentities {
-		byOID[p.id] = p
-		byName[p.name] = append(byName[p.name], p)
-		bySignature[routineKey{p.name, p.signature}] = p
+		byOID[p.ID] = p
+		byName[p.Name] = append(byName[p.Name], p)
+		bySignature[routineKey{p.Name, p.Signature}] = p
 	}
 	return byOID, byName, bySignature
 }
 
 func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
-		return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}, true
+		return routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
 	}
 	if p, ok := routineByOID[id]; ok {
 		return p, true
 	}
 	if owner := routineDescriptorOwner(view, id); owner != nil {
-		for _, helper := range owner.aggregate.helpers {
-			if helper.id == id {
+		for _, helper := range owner.Aggregate.Helpers {
+			if helper.ID == id {
 				return helper, true
 			}
 		}
@@ -48,7 +48,7 @@ func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) 
 
 func routineNamespaceVisible(view CatalogRead, namespace ids.ObjectAddress) bool {
 	ns, ok := view.Namespace(namespace)
-	return ok && ns.temporary == (ids.SessionToken{})
+	return ok && ns.Temporary == (ids.SessionToken{})
 }
 
 // Exact signatures use both existing catalog NameKeys and the immutable release
@@ -60,12 +60,12 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 			continue
 		}
 		if p := procedureInNamespaces(view, namespaceSelection{qualified: namespace}, name, signature); p != nil {
-			return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}, 1
+			return routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, d := range view.Descriptors() {
-			if owner, ok := d.(*procedureDescriptor); ok && owner.aggregate != nil && owner.namespace == namespace {
-				for _, helper := range owner.aggregate.helpers {
-					if helper.name == name && helper.signature == signature {
+			if owner, ok := d.(*procedureDescriptor); ok && owner.Aggregate != nil && owner.Namespace() == namespace {
+				for _, helper := range owner.Aggregate.Helpers {
+					if helper.Name == name && helper.Signature == signature {
 						return helper, 1
 					}
 				}
@@ -90,10 +90,10 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 	count := 0
 	seen := make(map[procedureSignature]bool)
 	accept := func(p routineIdentity) bool {
-		if seen[p.signature] {
+		if seen[p.Signature] {
 			return false
 		}
-		seen[p.signature] = true
+		seen[p.Signature] = true
 		selected = p
 		count++
 		return count == 2
@@ -104,13 +104,13 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 			continue
 		}
 		for _, d := range view.Descriptors() {
-			if p, ok := d.(*procedureDescriptor); ok && p.namespace == namespace {
-				if p.name == name && accept(routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}) {
+			if p, ok := d.(*procedureDescriptor); ok && p.Namespace() == namespace {
+				if p.Name() == name && accept(routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}) {
 					return selected, count
 				}
-				if p.aggregate != nil {
-					for _, helper := range p.aggregate.helpers {
-						if helper.name == name && accept(helper) {
+				if p.Aggregate != nil {
+					for _, helper := range p.Aggregate.Helpers {
+						if helper.Name == name && accept(helper) {
 							return selected, count
 						}
 					}

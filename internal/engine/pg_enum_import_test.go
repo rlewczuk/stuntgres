@@ -15,14 +15,14 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	op, done := roleOperation(t, source, "postgres")
 	domainUnitPublish(t, source, domainUnitStage(t, source, op, "CREATE TYPE mood AS ENUM ('z','q')"))
 	old := domainUnitType(t, source.CatalogRead(), "mood")
-	members := old.typ.EnumMembers()
+	members := old.SQLType.EnumMembers()
 	members[0].SortOrder, members[1].SortOrder = -1, 1.5
-	typ, err := sqltype.EnumWithMembers(old.typ.ID(), old.Name(), old.typ.SQLName(), members)
+	typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *old
-	next.typ, next.revision = typ, old.revision+1
+	next.SQLType, next.ObjectRevision = typ, old.ObjectRevision+1
 	stage := source.BeginCatalogStage(source.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
@@ -53,9 +53,9 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	domainUnitPublish(t, source, stage)
 	done()
 	original := source.CatalogRead()
-	mood := domainUnitType(t, original, "mood").typ
-	domain := domainUnitType(t, original, "wrapped").typ
-	box := domainUnitType(t, original, "box").typ
+	mood := domainUnitType(t, original, "mood").SQLType
+	domain := domainUnitType(t, original, "wrapped").SQLType
+	box := domainUnitType(t, original, "box").SQLType
 	v, err := mood.Input(ctx, "q", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	if _, err := target.ReplaceCatalog(ctx, source, original); err != nil {
 		t.Fatal(err)
 	}
-	imported := domainUnitType(t, target.CatalogRead(), "mood").typ
+	imported := domainUnitType(t, target.CatalogRead(), "mood").SQLType
 	for i, oldMember := range members {
 		newMember, ok := imported.EnumMemberAt(i)
 		if !ok || newMember.ID == oldMember.ID || newMember.Label != oldMember.Label || newMember.SortOrder != oldMember.SortOrder {
@@ -101,7 +101,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	newRelation := target.catalog.state.MustRelation(newRef.Address)
 	for i, want := range []string{"q", "q", "(q)"} {
 		value := rows[0].values[i]
-		if value.Type() != newRelation.columns[i].Usage.Type {
+		if value.Type() != newRelation.Columns[i].Usage.Type {
 			t.Fatal("foreign imported codec", i, value)
 		}
 		if text, err := value.Type().Output(ctx, value); err != nil || text != want {
@@ -113,8 +113,8 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	if newID == oldID {
 		t.Fatal("datum identity not reminted", newID)
 	}
-	definition := newRelation.defaults[newRelation.attributes[0]]
-	literal, err := definition.expression.Eval(&EvalContext{Context: ctx})
+	definition := newRelation.Defaults[newRelation.Attributes[0]]
+	literal, err := definition.Expression.Eval(&EvalContext{Context: ctx})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,17 +12,17 @@ func collationDisplayName(view CatalogRead, id uint32, path []ids.ObjectAddress)
 		return ""
 	}
 	if path == nil && d.seeded() {
-		return pgIdentifier(d.name)
+		return pgIdentifier(d.Name())
 	}
 	for _, ns := range path {
-		if a, ok := view.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}); ok {
+		if a, ok := view.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.Name()}); ok {
 			if a == d.Address() {
-				return pgIdentifier(d.name)
+				return pgIdentifier(d.Name())
 			}
 			break
 		}
 	}
-	return pgIdentifier(view.Get(d.Namespace()).Name()) + "." + pgIdentifier(d.name)
+	return pgIdentifier(view.Get(d.Namespace()).Name()) + "." + pgIdentifier(d.Name())
 }
 
 func (b *expressionBinder) collationName(id uint32) string {

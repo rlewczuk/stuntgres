@@ -87,19 +87,19 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		t.Fatal(query.Root.Schema())
 	}
 	c := query.Root.Schema()[0]
-	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 || table.columns[0].Usage != c.Usage {
-		t.Fatal(c, table.columns)
+	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 || table.Columns[0].Usage != c.Usage {
+		t.Fatal(c, table.Columns)
 	}
 	value, err := query.Root.(*projectNode).expressions[0].Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := sqltype.PlanCoercion(c.Usage, table.columns[0].Usage, sqltype.Assignment)
+	plan, err := sqltype.PlanCoercion(c.Usage, table.Columns[0].Usage, sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
 	value, err = plan.Apply(context.Background(), value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	if err != nil || value.Type() != table.columns[0].Usage.Type {
+	if err != nil || value.Type() != table.Columns[0].Usage.Type {
 		t.Fatal(value, err)
 	}
 	text, err := value.Type().Output(context.Background(), value)

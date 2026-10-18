@@ -77,7 +77,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal("fixture lost actual storage/catalog generation")
 	}
 	descriptor := data.catalog.MustRelation(address)
-	if !descriptor.rlsEnabled || !descriptor.rlsForced {
+	if !descriptor.RLSEnabled || !descriptor.RLSForced {
 		t.Fatal("fixture lacks actual published RLS flags")
 	}
 	for _, command := range []policyCommand{policyUpdate, policyDelete, policySelect} {

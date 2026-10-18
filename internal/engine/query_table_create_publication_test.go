@@ -56,11 +56,11 @@ func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]
 func queryCreateAssertAbsent(t *testing.T, e *Engine, d *relationDescriptor) {
 	t.Helper()
 	view := e.CatalogRead()
-	if _, ok := view.Descriptor(d.address); ok || e.storage[d.address] != nil {
+	if _, ok := view.Descriptor(d.Address()); ok || e.storage[d.Address()] != nil {
 		t.Fatal("partial descriptor/storage publication")
 	}
 	for _, class := range []ids.OID{ids.RelationClassID, ids.TypeClassID} {
-		if len(view.Lookup(ids.NameKey{ClassID: class, Namespace: d.namespace, Name: d.name})) != 0 {
+		if len(view.Lookup(ids.NameKey{ClassID: class, Namespace: d.Namespace(), Name: d.Name()})) != 0 {
 			t.Fatal("partial name/type publication", class)
 		}
 	}
@@ -91,7 +91,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			for i := range rows {
 				rows[i] = make([]sqltype.Value, tc.width)
 				if tc.width != 0 {
-					rows[i][0], _ = sqltype.Integer(d.columns[0].Usage.Type, 7)
+					rows[i][0], _ = sqltype.Integer(d.Columns[0].Usage.Type, 7)
 				}
 			}
 			if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
@@ -107,8 +107,8 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			descriptor, ok := e.CatalogRead().Descriptor(d.address)
-			storage := e.storage[d.address]
+			descriptor, ok := e.CatalogRead().Descriptor(d.Address())
+			storage := e.storage[d.Address()]
 			if !ok || descriptor != d || storage == nil || len(storage.versions) != tc.count {
 				t.Fatal(descriptor, storage)
 			}
@@ -145,7 +145,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			registry := queryCreateTypes(e)
 			stage, d := queryCreateStage(t, e, "copy", 1)
 			defer e.DiscardCatalogStage(stage)
-			value, _ := sqltype.Integer(d.columns[0].Usage.Type, 7)
+			value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 			rows := [][]sqltype.Value{{value}}
 			if phase == "row_identity" {
 				e.nextRow = math.MaxUint64
@@ -174,13 +174,13 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("definition provider veto")
 			if phase == "provider" {
-				e.catalog.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
+				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
-				stage.initialTables[d.address].versions[0].values = nil
+				stage.initialTables[d.Address()].versions[0].values = nil
 			}
 			if phase == "invalid_type" {
-				stage.initialTables[d.address].versions[0].values = []sqltype.Value{sqltype.Null(testUsage(e, sqltype.Text).Type)}
+				stage.initialTables[d.Address()].versions[0].values = []sqltype.Value{sqltype.Null(testUsage(e, sqltype.Text).Type)}
 			}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if phase == "provider" || phase == "invalid_width" || phase == "invalid_type" {
@@ -238,10 +238,10 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 					stage.roleRevision++
 				}
 			case "source_definition":
-				original := e.CatalogRead().Get(d.namespace)
+				original := e.CatalogRead().Get(d.Namespace())
 				stage.querySources = []Descriptor{original}
 				next := *original.(*namespaceDescriptor)
-				next.revision++
+				next.ObjectRevision++
 				peer := e.BeginCatalogStage(e.CatalogRead())
 				if err = peer.Replace(&next); err != nil {
 					t.Fatal(err)
@@ -277,7 +277,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				}
 			}
 			if phase == "name" {
-				if _, ok := e.CatalogRead().Descriptor(d.address); ok || e.storage[d.address] != nil {
+				if _, ok := e.CatalogRead().Descriptor(d.Address()); ok || e.storage[d.Address()] != nil {
 					t.Fatal("loser published")
 				}
 			} else {
@@ -286,7 +286,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			if phase != "epoch" {
 				queryCreateAssertTypes(t, e, registry)
 			}
-			if e.commitSeq != before || stage.initialTables[d.address].versions[0].born != 0 {
+			if e.commitSeq != before || stage.initialTables[d.Address()].versions[0].born != 0 {
 				t.Fatal("failed birth/frontier", e.commitSeq)
 			}
 		})
@@ -314,7 +314,7 @@ func (p queryCreateProbeProvider) Validate(view CatalogRead, d Descriptor) error
 func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	e := New()
 	stage, d := queryCreateStage(t, e, "copy", 1)
-	value, _ := sqltype.Integer(d.columns[0].Usage.Type, 7)
+	value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.nextRow != 1 || e.nextVersion != 1 || e.commitSeq != 1 || len(e.storage[d.address].versions) != 1 || !sqltype.SameDatum(e.storage[d.address].versions[0].values[0], value) {
+	if e.nextRow != 1 || e.nextVersion != 1 || e.commitSeq != 1 || len(e.storage[d.Address()].versions) != 1 || !sqltype.SameDatum(e.storage[d.Address()].versions[0].values[0], value) {
 		t.Fatal("refresh replayed or lost data")
 	}
 }
@@ -336,12 +336,12 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	e := New()
 	ordinaryStage, ordinary := queryCreateStage(t, e, "ordinary", 1)
 	queryCreatePublish(t, e, ordinaryStage)
-	value, _ := sqltype.Integer(ordinary.columns[0].Usage.Type, 7)
+	value, _ := sqltype.Integer(ordinary.Columns[0].Usage.Type, 7)
 	discarded, d := queryCreateStage(t, e, "discarded", 1)
 	if err := e.stageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	reserved := discarded.initialTables[d.address].versions[0]
+	reserved := discarded.initialTables[d.Address()].versions[0]
 	e.DiscardCatalogStage(discarded)
 	queryCreateAssertAbsent(t, e, d)
 	session := sessionStart(t, e, nil)
@@ -355,7 +355,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if outcome = scope.gate(&parser.Insert{}); outcome != nil {
 		t.Fatal(outcome)
 	}
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, ordinary.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ordinary.Address())
 	if outcome = scope.stage.Apply(ref, [][]sqltype.Value{{value}}); outcome != nil {
 		t.Fatal(outcome)
 	}
@@ -376,7 +376,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, nextStage)
-	copied := e.storage[next.address].versions[0]
+	copied := e.storage[next.Address()].versions[0]
 	if copied.row != stored.row+1 || copied.version != stored.version+1 || copied.born != before+1 || e.commitSeq != before+1 || reserved.born != 0 {
 		t.Fatal("initial storage did not share the ordinary non-reusing identity/frontier owner")
 	}

@@ -39,10 +39,10 @@ func predefinedPrivileges(d Descriptor, principals []authorization.PrincipalRef)
 	if !ok {
 		return 0
 	}
-	if r.virtualView || r.relationKind == catalogRelation {
+	if r.VirtualView || r.RelationKind == catalogRelation {
 		return rights & authorization.SelectPrivilege
 	}
-	switch r.relationKind {
+	switch r.RelationKind {
 	case sequenceRelation:
 		return rights & (authorization.SelectPrivilege | authorization.UpdatePrivilege)
 	case tableRelation, partitionedRelation, viewRelation, materializedViewRelation:

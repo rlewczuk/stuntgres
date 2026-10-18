@@ -40,7 +40,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		}
 		address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(oid)}
 		d, ok := view.Operator(address)
-		if !ok || d.name != fields[2] || d.namespace.ObjectID != 11 || d.left != ids.OID(left) || d.right != ids.OID(right) || expected[ids.OID(oid)] {
+		if !ok || d.Name() != fields[2] || d.Namespace().ObjectID != 11 || d.Left != ids.OID(left) || d.Right != ids.OID(right) || expected[ids.OID(oid)] {
 			t.Fatalf("operator identity %v differs from independent inventory", fields)
 		}
 		if err := (operatorProvider{}).Validate(view, d); err != nil {
@@ -75,9 +75,9 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg Op", "earlier", "later", `Reg" Op`} {
 		ns := *view.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
-		ns.name = name
-		namespaces[i] = ns.address
+		ns.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
+		ns.ObjectName = name
+		namespaces[i] = ns.Address()
 		if err := stage.Create(&ns); err != nil {
 			t.Fatal(err)
 		}
@@ -86,7 +86,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		ns          int
 		left, right ids.OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right, owner: e.authorizationDomain.Principal(10)}
+		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: namespaces[row.ns], ObjectRevision: 1, ObjectName: "#=#", Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -178,30 +178,30 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			next := cloneCatalog(view.state)
 			mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 			for i, domain := range []*typeDescriptor{direct, chain} {
-				if !domain.typ.Concrete() || !domain.typ.Usage().Valid() || !sqltype.IsOperatorAlias(domain.typ.BaseType().ID()) {
+				if !domain.SQLType.Concrete() || !domain.SQLType.Usage().Valid() || !sqltype.IsOperatorAlias(domain.SQLType.BaseType().ID()) {
 					t.Fatal("ordinary scalar domain invalidated", domain)
 				}
-				array, ok := view.LookupArray(domain.typ)
-				if !ok || array.Concrete() || array.Usage().Valid() || array.Element() != domain.typ || array.ID() != domain.array {
+				array, ok := view.LookupArray(domain.SQLType)
+				if !ok || array.Concrete() || array.Usage().Valid() || array.Element() != domain.SQLType || array.ID() != domain.Array {
 					t.Fatal("lookup-only domain companion", domain, array, ok)
 				}
-				if _, err := sqltype.Array(61000, "_forged", domain.typ); err == nil {
+				if _, err := sqltype.Array(61000, "_forged", domain.SQLType); err == nil {
 					t.Fatal("recursive operator array admitted")
 				}
 				mapping[domain.Address()] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
-				mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.array)}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60003 + i)}
+				mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.Array)}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60003 + i)}
 			}
 			if changed, err := reownDomainTypes(next, mapping, false); err != nil || !changed {
 				t.Fatal("domain reownership", changed, err)
 			}
 			for i, original := range []*typeDescriptor{direct, chain} {
 				domain := next.MustType(original.Address())
-				array := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.array)})
-				if !domain.typ.Concrete() || domain.typ.ID() != sqltype.ID(60001+i) || array.typ.Concrete() || array.typ.Element() != domain.typ || array.typ.ID() != sqltype.ID(60003+i) || domain.array != array.typ.ID() {
+				array := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.Array)})
+				if !domain.SQLType.Concrete() || domain.SQLType.ID() != sqltype.ID(60001+i) || array.SQLType.Concrete() || array.SQLType.Element() != domain.SQLType || array.SQLType.ID() != sqltype.ID(60003+i) || domain.Array != array.SQLType.ID() {
 					t.Fatal("reownership changed companion admission", domain, array)
 				}
 			}
-			if chain.typ.DomainBase().Type != direct.typ || !chain.typ.Concrete() {
+			if chain.SQLType.DomainBase().Type != direct.SQLType || !chain.SQLType.Concrete() {
 				t.Fatal("source domain authority changed")
 			}
 		})

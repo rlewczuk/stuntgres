@@ -34,11 +34,11 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			switch descriptor := descriptor.(type) {
 			case *typeDescriptor:
 				copy := *descriptor
-				copy.revision = revision
+				copy.ObjectRevision = revision
 				next.setDescriptor(address, &copy)
 			case *relationDescriptor:
 				copy := *descriptor
-				copy.revision = revision
+				copy.ObjectRevision = revision
 				next.setDescriptor(address, &copy)
 			}
 		}
@@ -52,11 +52,11 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		if descriptor == previous {
 			continue
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == materializedViewRelation) {
+		if relation, ok := descriptor.(*relationDescriptor); ok && (relation.RelationKind == tableRelation || relation.RelationKind == materializedViewRelation) {
 			old, _ := previous.(*relationDescriptor)
 			columnsChanged := false
-			for i, column := range relation.columns {
-				columnsChanged = columnsChanged || old.columns[i].Usage.Type != column.Usage.Type
+			for i, column := range relation.Columns {
+				columnsChanged = columnsChanged || old.Columns[i].Usage.Type != column.Usage.Type
 			}
 			if columnsChanged {
 				store := e.stageStorageLocked(stage, address)
@@ -72,8 +72,8 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			}
 		}
 		if stage.domainAlter != nil {
-			if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil {
-				parent := index.sqlIndex.parent
+			if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
+				parent := index.SQLIndex.Parent
 				if stores[parent] == nil {
 					store := e.stageStorageLocked(stage, parent)
 					if shape, ok := stage.rowShapes[parent]; ok {

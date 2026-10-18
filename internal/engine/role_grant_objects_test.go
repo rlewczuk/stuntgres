@@ -54,7 +54,7 @@ func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 	e, op, reader, _ := objectGrantUnitFixture(t)
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 	original := e.catalog.state.MustType(address)
-	if original.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || original.acl.Explicit {
+	if original.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || original.ACL.Explicit {
 		t.Fatal("builtin type has no genuine bootstrap/default authority")
 	}
 	request := &parser.ObjectGrant{Kind: "type", Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "int4"}}}}, Privileges: []parser.GrantPrivilege{{Name: "usage"}}, Grantees: []parser.GrantGrantee{{Public: true}}, Revoke: true}
@@ -62,11 +62,11 @@ func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustType(address)
-	if authorization.ACLRights(next.acl, next.owner, []authorization.PrincipalRef{reader}, authorization.UsagePrivilege, false) != 0 || original.acl.Explicit {
+	if authorization.ACLRights(next.ACL, next.Owner, []authorization.PrincipalRef{reader}, authorization.UsagePrivilege, false) != 0 || original.ACL.Explicit {
 		t.Fatal("builtin PUBLIC revoke changed old root or retained PUBLIC rights")
 	}
 	broken := *next
-	broken.owner = authorization.PrincipalRef{}
+	broken.Owner = authorization.PrincipalRef{}
 	if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles), &broken); err == nil {
 		t.Fatal("builtin zero owner bypassed validation")
 	}

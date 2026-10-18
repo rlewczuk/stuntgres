@@ -69,12 +69,12 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequenceEnvironment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.domain || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(analysis.path, path) {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {
-		d := auth.catalog.Get(dep.ref.Address)
-		if d == nil || dep.ref.Domain() != e.catalog.domain || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
+		d := auth.catalog.Get(dep.Ref.Address)
+		if d == nil || dep.Ref.Domain() != e.catalog.Domain || dep.Ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.Revision {
 			return false
 		}
 	}
@@ -85,10 +85,10 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
 func preparedDefinitionStamp(d Descriptor, session *Session) ids.DefinitionRevision {
-	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == sequenceRelation {
-		stamp := relation.sequencePlanStamp
+	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == sequenceRelation {
+		stamp := relation.SequencePlanStamp
 		if session != nil {
-			if memory := session.sequences[relation.address]; memory != nil {
+			if memory := session.sequences[relation.Address()]; memory != nil {
 				stamp = max(stamp, memory.analysisStamp)
 			}
 		}
@@ -105,7 +105,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if b.viewWrite != nil {
 		target = b.viewWrite.logical.ref
 	}
-	cell := &preparedAnalysis{domain: e.catalog.domain, epoch: s.preparedEpoch, session: s.op.session.token, private: s.preparedPrivate, path: s.preparedPath, namespace: s.preparedNamespace, target: target, needsReanalysis: s.preparedChangedDuringAdmission}
+	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.preparedEpoch, session: s.op.session.token, private: s.preparedPrivate, path: s.preparedPath, namespace: s.preparedNamespace, target: target, needsReanalysis: s.preparedChangedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)
 	var visit func(ids.ObjectRef) error
 	visit = func(ref ids.ObjectRef) error {
@@ -118,11 +118,11 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 		seen[ref] = true
 		d := auth.catalog.Get(ref.Address)
-		if d == nil || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
+		if d == nil || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
-		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation && relation.view != nil {
+		cell.dependencies = append(cell.dependencies, expressionDependency{Ref: ref, Revision: preparedDefinitionStamp(d, auth.session)})
+		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == viewRelation && relation.View != nil {
 			for _, leaf := range viewOf(relation).sources {
 				child, err := storedViewUseReference(auth.catalog, relation, leaf.ref)
 				if err != nil {
@@ -133,7 +133,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 				}
 			}
 			for _, dep := range viewOf(relation).dependencies {
-				child, err := storedViewUseReference(auth.catalog, relation, dep.ref)
+				child, err := storedViewUseReference(auth.catalog, relation, dep.Ref)
 				if err != nil {
 					return err
 				}
@@ -179,7 +179,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 	}
 	for _, dep := range b.dependencies {
-		if err := visit(dep.ref); err != nil {
+		if err := visit(dep.Ref); err != nil {
 			return nil, err
 		}
 	}
@@ -193,10 +193,10 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return e.resolveReference(auth, name)
 	}
 	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
 		return ids.ObjectRef{}, ids.ErrCatalogReplaced
 	}
-	ns := e.catalog.domain.Ref(ref.Epoch, d.namespace)
+	ns := e.catalog.Domain.Ref(ref.Epoch, d.Namespace())
 	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) != 0 && name.Parts[0].Pos.Character > 0 {
 			copy := *diagnostic
@@ -206,7 +206,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
-		if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.temporary == auth.session.token {
+		if namespace, ok := auth.catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

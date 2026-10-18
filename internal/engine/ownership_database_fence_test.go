@@ -24,8 +24,8 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if private {
 				selected := cloneCatalog(auth.catalog.state)
 				database := *committed.(*databaseDescriptor)
-				database.acl = authorization.ACLValue{Explicit: true}
-				database.revision++
+				database.ACL = authorization.ACLValue{Explicit: true}
+				database.ObjectRevision++
 				selected.setDescriptor(currentDatabaseAddress, &database)
 				auth.catalog = e.catalog.read(selected)
 				auth.recaptureCatalog(auth.catalog)
@@ -53,7 +53,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			}
 			next := cloneCatalog(e.catalog.state)
 			database := *committed.(*databaseDescriptor)
-			database.revision++
+			database.ObjectRevision++
 			next.setDescriptor(currentDatabaseAddress, &database)
 			e.catalog.state = next
 			if err := e.catalogPreflightLocked(released); err == nil {
@@ -78,8 +78,8 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			setup := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defaultUnitTable(t, f, setup, "default_fence_sentinel", f.owner)
 			database := *setup.base.MustDatabase(currentDatabaseAddress)
-			database.owner = f.owner
-			database.revision++
+			database.Owner = f.owner
+			database.ObjectRevision++
 			if err := setup.Replace(&database); err != nil {
 				t.Fatal(err)
 			}
@@ -124,7 +124,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			dbRole := retained.roles.LookupRef("pg_database_owner")
-			key := defaultACLKey{creator: dbRole, class: authorization.DefaultTypes}
+			key := defaultACLKey{Creator: dbRole, Class: authorization.DefaultTypes}
 			policy := retained.catalog.state.defaultACLs[key]
 			pendingRoles := retained.roleRecord
 			if policy == nil || pendingRoles == oldRoles || retained.catalog.state == oldCatalog || retained.pairedCatalog.state != retained.catalog.state || retained.catalog.Get(currentDatabaseAddress) != &database {
@@ -135,8 +135,8 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			}
 			if veto == "database" {
 				replacement := database
-				replacement.owner = f.reader
-				replacement.revision++
+				replacement.Owner = f.reader
+				replacement.ObjectRevision++
 				other := f.e.BeginCatalogStage(f.e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {
 					t.Fatal(err)

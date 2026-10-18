@@ -31,10 +31,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, nil
 	}
 	parent := scope.lockedDescriptor.(*relationDescriptor)
-	if parent.partition == nil {
+	if parent.Partition == nil {
 		return fail(partitionAttachKindError(parent))
 	}
-	if parent.partition.strategy == parser.PartitionHash && !op.restorePartitionAttach {
+	if parent.Partition.Strategy == parser.PartitionHash && !op.restorePartitionAttach {
 		return fail(sqlError("0A000", "hash partition attachment is unsupported"))
 	}
 	lookupAuth, err := e.partitionAttachAuthorization(op, auth)
@@ -54,7 +54,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	pending := &pendingPartitionDefinition{stage: stage, parent: parent, bound: bound, rawBounds: raw.Bound, auth: auth}
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.stage) }()
-	if !bound.defaultBound {
+	if !bound.DefaultBound {
 		evaluation := EvalContext{Context: op.Context(), statementScope: scope, Input: scope.input, Output: scope.output}
 		if err = pending.evaluateBounds(scope, &evaluation); err != nil {
 			return Result{}, err
@@ -63,8 +63,8 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	// PostgreSQL demands incumbent DEFAULT AX before candidate AX. Its proof
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partitionAttachScan
-	if !bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
+	if !bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Partition.DefaultChild)
 		if err = scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -136,7 +136,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.Get(parent.address) != parent {
+	if auth.catalog.Get(parent.Address()) != parent {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -162,11 +162,11 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = pending.validateBounds(scope); err != nil {
 		return Result{}, err
 	}
-	if bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-		old := auth.catalog.MustRelation(parent.partition.defaultChild)
-		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
+	if bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
+		old := auth.catalog.MustRelation(parent.Partition.DefaultChild)
+		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.Name(), old.Name()), raw.Bound.Pos)
 	}
-	if !bound.defaultBound {
+	if !bound.DefaultBound {
 		if err = pending.checkOverlap(scope); err != nil {
 			return Result{}, err
 		}
@@ -182,18 +182,18 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = partitionAttachValidateRows(scope, auth.catalog, parent, bound, jobs); err != nil {
 		return Result{}, err
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) || next.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) || next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
-	next.membership = bound
-	next.revision++
-	changed, definition := *parent, *parent.partition
-	definition.children = append(slices.Clone(definition.children), child.address)
-	if bound.defaultBound {
-		definition.defaultChild = child.address
+	next.Membership = bound
+	next.ObjectRevision++
+	changed, definition := *parent, *parent.Partition
+	definition.Children = append(slices.Clone(definition.Children), child.Address())
+	if bound.DefaultBound {
+		definition.DefaultChild = child.Address()
 	}
-	changed.partition = &definition
-	changed.revision++
+	changed.Partition = &definition
+	changed.ObjectRevision++
 	if err = stage.Replace(&changed); err != nil {
 		return Result{}, err
 	}
@@ -202,7 +202,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	e.mu.Lock()
 	for _, index := range partitionIndexDeclarationOrder(auth.catalog, parent) {
-		current := e.stageRead(stage).MustRelation(child.address)
+		current := e.stageRead(stage).MustRelation(child.Address())
 		if _, err = e.stagePartitionIndexChild(op, stage, parent, index, current, false); err != nil {
 			break
 		}
@@ -236,7 +236,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
+	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
 		return CatalogRead{}, nil, ids.ErrCatalogReplaced
 	}
 	return catalog, d, nil
@@ -248,7 +248,7 @@ func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationV
 	if !op.restorePartitionAttach {
 		return auth, nil
 	}
-	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.catalog.owner == nil || auth.catalog.owner.domain != e.catalog.domain || auth.catalog.state != e.catalog.state {
+	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.catalog.owner == nil || auth.catalog.owner.Domain != e.catalog.Domain || auth.catalog.state != e.catalog.state {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
 	if err := e.validateOperation(op); err != nil {

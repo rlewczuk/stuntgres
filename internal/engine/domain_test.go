@@ -74,10 +74,10 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	chain := domainUnitType(t, current, "chain")
 	names := domainUnitType(t, current, "names")
 	numeric, _ := current.LookupType(sqltype.Numeric)
-	if a.Address().ClassID != ids.TypeClassID || a.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}) || a.owner != op.RoleState().CurrentUser || a.Revision() == 0 || chain.Address() == a.Address() || chain.typ.DomainBase().Type != a.typ || chain.typ.BaseType() != numeric || chain.typ.Usage().BaseUsage().Typmod != 327686 || names.dimensions != 2 || names.typ.BaseType().ID() != sqltype.NameArray {
+	if a.Address().ClassID != ids.TypeClassID || a.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}) || a.Owner != op.RoleState().CurrentUser || a.Revision() == 0 || chain.Address() == a.Address() || chain.SQLType.DomainBase().Type != a.SQLType || chain.SQLType.BaseType() != numeric || chain.SQLType.Usage().BaseUsage().Typmod != 327686 || names.Dimensions != 2 || names.SQLType.BaseType().ID() != sqltype.NameArray {
 		t.Fatal(a, chain, names)
 	}
-	if a.typ.Usage().Typmod != -1 || chain.typ.Usage().Typmod != -1 || !defaultDomainACL(a) {
+	if a.SQLType.Usage().Typmod != -1 || chain.SQLType.Usage().Typmod != -1 || !defaultDomainACL(a) {
 		t.Fatal("logical usage/ACL", a)
 	}
 	if len(original.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.Get(a.Address()) != a {
@@ -98,7 +98,7 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	forged := *a
-	forged.typ = forgedType
+	forged.SQLType = forgedType
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(&forged); err != nil {
 		t.Fatal(err)
@@ -121,9 +121,9 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	change := e.BeginCatalogStage(e.CatalogRead())
 	replacement := *a
-	replacement.revision++
-	replacement.acl = authorization.ACLValue{Explicit: true}
-	replacement.aclSyntheticDefault = false
+	replacement.ObjectRevision++
+	replacement.ACL = authorization.ACLValue{Explicit: true}
+	replacement.ACLSyntheticDefault = false
 	if err = change.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ids.ObjectAddress{a.Address()}
-	if err = drop.removeObject(e.catalog.domain.Ref(drop.base.Epoch(), a.Address()), false); err != nil {
+	if err = drop.removeObject(e.catalog.Domain.Ref(drop.base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -185,16 +185,16 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.state.CurrentUser = reader
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), a.Address())
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a.Address())
 	if err := auth.CanUse(ref); err != nil {
 		t.Fatal("default PUBLIC USAGE", err)
 	}
 	domainUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of type a")
 	stage := e.BeginCatalogStage(auth.catalog)
 	next := *a
-	next.acl = authorization.ACLValue{Explicit: true}
-	next.aclSyntheticDefault = false
-	next.revision++
+	next.ACL = authorization.ACLValue{Explicit: true}
+	next.ACLSyntheticDefault = false
+	next.ObjectRevision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -242,12 +242,12 @@ func TestDomainExcludedClausesNeverPublishInternal(t *testing.T) {
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.nullable AS integer NULL"))
 	d := domainUnitType(t, e.CatalogRead(), "nullable")
-	if !sqltype.Null(d.typ).IsNull() {
+	if !sqltype.Null(d.SQLType).IsNull() {
 		t.Fatal("explicit NULL lost default")
 	}
 	auth := catalogAuthorization(e, e.CatalogRead())
 	var dependencies []roleDependency
-	descriptorRoleDependencies(d, d.owner, &dependencies)
+	descriptorRoleDependencies(d, d.Owner, &dependencies)
 	if len(dependencies) == 0 || dependencyDescription(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}
@@ -293,7 +293,7 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 	}
 	// The rejected name remains usable for the supported unconstrained NULL case.
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.rejected AS integer NULL"))
-	if domainUnitType(t, e.CatalogRead(), "rejected").typ.BaseType().ID() != sqltype.Int4 {
+	if domainUnitType(t, e.CatalogRead(), "rejected").SQLType.BaseType().ID() != sqltype.Int4 {
 		t.Fatal("explicit NULL domain lost base identity")
 	}
 }

@@ -32,14 +32,14 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	if len(namespaces) != 1 {
 		t.Fatal(namespaces)
 	}
-	namespace := e.catalog.domain.Ref(view.Epoch(), namespaces[0])
+	namespace := e.catalog.Domain.Ref(view.Epoch(), namespaces[0])
 	typeRefs := make([]ids.ObjectRef, 2)
 	for i, name := range []string{"state", "quantity"} {
 		addresses := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespaces[0], Name: name})
 		if len(addresses) != 1 {
 			t.Fatal(addresses)
 		}
-		typeRefs[i] = e.catalog.domain.Ref(view.Epoch(), addresses[0])
+		typeRefs[i] = e.catalog.Domain.Ref(view.Epoch(), addresses[0])
 	}
 	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
 		catalog := e.CatalogRead()
@@ -56,9 +56,9 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		}
 		stage := e.BeginCatalogStage(catalog)
 		next := *typ
-		next.acl = acl
-		next.aclSyntheticDefault = false
-		next.revision++
+		next.ACL = acl
+		next.ACLSyntheticDefault = false
+		next.ObjectRevision++
 		if err := stage.Replace(&next); err != nil {
 			return err
 		}
@@ -110,10 +110,10 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE public.leaf PARTITION OF public.root FOR VALUES FROM(0) TO(10)")
 	})
 	child := rangePartitionRelation(t, e, "public.leaf")
-	if child.columns[1].Usage != parent.columns[1].Usage || child.columns[2].Usage != parent.columns[2].Usage || child.columns[1].OriginTable != uint32(child.address.ObjectID) || child.columns[1].OriginTable == parent.columns[1].OriginTable {
+	if child.Columns[1].Usage != parent.Columns[1].Usage || child.Columns[2].Usage != parent.Columns[2].Usage || child.Columns[1].OriginTable != uint32(child.Address().ObjectID) || child.Columns[1].OriginTable == parent.Columns[1].OriginTable {
 		t.Fatal("inherited identity/origin admission did not copy type and refresh child origin")
 	}
-	if len(child.checkConstraints) != 1 || child.checkConstraints[0].OID == parent.checkConstraints[0].OID {
+	if len(child.CheckConstraints) != 1 || child.CheckConstraints[0].OID == parent.CheckConstraints[0].OID {
 		t.Fatal("inherited CHECK identity was not refreshed")
 	}
 	roleExecute(t, e, op, "INSERT INTO public.root(k) VALUES(1)")
@@ -135,7 +135,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 			t.Fatal("failed inherited authority published relation", name)
 		}
 	}
-	if len(parent.partition.children) != 0 || len(rangePartitionRelation(t, e, "public.root").partition.children) != 1 {
+	if len(parent.Partition.Children) != 0 || len(rangePartitionRelation(t, e, "public.root").Partition.Children) != 1 {
 		t.Fatal("failure or success mutated retained topology incorrectly")
 	}
 }

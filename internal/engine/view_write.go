@@ -50,14 +50,14 @@ func viewWriteError(d *relationDescriptor, operation, reason string) error {
 	if operation == "delete" {
 		command = "DELETE"
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf("cannot %s view %q", verb, d.name), Detail: reason, Hint: fmt.Sprintf("To enable %s the view, provide an INSTEAD OF %s trigger or an unconditional ON %s DO INSTEAD rule.", hint, command, command)}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf("cannot %s view %q", verb, d.Name()), Detail: reason, Hint: fmt.Sprintf("To enable %s the view, provide an INSTEAD OF %s trigger or an unconditional ON %s DO INSTEAD rule.", hint, command, command)}
 }
 func viewComputedWriteError(d *relationDescriptor, operation string, slot int) error {
 	verb := "update"
 	if operation == "insert" {
 		verb = "insert into"
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column %q of view %q", verb, d.columns[slot].Name, d.name), Detail: "View columns that are not columns of their base relation are not updatable."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column %q of view %q", verb, d.Columns[slot].Name, d.Name()), Detail: "View columns that are not columns of their base relation are not updatable."}
 }
 
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
@@ -141,7 +141,7 @@ func stableViewSlot(source *relationDescriptor, leaf viewLeaf, frozen int) (int,
 	if frozen < 0 || frozen >= len(leaf.attributes) {
 		return 0, fmt.Errorf("stuntgres: invalid view write source slot")
 	}
-	for i, attr := range source.attributes {
+	for i, attr := range source.Attributes {
 		if attr == leaf.attributes[frozen] {
 			return i, nil
 		}
@@ -155,7 +155,7 @@ func sameViewRelation(a, b ids.ObjectRef) bool {
 }
 
 func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	if b.relation == nil || b.relation.relationKind != viewRelation {
+	if b.relation == nil || b.relation.RelationKind != viewRelation {
 		return nil
 	}
 	operation := ""
@@ -175,12 +175,12 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	targets := append([]int(nil), b.targets...)
 	seen := make(map[ids.ObjectRef]bool)
 	// outputs start in the logical target's canonical mutation frame.
-	outputs := make([]expr.Expr, len(d.columns))
-	for i, c := range d.columns {
+	outputs := make([]expr.Expr, len(d.Columns))
+	for i, c := range d.Columns {
 		outputs[i] = columnExpression{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, slot: i}
 	}
 	cascaded := false
-	for d.relationKind == viewRelation {
+	for d.RelationKind == viewRelation {
 		match := false
 		for _, rule := range rulesOf(d) {
 			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
@@ -197,7 +197,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			break
 		}
 		if seen[ref] {
-			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.name))
+			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.Name()))
 		}
 		seen[ref] = true
 		project, sourceNode, predicates, reason := viewWriteShape(d)
@@ -216,7 +216,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		if err != nil {
 			return err
 		}
-		if source.relationKind != tableRelation && source.relationKind != viewRelation {
+		if source.RelationKind != tableRelation && source.RelationKind != viewRelation {
 			return viewWriteError(d, operation, "Views that do not select from a single table or view are not automatically updatable.")
 		}
 		direct := make([]int, len(project.expressions))
@@ -256,7 +256,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 						partial = len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil && b.arrayTargets[j] != nil
 					}
 					if !partial {
-						return sqlError("42601", fmt.Sprintf("multiple assignments to same column %q", source.columns[prior].Name))
+						return sqlError("42601", fmt.Sprintf("multiple assignments to same column %q", source.Columns[prior].Name))
 					}
 				}
 			}
@@ -411,7 +411,7 @@ func rewriteViewExpression(view CatalogRead, bound expr.Expr, recipe *relationDe
 
 func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
 	w := b.viewWrite
-	logicalWidth, physicalWidth := len(w.logical.relation.columns), len(w.base.columns)
+	logicalWidth, physicalWidth := len(w.logical.relation.Columns), len(w.base.Columns)
 	graft := func(root LogicalNode, mapper func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
 		return w.graftQuery(b, auth.catalog, root, mapper)
 	}
@@ -580,7 +580,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		for i, key := range conflict.keys {
 			if key.attribute != 0 {
 				slot := -1
-				for j, attr := range w.logical.relation.attributes {
+				for j, attr := range w.logical.relation.Attributes {
 					if attr == key.attribute {
 						slot = j
 						break
@@ -593,7 +593,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				if !ok {
 					return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 				}
-				conflict.keys[i].attribute = w.base.attributes[output.slot]
+				conflict.keys[i].attribute = w.base.Attributes[output.slot]
 			} else if key.expression != nil {
 				conflict.keys[i].expression, err = lower(key.expression)
 				if err != nil {
@@ -612,12 +612,12 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 	}
 	if _, ok := stmt.(*parser.Update); ok {
 		for _, slot := range b.targets {
-			name := w.base.columns[slot].Name
-			attr := w.base.attributes[slot]
-			if _, generated := w.base.generations[attr]; generated {
+			name := w.base.Columns[slot].Name
+			attr := w.base.Attributes[slot]
+			if _, generated := w.base.Generations[attr]; generated {
 				return generationWriteError(name, true)
 			}
-			if identity, ok := w.base.identities[attr]; ok && identity.mode == parser.IdentityAlways {
+			if identity, ok := w.base.Identities[attr]; ok && identity.Mode == parser.IdentityAlways {
 				d := identityInsertError(name).(*sqlstate.Error)
 				d.Message = fmt.Sprintf("column %q can only be updated to DEFAULT", name)
 				d.Hint = ""

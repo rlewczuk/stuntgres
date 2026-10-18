@@ -14,7 +14,7 @@ type fuzzystrmatchProvider struct{ control extensionControl }
 // Control implements extensionImplementation.
 func (p *fuzzystrmatchProvider) Control() extensionControl { return p.control.detached() }
 
-var stockFuzzystrmatch = &fuzzystrmatchProvider{control: extensionControl{version: "1.2", trusted: true, superuser: true, relocatable: true, comment: new("determine similarities and distance between strings")}}
+var stockFuzzystrmatch = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2", Trusted: true, Superuser: true, Relocatable: true, Comment: new("determine similarities and distance between strings")}}
 
 var fuzzystrmatchMembers = [...]struct {
 	name      string
@@ -43,7 +43,7 @@ func fuzzystrmatchResult(name string, signature procedureSignature) ids.OID {
 }
 
 func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ids.ObjectAddress, len(fuzzystrmatchMembers))
+	ext.Members = make([]ids.ObjectAddress, len(fuzzystrmatchMembers))
 	for i, member := range fuzzystrmatchMembers {
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
@@ -54,10 +54,10 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: expr.Immutable, strict: true, implementation: p}
+		ext.Members[i] = address
+		proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: functionRoutine, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
@@ -68,18 +68,18 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 
 func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
-	if v.owner == nil || p != stockFuzzystrmatch || ext.name != "fuzzystrmatch" || ext.version != p.control.version || len(ext.members) != len(fuzzystrmatchMembers) {
+	if v.owner == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
 		return invalid()
 	}
 	var seen [len(fuzzystrmatchMembers)]bool
-	for _, address := range ext.members {
+	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != expr.Immutable || !proc.strict || proc.implementation != p || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != functionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false
 		for j, member := range fuzzystrmatchMembers {
-			if proc.name == member.name && proc.signature == member.signature && proc.result == member.result {
+			if proc.Name() == member.name && proc.Signature == member.signature && proc.Result == member.result {
 				if seen[j] {
 					return invalid()
 				}
@@ -92,7 +92,7 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionD
 		}
 		// Membership fixes the exact provider, not separately transferable
 		// function ownership. Every member retains real typed provenance.
-		if proc.owner.ID() == 0 || proc.owner != v.owner.principals.Principal(proc.owner.ID()) {
+		if proc.Owner.ID() == 0 || proc.Owner != v.owner.Principals.Principal(proc.Owner.ID()) {
 			return invalid()
 		}
 	}
@@ -100,18 +100,18 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionD
 }
 
 func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	ext, ok := v.Extension(proc.extension)
+	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")
 	}
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.address) != proc || proc.fuzzystrmatchProvider() != p {
+	if v.Get(proc.Address()) != proc || proc.fuzzystrmatchProvider() != p {
 		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
 	}
-	for _, address := range ext.members {
-		if address == proc.address {
+	for _, address := range ext.Members {
+		if address == proc.Address() {
 			return nil
 		}
 	}

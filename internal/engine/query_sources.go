@@ -129,13 +129,13 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 // revisions may refresh authority before binding, never an already bound layout.
 func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
 	current, ok := catalog.Relation(source.ref.Address)
-	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
-		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.relationKind != source.relation.relationKind ||
+	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
+		current.Address() != source.relation.Address() || current.Namespace() != source.relation.Namespace() || current.Name() != source.relation.Name() || current.RelationKind != source.relation.RelationKind ||
 		!sameRelationRowShape(current, source.relation) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if current.relationKind == sequenceRelation {
-		if current.sequence == nil || source.storage != nil || current.sequencePlanStamp != source.relation.sequencePlanStamp {
+	if current.RelationKind == sequenceRelation {
+		if current.Sequence == nil || source.storage != nil || current.SequencePlanStamp != source.relation.SequencePlanStamp {
 			return nil, ids.ErrCatalogReplaced
 		}
 	} else if storage := e.privateStorageLocked(changes, source.ref.Address); storage != source.storage &&
@@ -195,7 +195,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	}
 	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {
-		if leaf.relation.relationKind == viewRelation {
+		if leaf.relation.RelationKind == viewRelation {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
 				return nil, err
@@ -252,7 +252,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 }
 
 func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
-	for _, column := range relation.columns {
+	for _, column := range relation.Columns {
 		if column.Usage.Type.ContainsRegclass() || column.Usage.Type.ContainsOperatorAlias() || column.Usage.Type.ContainsACLItem() || column.Usage.Type.ContainsRegObject() || column.Usage.Type.ContainsRegTS() {
 			if err := e.captureCommentSnapshotLocked(scope); err != nil {
 				return err
@@ -261,18 +261,18 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 			return nil
 		}
 	}
-	for _, definition := range relation.defaults {
-		if definition.catalogSnapshot {
+	for _, definition := range relation.Defaults {
+		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
-	for _, definition := range relation.generations {
-		if definition.catalogSnapshot {
+	for _, definition := range relation.Generations {
+		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
-	for _, check := range relation.checkConstraints {
-		if check.commentSnapshot {
+	for _, check := range relation.CheckConstraints {
+		if check.CommentSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
@@ -280,8 +280,8 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 }
 
 func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
-	for _, check := range relation.checkConstraints {
-		if check.visibilitySnapshot {
+	for _, check := range relation.CheckConstraints {
+		if check.VisibilitySnapshot {
 			return e.captureVisibilitySnapshotLocked(scope)
 		}
 	}
@@ -326,7 +326,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	needsView := len(refs) != 0
 	if !needsView {
 		for _, leaf := range leaves {
-			if leaf.relation.relationKind == partitionedRelation {
+			if leaf.relation.RelationKind == partitionedRelation {
 				needsView = true
 				break
 			}
@@ -345,7 +345,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	}
 	for i, leaf := range leaves {
 		if leaf.analysisOnly {
-			source := &querySource{ref: leaf.ref, materialized: true, flatWidth: len(leaf.relation.columns)}
+			source := &querySource{ref: leaf.ref, materialized: true, flatWidth: len(leaf.relation.Columns)}
 			source.borrowAuthority(scope)
 			if first == nil {
 				first = source
@@ -372,12 +372,12 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		if denied {
 			source, err = captureDeniedQuerySource(view, leaf.ref)
 		} else {
-			switch leaf.relation.relationKind {
+			switch leaf.relation.RelationKind {
 			case sequenceRelation:
 				e.markTemporaryAccessLocked(scope, leaf.ref)
 				source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
 			case materializedViewRelation:
-				if !leaf.relation.populated {
+				if !leaf.relation.Populated {
 					err = materializedViewReadError(leaf.relation)
 				} else {
 					source, err = captureQueryPrefix(view, leaf.ref)

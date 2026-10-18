@@ -31,7 +31,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')"))
-	mood := domainUnitType(t, e.CatalogRead(), "mood").typ
+	mood := domainUnitType(t, e.CatalogRead(), "mood").SQLType
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -71,9 +71,9 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			case "default":
 				defaults = []expr.Expr{nested}
 			case "generation":
-				generations = map[int32]columnGeneration{1: {planned: nested}}
+				generations = map[int32]columnGeneration{1: {Planned: nested}}
 			case "check":
-				checks = []checkConstraint{{expression: nested}}
+				checks = []checkConstraint{{Expression: nested}}
 			}
 			err := b.captureRetainedWriteInput(defaults, generations, checks)
 			lazyNamingOnly := b.input.TypeDiagnosticName != nil && b.input.EnumMemberSafe == nil
@@ -108,7 +108,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')"))
-	mood := domainUnitType(t, e.CatalogRead(), "mood").typ
+	mood := domainUnitType(t, e.CatalogRead(), "mood").SQLType
 	members := mood.EnumMembers()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	raw := statement(t, "CREATE TABLE captured_default(v mood DEFAULT 'q')").(*parser.CreateTable)
-	failure := e.schemaTableLocked(op, auth, stage, raw, domainUnitType(t, auth.catalog, "mood").namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	failure := e.schemaTableLocked(op, auth, stage, raw, domainUnitType(t, auth.catalog, "mood").ObjectNamespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "55P04" {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}

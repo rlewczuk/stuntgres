@@ -36,8 +36,8 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	owner, _ := e.Roles().Lookup("seq_owner")
 	reader, _ := e.Roles().Lookup("seq_reader")
 	d := e.catalog.state.MustRelation(ref.Address)
-	if d.owner != owner.Ref {
-		t.Fatal("owner remap", d.owner, owner.Ref)
+	if d.Owner != owner.Ref {
+		t.Fatal("owner remap", d.Owner, owner.Ref)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_owner")
 	r = roleExecute(t, e, op, "SELECT nextval('s')")
@@ -73,7 +73,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	}
 	newOwner, _ := e.Roles().Lookup("seq_owner")
 	newRef := roleTableRef(t, e, "s")
-	if newOwner.Ref == owner.Ref || e.catalog.state.MustRelation(newRef.Address).owner != newOwner.Ref {
+	if newOwner.Ref == owner.Ref || e.catalog.state.MustRelation(newRef.Address).Owner != newOwner.Ref {
 		t.Fatal("restore reused stale principal identity")
 	}
 }
@@ -86,7 +86,7 @@ func TestSequenceNamespacePrivilegeCheckpoints(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SCHEMA private")
 	roleExecute(t, e, op, "CREATE SEQUENCE private.s")
 	ref := roleTableRef(t, e, "private.s")
-	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, e.catalog.state.Get(ref.Address).Namespace())
+	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, e.catalog.state.Get(ref.Address).Namespace())
 	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)

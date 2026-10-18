@@ -27,7 +27,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if event.parent.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if !live || !exists || index.sqlIndex == nil || !index.sqlIndex.isExclusion() || index.sqlIndex.constraint.OID != event.constraint {
+		if !live || !exists || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.SQLIndex.Constraint.OID != event.constraint {
 			continue
 		}
 		c := exclusionDefinition(parent, index)
@@ -45,7 +45,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		}
 		var bound *uniqueBoundKey
 		for i := range binding.keys {
-			if binding.keys[i].index.address == event.index.Address {
+			if binding.keys[i].index.Address() == event.index.Address {
 				bound = &binding.keys[i]
 				break
 			}
@@ -112,10 +112,10 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				matched := false
 				for _, descriptor := range auth.catalog.Descriptors() {
 					parent, ok := descriptor.(*relationDescriptor)
-					if !ok || parent.namespace != namespace || parent.relationKind != tableRelation && parent.relationKind != partitionedRelation {
+					if !ok || parent.Namespace() != namespace || parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation {
 						continue
 					}
-					for _, c := range parent.exclusionConstraints {
+					for _, c := range parent.ExclusionConstraints {
 						if c.Name != label {
 							continue
 						}
@@ -128,17 +128,17 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 						}
 					}
 					nondeferrable := false
-					for _, c := range parent.uniqueConstraints {
+					for _, c := range parent.UniqueConstraints {
 						if c.Name == label {
 							nondeferrable = true
 						}
 					}
-					for _, c := range parent.checkConstraints {
+					for _, c := range parent.CheckConstraints {
 						if c.Name == label {
 							nondeferrable = true
 						}
 					}
-					for _, c := range parent.notNullConstraints {
+					for _, c := range parent.NotNullConstraints {
 						if c.Name == label {
 							nondeferrable = true
 						}
@@ -168,7 +168,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				if !ok {
 					continue
 				}
-				for _, c := range parent.exclusionConstraints {
+				for _, c := range parent.ExclusionConstraints {
 					if c.Parent != 0 && selected[c.Parent] && !selected[c.OID] {
 						selected[c.OID] = true
 						changed = true

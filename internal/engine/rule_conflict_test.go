@@ -19,7 +19,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 		t.Fatal(err)
 	}
 	first.conflict.markAffected(ids.RowID(42), 0)
-	first.conflict.selected = append(first.conflict.selected, sink.address)
+	first.conflict.selected = append(first.conflict.selected, sink.Address())
 	first.conflict.frame = make([]sqltype.Value, 4)
 	first.conflict.catalog = auth.catalog.state
 	first.conflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
@@ -44,17 +44,17 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	e, auth, _, sink := ruleUnitCatalog(t)
 	b := ruleUnitInsert(e, sink, 1, 10).binding
 	ref := b.ref
-	ref.Address.SubID = sink.attributes[1]
-	target := columnExpression{Info: ruleColumnInfo(sink.columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
+	ref.Address.SubID = sink.Attributes[1]
+	target := columnExpression{Info: ruleColumnInfo(sink.Columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
 	excluded := target
 	excluded.slot = 3
 	b.conflict = &boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []expr.Expr{excluded}, predicate: target}}
 	current := *sink
-	current.attributes = []int32{2, 1}
-	current.columns = []ColumnDescriptor{sink.columns[1], sink.columns[0]}
-	current.index = map[string]int{"v": 0, "id": 1}
+	current.Attributes = []int32{2, 1}
+	current.Columns = []ColumnDescriptor{sink.Columns[1], sink.Columns[0]}
+	current.Index = map[string]int{"v": 0, "id": 1}
 	catalog := cloneCatalog(auth.catalog.state)
-	catalog.setDescriptor(sink.address, &current)
+	catalog.setDescriptor(sink.Address(), &current)
 	view := e.catalog.read(catalog)
 	check := func(next binding) {
 		t.Helper()
@@ -98,8 +98,8 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 				t.Fatal("independent action still depends on event rows")
 			}
 			ref := original.ref
-			ref.Address.SubID = src.attributes[0]
-			action.binding.expressions = [][]expr.Expr{{columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
+			ref.Address.SubID = src.Attributes[0]
+			action.binding.expressions = [][]expr.Expr{{columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)

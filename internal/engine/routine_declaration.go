@@ -29,24 +29,24 @@ func grantRoutineKindMatches(target string, kind routineKind) bool {
 }
 
 func (d *procedureDescriptor) returnsSet() bool {
-	return d.builtin != nil && d.builtin.returnsSet ||
-		d.intaggProvider() == stockIntagg && d.routineKind == functionRoutine &&
-			d.name == "int_array_enum" && d.signature == "1007" && d.result == 23
+	return d.Builtin != nil && d.Builtin.ReturnsSet ||
+		d.intaggProvider() == stockIntagg && d.RoutineKind == functionRoutine &&
+			d.Name() == "int_array_enum" && d.Signature == "1007" && d.Result == 23
 }
 
 // A provider association describes an already-implemented declaration, not an
 // execution capability. It cannot make a lookup-only signature callable.
 type builtinRoutineDeclaration struct {
-	identity   routineIdentity
-	kind       routineKind
-	result     ids.OID
-	strict     bool
-	volatility expr.Volatility
-	parallel   byte
-	returnsSet bool
-	variadic   ids.OID
-	defaults   uint8
-	providers  routineProvider
+	Identity   routineIdentity
+	Kind       routineKind
+	Result     ids.OID
+	Strict     bool
+	Volatility expr.Volatility
+	Parallel   byte
+	ReturnsSet bool
+	Variadic   ids.OID
+	Defaults   uint8
+	Providers  routineProvider
 }
 
 // Temporary aliases for the provider vocabulary that moved to functions in
@@ -80,9 +80,9 @@ const (
 )
 
 func (d *procedureDescriptor) seeded() bool {
-	return d.builtin != nil || d.conversion.Name() != ""
+	return d.Builtin != nil || d.Conversion.Name() != ""
 }
 
 // Published descriptors are pointer-owned catalog payloads. They remain stable
 // across binder dependency-slice growth and carry no cached permission decision.
-func (d *procedureDescriptor) RoutineOID() uint32 { return uint32(d.address.ObjectID) }
+func (d *procedureDescriptor) RoutineOID() uint32 { return uint32(d.Address().ObjectID) }

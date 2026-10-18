@@ -306,11 +306,11 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		return nil
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
-		if d, ok := catalog.Relation(n.ref.Address); ok && d.relationKind == viewRelation {
+		if d, ok := catalog.Relation(n.ref.Address); ok && d.RelationKind == viewRelation {
 			if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(mark)); err != nil {
 				return err
 			}
-			outputUses, err := querySourceReadUses(reads[n.occurrence], d.attributes)
+			outputUses, err := querySourceReadUses(reads[n.occurrence], d.Attributes)
 			if err != nil {
 				return err
 			}

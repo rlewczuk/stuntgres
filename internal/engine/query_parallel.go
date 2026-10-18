@@ -38,12 +38,12 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 	catalog := source.view.Catalog()
 	d, ok := catalog.Descriptor(source.ref.Address)
 	relation, table := d.(*relationDescriptor)
-	if !ok || !table || relation.relationKind != tableRelation {
+	if !ok || !table || relation.RelationKind != tableRelation {
 		return nil, nil, false
 	}
-	ns, ok := catalog.Descriptor(relation.namespace)
+	ns, ok := catalog.Descriptor(relation.Namespace())
 	namespace, namespaceOK := ns.(*namespaceDescriptor)
-	if !ok || !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
+	if !ok || !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return nil, nil, false
 	}
 	frame := project.frame

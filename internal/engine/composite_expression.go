@@ -392,13 +392,13 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 			if err != nil {
 				return nil, err
 			}
-			fields := make([]expr.Expr, len(b.relation.columns))
+			fields := make([]expr.Expr, len(b.relation.Columns))
 			props := expr.Properties{}
 			for i := range fields {
 				fields[i] = b.returningColumnAt(i, pos, newValues)
 				props = expr.MergeProperties(props, fields[i].Properties())
 			}
-			typ, _ := b.definitionType(b.relation.rowType)
+			typ, _ := b.definitionType(b.relation.RowType)
 			return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.returningAliases.mode == returningDelete && newValues}, nil
 		}
 	}
@@ -426,8 +426,8 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	props.RowDependent = true
 	var typ *sqltype.Descriptor
 	descriptor, _ := b.definitionDescriptor(q.ref.Address)
-	if relation, ok := descriptor.(*relationDescriptor); ok && relation.rowType != 0 {
-		typ, _ = b.definitionType(relation.rowType)
+	if relation, ok := descriptor.(*relationDescriptor); ok && relation.RowType != 0 {
+		typ, _ = b.definitionType(relation.RowType)
 	}
 	if typ == nil || !typ.Concrete() {
 		typ, err = sqltype.RecordShape(members)

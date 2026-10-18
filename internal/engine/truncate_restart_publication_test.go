@@ -55,7 +55,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			}{{ps, oldPS, oldPD, 1}, {qs, oldQS, oldQD, 44}} {
 				replacement := scope.catalog.generators[test.ref.Address]
 				d := scope.catalog.descriptors[test.ref.Address].(*relationDescriptor)
-				if replacement == nil || replacement == test.old || replacement.last != test.start || replacement.called || replacement.generation != d.revision || d.sequencePlanStamp != d.revision || d.sequencePlanStamp == test.d.sequencePlanStamp || d.sequence != test.d.sequence || d.owner != test.d.owner || d.address != test.d.address {
+				if replacement == nil || replacement == test.old || replacement.last != test.start || replacement.called || replacement.generation != d.Revision() || d.SequencePlanStamp != d.Revision() || d.SequencePlanStamp == test.d.SequencePlanStamp || d.Sequence != test.d.Sequence || d.Owner != test.d.Owner || d.Address() != test.d.Address() {
 					t.Fatal("not a fresh configured-start binding with preserved definition")
 				}
 				if scope.catalog.originals[test.ref.Address] != test.d {
@@ -138,7 +138,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				peer := sessionStart(t, e, nil)
 				sessionSQL(t, peer, "CREATE ROLE restart_changed_authority")
 			case "SequenceRevision":
-				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) { d.sequencePlanStamp++ })
+				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) { d.SequencePlanStamp++ })
 			case "SequenceACL":
 				if err := e.SetObjectACL(context.Background(), ps, authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
@@ -152,7 +152,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
 				next := *base.MustRelation(p.Address)
-				next.revision++
+				next.ObjectRevision++
 				replacement := &relationStorage{versions: oldP.versions, ends: oldP.ends, generation: oldP.generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, oldP, replacement, len(oldP.versions), oldP.generation, oldP.ends); err != nil {
 					t.Fatal(err)
@@ -221,18 +221,18 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 			scope := truncateRestartUnitStage(t, e, s, "p")
 			oldStore, oldGenerator := e.storage[p.Address], e.sequences[ps.Address]
 			if change == "Incoming" {
-				owned := e.catalog.state.MustRelation(ps.Address).sequence.owned
-				truncateUnitReplace(t, e, incoming, func(d *relationDescriptor) { options := *d.sequence; options.owned = owned; d.sequence = &options })
+				owned := e.catalog.state.MustRelation(ps.Address).Sequence.Owned
+				truncateUnitReplace(t, e, incoming, func(d *relationDescriptor) { options := *d.Sequence; options.Owned = owned; d.Sequence = &options })
 			} else {
 				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) {
-					options := *d.sequence
+					options := *d.Sequence
 					if change == "Removed" {
-						options.owned = ids.ObjectAddress{}
+						options.Owned = ids.ObjectAddress{}
 					} else {
-						options.owned = q.Address
-						options.owned.SubID = 1
+						options.Owned = q.Address
+						options.Owned.SubID = 1
 					}
-					d.sequence = &options
+					d.Sequence = &options
 				})
 			}
 			if err := scope.Finish(nil); err != (CatalogConflict{}) {

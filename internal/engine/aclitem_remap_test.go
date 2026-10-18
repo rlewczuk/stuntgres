@@ -106,7 +106,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45002}
-	next.setDescriptor(address, &relationDescriptor{address: address, columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}})
+	next.setDescriptor(address, &relationDescriptor{ObjectAddress: address, Columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}})
 	original := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{value}}}}
 	stores := map[ids.ObjectAddress]*relationStorage{address: original}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
@@ -154,9 +154,9 @@ func TestACLItemRestoreFence(t *testing.T) {
 	public := freshSource.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	copy := *public
 	role, _ := freshSource.roleRead(freshSource.catalog.read(freshSource.catalog.state), freshSource.roles).Lookup("acl_missing_target")
-	copy.owner = role.Ref
+	copy.Owner = role.Ref
 	freshSource.catalog.state = cloneCatalog(freshSource.catalog.state)
-	freshSource.catalog.state.setDescriptor(copy.address, &copy)
+	freshSource.catalog.state.setDescriptor(copy.Address(), &copy)
 	freshSource.mu.Unlock()
 	before := freshTarget.catalog.state
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err == nil {

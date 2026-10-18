@@ -43,10 +43,10 @@ func ruleIndex(d *relationDescriptor, name string) int {
 	return slices.IndexFunc(rulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
 }
 func ruleMissing(name string, d *relationDescriptor) error {
-	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.name))
+	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
 }
 func ruleDuplicate(name string, d *relationDescriptor) error {
-	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.name))
+	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.Name()))
 }
 func ruleEvent(stmt parser.Statement) string {
 	switch stmt.(type) {
@@ -107,18 +107,18 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 		return base, true, nil
 	}
 	name := raw.Name.Parts[1].Text
-	slot, ok := ns.relation.index[name]
+	slot, ok := ns.relation.Index[name]
 	if !ok {
 		return nil, true, expr.ErrorAt("42703", fmt.Sprintf(`column %s.%s does not exist`, side, name), raw.Pos)
 	}
 	ref := ns.ref
-	ref.Address.SubID = ns.relation.attributes[slot]
+	ref.Address.SubID = ns.relation.Attributes[slot]
 	frame := uint32(1)
 	if side == "new" {
 		frame = 2
 	}
-	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: ns.relation.revision})
-	return columnExpression{Info: b.info(ns.relation.columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
+	b.dependencies = append(b.dependencies, expressionDependency{Ref: ref, Revision: ns.relation.Revision()})
+	return columnExpression{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 
 func ruleResultCheck(d *relationDescriptor, schema []ColumnDescriptor, selectRule bool) error {
@@ -126,21 +126,21 @@ func ruleResultCheck(d *relationDescriptor, schema []ColumnDescriptor, selectRul
 	if selectRule {
 		prefix = "SELECT rule's target list"
 	}
-	if d.attributeHighWater > int32(len(d.columns)) {
+	if d.AttributeHighWater > int32(len(d.Columns)) {
 		message := "cannot create a RETURNING list for a relation containing dropped columns"
 		if selectRule {
 			message = "cannot convert relation containing dropped columns to view"
 		}
 		return sqlError("0A000", message)
 	}
-	if len(schema) < len(d.columns) {
+	if len(schema) < len(d.Columns) {
 		return sqlError("42P17", prefix+" has too few entries")
 	}
-	if len(schema) > len(d.columns) {
+	if len(schema) > len(d.Columns) {
 		return sqlError("42P17", prefix+" has too many entries")
 	}
 	for i, column := range schema {
-		want := d.columns[i]
+		want := d.Columns[i]
 		if selectRule && column.Name != want.Name {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P17", Message: fmt.Sprintf(`SELECT rule's target entry %d has different column name from column "%s"`, i+1, want.Name), Detail: fmt.Sprintf(`SELECT target entry is named "%s".`, column.Name)}
 		}
@@ -212,7 +212,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		b.viewIntaggRefs = binder.viewIntaggRefs
 		b.viewOperatorRefs = binder.viewOperatorRefs
 		for i := range b.querySources {
-			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.attributes)
+			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.Attributes)
 		}
 		r.conditionBinding = &b
 		r.conditionPresentation, err = e.freezeQueryPresentationLocked(auth, query, b, false, false, 0, "", false)
@@ -258,7 +258,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, sqlError("42P02", "there is no parameter $1")
 		}
 		for i := range b.querySources {
-			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.attributes)
+			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.Attributes)
 		}
 		if b.returning != nil {
 			if r.condition != nil {

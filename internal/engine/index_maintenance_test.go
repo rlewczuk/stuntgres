@@ -52,30 +52,30 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	si, oldS := btreeRoot(t, e, "si")
 	ei, oldE := btreeRoot(t, e, "ei")
 	unique, oldU := btreeRoot(t, e, "u")
-	parent := e.catalog.state.Get(ni.sqlIndex.parent)
-	store := e.storage[ni.sqlIndex.parent]
+	parent := e.catalog.state.Get(ni.SQLIndex.Parent)
+	store := e.storage[ni.SQLIndex.Parent]
 	generation, ends := store.generation, store.ends
 	run(t, e, "REINDEX INDEX ni")
 	_, newN := btreeRoot(t, e, "ni")
-	if newN == oldN || !reflect.DeepEqual(newN.entries, oldN.entries) || e.catalog.state.Get(ni.address) != ni || e.indexRoots[si.address] != oldS || e.indexRoots[ei.address] != oldE || e.indexRoots[unique.address] != oldU {
+	if newN == oldN || !reflect.DeepEqual(newN.entries, oldN.entries) || e.catalog.state.Get(ni.Address()) != ni || e.indexRoots[si.Address()] != oldS || e.indexRoots[ei.Address()] != oldE || e.indexRoots[unique.Address()] != oldU {
 		t.Fatal("selected rebuild is not fresh, identity-preserving and sibling-isolated")
 	}
 	btreeWantKeys(t, e, "ni", "1", "2", "2", "3", "NULL")
 	run(t, e, "ALTER INDEX ni RENAME TO new_ni")
 	renamed, root := btreeRoot(t, e, "new_ni")
-	if root != newN || renamed.address != ni.address || renamed.sqlIndex != ni.sqlIndex || e.catalog.state.Get(ni.sqlIndex.parent) != parent {
+	if root != newN || renamed.Address() != ni.Address() || renamed.SQLIndex != ni.SQLIndex || e.catalog.state.Get(ni.SQLIndex.Parent) != parent {
 		t.Fatal("simple rename rebuilt roots or changed parent/key identity")
 	}
 	run(t, e, "REINDEX TABLE t")
-	if e.indexRoots[renamed.address] == newN || e.indexRoots[si.address] == oldS || e.indexRoots[ei.address] == oldE || e.indexRoots[unique.address] != oldU {
+	if e.indexRoots[renamed.Address()] == newN || e.indexRoots[si.Address()] == oldS || e.indexRoots[ei.Address()] == oldE || e.indexRoots[unique.Address()] != oldU {
 		t.Fatal("table rebuild is partial or touched another table")
 	}
-	for _, pair := range [][2]*logicalIndexRoot{{e.indexRoots[renamed.address], newN}, {e.indexRoots[si.address], oldS}, {e.indexRoots[ei.address], oldE}} {
+	for _, pair := range [][2]*logicalIndexRoot{{e.indexRoots[renamed.Address()], newN}, {e.indexRoots[si.Address()], oldS}, {e.indexRoots[ei.Address()], oldE}} {
 		if !reflect.DeepEqual(pair[0].entries, pair[1].entries) {
 			t.Fatal("rebuild reminted/dropped live duplicate versions")
 		}
 	}
-	if e.catalog.state.Get(renamed.sqlIndex.parent) != parent || e.storage[renamed.sqlIndex.parent] != store || store.generation != generation || store.ends != ends {
+	if e.catalog.state.Get(renamed.SQLIndex.Parent) != parent || e.storage[renamed.SQLIndex.Parent] != store || store.generation != generation || store.ends != ends {
 		t.Fatal("reindex changed table definition/storage/membership")
 	}
 	run(t, e, "UPDATE t SET n=4 WHERE n=3")
@@ -90,14 +90,14 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 		t.Fatal(got)
 	}
 	survivor := derived
-	survivorStore := e.storage[renamed.sqlIndex.parent]
+	survivorStore := e.storage[renamed.SQLIndex.Parent]
 	run(t, e, "DROP INDEX new_ni,si,new_ni CASCADE")
-	if e.catalog.state.Get(renamed.address) != nil || e.catalog.state.Get(si.address) != nil || e.indexRoots[renamed.address] != nil || e.indexRoots[si.address] != nil || e.indexRoots[ei.address] != survivor || e.storage[renamed.sqlIndex.parent] != survivorStore {
+	if e.catalog.state.Get(renamed.Address()) != nil || e.catalog.state.Get(si.Address()) != nil || e.indexRoots[renamed.Address()] != nil || e.indexRoots[si.Address()] != nil || e.indexRoots[ei.Address()] != survivor || e.storage[renamed.SQLIndex.Parent] != survivorStore {
 		t.Fatal("group drop did not isolate/deduplicate removals")
 	}
 	run(t, e, "CREATE INDEX new_ni ON t(n)")
 	recreated, _ := btreeRoot(t, e, "new_ni")
-	if recreated.address == renamed.address {
+	if recreated.Address() == renamed.Address() {
 		t.Fatal("recreated name reused retired identity")
 	}
 	lockEmpty(t, e)
@@ -111,15 +111,15 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 	old, root := btreeRoot(t, e, "u")
 	sibling, siblingRoot := btreeRoot(t, e, "sibling")
 	derived, derivedRoot := btreeRoot(t, e, "derived")
-	parent := e.catalog.state.MustRelation(old.sqlIndex.parent)
-	constraint := parent.uniqueConstraints[0]
+	parent := e.catalog.state.MustRelation(old.SQLIndex.Parent)
+	constraint := parent.UniqueConstraints[0]
 	run(t, e, "ALTER INDEX u RENAME TO u_new")
 	next, same := btreeRoot(t, e, "u_new")
-	nextParent := e.catalog.state.MustRelation(old.sqlIndex.parent)
-	if same != root || next.address != old.address || next.sqlIndex.constraint.OID != constraint.OID || next.sqlIndex.constraint.Index != constraint.Index || next.sqlIndex.constraint.Name != "u_new" || nextParent.uniqueConstraints[0].Name != "u_new" || nextParent.uniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.address] != siblingRoot || e.indexRoots[derived.address] != derivedRoot {
+	nextParent := e.catalog.state.MustRelation(old.SQLIndex.Parent)
+	if same != root || next.Address() != old.Address() || next.SQLIndex.Constraint.OID != constraint.OID || next.SQLIndex.Constraint.Index != constraint.Index || next.SQLIndex.Constraint.Name != "u_new" || nextParent.UniqueConstraints[0].Name != "u_new" || nextParent.UniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.Address()] != siblingRoot || e.indexRoots[derived.Address()] != derivedRoot {
 		t.Fatal("backing rename did not preserve real identities/roots")
 	}
-	if parent.uniqueConstraints[0].Name != "u" || old.sqlIndex.constraint.Name != "u" {
+	if parent.UniqueConstraints[0].Name != "u" || old.SQLIndex.Constraint.Name != "u" {
 		t.Fatal("rename mutated captured descriptors")
 	}
 	before := indexMaintenanceCapture(e)
@@ -132,7 +132,7 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 		indexMaintenanceUnchanged(t, e, before)
 	}
 	run(t, e, "REINDEX TABLE q")
-	if e.indexRoots[next.address] == root || e.indexRoots[sibling.address] == siblingRoot || e.indexRoots[derived.address] == derivedRoot {
+	if e.indexRoots[next.Address()] == root || e.indexRoots[sibling.Address()] == siblingRoot || e.indexRoots[derived.Address()] == derivedRoot {
 		t.Fatal("table rebuild omitted UNIQUE/simple/derived roots")
 	}
 	btreeWantKeys(t, e, "u_new", "1", "NULL")

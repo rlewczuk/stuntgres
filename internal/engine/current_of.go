@@ -31,19 +31,19 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 				continue
 			}
 			if occurrence != -1 {
-				return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" has multiple FOR UPDATE/SHARE references to table \"%s\"", b.currentOf, b.relation.name))
+				return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" has multiple FOR UPDATE/SHARE references to table \"%s\"", b.currentOf, b.relation.Name()))
 			}
 			occurrence = i
 		}
 	}
 	if marked {
 		if occurrence == -1 {
-			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.currentOf, b.relation.name))
+			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.currentOf, b.relation.Name()))
 		}
 	} else {
 		scan := cursorSimpleScan(c.root, c.source)
 		if scan == nil || scan.ref != b.ref {
-			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.currentOf, b.relation.name))
+			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.currentOf, b.relation.Name()))
 		}
 		occurrence = scan.occurrence
 	}

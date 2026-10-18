@@ -5,9 +5,9 @@ import "stuntgres/internal/engine/ids"
 // Released facts belong to initialized catalog descriptors, separately from
 // their adapter's ability to return physical fields or infer query nullability.
 type catalogAttribute struct {
-	notNull    bool
-	dimensions int16
-	collation  uint32
+	NotNull    bool
+	Dimensions int16
+	Collation  uint32
 }
 
 // Condensed projections keep their established result order. Stable attribute
@@ -64,52 +64,52 @@ func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 }
 
 func initializeCatalogAttributes(d *relationDescriptor) {
-	d.catalogAttributes = make([]catalogAttribute, len(d.columns))
-	view := d.virtualView || representedSummaryViewDefinition(d.address.ObjectID) != ""
-	for i, column := range d.columns {
-		attribute := catalogAttributeNumber(d.address.ObjectID, column.Name, int32(i+1))
-		d.attributes[i], d.columns[i].OriginAttribute = attribute, int16(attribute)
-		if attribute > d.attributeHighWater {
-			d.attributeHighWater = attribute
+	d.CatalogAttributes = make([]catalogAttribute, len(d.Columns))
+	view := d.VirtualView || representedSummaryViewDefinition(d.Address().ObjectID) != ""
+	for i, column := range d.Columns {
+		attribute := catalogAttributeNumber(d.Address().ObjectID, column.Name, int32(i+1))
+		d.Attributes[i], d.Columns[i].OriginAttribute = attribute, int16(attribute)
+		if attribute > d.AttributeHighWater {
+			d.AttributeHighWater = attribute
 		}
-		fact := catalogAttribute{notNull: !view, collation: column.Usage.Collation.ID}
+		fact := catalogAttribute{NotNull: !view, Collation: column.Usage.Collation.ID}
 		if !view {
 			if column.Usage.Type.IsArray() {
-				fact.dimensions = 1
+				fact.Dimensions = 1
 			}
 			// Bootstrap textual catalog fields use C, not the database default.
-			if fact.collation != 0 || column.Usage.Type.ID() == 194 {
-				fact.collation = 950
+			if fact.Collation != 0 || column.Usage.Type.ID() == 194 {
+				fact.Collation = 950
 			}
-			switch d.address.ObjectID {
+			switch d.Address().ObjectID {
 			case pgTypeOID:
-				fact.notNull = i < 29
+				fact.NotNull = i < 29
 			case 1213:
-				fact.notNull = i < 3
+				fact.NotNull = i < 3
 			case 1262:
-				fact.notNull = i < 14
+				fact.NotNull = i < 14
 			case 2964:
-				fact.notNull = i < 2
+				fact.NotNull = i < 2
 			case ids.ParameterClassID:
-				fact.notNull = i < 2
+				fact.NotNull = i < 2
 			case 3456:
-				fact.notNull = i < 7
+				fact.NotNull = i < 7
 			case pgLanguageOID:
-				fact.notNull = i < 8
+				fact.NotNull = i < 8
 			case pgAggregateOID:
-				fact.notNull = i < 20
+				fact.NotNull = i < 20
 			case 3079:
-				fact.notNull = i < 6
+				fact.NotNull = i < 6
 			case 3600:
-				fact.notNull = i < 5
+				fact.NotNull = i < 5
 			case 1259:
-				fact.notNull = i < 31
+				fact.NotNull = i < 31
 			case 2606:
-				fact.notNull = i < 20
+				fact.NotNull = i < 20
 			case 1249:
-				fact.notNull = i < 20
+				fact.NotNull = i < 20
 			}
 		}
-		d.catalogAttributes[i] = fact
+		d.CatalogAttributes[i] = fact
 	}
 }

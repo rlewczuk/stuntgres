@@ -363,7 +363,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.groups_acl(id INT,k INT)")
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, table.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, table.Address())
 	reader := e.authorizationDomain.Principal(1000000)
 	roles := cloneRoleFixture(e.roles)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "groups_unit_reader"})
@@ -371,12 +371,12 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	e.roles = roles
 	column := func(index int) ids.ObjectRef {
 		object := ref
-		object.Address.SubID = table.attributes[index]
+		object.Address.SubID = table.Attributes[index]
 		return object
 	}
 	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
-		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {
 			t.Fatal(err)
 		}
@@ -395,7 +395,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 		{"SELECT count(*) OVER(ORDER BY id GROUPS 1 PRECEDING) FROM groups_acl", []int{0}, false},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
-			for i := range table.columns {
+			for i := range table.Columns {
 				rights := authorization.Privileges(0)
 				if i == 0 {
 					rights = authorization.SelectPrivilege

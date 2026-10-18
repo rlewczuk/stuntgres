@@ -54,12 +54,12 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 		return nil, false, nil
 	}
 	view := b.bindingCatalog()
-	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
-	if !ok || descriptor.owningRelation != relation.address || descriptor.typ.CompositeLen() != len(relation.columns) {
+	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
+	if !ok || descriptor.OwningRelation != relation.Address() || descriptor.SQLType.CompositeLen() != len(relation.Columns) {
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}
 	b.returningReadRequired = true
-	members := make([]expr.Expr, len(relation.columns))
+	members := make([]expr.Expr, len(relation.Columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
 		if aliases.mode == returningMerge && side == mergeDefaultSide {
@@ -70,6 +70,6 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 			members[i] = b.outerReturningColumnAt(scope, i, pos, !old)
 		}
 	}
-	info := b.info(sqltype.Usage{Type: descriptor.typ, Typmod: -1}, pos, expr.Properties{RowDependent: true})
+	info := b.info(sqltype.Usage{Type: descriptor.SQLType, Typmod: -1}, pos, expr.Properties{RowDependent: true})
 	return returningWholeRowExpression{Info: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
 }

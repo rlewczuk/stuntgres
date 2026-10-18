@@ -23,10 +23,10 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.ordered AS integer CONSTRAINT z_last CHECK (VALUE>0) CONSTRAINT a_first CHECK (VALUE>10)"))
 	view := e.CatalogRead()
 	d := domainUnitType(t, view, "ordered")
-	if len(d.domainChecks) != 2 || d.domainChecks[0].Name != "a_first" || d.domainChecks[0].ordinal != 1 || d.domainChecks[1].Name != "z_last" || d.domainChecks[1].ordinal != 0 || !d.typ.HasDomainChecks() {
-		t.Fatal("lost own order/identity", d.domainChecks)
+	if len(d.DomainChecks) != 2 || d.DomainChecks[0].Name != "a_first" || d.DomainChecks[0].Ordinal != 1 || d.DomainChecks[1].Name != "z_last" || d.DomainChecks[1].Ordinal != 0 || !d.SQLType.HasDomainChecks() {
+		t.Fatal("lost own order/identity", d.DomainChecks)
 	}
-	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.Name()})) != 0 {
+	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.ObjectNamespace, Name: d.Name()})) != 0 {
 		t.Fatal("published into immutable prior root")
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
@@ -35,12 +35,12 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if err := validateDomainCheckDefinitions(view, d); err != nil {
 		t.Fatal(err)
 	}
-	for _, check := range d.domainChecks {
-		if check.expression.Properties().RowDependent || !check.expression.Properties().DomainDependent {
-			t.Fatal("VALUE is not conversion-dependent", check.expression.Properties())
+	for _, check := range d.DomainChecks {
+		if check.Expression.Properties().RowDependent || !check.Expression.Properties().DomainDependent {
+			t.Fatal("VALUE is not conversion-dependent", check.Expression.Properties())
 		}
-		walkBoundExpression(check.expression, func(node expr.Expr) {
-			if _, value := node.(domainValueExpression); value && node.ResultUsage() != d.typ.DomainBase() {
+		walkBoundExpression(check.Expression, func(node expr.Expr) {
+			if _, value := node.(domainValueExpression); value && node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base usage")
 			}
 		})
@@ -72,7 +72,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if got := generatedConstraintName(long, "", "check", map[string]bool{}); got != strings.Repeat("é", 28)+"_check" {
 		t.Fatal("UTF8 clipping", got)
 	}
-	if !constraintNames(view, d.namespace, nil)["a_first"] {
+	if !constraintNames(view, d.ObjectNamespace, nil)["a_first"] {
 		t.Fatal("domain constraint missing from namespace generator")
 	}
 }
@@ -114,13 +114,13 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		plan, err := sqltype.PlanCoercion(integer.Usage(), d.typ.Usage(), sqltype.Explicit)
+		plan, err := sqltype.PlanCoercion(integer.Usage(), d.SQLType.Usage(), sqltype.Explicit)
 		if err != nil {
 			t.Fatal(err)
 		}
 		out, err := plan.Apply(eval.Context, candidate, eval.Input, eval.Output)
 		if tc.state == "" {
-			if err != nil || out.Type() != d.typ {
+			if err != nil || out.Type() != d.SQLType {
 				t.Fatal(tc, out, err)
 			}
 		} else {
@@ -167,7 +167,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	cancel()
 	eval.Context = ctx
 	child := domainUnitType(t, view, "child")
-	if err := eval.CheckDomain(ctx, child.typ, sqltype.Null(integer)); !errors.Is(err, context.Canceled) {
+	if err := eval.CheckDomain(ctx, child.SQLType, sqltype.Null(integer)); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation", err)
 	}
 	if eval.domainValue != sentinel || eval.domainValueActive {
@@ -202,7 +202,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 			continue
 		}
 		visible++
-		if edge.domain != dependent || edge.label != "constraint provider_check" || edge.address.ObjectID != dependent.domainChecks[0].OID {
+		if edge.domain != dependent || edge.label != "constraint provider_check" || edge.address.ObjectID != dependent.DomainChecks[0].OID {
 			t.Fatal("CHECK-owned dependency", edges)
 		}
 	}
@@ -216,14 +216,14 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	view := e.CatalogRead()
 	d := domainUnitType(t, view, "dependent")
 	child := domainUnitType(t, view, "descendant")
-	if len(d.domainChecks) != 0 || d.typ.HasDomainChecks() || !child.typ.HasDomainChecks() || child.typ.DomainBase().Type != d.typ || len(dependent.domainChecks) != 1 || !dependent.typ.HasDomainChecks() {
+	if len(d.DomainChecks) != 0 || d.SQLType.HasDomainChecks() || !child.SQLType.HasDomainChecks() || child.SQLType.DomainBase().Type != d.SQLType || len(dependent.DomainChecks) != 1 || !dependent.SQLType.HasDomainChecks() {
 		t.Fatal("retirement lost immutable ancestry")
 	}
 	if err := validateDomainCheckDefinitions(view, child); err != nil {
 		t.Fatal(err)
 	}
-	walkBoundExpression(child.domainChecks[0].expression, func(node expr.Expr) {
-		if _, value := node.(domainValueExpression); value && node.ResultUsage().Type != d.typ {
+	walkBoundExpression(child.DomainChecks[0].Expression, func(node expr.Expr) {
+		if _, value := node.(domainValueExpression); value && node.ResultUsage().Type != d.SQLType {
 			t.Fatal("VALUE retained old base generation")
 		}
 	})

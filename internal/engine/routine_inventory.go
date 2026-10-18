@@ -1253,7 +1253,7 @@ func indexBuiltinRoutineDeclarations() map[ids.OID]*builtinRoutineDeclaration {
 	byOID := make(map[ids.OID]*builtinRoutineDeclaration, len(builtinRoutineDeclarations))
 	for i := range builtinRoutineDeclarations {
 		d := &builtinRoutineDeclarations[i]
-		byOID[d.identity.id] = d
+		byOID[d.Identity.ID] = d
 	}
 	return byOID
 }

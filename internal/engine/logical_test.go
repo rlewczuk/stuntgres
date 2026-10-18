@@ -194,7 +194,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	}
 	refs := map[ids.ObjectRef]bool{}
 	for _, dependency := range bound.dependencies {
-		refs[dependency.ref] = true
+		refs[dependency.Ref] = true
 	}
 	for _, sub := range []int32{1, 2, 3} {
 		column := ref

@@ -16,7 +16,7 @@ func captureDeniedQuerySource(view *VisibilityView, ref ids.ObjectRef) (*querySo
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	data := pin.read()
-	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() || data.catalog.Get(ref.Address) == nil {
+	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.Domain || ref.Epoch != data.catalog.Epoch() || data.catalog.Get(ref.Address) == nil {
 		pin.Release()
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}
@@ -48,7 +48,7 @@ func rowSecurityActions(actions []parser.AlterTableAction) bool {
 }
 
 func rowSecurityFlags(old *relationDescriptor, actions []parser.AlterTableAction) *relationDescriptor {
-	enabled, forced := old.rlsEnabled, old.rlsForced
+	enabled, forced := old.RLSEnabled, old.RLSForced
 	for _, action := range actions {
 		switch action.Action {
 		case parser.EnableRowSecurity:
@@ -61,11 +61,11 @@ func rowSecurityFlags(old *relationDescriptor, actions []parser.AlterTableAction
 			forced = false
 		}
 	}
-	if enabled == old.rlsEnabled && forced == old.rlsForced {
+	if enabled == old.RLSEnabled && forced == old.RLSForced {
 		return old
 	}
 	next := *old
-	next.rlsEnabled, next.rlsForced = enabled, forced
+	next.RLSEnabled, next.RLSForced = enabled, forced
 	return &next
 }
 
@@ -83,11 +83,11 @@ func rowSecurityActionLabel(action parser.AlterTableActionKind) string {
 }
 
 func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) error {
-	if d.relationKind == tableRelation || d.relationKind == partitionedRelation {
+	if d.RelationKind == tableRelation || d.RelationKind == partitionedRelation {
 		return nil
 	}
 	kind := ""
-	switch d.relationKind {
+	switch d.RelationKind {
 	case viewRelation:
 		kind = "views"
 	case materializedViewRelation:
@@ -101,13 +101,13 @@ func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) 
 	default:
 		return tableKind(d, rowSecurityActionLabel(action))
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.name), Detail: "This operation is not supported for " + kind + "."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
 // adjacent expression-enforcement capability; nil clauses contribute nothing.
 func rowSecurityApplies(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef) (bool, error) {
-	if !d.rlsEnabled {
+	if !d.RLSEnabled {
 		return false, nil
 	}
 	actor, err := auth.roles.Descriptor(principal)
@@ -117,8 +117,8 @@ func rowSecurityApplies(auth AuthorizationView, d *relationDescriptor, principal
 	if actor.Superuser || actor.BypassRLS {
 		return false, nil
 	}
-	if !d.rlsForced {
-		owner, err := auth.roles.InheritsRole(principal, d.owner)
+	if !d.RLSForced {
+		owner, err := auth.roles.InheritsRole(principal, d.Owner)
 		if err != nil {
 			return false, err
 		}
@@ -134,25 +134,25 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 	if err != nil || !applies {
 		return rlsUnrestricted, err
 	}
-	for _, policy := range d.policies {
-		if !policy.permissive || policy.command != policyAll && policy.command != command {
+	for _, policy := range d.Policies {
+		if !policy.Permissive || policy.Command != policyAll && policy.Command != command {
 			continue
 		}
-		expression := policyExpressionOf(policy.using)
+		expression := policyExpressionOf(policy.Using)
 		if proposed && command != policySelect {
-			expression = policyExpressionOf(policy.check)
-			if expression == nil && (policy.command == policyAll || policy.command == policyUpdate) {
-				expression = policyExpressionOf(policy.using)
+			expression = policyExpressionOf(policy.Check)
+			if expression == nil && (policy.Command == policyAll || policy.Command == policyUpdate) {
+				expression = policyExpressionOf(policy.Using)
 			}
 		}
 		if expression == nil {
 			continue
 		}
-		for _, role := range policy.roles {
-			if role.public {
+		for _, role := range policy.Roles {
+			if role.Public {
 				return rlsNeedsExpressions, nil
 			}
-			applies, err := auth.roles.InheritsRole(principal, role.ref)
+			applies, err := auth.roles.InheritsRole(principal, role.Ref)
 			if err != nil {
 				return rlsUnrestricted, err
 			}
@@ -202,7 +202,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.Princ
 	if b.viewWrite != nil {
 		for _, layer := range b.viewWrite.layers {
 			current := auth.catalog.MustRelation(layer.ref.Address)
-			principal = current.owner
+			principal = current.Owner
 			if viewOf(current).invoker {
 				principal = auth.state.CurrentUser
 			}
@@ -213,7 +213,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.Princ
 
 // The caller holds Engine.mu; this never captures row data or mutates identity.
 func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, selectRead bool) (bool, error) {
-	if !d.rlsEnabled {
+	if !d.RLSEnabled {
 		return false, nil
 	}
 	auth, err := e.authorizationLocked(scope.op)
@@ -254,8 +254,8 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	default:
 		return nil
 	}
-	scope.rlsProposalTable = b.relation.name
-	if !b.relation.rlsEnabled {
+	scope.rlsProposalTable = b.relation.Name()
+	if !b.relation.RLSEnabled {
 		return nil
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)

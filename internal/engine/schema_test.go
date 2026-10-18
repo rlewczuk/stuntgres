@@ -22,7 +22,7 @@ func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	if a == (ids.ObjectAddress{}) {
 		t.Fatal("missing namespace", name)
 	}
-	return e.catalog.domain.Ref(v.Epoch(), a)
+	return e.catalog.Domain.Ref(v.Epoch(), a)
 }
 func schemaFail(t *testing.T, e *Engine, op *Operation, q, code string) {
 	t.Helper()
@@ -99,11 +99,11 @@ func TestSchemaNamesNestedAtomicity(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "dot.schema")
 	owner, _ := e.Roles().Lookup("owner")
-	if e.catalog.state.MustNamespace(ns.Address).owner != owner.Ref {
+	if e.catalog.state.MustNamespace(ns.Address).Owner != owner.Ref {
 		t.Fatal("wrong schema owner")
 	}
 	for _, q := range []string{`"dot.schema"."t,quote"`, `"dot.schema".u`} {
-		if e.catalog.state.MustRelation(roleTableRef(t, e, q).Address).owner != owner.Ref {
+		if e.catalog.state.MustRelation(roleTableRef(t, e, q).Address).Owner != owner.Ref {
 			t.Fatal("wrong nested owner")
 		}
 	}
@@ -257,7 +257,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
 	table := roleTableRef(t, e, "owned.t")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO reader")
-	if e.catalog.state.MustRelation(table.Address).owner != owner.Ref {
+	if e.catalog.state.MustRelation(table.Address).Owner != owner.Ref {
 		t.Fatal("schema transfer changed table owner")
 	}
 	schemaFail(t, e, admin, "ALTER SCHEMA owned OWNER TO absent", "42704")
@@ -287,10 +287,10 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	rolesBefore := e.roles
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET search_path TO mixed")
-	if d := e.catalog.state.MustNamespace(ns.Address); d.owner != owner.Ref || d.acl.Explicit {
+	if d := e.catalog.state.MustNamespace(ns.Address); d.Owner != owner.Ref || d.ACL.Explicit {
 		t.Fatal("schema authority/ACL", d)
 	}
-	if d := e.catalog.state.MustRelation(table.Address); d.owner != tableOwner.Ref || d.acl.Explicit {
+	if d := e.catalog.state.MustRelation(table.Address); d.Owner != tableOwner.Ref || d.ACL.Explicit {
 		t.Fatal("table authority/ACL", d)
 	}
 	for _, tc := range []struct {
@@ -298,7 +298,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		owner authorization.PrincipalRef
 	}{{"mixed.u", tableOwner.Ref}, {"mixed.v", laterOwner.Ref}, {"mixed.owned", owner.Ref}, {"mixed.more", tableOwner.Ref}} {
 		d := e.catalog.state.MustRelation(roleTableRef(t, e, tc.name).Address)
-		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
+		if d.Owner != tc.owner || d.ACL.Explicit || len(d.ACL.Entries) != 0 || len(d.ColumnACL) != 0 {
 			t.Fatal("owner grouping leaked insertion authority/ACL", d)
 		}
 	}
@@ -308,12 +308,12 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		empty := schemaRef(t, e, "empty")
 		for _, a := range []ids.ObjectAddress{ns.Address, empty.Address} {
 			d := e.catalog.state.MustNamespace(a)
-			if d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+			if d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 				t.Fatal("namespace owner/ACL", d)
 			}
 		}
 		d := e.catalog.state.MustRelation(roleTableRef(t, e, "mixed.t").Address)
-		if d.owner != tableOwner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
+		if d.Owner != tableOwner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 || len(d.ColumnACL) != 0 {
 			t.Fatal("table owner/ACL", d)
 		}
 		result := run(t, e, "SELECT * FROM mixed.t")
@@ -356,7 +356,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	if fresh.Epoch == table.Epoch {
 		t.Fatal("replacement reused epoch")
 	}
-	if d := e.catalog.state.MustNamespace(schemaRef(t, e, "mixed").Address); d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+	if d := e.catalog.state.MustNamespace(schemaRef(t, e, "mixed").Address); d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 		t.Fatal("roundtrip schema owner/ACL", d)
 	}
 	for _, tc := range []struct {
@@ -365,7 +365,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		value int64
 	}{{"mixed.u", tableOwner.Ref, 8}, {"mixed.v", laterOwner.Ref, 9}, {"mixed.owned", owner.Ref, 9}, {"mixed.more", tableOwner.Ref, 11}} {
 		d := e.catalog.state.MustRelation(roleTableRef(t, e, tc.name).Address)
-		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
+		if d.Owner != tc.owner || d.ACL.Explicit || len(d.ACL.Entries) != 0 || len(d.ColumnACL) != 0 {
 			t.Fatal("roundtrip owner/ACL", d)
 		}
 		if got := tuples(run(t, e, "SELECT id FROM "+tc.name)); !reflect.DeepEqual(got, [][]driver.Value{{tc.value}}) {

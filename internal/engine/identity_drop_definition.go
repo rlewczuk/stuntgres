@@ -28,9 +28,9 @@ type identityDropCapture struct {
 
 func identitySequenceDefinition(descriptor Descriptor, table *relationDescriptor, attribute int32) (*relationDescriptor, error) {
 	sequence, ok := descriptor.(*relationDescriptor)
-	owned := table.address
+	owned := table.Address()
 	owned.SubID = attribute
-	if !ok || sequence == nil || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned {
+	if !ok || sequence == nil || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return sequence, nil
@@ -43,14 +43,14 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	if isSystemColumn(action.Column.Text) {
 		return old, capture, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
 	}
-	slot, present := old.index[action.Column.Text]
+	slot, present := old.Index[action.Column.Text]
 	if !present {
-		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.name))
+		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
 	}
-	attribute := old.attributes[slot]
-	identity, exists := old.identities[attribute]
+	attribute := old.Attributes[slot]
+	identity, exists := old.Identities[attribute]
 	if !exists {
-		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.name)
+		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.Name())
 		if !action.IfExists {
 			return old, capture, sqlError("55000", message)
 		}
@@ -62,7 +62,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 		}
 		return old, capture, nil
 	}
-	ref := e.catalog.domain.Ref(provider.base.Epoch(), identity.sequence)
+	ref := e.catalog.Domain.Ref(provider.base.Epoch(), identity.Sequence)
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
 	if err := provider.scope.acquireSequence(ref, lock.AccessExclusive, false); err != nil {
@@ -71,11 +71,11 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	e.mu.Lock()
 	var err error
 	if provider.stage != nil {
-		err = e.refreshIdentitySequenceLocked(provider.scope, provider.stage, old, attribute, identity.sequence)
+		err = e.refreshIdentitySequenceLocked(provider.scope, provider.stage, old, attribute, identity.Sequence)
 		if err == nil {
 			provider.base = provider.stage.base
-			capture = identityDropCapture{sequence: ref, original: e.catalog.state.Get(identity.sequence)}
-			provider.stage.identityDependencies = append(provider.stage.identityDependencies, catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.sequence}})
+			capture = identityDropCapture{sequence: ref, original: e.catalog.state.Get(identity.Sequence)}
+			provider.stage.identityDependencies = append(provider.stage.identityDependencies, catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
 		}
 	} else {
 		capture, err = e.captureIdentityDropDefinitionLocked(provider, old, attribute, ref)
@@ -84,18 +84,18 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	if err != nil {
 		return old, capture, err
 	}
-	if err := provider.applyViewDependents([]ids.ObjectAddress{identity.sequence}, parser.DropRestrict); err != nil {
+	if err := provider.applyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
 		return old, capture, err
 	}
 	if err := provider.remove(ref); err != nil {
 		return old, capture, err
 	}
 	if provider.stage != nil {
-		applyIdentityDropTombstone(provider.stage, identity.sequence)
+		applyIdentityDropTombstone(provider.stage, identity.Sequence)
 	}
 	next := *old
-	next.identities = maps.Clone(old.identities)
-	delete(next.identities, attribute)
+	next.Identities = maps.Clone(old.Identities)
+	delete(next.Identities, attribute)
 	return &next, capture, nil
 }
 
@@ -143,9 +143,9 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{})
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{})
 	if old != nil {
-		ref.Address = old.address
+		ref.Address = old.Address()
 	}
 	provider, err := scope.prepareDropDefinitionProvider(auth, old, ref, nil)
 	if err != nil {

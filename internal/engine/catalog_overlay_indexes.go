@@ -32,36 +32,36 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	var captures []catalogOverlayIndex
 	for a, d := range view.Descriptors() {
 		index, ok := d.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := view.Relation(index.sqlIndex.parent)
+		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			e.mu.Unlock()
 			return CatalogConflict{}
 		}
-		old, existed := stage.base.Relation(parent.address)
-		shape, replaced := c.storage[parent.address]
-		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.address)
-		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.attributes, parent.attributes)) {
+		old, existed := stage.base.Relation(parent.Address())
+		shape, replaced := c.storage[parent.Address()]
+		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.Address())
+		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
-		if !index.sqlIndex.ready {
+		if !index.SQLIndex.Ready {
 			delete(c.uniqueRoots, a)
 			delete(c.indexCandidates, a)
 			continue
 		}
 		// Virtual indexes own ancestry/validity metadata, never heap captures or
 		// installation roots. Their exact descriptor fences were captured above.
-		if parent.partition != nil {
+		if parent.Partition != nil {
 			continue
 		}
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
-		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.sqlIndex != nil && previous.sqlIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.attributes, parent.attributes) && sameIndexKeySemantics(previous, index) {
+		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
 			continue
 		}
-		store := e.privateStorageLocked(c, parent.address)
+		store := e.privateStorageLocked(c, parent.Address())
 		if store == nil {
 			e.mu.Unlock()
 			return CatalogConflict{}
@@ -82,8 +82,8 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		snapshot := *store
 		snapshot.indexSource = indexStorageIdentity(store)
 		captures = append(captures, catalogOverlayIndex{index: index, parent: parent, store: snapshot})
-		committed := e.storage[parent.address]
-		fence := partitionReadFence{address: parent.address, storage: committed}
+		committed := e.storage[parent.Address()]
+		fence := partitionReadFence{address: parent.Address(), storage: committed}
 		if committed != nil {
 			fence.length = len(committed.versions)
 			fence.ends = committed.ends
@@ -97,42 +97,42 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		index, parent := capture.index, capture.parent
 		building := true
 		indexAuth := auth
-		if r := stage.materializedReplacement; r != nil && r.concurrent && r.original.address == parent.address {
+		if r := stage.materializedReplacement; r != nil && r.concurrent && r.original.Address() == parent.Address() {
 			building = false
-			indexAuth.state.CurrentUser = parent.owner
-			if _, err := indexAuth.roles.Descriptor(parent.owner); err != nil {
+			indexAuth.state.CurrentUser = parent.Owner
+			if _, err := indexAuth.roles.Descriptor(parent.Owner); err != nil {
 				return err
 			}
 		}
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: view}
 		evaluation.routineAuthority = &auth
-		if index.sqlIndex.hasRuntimeDomainConversion() {
+		if index.SQLIndex.hasRuntimeDomainConversion() {
 			var err error
 			evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(indexAuth)
 			if err != nil {
 				return err
 			}
 		}
-		writes, deletes := scope.columnProjectionRoots(parent.address)
-		if stage.initialTables[parent.address] != nil {
-			writes = scope.stage.rows[parent.address]
+		writes, deletes := scope.columnProjectionRoots(parent.Address())
+		if stage.initialTables[parent.Address()] != nil {
+			writes = scope.stage.rows[parent.Address()]
 		}
 		visible, err := indexBuildVisibleStore(scope.op.Context(), &capture.store, writes, deletes)
 		if err != nil {
 			return err
 		}
 		var outputs *indexBuildCapture
-		if index.sqlIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+		if index.SQLIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
 			outputs = &indexBuildCapture{index: index}
 		}
 		if outputs != nil {
 			outputs.outputs = make([]indexRowOutput, len(visible.versions))
 		}
-		full, err := buildIndexRoot(&evaluation, parent, index.sqlIndex, visible, outputs)
+		full, err := buildIndexRoot(&evaluation, parent, index.SQLIndex, visible, outputs)
 		if err != nil {
 			return err
 		}
-		schema := view.Get(parent.namespace).Name()
+		schema := view.Get(parent.Namespace()).Name()
 		if err := validateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
 			return err
 		}
@@ -152,17 +152,17 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return err
 		}
 		retainIndexBuild(c, index, &capture.store, baseline)
-		updated, changed, err := attachIndexBuildOutputs(scope.op.Context(), writes, map[string]*alterIndexBuild{index.name: build})
+		updated, changed, err := attachIndexBuildOutputs(scope.op.Context(), writes, map[string]*alterIndexBuild{index.Name(): build})
 		if err != nil {
 			return err
 		}
 		if changed {
-			if stage.initialTables[parent.address] != nil {
+			if stage.initialTables[parent.Address()] != nil {
 				// These rows were produced by this CREATE statement, not an
 				// earlier transaction prefix owned by the projection helper.
-				scope.stage.rows[parent.address] = updated
+				scope.stage.rows[parent.Address()] = updated
 			} else {
-				scope.stageProjectedColumnRoots(parent.address, updated, deletes)
+				scope.stageProjectedColumnRoots(parent.Address(), updated, deletes)
 			}
 		}
 	}

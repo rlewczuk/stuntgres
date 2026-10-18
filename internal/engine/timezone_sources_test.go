@@ -22,33 +22,33 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		{12004, []string{"abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Interval, sqltype.Bool}},
 	} {
 		d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
-		if !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != len(tc.names) {
+		if !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != len(tc.names) {
 			t.Fatal(d)
 		}
-		for i, c := range d.columns {
+		for i, c := range d.Columns {
 			owner, ok := e.CatalogRead().LookupType(tc.types[i])
-			if !ok || c.Name != tc.names[i] || c.Usage.Type != owner || c.Usage.Typmod != -1 || !c.Nullable || !c.NullabilityKnown || c.OriginTable != uint32(tc.oid) || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) {
+			if !ok || c.Name != tc.names[i] || c.Usage.Type != owner || c.Usage.Typmod != -1 || !c.Nullable || !c.NullabilityKnown || c.OriginTable != uint32(tc.oid) || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) {
 				t.Fatal(i, c)
 			}
 		}
 		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal(d.acl)
+		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal(d.ACL)
 		}
 		invalid := *d
-		invalid.relationKind = tableRelation
+		invalid.RelationKind = tableRelation
 		if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("virtual table accepted")
 		}
 		invalid = *d
-		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
+		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		foreign, ok := New().CatalogRead().LookupType(tc.types[0])
 		if !ok {
 			t.Fatal("foreign type missing")
 		}
-		invalid.columns[0].Usage.Type = foreign
+		invalid.Columns[0].Usage.Type = foreign
 		if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("foreign owner type accepted")
 		}
@@ -58,7 +58,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	e := New()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12005})
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 	boundary := time.Date(2024, 3, 10, 7, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		instant time.Time
@@ -80,7 +80,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 		found := false
 		for _, row := range rows.anonymous {
 			for i, value := range row {
-				if value.Type() != d.columns[i].Usage.Type || value.IsNull() {
+				if value.Type() != d.Columns[i].Usage.Type || value.IsNull() {
 					t.Fatal("unowned/null fact", i, value)
 				}
 			}
@@ -135,9 +135,9 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			{12004, "IST", 7200000000},
 		} {
 			d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
-			ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 			e.mu.Lock()
-			rows, err := e.openRelationSourceLocked(scope, ref, d.owner, queryRowMark{}, nil, nil)
+			rows, err := e.openRelationSourceLocked(scope, ref, d.Owner, queryRowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -22,22 +22,22 @@ func TestRoutineReleaseInventory(t *testing.T) {
 	}
 	identities := make(map[string]bool)
 	for _, fact := range builtinRoutineIdentities {
-		key := fact.name + "(" + string(fact.signature) + ")"
-		if fact.id == 0 || fact.namespace != ids.PGCatalogNamespaceOID || fact.name == "" || identities[key] {
+		key := fact.Name + "(" + string(fact.Signature) + ")"
+		if fact.ID == 0 || fact.Namespace != ids.PGCatalogNamespaceOID || fact.Name == "" || identities[key] {
 			t.Fatal("invalid/duplicate released identity", fact)
 		}
 		identities[key] = true
-		if fact.signature != "" {
-			for symbol := range strings.SplitSeq(string(fact.signature), ",") {
+		if fact.Signature != "" {
+			for symbol := range strings.SplitSeq(string(fact.Signature), ",") {
 				id, err := strconv.ParseUint(symbol, 10, 32)
 				if _, ok := view.LookupType(sqltype.ID(id)); err != nil || !ok {
 					t.Fatal("missing released argument identity", fact, symbol, err)
 				}
 			}
 		}
-		if p, exists := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: fact.id}); exists {
+		if p, exists := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: fact.ID}); exists {
 			procedure, ok := p.(*procedureDescriptor)
-			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure) != nil {
+			if !ok || procedure.Signature != fact.Signature || procedure.Name() != fact.Name || (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure) != nil {
 				t.Fatal("invalid genuine catalog declaration", p, fact)
 			}
 		}
@@ -50,7 +50,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 		{1242, "boolin", "2275"}, {1299, "now", ""}, {1397, "abs", "23"}, {1396, "abs", "20"}, {2108, "sum", "23"}, {1644, "RI_FKey_check_ins", ""}, {6399, "pg_get_aios", ""},
 	} {
 		got, ok := routineIdentityByOID(view, witness.id)
-		if !ok || got.name != witness.name || got.signature != witness.signature {
+		if !ok || got.Name != witness.name || got.Signature != witness.signature {
 			t.Fatal("release witness", got, witness)
 		}
 	}
@@ -67,9 +67,9 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: expr.Stable, strict: true, implementation: stockUnaccent}
+	first := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
-	second.address.ObjectID, second.namespace, second.signature = 90001, catalog, unaccentDictionarySignature
+	second.ObjectAddress.ObjectID, second.ObjectNamespace, second.Signature = 90001, catalog, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -83,14 +83,14 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	if _, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", nil); count != 2 {
 		t.Fatal("distinct later signature masked", count)
 	}
-	if got := regprocSpelling(view, path, first.address.ObjectID); got != "public.unaccent" {
+	if got := regprocSpelling(view, path, first.Address().ObjectID); got != "public.unaccent" {
 		t.Fatal("ambiguous earlier name output", got)
 	}
-	if got := routineSpelling(view, path, second.address.ObjectID, true, false); got != "unaccent(regdictionary,text)" {
+	if got := routineSpelling(view, path, second.Address().ObjectID, true, false); got != "unaccent(regdictionary,text)" {
 		t.Fatal("visible later exact signature", got)
 	}
-	selected, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", &first.signature)
-	if count != 1 || selected.id != first.address.ObjectID {
+	selected, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", &first.Signature)
+	if count != 1 || selected.ID != first.Address().ObjectID {
 		t.Fatal("exact signature selection", selected, count)
 	}
 	// Real conversion descriptors duplicate source-fixed identities by OID, not

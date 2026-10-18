@@ -186,7 +186,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	}
 	e.diagnosticTx++
 	t.next++
-	t.ref = e.catalog.domain.Tx(t.session.token, t.next, e.catalog.state.epoch, t, e.diagnosticTx)
+	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.epoch, t, e.diagnosticTx)
 	t.state = state
 	session.notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
@@ -638,7 +638,7 @@ retry:
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
-	if ref.Domain() != e.catalog.domain {
+	if ref.Domain() != e.catalog.Domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
@@ -652,7 +652,7 @@ retry:
 		return errors.New("stuntgres: invalid relation descriptor")
 	}
 	for _, row := range rows {
-		if len(row) != len(relation.columns) {
+		if len(row) != len(relation.Columns) {
 			return errors.New("stuntgres: invalid staged row width")
 		}
 	}
@@ -667,7 +667,7 @@ retry:
 	}
 	var versions []rowVersion
 	var err error
-	if len(relation.exclusionConstraints) != 0 {
+	if len(relation.ExclusionConstraints) != 0 {
 		versions = make([]rowVersion, len(rows))
 		for i := range rows {
 			reserved := batch.candidate(i).exclusion

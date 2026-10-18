@@ -30,14 +30,14 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 	}
 	sessionSQL(t, later, "COMMIT")
 	index, incomplete := hashRoot(t, e, "hi")
-	if !index.sqlIndex.ready || index.sqlIndex.valid || !index.sqlIndex.live {
-		t.Fatal("cancellation/grandfathered commit changed retained flags", index.sqlIndex)
+	if !index.SQLIndex.Ready || index.SQLIndex.Valid || !index.SQLIndex.Live {
+		t.Fatal("cancellation/grandfathered commit changed retained flags", index.SQLIndex)
 	}
 	if got := hashKeys(t, incomplete); !reflect.DeepEqual(got, []string{"1", "2"}) {
 		t.Fatal("fixture did not retain the genuinely incomplete bucket root", got)
 	}
 	e.mu.Lock()
-	store := e.storage[index.sqlIndex.parent]
+	store := e.storage[index.SQLIndex.Parent]
 	currentIdentity := incomplete.storage == store && incomplete.generation == store.generation && incomplete.prefix == len(store.versions) && incomplete.ends == store.ends && len(store.versions) == 3
 	e.mu.Unlock()
 	if !currentIdentity {
@@ -58,7 +58,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 	release()
 	sessionSQL(t, first, "REINDEX INDEX hi")
 	healthyIndex, healthy := hashRoot(t, e, "hi")
-	if !healthyIndex.sqlIndex.ready || !healthyIndex.sqlIndex.valid || !healthyIndex.sqlIndex.live || healthy == incomplete {
+	if !healthyIndex.SQLIndex.Ready || !healthyIndex.SQLIndex.Valid || !healthyIndex.SQLIndex.Live || healthy == incomplete {
 		t.Fatal("successful reconstruction did not publish a healthy new root")
 	}
 	if got := hashKeys(t, healthy); !reflect.DeepEqual(got, []string{"1", "2", "4"}) {

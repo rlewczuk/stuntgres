@@ -23,18 +23,18 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 	if guardedCatalogRelation(d) {
 		return guardedCatalogMutationError(auth, d, true)
 	}
-	if d.relationKind == foreignRelation {
+	if d.RelationKind == foreignRelation {
 		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
 	}
-	if d.relationKind != tableRelation && d.relationKind != partitionedRelation {
-		return sqlError("42809", fmt.Sprintf("%q is not a table", d.name))
+	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
+		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
 	}
 	if privilege {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
 			return err
 		}
 	}
-	if only && d.partition != nil {
+	if only && d.Partition != nil {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot truncate only a partitioned table", Hint: "Do not specify the ONLY keyword, or use TRUNCATE ONLY on the partitions directly."}
 	}
 	return nil
@@ -43,11 +43,11 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 // Descendant admission and its final graph fence share the inherited-query
 // consumer's namespace/session-token authority, not child ACL or USAGE checks.
 func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) (bool, error) {
-	namespace, ok := catalog.Namespace(relation.namespace)
+	namespace, ok := catalog.Namespace(relation.Namespace())
 	if !ok {
 		return false, ids.ErrCatalogReplaced
 	}
-	return namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token, nil
+	return namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != token, nil
 }
 
 // Explicit targets are opened in user order. Named occurrences always check
@@ -69,7 +69,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
-			if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
+			if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
 				err = ids.ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.Relation(ref.Address)
@@ -99,7 +99,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			// Do not acquire, select or descend into another session's TEMP branch.
 			return nil
 		}
-		if before.membership != nil {
+		if before.Membership != nil {
 			if err = s.acquirePartitionAncestors(ref); err != nil {
 				return err
 			}
@@ -127,7 +127,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
-			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
+			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
 				err = ids.ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)
@@ -140,7 +140,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			}
 			if err == nil && cascade {
 				// Records are detached to the adapter later; this invokes no user callback.
-				s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.name)})
+				s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
 				err = checkTruncate(auth, ref, d, privilege, only)
@@ -149,7 +149,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = s.relationCursorPreflight(auth.catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
-				if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.temporary == s.op.session.token {
+				if namespace, ok := auth.catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.session.token {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
@@ -164,8 +164,8 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil && recurse && !expanded[ref.Address] {
 			expanded[ref.Address] = true
 			children = inheritanceChildren(auth.catalog, ref.Address)
-			if d.partition != nil {
-				for _, address := range d.partition.children {
+			if d.Partition != nil {
+				for _, address := range d.Partition.Children {
 					child, ok := auth.catalog.Relation(address)
 					if !ok {
 						err = ids.ErrCatalogReplaced
@@ -173,7 +173,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					}
 					children = append(children, child)
 				}
-				slices.SortFunc(children, func(a, b *relationDescriptor) int { return compareTruncateAddress(a.address, b.address) })
+				slices.SortFunc(children, func(a, b *relationDescriptor) int { return compareTruncateAddress(a.Address(), b.Address()) })
 			}
 		}
 		e.mu.Unlock()
@@ -181,7 +181,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return err
 		}
 		for _, child := range children {
-			if err = open(ref.Domain().Ref(ref.Epoch, child.address), nil, false, false, true, false); err != nil {
+			if err = open(ref.Domain().Ref(ref.Epoch, child.Address()), nil, false, false, true, false); err != nil {
 				return err
 			}
 		}
@@ -203,7 +203,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			if !ok {
 				err = ids.ErrCatalogReplaced
 			} else {
-				observation.ref, observation.namespace = ref, descriptor.namespace
+				observation.ref, observation.namespace = ref, descriptor.Namespace()
 			}
 		}
 		e.mu.Unlock()
@@ -227,10 +227,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return nil
 		}
 		if stmt.Mode != parser.DropCascade {
-			return truncateForeignKeyError(inbound[0].parent.name, inbound[0].relation.name)
+			return truncateForeignKeyError(inbound[0].parent.Name(), inbound[0].relation.Name())
 		}
 		for _, candidate := range inbound {
-			ref := e.catalog.domain.Ref(s.txRef.Epoch(), candidate.relation.address)
+			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.relation.Address())
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}
@@ -258,7 +258,7 @@ func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int
 		if !ok || selected[address] != 0 {
 			continue
 		}
-		for _, fk := range d.foreignKeys {
+		for _, fk := range d.ForeignKeys {
 			if selected[fk.Target] != 0 {
 				parent, _ := catalog.Relation(fk.Target)
 				if parent != nil {
@@ -269,7 +269,7 @@ func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int
 		}
 	}
 	slices.SortFunc(result, func(a, b truncateReferencer) int {
-		return compareTruncateAddress(a.relation.address, b.relation.address)
+		return compareTruncateAddress(a.relation.Address(), b.relation.Address())
 	})
 	return result
 }

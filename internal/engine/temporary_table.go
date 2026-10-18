@@ -26,8 +26,8 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
-	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
-		auth.stagedTemporary = table.address
+	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		auth.stagedTemporary = table.Address()
 	}
 	if op.restoreTableDestination {
 		bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
@@ -116,7 +116,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return Result{}, err
 	}
-	created := e.catalog.domain.Ref(base.Epoch(), stage.names[key])
+	created := e.catalog.Domain.Ref(base.Epoch(), stage.names[key])
 	if temporary {
 		scope.owner.accessedTemporary = true
 		if len(stage.domainBases) != 0 {
@@ -210,7 +210,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if r := stage.materializedReplacement; r != nil {
 		// A private CREATE WITH DATA has own rows on the old empty store.
 		// REFRESH replaces that complete target, not an append to those rows.
-		a := r.original.address
+		a := r.original.Address()
 		if len(scope.ownWrites[a]) != 0 || scope.ownDeletes[a] != nil {
 			scope.stageProjectedColumnRoots(a, nil, nil)
 			delete(scope.stage.rows, a)
@@ -273,7 +273,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		changes.storage[a] = shape
 	}
 	if r := stage.materializedReplacement; r != nil {
-		a := r.original.address
+		a := r.original.Address()
 		shape, exists := changes.storage[a]
 		if !exists {
 			shape = catalogStorageChange{original: r.predecessor, root: r.predecessor.versions, ends: r.ends, generation: r.generation}
@@ -294,7 +294,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 	for a, d := range stage.descriptors {
 		e.catalogChangeLocked(changes, a, d)
-		if table, ok := d.(*relationDescriptor); ok && table.relationKind.stored() && e.privateStorageLocked(changes, a) == nil {
+		if table, ok := d.(*relationDescriptor); ok && table.RelationKind.stored() && e.privateStorageLocked(changes, a) == nil {
 			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
 		}
 	}
@@ -334,7 +334,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 		return true
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		if b.relation != nil {
-			ns, ok := auth.catalog.Namespace(b.relation.namespace)
+			ns, ok := auth.catalog.Namespace(b.relation.Namespace())
 			return ok && ownTemporaryNamespace(auth, ns)
 		}
 	}

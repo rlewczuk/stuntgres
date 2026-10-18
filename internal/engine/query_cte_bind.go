@@ -239,7 +239,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 			relation, _ := catalog.Relation(source.ref.Address)
 			if relation == nil {
 				sourceErr = ids.ErrCatalogReplaced
-			} else if relation.relationKind == viewRelation {
+			} else if relation.RelationKind == viewRelation {
 				leaves = append(leaves, queryLeaf{relation: relation})
 			}
 		}
@@ -258,10 +258,10 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 	memo := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(relation *relationDescriptor) bool {
-		if relation.relationKind != viewRelation {
-			return relation.relationKind == catalogRelation && relation.address.ClassID == ids.RelationClassID && relation.address.ObjectID == 12048
+		if relation.RelationKind != viewRelation {
+			return relation.RelationKind == catalogRelation && relation.Address().ClassID == ids.RelationClassID && relation.Address().ObjectID == 12048
 		}
-		if volatile, ok := memo[relation.address]; ok {
+		if volatile, ok := memo[relation.Address()]; ok {
 			return volatile
 		}
 		volatile := cteVolatile(viewOf(relation).query.Root)
@@ -272,7 +272,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 			child := catalog.MustRelation(source.ref.Address)
 			volatile = visit(child) || volatile
 		}
-		memo[relation.address] = volatile
+		memo[relation.Address()] = volatile
 		return volatile
 	}
 	for _, leaf := range leaves {

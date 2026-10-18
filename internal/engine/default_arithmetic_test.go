@@ -40,7 +40,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 		{"operator-provider-mismatch", 1, func(n arithmeticExpression) arithmeticExpression { n.operator = sqltype.ArithmeticAdd; return n }},
 		{"empty-provider", 1, func(n arithmeticExpression) arithmeticExpression { n.provider = sqltype.Arithmetic{}; return n }},
 		{"foreign-child", 1, func(n arithmeticExpression) arithmeticExpression { n.left = foreignChild; return n }},
-		{"wrong-child-width", 1, func(n arithmeticExpression) arithmeticExpression { n.left = old.defaults[2].expression; return n }},
+		{"wrong-child-width", 1, func(n arithmeticExpression) arithmeticExpression { n.left = old.Defaults[2].Expression; return n }},
 		{"dependent-child", 1, func(n arithmeticExpression) arithmeticExpression {
 			child := n.left.(literalExpression)
 			child.Property.RowDependent = true
@@ -51,13 +51,13 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next := *old
-			next.defaults = make(map[int32]columnDefault, len(old.defaults))
-			for attribute, definition := range old.defaults {
-				next.defaults[attribute] = definition
+			next.Defaults = make(map[int32]columnDefault, len(old.Defaults))
+			for attribute, definition := range old.Defaults {
+				next.Defaults[attribute] = definition
 			}
-			bad := next.defaults[tc.attribute]
-			bad.expression = tc.mutate(bad.expression.(arithmeticExpression))
-			next.defaults[tc.attribute] = bad
+			bad := next.Defaults[tc.attribute]
+			bad.Expression = tc.mutate(bad.Expression.(arithmeticExpression))
+			next.Defaults[tc.attribute] = bad
 			if err := (relationProvider{}).Validate(view, &next); err == nil {
 				t.Fatal("invalid arithmetic accepted")
 			}
@@ -70,7 +70,7 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	run(t, e, "CREATE TABLE d(i INT DEFAULT 1/0)")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	node := view.MustRelation(ref.Address).defaults[1].expression
+	node := view.MustRelation(ref.Address).Defaults[1].Expression
 	ctx := &EvalContext{Context: context.Background()}
 	ordinary, changed, err := preflightCoercions(ctx, node)
 	if err != nil || changed {
@@ -84,7 +84,7 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || diagnostic.Message != "division by zero" {
 		t.Fatal(err)
 	}
-	if _, ok := view.MustRelation(ref.Address).defaults[1].expression.(arithmeticExpression); !ok {
+	if _, ok := view.MustRelation(ref.Address).Defaults[1].Expression.(arithmeticExpression); !ok {
 		t.Fatal("catalog expression changed during execution planning")
 	}
 }
@@ -102,7 +102,7 @@ func TestDefaultSmallintArithmeticWidths(t *testing.T) {
 		attribute           int32
 		left, right, result sqltype.ID
 	}{{1, sqltype.Int2, sqltype.Int2, sqltype.Int2}, {2, sqltype.Int2, sqltype.Int8, sqltype.Int8}, {3, sqltype.Int2, sqltype.Int2, sqltype.Int2}} {
-		n, ok := desc.defaults[tc.attribute].expression.(arithmeticExpression)
+		n, ok := desc.Defaults[tc.attribute].Expression.(arithmeticExpression)
 		if !ok || n.left.ResultUsage().Type.ID() != tc.left || n.right.ResultUsage().Type.ID() != tc.right || n.provider.ResultType().ID() != tc.result {
 			t.Fatal(tc, n)
 		}

@@ -86,7 +86,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
-		if ref.Domain() != e.catalog.domain {
+		if ref.Domain() != e.catalog.Domain {
 			return false, ids.ErrCatalogReplaced
 		}
 		if constant.temporary != (ids.SessionToken{}) && constant.temporary != auth.session.token {
@@ -95,11 +95,11 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 		if ref.Epoch != auth.catalog.Epoch() {
 			// Native replacement permits only the original owner's exact live temp.
 			d, ok := auth.catalog.Relation(ref.Address)
-			if !ok || constant.temporary != auth.session.token || d.relationKind != sequenceRelation {
+			if !ok || constant.temporary != auth.session.token || d.RelationKind != sequenceRelation {
 				return false, ids.ErrCatalogReplaced
 			}
-			ns, ok := auth.catalog.Namespace(d.namespace)
-			if !ok || ns.temporary != constant.temporary {
+			ns, ok := auth.catalog.Namespace(d.Namespace())
+			if !ok || ns.Temporary != constant.temporary {
 				return false, ids.ErrCatalogReplaced
 			}
 		}

@@ -8,8 +8,8 @@ import (
 )
 
 func catalogReadFixture() (*catalogState, *namespaceDescriptor, *relationDescriptor) {
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 900}, name: "s", revision: 1}
-	rel := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, namespace: ns.address, name: "t", revision: 1}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 900}, ObjectName: "s", ObjectRevision: 1}
+	rel := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, ObjectNamespace: ns.Address(), ObjectName: "t", ObjectRevision: 1}
 	s := &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
 	for _, d := range []Descriptor{ns, rel} {
 		s.descriptors[d.Address()] = d
@@ -49,24 +49,24 @@ func TestCatalogReadTypedAccessors(t *testing.T) {
 	read := CatalogRead{state: state}
 	missing := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999}
 
-	if got, ok := read.Relation(rel.address); !ok || got != rel {
+	if got, ok := read.Relation(rel.Address()); !ok || got != rel {
 		t.Fatalf("Relation(present) = %p, %v", got, ok)
 	}
 	if got, ok := read.Relation(missing); ok || got != nil {
 		t.Fatalf("Relation(absent) = %p, %v", got, ok)
 	}
-	if got, ok := read.Relation(ns.address); ok || got != nil {
+	if got, ok := read.Relation(ns.Address()); ok || got != nil {
 		t.Fatalf("Relation(other kind) = %p, %v", got, ok)
 	}
-	if got, ok := state.Namespace(ns.address); !ok || got != ns {
+	if got, ok := state.Namespace(ns.Address()); !ok || got != ns {
 		t.Fatalf("state Namespace(present) = %p, %v", got, ok)
 	}
-	if read.MustRelation(rel.address) != rel || state.MustNamespace(ns.address) != ns {
+	if read.MustRelation(rel.Address()) != rel || state.MustNamespace(ns.Address()) != ns {
 		t.Fatal("Must accessor returned another descriptor")
 	}
 	expectTypeAssertionPanic(t, "MustRelation(absent)", func() { read.MustRelation(missing) })
-	expectTypeAssertionPanic(t, "MustRelation(other kind)", func() { read.MustRelation(ns.address) })
-	expectTypeAssertionPanic(t, "MustNamespace(other kind)", func() { state.MustNamespace(rel.address) })
+	expectTypeAssertionPanic(t, "MustRelation(other kind)", func() { read.MustRelation(ns.Address()) })
+	expectTypeAssertionPanic(t, "MustNamespace(other kind)", func() { state.MustNamespace(rel.Address()) })
 }
 
 func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
@@ -74,20 +74,20 @@ func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
 	read := CatalogRead{state: state}
 	missing := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999}
 
-	if read.Get(rel.address) != rel || read.Get(missing) != nil {
+	if read.Get(rel.Address()) != rel || read.Get(missing) != nil {
 		t.Fatal("Get did not mirror the map index")
 	}
-	if d, ok := read.Find(ns.address); !ok || d != ns {
+	if d, ok := read.Find(ns.Address()); !ok || d != ns {
 		t.Fatalf("Find(present) = %v, %v", d, ok)
 	}
 	if d, ok := read.Find(missing); ok || d != nil {
 		t.Fatalf("Find(absent) = %v, %v", d, ok)
 	}
 	key := descriptorNameKey(rel)
-	if a, ok := read.LookupName(key); !ok || a != rel.address || read.NameAddress(key) != rel.address {
+	if a, ok := read.LookupName(key); !ok || a != rel.Address() || read.NameAddress(key) != rel.Address() {
 		t.Fatalf("LookupName(present) = %v, %v", a, ok)
 	}
-	absent := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.address, Name: "absent"}
+	absent := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address(), Name: "absent"}
 	if a, ok := read.LookupName(absent); ok || a != (ids.ObjectAddress{}) || read.NameAddress(absent) != (ids.ObjectAddress{}) {
 		t.Fatalf("LookupName(absent) = %v, %v", a, ok)
 	}
@@ -98,7 +98,7 @@ func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
 	for a, d := range read.Descriptors() {
 		seen[a] = d
 	}
-	if len(seen) != 2 || seen[ns.address] != ns || seen[rel.address] != rel {
+	if len(seen) != 2 || seen[ns.Address()] != ns || seen[rel.Address()] != rel {
 		t.Fatalf("Descriptors visited %v", seen)
 	}
 	visits := 0
@@ -110,7 +110,7 @@ func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
 	for k, a := range state.Names() {
 		names[k] = a
 	}
-	if visits != 1 || len(names) != 2 || names[key] != rel.address {
+	if visits != 1 || len(names) != 2 || names[key] != rel.Address() {
 		t.Fatalf("early break visits %d, names %v", visits, names)
 	}
 }

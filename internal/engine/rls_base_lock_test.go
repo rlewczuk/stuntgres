@@ -14,7 +14,7 @@ func rlsBaseLockCancellation(t *testing.T, e *Engine, d *relationDescriptor) {
 	holder := sessionStart(t, e, nil)
 	waiter := sessionStart(t, e, nil)
 	tx := transactionBegin(t, holder)
-	ref := catalogRef(t, e, e.CatalogRead(), d.name)
+	ref := catalogRef(t, e, e.CatalogRead(), d.Name())
 	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func rlsBaseLockCancellation(t *testing.T, e *Engine, d *relationDescriptor) {
 	go func() {
 		op, err := waiter.Acquire(ctx)
 		if err == nil {
-			_, err = e.Execute(op, &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}, Actions: []parser.AlterTableAction{{Action: parser.DisableRowSecurity}}}, 0, nil)
+			_, err = e.Execute(op, &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.DisableRowSecurity}}}, 0, nil)
 			op.Done()
 		}
 		done <- err
@@ -41,8 +41,8 @@ func rlsBaseLockCancellation(t *testing.T, e *Engine, d *relationDescriptor) {
 	cancel()
 	lockAwait(t, done, context.Canceled)
 	joined = true
-	current := e.CatalogRead().MustRelation(d.address)
-	if current != d || current.rlsEnabled || current.rlsForced {
+	current := e.CatalogRead().MustRelation(d.Address())
+	if current != d || current.RLSEnabled || current.RLSForced {
 		t.Fatal("canceled no-op changed immutable descriptor")
 	}
 }

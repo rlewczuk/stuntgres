@@ -116,7 +116,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return false, false, errors.New("stuntgres: inactive write stage")
 	}
-	if ref.Domain() != e.catalog.domain {
+	if ref.Domain() != e.catalog.Domain {
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
@@ -133,7 +133,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")
 	}
-	if len(row) != len(parent.columns) {
+	if len(row) != len(parent.Columns) {
 		return false, false, errors.New("stuntgres: invalid staged row width")
 	}
 	auth, err := e.authorizationLocked(s.op)
@@ -176,7 +176,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 }
 func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionInsertGroup {
 	state := s.partitionInsert
-	address := state.destination.address
+	address := state.destination.Address()
 	group := state.groups[address]
 	if group == nil {
 		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}

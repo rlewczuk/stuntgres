@@ -18,7 +18,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef
 	if !ok {
 		t.Fatal("missing pg_am")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][]any {
@@ -33,7 +33,7 @@ func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][
 		}
 		got[i] = make([]any, 4)
 		for j, v := range row {
-			if v.IsNull() || v.Type() != d.columns[j].Usage.Type {
+			if v.IsNull() || v.Type() != d.Columns[j].Usage.Type {
 				t.Fatal("null/foreign cell", i, j, v)
 			}
 			var err error
@@ -63,7 +63,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	d, ref := pgAMUnitSource(t, e)
 	checkDescriptor := func(catalog CatalogRead, d *relationDescriptor) {
 		t.Helper()
-		if d.name != "pg_am" || d.namespace.ObjectID != 11 || d.rowType != 10015 || !d.hasIndexes || d.virtualView || d.relationKind != catalogRelation || d.attributeHighWater != 4 || len(d.columns) != 4 || len(d.catalogAttributes) != 4 {
+		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"oid", "amname", "amhandler", "amtype"} {
@@ -73,23 +73,23 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 				collation = 950
 			}
 			owned, ok := catalog.LookupType(id)
-			c := d.columns[i]
-			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2601 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i {
+			c := d.Columns[i]
+			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2601 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 				t.Fatal("column ownership", i, c)
 			}
-			a := d.catalogAttributes[i]
-			if !a.notNull || a.dimensions != 0 || uint32(a.collation) != collation {
+			a := d.CatalogAttributes[i]
+			if !a.NotNull || a.Dimensions != 0 || uint32(a.Collation) != collation {
 				t.Fatal("attribute facts", i, a)
 			}
 		}
-		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC SELECT", d.acl)
+		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC SELECT", d.ACL)
 		}
 		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10015})
 		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})
 		ownedRow, rowOK := catalog.LookupType(10015)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10014 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.owner || array.owner != d.owner {
+		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10014 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
 		if err := (relationProvider{}).Validate(catalog, d); err != nil {
@@ -110,7 +110,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows.anonymous[0][0] = sqltype.Null(d.columns[0].Usage.Type)
+	rows.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
 	if !reflect.DeepEqual(pgAMUnitFacts(t, second, d), facts) {
 		t.Fatal("captures share value backing")
 	}
@@ -120,21 +120,21 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	}
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*relationDescriptor{nil, {columns: d.columns[:3]}, {columns: append(append([]ColumnDescriptor(nil), d.columns...), d.columns[0])}}
-	for slot := range d.columns {
+	badSources := []*relationDescriptor{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
+	for slot := range d.Columns {
 		invalid := *d
-		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-		invalid.columns[slot].Usage.Type, _ = foreign.LookupType(d.columns[slot].Usage.Type.ID())
+		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns[slot].Usage.Type, _ = foreign.LookupType(d.Columns[slot].Usage.Type.ID())
 		badSources = append(badSources, &invalid)
 		wrong := *d
-		wrong.columns = append([]ColumnDescriptor(nil), d.columns...)
-		wrong.columns[slot].Usage.Type = d.columns[(slot+1)%4].Usage.Type
+		wrong.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		wrong.Columns[slot].Usage.Type = d.Columns[(slot+1)%4].Usage.Type
 		badSources = append(badSources, &wrong)
 	}
 	for _, bad := range badSources {
 		got, err := capturePGAM(context.Background(), catalog, ref, bad)
 		message := "stuntgres: foreign access-method source type"
-		if bad == nil || len(bad.columns) != 4 {
+		if bad == nil || len(bad.Columns) != 4 {
 			message = "stuntgres: invalid access-method source shape"
 		}
 		if got != nil || err == nil || err.Error() != message {
@@ -168,8 +168,8 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	fresh, freshRef := pgAMUnitSource(t, e)
 	freshCatalog := e.CatalogRead()
 	checkDescriptor(freshCatalog, fresh)
-	for i := range d.columns {
-		if d.columns[i].Usage.Type == fresh.columns[i].Usage.Type {
+	for i := range d.Columns {
+		if d.Columns[i].Usage.Type == fresh.Columns[i].Usage.Type {
 			t.Fatal("generation not reowned", i)
 		}
 	}

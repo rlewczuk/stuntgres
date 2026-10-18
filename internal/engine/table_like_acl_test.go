@@ -61,7 +61,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if destination.owner != reader.Ref || destination.acl.Explicit || len(destination.columnACL) != 0 || len(destination.defaults) != 1 {
+	if destination.Owner != reader.Ref || destination.ACL.Explicit || len(destination.ColumnACL) != 0 || len(destination.Defaults) != 1 {
 		t.Fatal("source authority copied", destination)
 	}
 	captured := false

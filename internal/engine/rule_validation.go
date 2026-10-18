@@ -8,10 +8,10 @@ import (
 )
 
 func validateRules(view CatalogRead, d *relationDescriptor) error {
-	if d.rules == nil {
+	if d.Rules == nil {
 		return nil
 	}
-	return d.rules.Validate(view, d)
+	return d.Rules.Validate(view, d)
 }
 
 // validateRuleList checks rules owned by d.

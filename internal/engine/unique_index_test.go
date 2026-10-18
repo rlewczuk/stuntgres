@@ -27,8 +27,8 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		t.Run(fmt.Sprintf("%s/%d", c.class, c.typ), func(t *testing.T) {
 			typ, _ := view.LookupType(c.typ)
 			class, _ := sqltype.LookupIndexClass(c.class)
-			parent := &relationDescriptor{attributes: []int32{1}, columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
-			definition := &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}
+			parent := &relationDescriptor{Attributes: []int32{1}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
+			definition := &indexDefinition{Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}
 			if err := validateUniqueProviders(parent, definition, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -48,7 +48,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			if err != nil || cmp != 0 {
 				t.Fatal(cmp, err)
 			}
-			group, err := sqltype.BindGrouping(indexKeyCollation(typ.Usage(), definition.keys[0]))
+			group, err := sqltype.BindGrouping(indexKeyCollation(typ.Usage(), definition.Keys[0]))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,8 +66,8 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		typ, _ := view.LookupType(id)
 		for _, name := range []string{"bpchar_ops", "bpchar_pattern_ops"} {
 			class, _ := sqltype.LookupIndexClass(name)
-			parent := &relationDescriptor{attributes: []int32{1}, columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
-			if err := validateUniqueProviders(parent, &indexDefinition{keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}, nil); err == nil {
+			parent := &relationDescriptor{Attributes: []int32{1}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
+			if err := validateUniqueProviders(parent, &indexDefinition{Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
 		}
@@ -113,7 +113,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 		t.Fatal("parent-only binding missed added index", err)
 	}
 	index, root := btreeRoot(t, e, "ui_ab")
-	if !index.sqlIndex.unique || index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 {
+	if !index.SQLIndex.Unique || index.SQLIndex.Constraint != nil || len(parent.UniqueConstraints) != 0 {
 		t.Fatal("fake attachment")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -121,7 +121,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	}
 	roleExecute(t, e, peer, "ALTER INDEX ui_ab RENAME TO ui_renamed")
 	renamed, same := btreeRoot(t, e, "ui_renamed")
-	if renamed.address != index.address || same != root || index.name != "ui_ab" {
+	if renamed.Address() != index.Address() || same != root || index.Name() != "ui_ab" {
 		t.Fatal("standalone rename changed identity/root")
 	}
 	roleExecute(t, e, peer, "DROP INDEX ui_renamed")
@@ -129,7 +129,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	if err != nil || len(third.keys) != 0 {
 		t.Fatal("removed index retained enforcement", err)
 	}
-	if !reflect.DeepEqual(parent.uniqueConstraints, third.parent.uniqueConstraints) {
+	if !reflect.DeepEqual(parent.UniqueConstraints, third.parent.UniqueConstraints) {
 		t.Fatal("standalone lifecycle mutated constraints")
 	}
 }

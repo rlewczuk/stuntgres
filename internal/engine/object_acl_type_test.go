@@ -25,10 +25,10 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	view := e.CatalogRead()
 	for _, name := range []string{"acl_provenance_domain", "acl_provenance_enum", "acl_provenance_composite"} {
 		d := domainUnitType(t, view, name)
-		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}} {
+		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}} {
 			typ := view.MustType(address)
 			acl, err := rawObjectACL(view, address)
-			if !typ.aclSyntheticDefault || !defaultDomainACL(typ) || err != nil || acl.Explicit {
+			if !typ.ACLSyntheticDefault || !defaultDomainACL(typ) || err != nil || acl.Explicit {
 				t.Fatal("constructor lost raw absence", name, address, acl, err)
 			}
 		}
@@ -51,24 +51,24 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
-	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
-		if d := view.MustType(address); !d.aclSyntheticDefault {
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
+	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}} {
+		if d := view.MustType(address); !d.ACLSyntheticDefault {
 			t.Fatal("relation row/array has explicit raw ACL", address)
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.ACLItemArray} {
 		d := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		if d.aclSyntheticDefault || d.acl.Explicit {
+		if d.ACLSyntheticDefault || d.ACL.Explicit {
 			t.Fatal("builtin raw absence does not need synthetic baseline", id)
 		}
 	}
 	t.Run("extension_constructor", func(t *testing.T) {
 		extensionEngine, _, base := intarrayUnitInstalled(t)
 		catalog := extensionEngine.CatalogRead()
-		for _, address := range []ids.ObjectAddress{base.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}} {
+		for _, address := range []ids.ObjectAddress{base.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}} {
 			d := catalog.MustType(address)
-			if !d.aclSyntheticDefault || !defaultDomainACL(d) {
+			if !d.ACLSyntheticDefault || !defaultDomainACL(d) {
 				t.Fatal("extension baseline provenance", address)
 			}
 		}
@@ -106,7 +106,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	domainUnitPublish(t, e, ownerStage)
 	view = e.CatalogRead()
 	d = domainUnitType(t, view, "acl_provenance_domain")
-	if d.owner != target || !d.aclSyntheticDefault || !defaultDomainACL(d) {
+	if d.Owner != target || !d.ACLSyntheticDefault || !defaultDomainACL(d) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
@@ -115,21 +115,21 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("principal remap", err)
 	}
 	imported := remapped.MustType(d.Address())
-	if !imported.aclSyntheticDefault || !defaultDomainACL(imported) || imported.owner == d.owner {
+	if !imported.ACLSyntheticDefault || !defaultDomainACL(imported) || imported.Owner == d.Owner {
 		t.Fatal("foreign principal remap lost provenance", imported)
 	}
 	// Equal effective payloads need not have equal raw provenance. Publication
 	// must accept an explicit baseline but serialization must not discard it.
 	explicit := *d
-	explicit.aclSyntheticDefault = false
-	explicit.revision++
+	explicit.ACLSyntheticDefault = false
+	explicit.ObjectRevision++
 	change := e.BeginCatalogStage(view)
 	if err := change.Replace(&explicit); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, change)
 	acl, err := rawObjectACL(e.CatalogRead(), explicit.Address())
-	if err != nil || !reflect.DeepEqual(acl, explicit.acl) || !acl.Explicit || defaultDomainACL(&explicit) {
+	if err != nil || !reflect.DeepEqual(acl, explicit.ACL) || !acl.Explicit || defaultDomainACL(&explicit) {
 		t.Fatal("explicit baseline collapsed to NULL", acl, err)
 	}
 	var output bytes.Buffer
@@ -137,8 +137,8 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("Dump discarded explicit-baseline provenance", output.String(), err)
 	}
 	invalid := explicit
-	invalid.aclSyntheticDefault = true
-	invalid.acl = authorization.ACLValue{Explicit: true}
+	invalid.ACLSyntheticDefault = true
+	invalid.ACL = authorization.ACLValue{Explicit: true}
 	if err := (typeProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("accepted synthetic provenance for a nonbaseline ACL")
 	}
@@ -165,10 +165,10 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					oldView := e.CatalogRead()
 					old := domainUnitType(t, oldView, "acl_setter_type")
 					oldACL := authorization.ACLValue{
-						Explicit: old.acl.Explicit,
-						Entries:  append([]authorization.ACLEntry(nil), old.acl.Entries...),
+						Explicit: old.ACL.Explicit,
+						Entries:  append([]authorization.ACLEntry(nil), old.ACL.Entries...),
 					}
-					if !old.aclSyntheticDefault || !defaultDomainACL(old) {
+					if !old.ACLSyntheticDefault || !defaultDomainACL(old) {
 						t.Fatal("fixture lacks constructor-synthetic baseline", old)
 					}
 					if acl, err := rawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
@@ -182,16 +182,16 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					want := authorization.ACLValue{Explicit: true}
 					if replacement != "empty" {
 						want.Entries = []authorization.ACLEntry{
-							objectACLUnitEntry(old.owner, old.owner, authorization.UsagePrivilege, 0),
+							objectACLUnitEntry(old.Owner, old.Owner, authorization.UsagePrivilege, 0),
 						}
 					}
 					if replacement == "baseline" {
 						want.Entries = append(want.Entries, authorization.ACLEntry{
-							Grantor: old.owner, Grantee: authorization.ACLGrantee{Public: true},
+							Grantor: old.Owner, Grantee: authorization.ACLGrantee{Public: true},
 							Privileges: authorization.UsagePrivilege,
 						})
 					}
-					ref := e.catalog.domain.Ref(oldView.Epoch(), old.Address())
+					ref := e.catalog.Domain.Ref(oldView.Epoch(), old.Address())
 					if err := e.SetObjectACL(context.Background(), ref, want); err != nil {
 						t.Fatal("SetObjectACL", err)
 					}
@@ -200,10 +200,10 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if current == old || currentView.state == oldView.state {
 						t.Error("setter did not publish a new immutable catalog descriptor")
 					}
-					if !reflect.DeepEqual(current.acl, want) {
-						t.Error("setter published the wrong ACL", current.acl, want)
+					if !reflect.DeepEqual(current.ACL, want) {
+						t.Error("setter published the wrong ACL", current.ACL, want)
 					}
-					if current.aclSyntheticDefault {
+					if current.ACLSyntheticDefault {
 						t.Error("genuine replacement retained constructor provenance")
 					}
 					if acl, err := rawObjectACL(currentView, current.Address()); err != nil || !reflect.DeepEqual(acl, want) {
@@ -233,7 +233,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					// Retained readers must still see the original constructor
 					// state after both publication and attempted serialization.
 					retained := domainUnitType(t, oldView, "acl_setter_type")
-					if retained != old || !retained.aclSyntheticDefault || !reflect.DeepEqual(retained.acl, oldACL) || !defaultDomainACL(retained) {
+					if retained != old || !retained.ACLSyntheticDefault || !reflect.DeepEqual(retained.ACL, oldACL) || !defaultDomainACL(retained) {
 						t.Error("setter or Dump mutated the old catalog descriptor", retained)
 					}
 					if acl, err := rawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {

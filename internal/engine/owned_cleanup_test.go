@@ -46,14 +46,14 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 }
 func TestDropOwnedPolicyTargets(t *testing.T) {
 	_, _, source, target, _ := ownershipUnitRoles()
-	old := []policyDefinition{{Name: "mixed", roles: []policyRole{{ref: source}, {ref: target}, {ref: source}}}, {Name: "last", roles: []policyRole{{ref: source}, {ref: source}}}, {Name: "public", roles: []policyRole{{public: true}, {ref: source}}}}
-	before := []int{len(old[0].roles), len(old[1].roles), len(old[2].roles)}
+	old := []policyDefinition{{Name: "mixed", Roles: []policyRole{{Ref: source}, {Ref: target}, {Ref: source}}}, {Name: "last", Roles: []policyRole{{Ref: source}, {Ref: source}}}, {Name: "public", Roles: []policyRole{{Public: true}, {Ref: source}}}}
+	before := []int{len(old[0].Roles), len(old[1].Roles), len(old[2].Roles)}
 	got, changed := ownedPolicies(old, map[authorization.PrincipalRef]bool{source: true})
-	if !changed || len(got) != 2 || got[0].Name != "mixed" || len(got[0].roles) != 1 || got[0].roles[0].ref != target || got[1].Name != "public" || len(got[1].roles) != 1 || !got[1].roles[0].public {
+	if !changed || len(got) != 2 || got[0].Name != "mixed" || len(got[0].Roles) != 1 || got[0].Roles[0].Ref != target || got[1].Name != "public" || len(got[1].Roles) != 1 || !got[1].Roles[0].Public {
 		t.Fatal(got, changed)
 	}
 	for i, n := range before {
-		if len(old[i].roles) != n {
+		if len(old[i].Roles) != n {
 			t.Fatal("policy input mutated", old)
 		}
 	}
@@ -90,8 +90,8 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 	for _, name := range []string{"ownership_parent", "ownership_child"} {
 		old := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}))
 		next := *old
-		next.owner = source
-		next.revision++
+		next.Owner = source
+		next.ObjectRevision++
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
@@ -133,21 +133,21 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	setup := e.BeginCatalogStage(base)
 	move := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_move"}))
 	next := *move
-	next.owner = source
-	next.revision++
+	next.Owner = source
+	next.ObjectRevision++
 	if err := setup.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
 	other := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_other"}))
 	grant := *other
-	grant.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
-	grant.revision++
+	grant.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
+	grant.ObjectRevision++
 	if err := setup.Replace(&grant); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, setup)
 	before := e.catalog.state
-	store := e.storage[move.address]
+	store := e.storage[move.Address()]
 	roles := e.roles
 	late := &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}, {Name: "absent"}}, Target: parser.RoleSpec{Name: "ownership_target"}}
 	if _, err := testExecute(e, context.Background(), late, nil); err == nil || e.catalog.state != before || e.roles != roles {
@@ -157,7 +157,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	if _, err := testExecute(e, context.Background(), late, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.MustRelation(move.address).owner != target || e.catalog.state.Get(other.address) != before.Get(other.address) || e.roles != roles || e.storage[move.address] != store {
+	if e.catalog.state.MustRelation(move.Address()).Owner != target || e.catalog.state.Get(other.Address()) != before.Get(other.Address()) || e.roles != roles || e.storage[move.Address()] != store {
 		t.Fatal("reassign changed unrelated grant, roles or data")
 	}
 }
@@ -169,12 +169,12 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	address := base.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_cleanup_e"})
 	typ := base.MustType(address)
 	setup := e.BeginCatalogStage(base)
-	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)}} {
+	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)}} {
 		old := base.MustType(a)
 		next := *old
-		next.revision++
-		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
-		next.aclSyntheticDefault = false
+		next.ObjectRevision++
+		next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
+		next.ACLSyntheticDefault = false
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
@@ -198,10 +198,10 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)}} {
+	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)}} {
 		old := base.MustType(a)
 		next := e.catalog.state.MustType(a)
-		if next.owner != owner || next.typ != old.typ || next.array != old.array || next.owningRelation != old.owningRelation || len(next.acl.Entries) != 0 || len(old.acl.Entries) != 2 {
+		if next.Owner != owner || next.SQLType != old.SQLType || next.Array != old.Array || next.OwningRelation != old.OwningRelation || len(next.ACL.Entries) != 0 || len(old.ACL.Entries) != 2 {
 			t.Fatal("type ACL cleanup broke owner/reciprocity/retained signature", a)
 		}
 	}
@@ -288,10 +288,10 @@ func TestDropOwnedCleanupPolicyDeletionUnion(t *testing.T) {
 	store := e.storage[survivor]
 	versions := store.versions
 	ownershipUnitExec(t, e, "DROP OWNED BY ownership_source RESTRICT")
-	if e.catalog.state.Get(root) != nil || len(e.catalog.state.MustRelation(survivor).policies) != 0 {
+	if e.catalog.state.Get(root) != nil || len(e.catalog.state.MustRelation(survivor).Policies) != 0 {
 		t.Fatal("pending sole-target policy falsely restricted its owner-root dependency")
 	}
-	if len(original.policies) != 1 || before.Get(root) == nil || e.storage[survivor] != store || &store.versions[0] != &versions[0] {
+	if len(original.Policies) != 1 || before.Get(root) == nil || e.storage[survivor] != store || &store.versions[0] != &versions[0] {
 		t.Fatal("cleanup changed retained policy/catalog or surviving rows")
 	}
 }
@@ -403,17 +403,17 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	original := e.catalog.state.MustRelation(address)
 	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)
 	delegated := objectACLUnitEntry(source, downstream, authorization.SelectPrivilege, 0)
-	if original.owner != owner || !slices.Contains(original.acl.Entries, received) || !slices.Contains(original.acl.Entries, delegated) {
-		t.Fatal("actual SQL GRANT lost current-role provenance", original.acl)
+	if original.Owner != owner || !slices.Contains(original.ACL.Entries, received) || !slices.Contains(original.ACL.Entries, delegated) {
+		t.Fatal("actual SQL GRANT lost current-role provenance", original.ACL)
 	}
-	retained := append([]authorization.ACLEntry(nil), original.acl.Entries...)
+	retained := append([]authorization.ACLEntry(nil), original.ACL.Entries...)
 	store := e.storage[address]
 	roleExecute(t, e, op, "DROP OWNED BY ownership_sql_source RESTRICT")
 	current := e.catalog.state.MustRelation(address)
-	if current.owner != owner || slices.Contains(current.acl.Entries, received) || !slices.Contains(current.acl.Entries, delegated) {
-		t.Fatal("cleanup did not retain supported SQL-origin delegation", current.acl)
+	if current.Owner != owner || slices.Contains(current.ACL.Entries, received) || !slices.Contains(current.ACL.Entries, delegated) {
+		t.Fatal("cleanup did not retain supported SQL-origin delegation", current.ACL)
 	}
-	if !slices.Equal(original.acl.Entries, retained) || e.storage[address] != store {
+	if !slices.Equal(original.ACL.Entries, retained) || e.storage[address] != store {
 		t.Fatal("cleanup changed retained ACL or surviving storage")
 	}
 	before, roles := e.catalog.state, e.roles

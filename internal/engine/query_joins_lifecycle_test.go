@@ -429,7 +429,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				} else if err != nil || result.Count != 1 || (result.Rows != nil) == inserting {
 					t.Fatal(result, err)
 				}
-				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].relation == old || capturedSources[0].relation.comment != "join wait metadata" || len(capturedScope.querySources) != 0 {
+				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].relation == old || capturedSources[0].relation.Comment != "join wait metadata" || len(capturedScope.querySources) != 0 {
 					t.Fatal("earlier grant metadata was not refreshed or cleanup retained grants", capturedSources, capturedScope)
 				}
 				wantCount := int64(0)

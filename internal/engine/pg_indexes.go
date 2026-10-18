@@ -16,7 +16,7 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.Get(ref.Address) != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != 12002 || catalog.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
 	}
 	rows := make([][]sqltype.Value, 0)
@@ -25,21 +25,21 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 			return nil, err
 		}
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.sqlIndex.parent)
+		parent, ok := catalog.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index parent")
 		}
-		schema, ok := catalog.Find(parent.namespace)
+		schema, ok := catalog.Find(parent.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index namespace")
 		}
-		schemaRef := ref.Domain().Ref(ref.Epoch, parent.namespace)
+		schemaRef := ref.Domain().Ref(ref.Epoch, parent.Namespace())
 		err := auth.CanUse(schemaRef)
 		if err == nil {
-			err = auth.checkColumns(binding{ref: ref.Domain().Ref(ref.Epoch, parent.address), relation: parent}, authorization.SelectPrivilege, nil)
+			err = auth.checkColumns(binding{ref: ref.Domain().Ref(ref.Epoch, parent.Address()), relation: parent}, authorization.SelectPrivilege, nil)
 		}
 		if err != nil {
 			var diagnostic *sqlstate.Error
@@ -53,11 +53,11 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 			return nil, err
 		}
 		rows = append(rows, []sqltype.Value{
-			sqltype.String(source.columns[0].Usage.Type, schema.Name()),
-			sqltype.String(source.columns[1].Usage.Type, parent.name),
-			sqltype.String(source.columns[2].Usage.Type, index.name),
-			sqltype.Null(source.columns[3].Usage.Type),
-			sqltype.String(source.columns[4].Usage.Type, definition),
+			sqltype.String(source.Columns[0].Usage.Type, schema.Name()),
+			sqltype.String(source.Columns[1].Usage.Type, parent.Name()),
+			sqltype.String(source.Columns[2].Usage.Type, index.Name()),
+			sqltype.Null(source.Columns[3].Usage.Type),
+			sqltype.String(source.Columns[4].Usage.Type, definition),
 		})
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil

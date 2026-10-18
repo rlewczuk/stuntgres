@@ -24,11 +24,11 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if concurrent {
 				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			}
-			oldStorage := e.storage[d.address]
+			oldStorage := e.storage[d.Address()]
 			originalEpoch := e.catalog.state.epoch
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
-			ref := e.catalog.domain.Ref(originalEpoch, d.address)
+			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
 			mode := lock.AccessShare
 			if concurrent {
 				mode = lock.Exclusive
@@ -39,7 +39,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			scope := refreshUnitScope(t, e, ctx)
-			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}
+			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}
 			if concurrent {
 				stmt.Concurrent = parser.Position{Character: 27}
 			}
@@ -68,39 +68,39 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			nextState.descriptors = maps.Clone(e.catalog.state.descriptors)
 			nextState.names = maps.Clone(e.catalog.state.names)
 			next := *d
-			next.revision++
-			expectedAddress := d.address
+			next.ObjectRevision++
+			expectedAddress := d.Address()
 			expectedStorage := oldStorage
 			switch phase {
 			case "owner":
 				owner, _ := refreshUnitPrincipals(e)
-				next.owner = owner
+				next.Owner = owner
 			case "schema":
-				next.namespace.ObjectID++
+				next.ObjectNamespace.ObjectID++
 			case "name":
-				next.name = "changed_name"
+				next.ObjectName = "changed_name"
 			case "columns":
-				next.columns = append([]ColumnDescriptor(nil), d.columns...)
-				next.columns[0].Name = "changed_shape"
+				next.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+				next.Columns[0].Name = "changed_shape"
 			case "attributes":
-				next.attributes = append([]int32(nil), d.attributes...)
-				next.attributes[0]++
+				next.Attributes = append([]int32(nil), d.Attributes...)
+				next.Attributes[0]++
 			case "rowtype":
-				next.rowType++
+				next.RowType++
 			case "definition":
 				definition := *viewOf(d)
 				definition.invoker = !definition.invoker
-				next.view = &definition
+				next.View = &definition
 			case "ref":
-				next.address.ObjectID += 100000
-				expectedAddress = next.address
-				nextState.removeDescriptor(d.address)
-				nextState.bindName(ids.NameKey{ClassID: d.address.ClassID, Namespace: d.namespace, Name: d.name}, next.address)
+				next.ObjectAddress.ObjectID += 100000
+				expectedAddress = next.Address()
+				nextState.removeDescriptor(d.Address())
+				nextState.bindName(ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}, next.Address())
 				storage := *oldStorage
 				expectedStorage = &storage
 				e.storage = maps.Clone(e.storage)
-				delete(e.storage, d.address)
-				e.storage[next.address] = expectedStorage
+				delete(e.storage, d.Address())
+				e.storage[next.Address()] = expectedStorage
 			case "epoch":
 				nextState.epoch++
 			}
@@ -122,7 +122,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
-			if e.catalog.state.Get(expectedAddress) != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.populated {
+			if e.catalog.state.Get(expectedAddress) != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.Populated {
 				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.

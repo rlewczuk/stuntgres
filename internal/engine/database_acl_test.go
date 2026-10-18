@@ -15,10 +15,10 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	e, owner, _, _, reader := ownershipUnitRoles()
 	base := e.CatalogRead()
 	db := base.MustDatabase(currentDatabaseAddress)
-	if db.acl.Explicit || len(db.acl.Entries) != 0 {
-		t.Fatal("initial descriptor must retain NULL ACL", db.acl)
+	if db.ACL.Explicit || len(db.ACL.Entries) != 0 {
+		t.Fatal("initial descriptor must retain NULL ACL", db.ACL)
 	}
-	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
+	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
 	want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.DatabasePublicPrivileges},
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges},
@@ -37,7 +37,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	} {
 		candidate := cloneCatalog(base.state)
 		next := *db
-		next.acl = tc.acl
+		next.ACL = tc.acl
 		candidate.setDescriptor(currentDatabaseAddress, &next)
 		catalog := e.catalog.read(candidate)
 		roles := cloneRoleFixture(e.roles)
@@ -53,12 +53,12 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
 		}
-		if tc.acl.Explicit && !authorization.EqualACL(authorization.MaterializeDatabaseACL(next.acl, next.owner), tc.acl) {
+		if tc.acl.Explicit && !authorization.EqualACL(authorization.MaterializeDatabaseACL(next.ACL, next.Owner), tc.acl) {
 			t.Fatal("explicit policy gained baseline")
 		}
 	}
 	baseline.Entries[0].Privileges = 0
-	if db.acl.Explicit || authorization.MaterializeDatabaseACL(db.acl, db.owner).Entries[0].Privileges != authorization.DatabasePublicPrivileges {
+	if db.ACL.Explicit || authorization.MaterializeDatabaseACL(db.ACL, db.Owner).Entries[0].Privileges != authorization.DatabasePublicPrivileges {
 		t.Fatal("materialized baseline mutated immutable descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +71,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
 	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
-	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
+	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
 	roles := e.roleRead(e.CatalogRead(), e.roles)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
@@ -115,7 +115,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	}
 	candidate := cloneCatalog(base.state)
 	next := *candidate.MustDatabase(currentDatabaseAddress)
-	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
+	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.setDescriptor(currentDatabaseAddress, &next)
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))
 	fresh.state.CurrentUser = reader

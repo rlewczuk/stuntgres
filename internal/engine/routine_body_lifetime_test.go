@@ -43,7 +43,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	}
 	var missing []expressionDependency
 	for _, dependency := range original {
-		if dependency.ref.Address != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1374}) {
+		if dependency.Ref.Address != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1374}) {
 			missing = append(missing, dependency)
 		}
 	}
@@ -109,9 +109,9 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		view := e.CatalogRead()
 		table := view.MustRelation(roleTableRef(t, e, "body_defaults").Address)
 		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
-		def := table.defaults[table.attributes[0]]
+		def := table.Defaults[table.Attributes[0]]
 		return []recipe{
-			{consumer: table, node: def.expression, refs: def.dependencies},
+			{consumer: table, node: def.Expression, refs: def.Dependencies},
 			{consumer: stored, node: viewOf(stored).query.Root.(*projectNode).expressions[0], checks: viewOf(stored).dependencies},
 		}
 	}
@@ -137,10 +137,10 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	if err != nil || sourceCall == nil {
 		t.Fatal("missing original DEFAULT routine carrier", err)
 	}
-	sourceOwner, sourceRevision := sourceCall.owner, sourceCall.revision
+	sourceOwner, sourceRevision := sourceCall.Owner, sourceCall.Revision()
 	target := New()
 	retired := target.CatalogRead()
-	retiredRef := target.catalog.domain.Ref(retired.Epoch(), sourceCall.address)
+	retiredRef := target.catalog.Domain.Ref(retired.Epoch(), sourceCall.Address())
 	change, err := target.ReplaceCatalog(ctx, source, before)
 	if err != nil || !change.Replacement {
 		t.Fatal("replace genuine stored catalog", change, err)
@@ -155,12 +155,12 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	targetAuth := authority(target)
 	imported := capture(target)
 	for i, item := range imported {
-		if item.consumer == original[i].consumer || item.consumer.owner != target.authorizationDomain.Principal(item.consumer.owner.ID()) {
+		if item.consumer == original[i].consumer || item.consumer.Owner != target.authorizationDomain.Principal(item.consumer.Owner.ID()) {
 			t.Fatal("stored consumer retained source ownership", i)
 		}
 		call, err := expressionRoutineDescriptor(item.node)
-		if err != nil || call == nil || call.address != sourceCall.address || call == sourceCall ||
-			call.owner != target.authorizationDomain.Principal(call.owner.ID()) || call.revision == 0 {
+		if err != nil || call == nil || call.Address() != sourceCall.Address() || call == sourceCall ||
+			call.Owner != target.authorizationDomain.Principal(call.Owner.ID()) || call.Revision() == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
 		}
 		evaluation := EvalContext{Context: ctx, routineAuthority: &targetAuth, routineRecipe: true,
@@ -179,7 +179,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			var selected ids.ObjectRef
 			if i == 0 {
 				for _, ref := range item.refs {
-					if ref.Domain() != target.catalog.domain || ref.Epoch != current.Epoch() {
+					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
 						t.Fatal("DEFAULT manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
@@ -192,14 +192,14 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				probe.routineReferences = nil
 				probe.routineChecks = []expressionDependency{}
 				for _, dependency := range item.checks {
-					ref := dependency.ref
-					if ref.Domain() != target.catalog.domain || ref.Epoch != current.Epoch() {
+					ref := dependency.Ref
+					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
 						t.Fatal("view manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
 						selected = ref
 						d, ok := current.Descriptor(address)
-						if !ok || d.Revision() != dependency.revision {
+						if !ok || d.Revision() != dependency.Revision {
 							t.Fatal("view manifest lost original declaration revision", address)
 						}
 					} else {
@@ -231,8 +231,8 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			stale := evaluation
 			stale.routineChecks = append([]expressionDependency(nil), item.checks...)
 			for j := range stale.routineChecks {
-				if stale.routineChecks[j].ref.Address == call.address {
-					stale.routineChecks[j].revision++
+				if stale.routineChecks[j].Ref.Address == call.Address() {
+					stale.routineChecks[j].Revision++
 				}
 			}
 			if err := admitRoutineCall(&stale, item.node, true, false); err == nil {
@@ -241,7 +241,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		}
 	}
 	after := capture(source)
-	if source.CatalogRead().state != before.state || sourceCall.owner != sourceOwner || sourceCall.revision != sourceRevision ||
+	if source.CatalogRead().state != before.state || sourceCall.Owner != sourceOwner || sourceCall.Revision() != sourceRevision ||
 		!reflect.DeepEqual(after[0].refs, originalRefs) || !reflect.DeepEqual(after[1].checks, originalChecks) {
 		t.Fatal("replacement or negative probes mutated source provenance")
 	}
@@ -313,7 +313,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				t.Fatal("actual provider selection", err)
 			}
 			outer, err := expressionRoutineDescriptor(node)
-			if err != nil || outer == nil || outer.address.ObjectID != test.id {
+			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}
 			evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
@@ -324,7 +324,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 				var missing []expressionDependency
 				for _, dependency := range binder.dependencies {
-					if dependency.ref.Address != address {
+					if dependency.Ref.Address != address {
 						missing = append(missing, dependency)
 					}
 				}

@@ -94,7 +94,7 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 		if origin.owner == (ids.ObjectRef{}) {
 			return true
 		}
-		if view.owner == nil || origin.owner.Domain() != view.owner.domain || origin.owner.Epoch != view.Epoch() {
+		if view.owner == nil || origin.owner.Domain() != view.owner.Domain || origin.owner.Epoch != view.Epoch() {
 			return false
 		}
 		d, ok := view.Relation(origin.owner.Address)
@@ -102,9 +102,9 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 			return false
 		}
 		if origin.attribute != 0 {
-			return d.defaults[origin.attribute].OID == origin.definition
+			return d.Defaults[origin.attribute].OID == origin.definition
 		}
-		return d.view != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
+		return d.View != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
 	}
 	for i, entry := range g.entries {
 		if valid(entry.origin) {

@@ -34,7 +34,7 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.ref != s.txRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
@@ -85,7 +85,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.address {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.Address() {
 		return ids.ErrCatalogReplaced
 	}
 	if !held {
@@ -185,7 +185,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 		return err
 	}
 	s.foreignActionAdmissions[ref.Address].mutated = true
-	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionAdmissions[ref.Address].relation.owner})
+	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionAdmissions[ref.Address].relation.Owner})
 	return nil
 }
 
@@ -195,7 +195,7 @@ func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, 
 	}
 	admission := s.foreignActionAdmissions[ref.Address]
 	admission.mutated = true
-	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.owner})
+	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.Owner})
 }
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {

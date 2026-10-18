@@ -77,7 +77,7 @@ func TestMergeInsertPublication(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(id INT)")
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(7),(7)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id)")
-			typ := b.relation.columns[0].Usage.Type
+			typ := b.relation.Columns[0].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
 			primary, cleanup := errors.New("late source"), errors.New("required Close")
 			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{value}, {value}}}
@@ -159,7 +159,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 			var result Result
 			var err error
 			if phase == "source" || phase == "before_apply" {
-				value, _ := sqltype.Integer(b.relation.columns[0].Usage.Type, 1)
+				value, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 				cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{value}}}
 				if phase == "source" {
 					cursor.beforeNext = cancel

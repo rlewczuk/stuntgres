@@ -107,8 +107,8 @@ func TestSequenceCreateRestart(t *testing.T) {
 				}
 				ref := catalogRef(t, e, e.CatalogRead(), "s")
 				d := e.catalog.state.MustRelation(ref.Address)
-				options := d.sequence
-				want := sequenceOptions{typ: tc.typ, increment: tc.increment, min: tc.min, max: tc.max, start: tc.start, cache: 1, persistence: "logged"}
+				options := d.Sequence
+				want := sequenceOptions{SQLType: tc.typ, Increment: tc.increment, Min: tc.min, Max: tc.max, Start: tc.start, Cache: 1, Persistence: "logged"}
 				if !reflect.DeepEqual(*options, want) || e.sequences[ref.Address].last != tc.initial || e.sequences[ref.Address].called || e.sequences[ref.Address].generation == 0 {
 					t.Fatal("configured START and initial uncalled state", options, e.sequences[ref.Address], want)
 				}
@@ -119,7 +119,7 @@ func TestSequenceCreateRestart(t *testing.T) {
 				sequenceScalar(t, s, "SELECT currval('s')", tc.initial)
 				sequenceScalar(t, s, "SELECT lastval()", tc.initial)
 				sequenceCreateRestartRow(t, e, s, "s", tc.initial, true)
-				if d.sequence != options || !reflect.DeepEqual(*options, want) {
+				if d.Sequence != options || !reflect.DeepEqual(*options, want) {
 					t.Fatal("allocation mutated immutable configured options")
 				}
 				if tc.initial == tc.min || tc.initial == tc.max {
@@ -136,7 +136,7 @@ func TestSequenceCreateRestart(t *testing.T) {
 				}
 				sequenceCreateRestartRow(t, e, s, "s", tc.start, false)
 				sequenceScalar(t, s, "SELECT nextval('s')", tc.start)
-				if !reflect.DeepEqual(*options, want) || !reflect.DeepEqual(*e.catalog.state.MustRelation(ref.Address).sequence, want) {
+				if !reflect.DeepEqual(*options, want) || !reflect.DeepEqual(*e.catalog.state.MustRelation(ref.Address).Sequence, want) {
 					t.Fatal("bare ALTER adopted initial restart as configured START")
 				}
 			})
@@ -179,8 +179,8 @@ func TestSequenceCreateRestartCache(t *testing.T) {
 					t.Fatal("first prepared demand", got)
 				}
 				ref := held.sequences.constants[0].ref
-				options := e.catalog.state.MustRelation(ref.Address).sequence
-				want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: math.MaxInt64, start: 5, cache: 3, persistence: persistence.catalog}
+				options := e.catalog.state.MustRelation(ref.Address).Sequence
+				want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: math.MaxInt64, Start: 5, Cache: 3, Persistence: persistence.catalog}
 				if !reflect.DeepEqual(*options, want) {
 					t.Fatal("persistence/configured options", options, want)
 				}

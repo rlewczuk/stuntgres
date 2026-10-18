@@ -22,7 +22,7 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []expressi
 	var ref ids.ObjectRef
 	if c.routineReferences != nil {
 		for _, candidate := range c.routineReferences {
-			if candidate.Address == routine.address {
+			if candidate.Address == routine.Address() {
 				ref = candidate
 				break
 			}
@@ -32,13 +32,13 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []expressi
 			dependencies = c.routineChecks
 		}
 		for _, candidate := range dependencies {
-			if candidate.ref.Address == routine.address {
-				ref = candidate.ref
+			if candidate.Ref.Address == routine.Address() {
+				ref = candidate.Ref
 				break
 			}
 		}
 	}
-	if ref.Address != (routine.address) {
+	if ref.Address != (routine.Address()) {
 		return fmt.Errorf("stuntgres: missing consumed routine lifetime")
 	}
 	auth, _, err := c.routineAdmissionAuthority()
@@ -61,7 +61,7 @@ func (p *routineAdmissionProgram) readmit(auth AuthorizationView) error {
 		if err := current.roles.ValidatePrincipal(call.actor); err != nil {
 			return err
 		}
-		dependency := [1]expressionDependency{{ref: call.reference, revision: call.routine.revision}}
+		dependency := [1]expressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
 		if err := admitRoutineDescriptor(current, dependency[:], call.routine, call.consumer); err != nil {
 			return call.body.annotate(err)
 		}

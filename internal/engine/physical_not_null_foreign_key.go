@@ -7,11 +7,11 @@ import (
 )
 
 func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKeyConstraint) bool {
-	if len(table.physicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.address {
+	if len(table.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.Address() {
 		return false
 	}
-	for i := range table.uniqueConstraints {
-		primary := &table.uniqueConstraints[i]
+	for i := range table.UniqueConstraints {
+		primary := &table.UniqueConstraints[i]
 		if primary.Primary && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) {
 			return true
 		}
@@ -20,11 +20,11 @@ func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKe
 }
 
 func emitPhysicalSelfForeignKeys(view CatalogRead, table *relationDescriptor, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
-	if len(table.physicalNotNull) == 0 || len(table.foreignKeys) == 0 {
+	if len(table.PhysicalNotNull) == 0 || len(table.ForeignKeys) == 0 {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
-	for _, foreign := range table.foreignKeys {
+	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
+	for _, foreign := range table.ForeignKeys {
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
 		}
@@ -74,16 +74,16 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 		return nil, err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || created[ref.Address] != ref || len(old.physicalNotNull) == 0 || old.partition != nil || old.membership != nil {
+	if !ok || created[ref.Address] != ref || len(old.PhysicalNotNull) == 0 || old.Partition != nil || old.Membership != nil {
 		return nil, nil
 	}
-	for attribute, proof := range old.physicalNotNull {
-		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.cause.origin != ref || proof.cause.kind != physicalNotNullImportCleanup && proof.cause.kind != physicalNotNullImportFlag {
+	for attribute, proof := range old.PhysicalNotNull {
+		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != physicalNotNullImportCleanup && proof.Cause.Kind != physicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
-	for i := range old.uniqueConstraints {
-		primary := &old.uniqueConstraints[i]
+	for i := range old.UniqueConstraints {
+		primary := &old.UniqueConstraints[i]
 		if !primary.Primary {
 			continue
 		}
@@ -107,7 +107,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		return restoredForeignKeys{}, false, sqlError("0A000", restorePhysicalNotNullBoundary)
 	}
 	foreign := raw.Actions[0].ForeignKey
-	if provider == nil || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(foreign.Target.Parts) != 2 || foreign.Name.Text == "" || len(foreign.Columns) != len(provider.primary.keys) {
+	if provider == nil || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(foreign.Target.Parts) != 2 || foreign.Name.Text == "" || len(foreign.Columns) != len(provider.primary.Keys) {
 		return reject()
 	}
 	for i := range raw.Name.Parts {
@@ -126,22 +126,22 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.Get(old.namespace)
-	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.name != raw.Name.Parts[1].Text {
+	namespace := auth.catalog.Get(old.Namespace())
+	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.Name() != raw.Name.Parts[1].Text {
 		return reject()
 	}
 	if len(foreign.Referenced) != 0 {
-		if len(foreign.Referenced) != len(provider.primary.keys) {
+		if len(foreign.Referenced) != len(provider.primary.Keys) {
 			return reject()
 		}
 		permuted := false
 		for i, column := range foreign.Referenced {
-			slot, exists := old.index[column.Text]
+			slot, exists := old.Index[column.Text]
 			if !exists {
 				return reject()
 			}
-			attribute := old.attributes[slot]
-			if !slices.ContainsFunc(provider.primary.keys, func(key physicalPrimaryKeyUsage) bool { return key.attribute == attribute }) {
+			attribute := old.Attributes[slot]
+			if !slices.ContainsFunc(provider.primary.Keys, func(key physicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
 				return reject()
 			}
 			for _, prior := range foreign.Referenced[:i] {
@@ -149,19 +149,19 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 					return reject()
 				}
 			}
-			permuted = permuted || attribute != provider.primary.keys[i].attribute
+			permuted = permuted || attribute != provider.primary.Keys[i].Attribute
 		}
 		if !permuted {
 			return reject()
 		}
 		var keyBuffer [32]int32
-		attributes := keyBuffer[:len(provider.primary.keys)]
-		for i, key := range provider.primary.keys {
-			attributes[i] = key.attribute
+		attributes := keyBuffer[:len(provider.primary.Keys)]
+		for i, key := range provider.primary.Keys {
+			attributes[i] = key.Attribute
 		}
 		for _, descriptor := range auth.catalog.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.address == provider.primary.index {
+			if !ok || index.Address() == provider.primary.Index {
 				continue
 			}
 			eligible, eligibilityErr := foreignKeyIndexEligible(old, index, attributes)
@@ -185,6 +185,6 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 	if pending.definitions[0].target != provider.ref.Address {
 		return reject()
 	}
-	pending.definitions[0].supporting = provider.primary.index
+	pending.definitions[0].supporting = provider.primary.Index
 	return pending, true, nil
 }

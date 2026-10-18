@@ -89,15 +89,15 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			captured, err := expressionRoutineDescriptor(call)
-			if err != nil || captured == nil || captured.builtin == nil {
+			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing original descriptor", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			d := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
+			d := captured.Builtin
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("released identity", captured)
 			}
-			if d.kind != functionRoutine || d.result != tc.result || d.strict != tc.strict || d.volatility != expr.Stable || d.parallel != 's' || d.returnsSet != tc.set || d.variadic != 0 || d.defaults != 0 || d.providers&jsonRoutineProvider == 0 {
+			if d.Kind != functionRoutine || d.Result != tc.result || d.Strict != tc.strict || d.Volatility != expr.Stable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Variadic != 0 || d.Defaults != 0 || d.Providers&jsonRoutineProvider == 0 {
 				t.Fatal("released full declaration", d)
 			}
 			if evaluation.catalog.Get(address) != captured {
@@ -106,12 +106,12 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			original := append([]expressionDependency(nil), binder.dependencies...)
 			selected := 0
 			for _, dependency := range original {
-				if dependency.ref.Address == address {
+				if dependency.Ref.Address == address {
 					selected++
-					if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original ref/epoch/revision", dependency)
 					}
-				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {
+				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("implicit codec/helper EXECUTE edge", dependency)
 				}
 			}
@@ -170,7 +170,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			missing := make([]expressionDependency, 0, len(original))
 			for _, dep := range original {
-				if dep.ref.Address != address {
+				if dep.Ref.Address != address {
 					missing = append(missing, dep)
 				}
 			}
@@ -184,14 +184,14 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, mutation := range []string{"epoch", "revision", "foreign_ref"} {
 				copied := append([]expressionDependency(nil), original...)
 				for i := range copied {
-					if copied[i].ref.Address == address {
+					if copied[i].Ref.Address == address {
 						switch mutation {
 						case "epoch":
-							copied[i].ref.Epoch++
+							copied[i].Ref.Epoch++
 						case "revision":
-							copied[i].revision++
+							copied[i].Revision++
 						case "foreign_ref":
-							copied[i].ref = other.catalog.domain.Ref(copied[i].ref.Epoch, copied[i].ref.Address)
+							copied[i].Ref = other.catalog.Domain.Ref(copied[i].Ref.Epoch, copied[i].Ref.Address)
 						}
 					}
 				}
@@ -233,7 +233,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = !captured.strict
+			replacement.Strict = !captured.Strict
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
@@ -267,7 +267,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	if err != nil || captured == nil {
 		t.Fatal("original stored-call descriptor", err)
 	}
-	owner, revision := captured.owner, captured.revision
+	owner, revision := captured.Owner, captured.Revision()
 	identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 	grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)
 	if err != nil {
@@ -308,7 +308,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		}
 		missing := make([]expressionDependency, 0, len(viewOf(recipe).dependencies))
 		for _, dependency := range viewOf(recipe).dependencies {
-			if dependency.ref.Address != captured.address {
+			if dependency.Ref.Address != captured.Address() {
 				missing = append(missing, dependency)
 			}
 		}
@@ -326,7 +326,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 			}
 		}
 	}
-	if call.Info.RoutineReference != captured || call.Info.RoutineRecipeReference != nil || call.Definitions || !call.Unresolved || captured.owner != owner || captured.revision != revision || view.Get(captured.address) != captured || !reflect.DeepEqual(evaluation.routineChecks, original) {
+	if call.Info.RoutineReference != captured || call.Info.RoutineRecipeReference != nil || call.Definitions || !call.Unresolved || captured.Owner != owner || captured.Revision() != revision || view.Get(captured.Address()) != captured || !reflect.DeepEqual(evaluation.routineChecks, original) {
 		t.Fatal("stored chain mutated original")
 	}
 	if childRecipe, err := expressionRecipeDescriptor(call.Args[0]); err != nil || childRecipe != nil {
@@ -390,7 +390,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 		t.Fatal("real constructor failure", err)
 	}
 	for _, dependency := range b.dependencies {
-		if dependency.ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3209, 0}) {
+		if dependency.Ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3209, 0}) {
 			t.Fatal("failed constructor captured outer routine", dependency)
 		}
 	}
@@ -425,8 +425,8 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		}
 		ownershipUnitPublish(t, e, stage)
 		e.DiscardCatalogStage(stage)
-		current := e.CatalogRead().MustProcedure(captured.address)
-		if current == captured || current.owner != target || current.revision == captured.revision || base.Get(captured.address) != captured {
+		current := e.CatalogRead().MustProcedure(captured.Address())
+		if current == captured || current.Owner != target || current.Revision() == captured.Revision() || base.Get(captured.Address()) != captured {
 			t.Fatal("owner COW/source immutability")
 		}
 		auth := eMustJSONBRoutineAuthority(t, e, op)
@@ -437,8 +437,8 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			t.Fatal("compatible owner declaration", err)
 		}
 		for _, dep := range original {
-			if dep.ref.Address == captured.address {
-				if err := ownerAuth.Check(AccessRequirement{Object: dep.ref, Privileges: authorization.ExecutePrivilege}); err != nil {
+			if dep.Ref.Address == captured.Address() {
+				if err := ownerAuth.Check(AccessRequirement{Object: dep.Ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 					t.Fatal("fresh current-owner permission", err)
 				}
 			}
@@ -462,8 +462,8 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		}
 		found := false
 		for _, dep := range freshBinder.dependencies {
-			if dep.ref.Address == current.address {
-				found = dep.revision == current.revision && dep.ref.Domain() == e.catalog.domain
+			if dep.Ref.Address == current.Address() {
+				found = dep.Revision == current.Revision() && dep.Ref.Domain() == e.catalog.Domain
 			}
 		}
 		if !found {
@@ -477,7 +477,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			if err := stageOwnership(badStage, current, owner); err != nil {
 				t.Fatal(err)
 			}
-			bad := badStage.descriptors[current.address].(*procedureDescriptor)
+			bad := badStage.descriptors[current.Address()].(*procedureDescriptor)
 			if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, bad); err == nil {
 				t.Fatal("zero/foreign staged owner provenance accepted")
 			}
@@ -486,7 +486,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			}
 			e.DiscardCatalogStage(badStage)
 		}
-		if !reflect.DeepEqual(binder.dependencies, original) || captured.owner == target {
+		if !reflect.DeepEqual(binder.dependencies, original) || captured.Owner == target {
 			t.Fatal("owner probes mutated original authority")
 		}
 	}
@@ -515,8 +515,8 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 		original := append([]expressionDependency(nil), binder.dependencies...)
 		var ref ids.ObjectRef
 		for _, dependency := range original {
-			if dependency.ref.Address == captured.address {
-				ref = dependency.ref
+			if dependency.Ref.Address == captured.Address() {
+				ref = dependency.Ref
 			}
 		}
 		retained := evaluation
@@ -528,7 +528,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			acl := authorization.ACLValue{Explicit: true}
 			if allowed {
 				acl.Entries = []authorization.ACLEntry{
-					objectACLUnitEntry(captured.owner, reader, authorization.ExecutePrivilege, 0),
+					objectACLUnitEntry(captured.Owner, reader, authorization.ExecutePrivilege, 0),
 				}
 			}
 			if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
@@ -536,7 +536,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			}
 			current := e.CatalogRead().MustProcedure(ref.Address)
 			auth := eMustJSONBRoutineAuthority(t, e, readerOp)
-			if current == captured || current.revision != captured.revision {
+			if current == captured || current.Revision() != captured.Revision() {
 				t.Fatal("ACL COW changed original definition identity")
 			}
 			if got, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err != nil || got != current {

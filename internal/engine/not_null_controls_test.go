@@ -19,8 +19,8 @@ func TestNotNullFailedRestorePreservesCatalogEligibility(t *testing.T) {
 	epoch := e.CatalogRead().Epoch()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old.(*relationDescriptor)
-	next.revision++
-	next.comment = "still eligible"
+	next.ObjectRevision++
+	next.Comment = "still eligible"
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}

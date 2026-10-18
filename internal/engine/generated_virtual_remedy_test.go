@@ -24,7 +24,7 @@ func (e generatedOccurrenceProbe) Eval(expr.Context) (sqltype.Value, error) {
 
 func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	calls := 0
 	failure := errors.New("demanded recipe")
@@ -63,19 +63,19 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 
 func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	e, catalog, source := generatedUnitDescriptor(t)
-	typ := source.columns[0].Usage.Type
+	typ := source.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	seven, _ := sqltype.Integer(typ, 7)
 	negative, _ := sqltype.Integer(typ, -9)
-	origin := e.catalog.domain.Ref(catalog.Epoch(), source.address)
+	origin := e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
 	origin.Address.SubID = 2
 	old := columnExpression{Info: expr.Info{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 1, slot: 1, virtual: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: seven}, rowWidth: 2, queryOccurrence: 1}
 	ordinary := *source
-	ordinary.checkConstraints = []checkConstraint{{Name: "positive", expression: old}}
+	ordinary.CheckConstraints = []checkConstraint{{Name: "positive", Expression: old}}
 	if err := refreshGenerationChecks(&ordinary, catalog); err != nil {
 		t.Fatal(err)
 	}
-	column := ordinary.checkConstraints[0].expression.(columnExpression)
+	column := ordinary.CheckConstraints[0].Expression.(columnExpression)
 	if column.virtual != nil || column.queryOccurrence != 0 || column.rowWidth != 0 {
 		t.Fatal("ordinary destination retained source payload", column)
 	}
@@ -85,10 +85,10 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	}
 	// The source map contains two attributes, but destination inputs start at 2.
 	wide := *source
-	wide.columns = append(append([]ColumnDescriptor(nil), source.columns...), source.columns...)
-	wide.attributes = []int32{3, 4, 1, 2}
+	wide.Columns = append(append([]ColumnDescriptor(nil), source.Columns...), source.Columns...)
+	wide.Attributes = []int32{3, 4, 1, 2}
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
-	wide.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
+	wide.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
 	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -97,11 +97,11 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	if copiedColumn.virtual != nil || copiedColumn.queryOccurrence != 0 || copiedColumn.rowWidth != 0 || copiedColumn.slot != 3 {
 		t.Fatal("owner copy retained source execution recipe", copiedColumn)
 	}
-	wide.checkConstraints = []checkConstraint{{Name: "positive", expression: copied}}
+	wide.CheckConstraints = []checkConstraint{{Name: "positive", Expression: copied}}
 	if err := refreshGenerationChecks(&wide, catalog); err != nil {
 		t.Fatal(err)
 	}
-	column = wide.checkConstraints[0].expression.(columnExpression)
+	column = wide.CheckConstraints[0].Expression.(columnExpression)
 	if column.slot != 3 || column.rowStart != 0 || column.rowWidth != 4 || column.queryOccurrence != 0 {
 		t.Fatal("destination CHECK layout", column)
 	}
@@ -118,14 +118,14 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	e, catalog, d := generatedUnitDescriptor(t)
 	catalog.state = cloneCatalog(catalog.state)
-	catalog.state.setDescriptor(d.address, d)
-	ref := e.catalog.domain.Ref(catalog.Epoch(), d.address)
+	catalog.state.setDescriptor(d.Address(), d)
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), d.Address())
 	origin := ref
 	origin.Address.SubID = 2
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: one}
-	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: literal, planned: literal}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: literal, Planned: literal}}
 	left := columnExpression{Info: expr.Info{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, queryOccurrence: 1}.withGeneration(d, 1, 0)
 	right := left
 	right.slot, right.rowStart, right.queryOccurrence = 3, 2, 2
@@ -144,7 +144,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	project := &projectNode{frame: 4, syntax: syntax, child: join, expressions: []expr.Expr{left, right, add, test, choice, outside}}
 	definition := &viewDefinition{queries: map[*parser.Select]*projectNode{syntax: project}, sources: []viewLeaf{{ref: ref}, {ref: ref}}}
 	consumer := *d
-	consumer.view = viewPayloadOf(definition)
+	consumer.View = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
 	b := binding{querySources: []queryLeaf{{ref: ref, relation: d}}}
 	mapped, err := w.graftQuery(&b, catalog, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
@@ -205,7 +205,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 
 func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
-	typ := d.columns[0].Usage.Type
+	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	for _, present := range []bool{false, true} {
 		calls := 0
@@ -217,7 +217,7 @@ func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 			right.anonymous = [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}
 		}
 		state := &queryState{source: &querySource{sources: []*querySource{left, right}}, virtualReads: true}
-		schema := querySchema{d.columns[0], d.columns[0], d.columns[1], d.columns[1]}
+		schema := querySchema{d.Columns[0], d.Columns[0], d.Columns[1], d.Columns[1]}
 		join := &joinNode{querySchema: schema, kind: parser.JoinLeft, left: &sourceNode{querySchema: schema[:1], occurrence: 0}, right: &sourceNode{querySchema: schema[1:3], occurrence: 1}, leftWidth: 1, rightWidth: 2, merges: []expr.Expr{column}}
 		stage, err := openJoinNode(context.Background(), state, join)
 		if err != nil {

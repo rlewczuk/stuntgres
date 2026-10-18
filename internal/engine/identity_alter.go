@@ -15,21 +15,21 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		next, _, err := e.dropIdentityDefinition(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
 		return next, err
 	}
-	slot, ok := old.index[action.Column.Text]
+	slot, ok := old.Index[action.Column.Text]
 	if isSystemColumn(action.Column.Text) {
 		return old, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
 	}
 	if !ok {
-		return old, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.name))
+		return old, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
 	}
-	attribute := old.attributes[slot]
-	identity, exists := old.identities[attribute]
-	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.name)
+	attribute := old.Attributes[slot]
+	identity, exists := old.Identities[attribute]
+	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.Name())
 	if action.Action == parser.AddIdentity {
 		// PostgreSQL executes the sequence before-command before table guards.
 		// Stage it privately; a failed guard must not change the old link.
 		next := *old
-		next.identities = maps.Clone(old.identities)
+		next.Identities = maps.Clone(old.Identities)
 		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
 		e.mu.Lock()
 		err := e.stageCreateIdentities(auth, stage, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
@@ -40,10 +40,10 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		if exists {
 			return old, sqlError("55000", message+" is already an identity column")
 		}
-		if old.columns[slot].Nullable {
+		if old.Columns[slot].Nullable {
 			return old, sqlError("55000", message+" must be declared NOT NULL before identity can be added")
 		}
-		if _, ok := old.defaults[attribute]; ok || old.generations[attribute].expression != nil {
+		if _, ok := old.Defaults[attribute]; ok || old.Generations[attribute].Expression != nil {
 			return old, sqlError("55000", message+" already has a default value")
 		}
 		return &next, nil
@@ -51,7 +51,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if !exists {
 		return old, sqlError("55000", message+" is not an identity column")
 	}
-	ref := e.catalog.domain.Ref(stage.base.Epoch(), identity.sequence)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), identity.Sequence)
 	definition := action.Identity
 	if len(definition.Options) != 0 {
 		for _, option := range definition.Options {
@@ -66,7 +66,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 			return old, err
 		}
 		e.mu.Lock()
-		err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.sequence, definition.Options)
+		err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.Sequence, definition.Options)
 		e.mu.Unlock()
 		if err != nil {
 			return old, err
@@ -77,10 +77,10 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return old, sqlError("42601", "conflicting or redundant options")
 	}
 	next := *old
-	next.identities = maps.Clone(old.identities)
+	next.Identities = maps.Clone(old.Identities)
 	if definition.Mode != parser.IdentityNone {
-		identity.mode = definition.Mode
-		next.identities[attribute] = identity
+		identity.Mode = definition.Mode
+		next.Identities[attribute] = identity
 	}
 	return &next, nil
 }
@@ -109,7 +109,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
-	options, restart, err := bindSequenceOptions(sequence.sequence, *generator, raw)
+	options, restart, err := bindSequenceOptions(sequence.Sequence, *generator, raw)
 	if err != nil {
 		return err
 	}
@@ -118,11 +118,11 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		return err
 	}
 	changed := *sequence
-	changed.sequence = &options
-	changed.revision = revision
-	changed.sequencePlanStamp = revision
-	if stage.base.Get(changed.address) == nil {
-		stage.descriptors[changed.address] = &changed
+	changed.Sequence = &options
+	changed.ObjectRevision = revision
+	changed.SequencePlanStamp = revision
+	if stage.base.Get(changed.Address()) == nil {
+		stage.descriptors[changed.Address()] = &changed
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 }
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
-	ref := e.catalog.domain.Ref(stage.base.Epoch(), address)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), address)
 	if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
 	}

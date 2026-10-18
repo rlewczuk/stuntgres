@@ -18,12 +18,12 @@ func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, sig
 	}
 	var signature *procedureSignature
 	if signatureQualified {
-		signature = &procedure.signature
+		signature = &procedure.Signature
 	}
-	selected, count := selectRoutine(view, namespaceSelection{path: path}, procedure.name, signature)
-	name := regclassIdentifier(procedure.name)
-	if qualified || count != 1 || selected.id != id {
-		namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: procedure.namespace})
+	selected, count := selectRoutine(view, namespaceSelection{path: path}, procedure.Name, signature)
+	name := regclassIdentifier(procedure.Name)
+	if qualified || count != 1 || selected.ID != id {
+		namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: procedure.Namespace})
 		name = regclassIdentifier(namespace.Name()) + "." + name
 	}
 	if !signatureQualified {
@@ -32,9 +32,9 @@ func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, sig
 	var text strings.Builder
 	text.WriteString(name)
 	text.WriteByte('(')
-	if procedure.signature != "" {
+	if procedure.Signature != "" {
 		first := true
-		for arg := range strings.SplitSeq(string(procedure.signature), ",") {
+		for arg := range strings.SplitSeq(string(procedure.Signature), ",") {
 			if !first {
 				text.WriteByte(',')
 			}

@@ -254,10 +254,10 @@ phases:
 }
 
 func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *relationDescriptor) ([]Descriptor, error) {
-	if relation.rowType == 0 {
+	if relation.RowType == 0 {
 		return nil, nil
 	}
-	descriptor, _ := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
+	descriptor, _ := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 	row, ok := descriptor.(*typeDescriptor)
 	if !ok {
 		return nil, nil
@@ -324,7 +324,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 
 func detachPreparedInheritanceDefinition(next *relationDescriptor) *relationDescriptor {
 	copy := *next
-	copy.notNullConstraints = slices.Clone(next.notNullConstraints)
-	copy.checkConstraints = slices.Clone(next.checkConstraints)
+	copy.NotNullConstraints = slices.Clone(next.NotNullConstraints)
+	copy.CheckConstraints = slices.Clone(next.CheckConstraints)
 	return &copy
 }

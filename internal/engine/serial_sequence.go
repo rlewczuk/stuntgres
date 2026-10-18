@@ -42,34 +42,34 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 	}
 	relation := catalog.MustRelation(ref.Address)
 	owner := ref.Address
-	for i, descriptor := range relation.columns {
+	for i, descriptor := range relation.Columns {
 		if descriptor.Name == column {
-			owner.SubID = relation.attributes[i]
+			owner.SubID = relation.Attributes[i]
 			break
 		}
 	}
 	if owner.SubID == 0 {
 		if isSystemColumn(column) {
-			switch relation.relationKind {
+			switch relation.RelationKind {
 			case tableRelation, sequenceRelation, catalogRelation, indexRelation:
 				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
-		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.name))
+		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.Name()))
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		if err := c.Context.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
 		sequence, ok := descriptor.(*relationDescriptor)
-		if !ok || sequence.relationKind != sequenceRelation || sequence.sequence == nil || sequence.sequence.owned != owner {
+		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.Owned != owner {
 			continue
 		}
-		namespace, ok := catalog.Namespace(sequence.namespace)
+		namespace, ok := catalog.Namespace(sequence.Namespace())
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}
-		return sqltype.String(e.Usage.Type, pgIdentifier(namespace.name)+"."+pgIdentifier(sequence.name)), nil
+		return sqltype.String(e.Usage.Type, pgIdentifier(namespace.Name())+"."+pgIdentifier(sequence.Name())), nil
 	}
 	return sqltype.Null(e.Usage.Type), nil
 }

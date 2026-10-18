@@ -124,7 +124,7 @@ func (c *copyCursor) splitCSV(defaultMarkers bool) error {
 			target := c.binding.targets[len(c.fields)]
 			if len(c.binding.defaults) == 0 || c.binding.defaults[target] == nil {
 				d := c.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.relation.columns[target].Name)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.relation.Columns[target].Name)
 				return d
 			}
 		}

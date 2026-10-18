@@ -39,20 +39,20 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 	t.Helper()
 	view := e.CatalogRead()
 	for a, d := range view.Descriptors() {
-		if err := e.catalog.providers[a.ClassID].Validate(view, d); err != nil {
+		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal("invalid published descriptor", a, err)
 		}
 		found := view.Lookup(descriptorNameKey(d))
 		if len(found) != 1 || found[0] != a {
 			t.Fatal("descriptor lost its unique name binding", a, found)
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation && e.sequences[a] == nil {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation && e.sequences[a] == nil {
 			t.Fatal("published sequence has no generator", a)
 		}
 	}
 	for a := range e.sequences {
 		r, ok := view.Relation(a)
-		if !ok || r.relationKind != sequenceRelation {
+		if !ok || r.RelationKind != sequenceRelation {
 			t.Fatal("orphan generator", a)
 		}
 	}
@@ -178,16 +178,16 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	sourceBefore, destBefore := captureTemporaryProjectionCatalog(source), captureTemporaryProjectionCatalog(dest)
 	sourceSurvivor := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
-	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.columns...)
-	sourceStore := source.storage[sourceSurvivor.address]
+	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.Columns...)
+	sourceStore := source.storage[sourceSurvivor.Address()]
 	sourceValues := make([][]sqltype.Value, len(sourceStore.versions))
 	for i, row := range sourceStore.versions {
 		sourceValues[i] = append([]sqltype.Value(nil), row.values...)
 	}
 	retainedTypedRows := sessionSQL(t, a, "SELECT wide,flag,absent_n,absent_b FROM portable.survivor ORDER BY v")
 	retainedTypes := map[sqltype.ID]*sqltype.Descriptor{
-		sqltype.Int8: descriptor.(*relationDescriptor).columns[0].Usage.Type,
-		sqltype.Bool: descriptor.(*relationDescriptor).columns[2].Usage.Type,
+		sqltype.Int8: descriptor.(*relationDescriptor).Columns[0].Usage.Type,
+		sqltype.Bool: descriptor.(*relationDescriptor).Columns[2].Usage.Type,
 	}
 	oldRows := sessionSQL(t, b, "SELECT v FROM public.old_table")
 	sourceRows := sessionSQL(t, a, "SELECT v FROM portable.owner_table")
@@ -204,10 +204,10 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("foreign replacement changed destination toast identity")
 	}
 	for _, d := range dest.catalog.state.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
 			tempNamespaces++
-			if ns.temporary != b.token || (ns.address != namespace && ns.address != toast) || d != destBefore.view.Get(ns.address) {
-				t.Fatal("imported foreign SessionToken", ns.temporary)
+			if ns.Temporary != b.token || (ns.Address() != namespace && ns.Address() != toast) || d != destBefore.view.Get(ns.Address()) {
+				t.Fatal("imported foreign SessionToken", ns.Temporary)
 			}
 		}
 		if d.Namespace() == namespace {
@@ -227,13 +227,13 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 			t.Fatal("foreign replacement lost retained TEMP builtin dependency", id)
 		}
 	}
-	for _, column := range importedSurvivor.columns {
+	for _, column := range importedSurvivor.Columns {
 		actual, ok := dest.CatalogRead().LookupType(column.Usage.Type.ID())
 		if !ok || actual != column.Usage.Type {
 			t.Fatal("imported column uses a foreign type generation", column.Name)
 		}
 	}
-	for _, row := range dest.storage[importedSurvivor.address].versions {
+	for _, row := range dest.storage[importedSurvivor.Address()].versions {
 		for _, value := range row.values {
 			actual, ok := dest.CatalogRead().LookupType(value.Type().ID())
 			if !ok || actual != value.Type() {
@@ -241,10 +241,10 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 			}
 		}
 	}
-	if !reflect.DeepEqual(sourceSurvivor.columns, sourceColumns) {
+	if !reflect.DeepEqual(sourceSurvivor.Columns, sourceColumns) {
 		t.Fatal("type rebinding mutated source descriptor columns")
 	}
-	for i, column := range sourceSurvivor.columns {
+	for i, column := range sourceSurvivor.Columns {
 		if column.Usage.Type != sourceColumns[i].Usage.Type {
 			t.Fatal("type rebinding changed source column type pointer")
 		}
@@ -281,7 +281,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	r.Rows.Close()
 	importedTable := roleTableRef(t, dest, "portable.owner_table").Address
 	importedSequence := roleTableRef(t, dest, "portable.owned_s").Address
-	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).sequence.owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
+	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).Sequence.Owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
 		t.Fatal("persistent collision did not remap OWNED BY", importedTable, dest.catalog.state.Get(importedSequence))
 	}
 	sequenceScalar(t, b, "SELECT nextval('portable.owned_s')", 40)
@@ -289,7 +289,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("remapped persistent rows missing", got)
 	}
 	index, indexRoot := btreeRoot(t, dest, "portable.owner_idx")
-	if index.sqlIndex.parent != importedTable || sourceIndex.sqlIndex.parent != sourceTable || index.sqlIndex == sourceIndex.sqlIndex {
+	if index.SQLIndex.Parent != importedTable || sourceIndex.SQLIndex.Parent != sourceTable || index.SQLIndex == sourceIndex.SQLIndex {
 		t.Fatal("index parent collision remapping lost source/destination authority")
 	}
 	if got := btreeKeys(t, indexRoot); !reflect.DeepEqual(got, []string{"7"}) {
@@ -319,7 +319,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if dest.catalog.state.Get(importedTable) != nil || dest.catalog.state.Get(importedSequence) != nil || dest.sequences[importedSequence] != nil {
 		t.Fatal("remapped ownership drop closure failed")
 	}
-	if dest.catalog.state.Get(index.address) != nil || dest.indexRoots[index.address] != nil {
+	if dest.catalog.state.Get(index.Address()) != nil || dest.indexRoots[index.Address()] != nil {
 		t.Fatal("remapped parent drop left index definition/root")
 	}
 	if source.catalog.state.Get(sourceTable) == nil {
@@ -374,11 +374,11 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 				t.Fatal("excluded retired TEMP required a deleted generator", err)
 			}
 			for _, d := range dest.catalog.state.Descriptors() {
-				if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
-					if !self || (ns.address != namespace && ns.address != toast) {
+				if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
+					if !self || (ns.Address() != namespace && ns.Address() != toast) {
 						t.Fatal("imported foreign TEMP namespace")
 					}
-					if dest.catalog.state.Get(ns.address) != source.catalog.state.Get(ns.address) {
+					if dest.catalog.state.Get(ns.Address()) != source.catalog.state.Get(ns.Address()) {
 						t.Fatal("replaced retained empty namespace")
 					}
 				}

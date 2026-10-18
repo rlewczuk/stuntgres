@@ -11,8 +11,8 @@ import (
 func TestUserOperatorCatalogEstimatorVariants(t *testing.T) {
 	name := operatorUnitName("public", "join_estimator")
 	// Lookup-only inputs deliberately do not install procedures or providers.
-	four := routineIdentity{id: 90000, namespace: ids.PublicNamespaceOID, name: "join_estimator", signature: "2281,26,2281,21"}
-	five := routineIdentity{id: 90001, namespace: ids.PublicNamespaceOID, name: "join_estimator", signature: "2281,26,2281,21,2281"}
+	four := routineIdentity{ID: 90000, Namespace: ids.PublicNamespaceOID, Name: "join_estimator", Signature: "2281,26,2281,21"}
+	five := routineIdentity{ID: 90001, Namespace: ids.PublicNamespaceOID, Name: "join_estimator", Signature: "2281,26,2281,21,2281"}
 	for _, tc := range []struct {
 		name                 string
 		fourCount, fiveCount int
@@ -34,7 +34,7 @@ func TestUserOperatorCatalogEstimatorVariants(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || count != tc.count || count != 0 && got.id != tc.want {
+			if err != nil || count != tc.count || count != 0 && got.ID != tc.want {
 				t.Fatal(got, count, err)
 			}
 		})

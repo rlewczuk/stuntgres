@@ -26,25 +26,25 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				t.Fatal("missing view owner role")
 			}
 			bootstrap := auth.state.CurrentUser
-			base.owner = bootstrap
+			base.Owner = bootstrap
 			grant := func(role authorization.PrincipalRef) authorization.ACLValue {
 				return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: role}, Privileges: authorization.SelectPrivilege, Grantor: bootstrap}}}
 			}
 			baseRef := ruleUnitRef(e, base)
-			inner.owner, inner.relationKind = owner.Ref, viewRelation
-			inner.acl = grant(actor.Ref)
-			inner.acl.Entries = append(inner.acl.Entries, grant(owner.Ref).Entries...)
-			inner.view = &viewDefinition{invoker: shape == "invoker" || shape == "definer_over_invoker", sources: []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1, 2}}}}
-			viewOf(inner).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef}}
+			inner.Owner, inner.RelationKind = owner.Ref, viewRelation
+			inner.ACL = grant(actor.Ref)
+			inner.ACL.Entries = append(inner.ACL.Entries, grant(owner.Ref).Entries...)
+			inner.View = &viewDefinition{invoker: shape == "invoker" || shape == "definer_over_invoker", sources: []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1, 2}}}}
+			viewOf(inner).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef}}
 			root := inner
 			if shape == "definer_over_invoker" || shape == "invoker_over_definer" {
 				outer := *inner
-				outer.address.ObjectID++
-				outer.name = "outer_view"
-				outer.view = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
-				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.columns), ref: ruleUnitRef(e, inner)}}
+				outer.ObjectAddress.ObjectID++
+				outer.ObjectName = "outer_view"
+				outer.View = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
+				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.Columns), ref: ruleUnitRef(e, inner)}}
 				next := cloneCatalog(e.catalog.state)
-				next.setDescriptor(outer.address, &outer)
+				next.setDescriptor(outer.Address(), &outer)
 				e.catalog.state = next
 				root = &outer
 			}
@@ -55,7 +55,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			if callerReads {
 				reader, other = actor.Ref, owner.Ref
 			}
-			base.acl = grant(reader)
+			base.ACL = grant(reader)
 			auth.recaptureCatalog(e.catalog.read(e.catalog.state))
 			auth.state.CurrentUser = owner.Ref
 			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
@@ -93,9 +93,9 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			// Capture a genuinely new catalog ACL snapshot. Collection must use
 			// that snapshot, while an already paired snapshot remains unchanged.
 			revoked := *base
-			revoked.acl = grant(other)
+			revoked.ACL = grant(other)
 			next := cloneCatalog(e.catalog.state)
-			next.setDescriptor(base.address, &revoked)
+			next.setDescriptor(base.Address(), &revoked)
 			current := auth
 			current.recaptureCatalog(e.catalog.read(next))
 			refs, err := collect(current, owner.Ref, leaf)

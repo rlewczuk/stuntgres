@@ -15,21 +15,21 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}
-	if len(source.columns) != len(ids) {
+	if len(source.Columns) != len(ids) {
 		return nil, fmt.Errorf("stuntgres: invalid namespace source shape")
 	}
 	for i, id := range ids {
 		owned, ok := catalog.LookupType(id)
-		if !ok || owned != source.columns[i].Usage.Type {
+		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign namespace source type")
 		}
 	}
 	database, ok := catalog.Database(currentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.owner {
+	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
 	count := 0
@@ -50,28 +50,28 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if err := (namespaceProvider{}).Validate(catalog, ns); err != nil {
 			return nil, err
 		}
-		if address != ns.address {
+		if address != ns.Address() {
 			return nil, fmt.Errorf("stuntgres: invalid namespace address authority")
 		}
-		if _, err := roles.Descriptor(ns.owner); err != nil {
+		if _, err := roles.Descriptor(ns.Owner); err != nil {
 			return nil, err
 		}
-		if ns.owner.ID() > math.MaxUint32 {
+		if ns.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable namespace owner")
 		}
-		oid, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(ns.address.ObjectID))
+		oid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(ns.Address().ObjectID))
 		if err != nil {
 			return nil, err
 		}
-		owner, err := sqltype.OIDValue(source.columns[2].Usage.Type, uint32(ns.owner.ID()))
+		owner, err := sqltype.OIDValue(source.Columns[2].Usage.Type, uint32(ns.Owner.ID()))
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.columns[3].Usage.Type, ns.acl)
+		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, ns.ACL)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, []sqltype.Value{oid, sqltype.String(source.columns[1].Usage.Type, ns.name), owner, acl})
+		rows = append(rows, []sqltype.Value{oid, sqltype.String(source.Columns[1].Usage.Type, ns.Name()), owner, acl})
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

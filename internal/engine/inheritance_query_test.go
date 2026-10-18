@@ -14,28 +14,28 @@ import (
 func TestInheritanceQueryClosure(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 20000, "p")
-	l := inheritanceLifecycleTable(e, 20001, "l", p.address)
-	r := inheritanceLifecycleTable(e, 20002, "r", p.address)
-	d := inheritanceLifecycleTable(e, 20003, "d", l.address, r.address, p.address)
-	own := e.catalog.domain.Session(1)
-	peer := e.catalog.domain.Session(2)
+	l := inheritanceLifecycleTable(e, 20001, "l", p.Address())
+	r := inheritanceLifecycleTable(e, 20002, "r", p.Address())
+	d := inheritanceLifecycleTable(e, 20003, "d", l.Address(), r.Address(), p.Address())
+	own := e.catalog.Domain.Session(1)
+	peer := e.catalog.Domain.Session(2)
 	ownNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20004}
 	peerNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}
-	o := inheritanceLifecycleTable(e, 20006, "own", p.address)
-	o.namespace = ownNamespace
-	f := inheritanceLifecycleTable(e, 20007, "foreign", p.address)
-	f.namespace = peerNamespace
-	branch := inheritanceLifecycleTable(e, 20008, "foreign_branch", f.address)
-	branch.namespace = peerNamespace
+	o := inheritanceLifecycleTable(e, 20006, "own", p.Address())
+	o.ObjectNamespace = ownNamespace
+	f := inheritanceLifecycleTable(e, 20007, "foreign", p.Address())
+	f.ObjectNamespace = peerNamespace
+	branch := inheritanceLifecycleTable(e, 20008, "foreign_branch", f.Address())
+	branch.ObjectNamespace = peerNamespace
 	inheritanceLifecycleInstall(e, p, l, r, d, o, f, branch)
-	e.catalog.state.setDescriptor(ownNamespace, &namespaceDescriptor{address: ownNamespace, temporary: own})
-	e.catalog.state.setDescriptor(peerNamespace, &namespaceDescriptor{address: peerNamespace, temporary: peer})
+	e.catalog.state.setDescriptor(ownNamespace, &namespaceDescriptor{ObjectAddress: ownNamespace, Temporary: own})
+	e.catalog.state.setDescriptor(peerNamespace, &namespaceDescriptor{ObjectAddress: peerNamespace, Temporary: peer})
 	for range 2 {
 		var got []ids.ObjectAddress
-		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *relationDescriptor) error { got = append(got, d.address); return nil }); err != nil {
+		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *relationDescriptor) error { got = append(got, d.Address()); return nil }); err != nil {
 			t.Fatal(err)
 		}
-		want := []ids.ObjectAddress{p.address, l.address, d.address, r.address, o.address}
+		want := []ids.ObjectAddress{p.Address(), l.Address(), d.Address(), r.Address(), o.Address()}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal(got, want)
 		}
@@ -45,11 +45,11 @@ func TestInheritanceQueryClosure(t *testing.T) {
 func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *relationDescriptor {
 	d := inheritanceLifecycleTable(e, id, "layout")
 	for i, name := range names {
-		d.columns = append(d.columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
-		d.attributes = append(d.attributes, int32(i+1))
-		d.index[name] = i
+		d.Columns = append(d.Columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
+		d.Attributes = append(d.Attributes, int32(i+1))
+		d.Index[name] = i
 	}
-	d.attributeHighWater = int32(len(names))
+	d.AttributeHighWater = int32(len(names))
 	return d
 }
 
@@ -95,7 +95,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if values := (&inheritanceQuerySegment{layout: zero}).mapValues(values); len(values) != 0 {
 		t.Fatal(values)
 	}
-	child.columns[1].Usage = testUsage(e, sqltype.Int8)
+	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
 	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	p := inheritanceQueryUnitColumns(e, 20000, "a")
 	c := inheritanceQueryUnitColumns(e, 20001, "y", "a")
 	ref := func(d *relationDescriptor) ids.ObjectRef {
-		return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	one := rowVersion{row: 1, version: 1, values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
 	two := rowVersion{row: 1, version: 2, values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
@@ -139,11 +139,11 @@ func TestInheritanceQueryLocator(t *testing.T) {
 func TestInheritanceQueryVisibility(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 20000, "p")
-	c := inheritanceLifecycleTable(e, 20001, "c", p.address)
+	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
 	e.commitSeq = 1
-	e.storage[p.address].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}}
-	e.storage[c.address].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{}}}
+	e.storage[p.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}}
+	e.storage[c.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{}}}
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -157,8 +157,8 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
-	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.address]}
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.Address()]}
 	scope.querySources = []queryLeaf{leaf}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -189,7 +189,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = selectQuerySources(op.Context(), source); err != nil || source.count() != 3 {
 		t.Fatal(source.count(), err)
 	}
-	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage[c.address].versions[0] {
+	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage[c.Address()].versions[0] {
 		t.Fatal("hierarchy acquired a second visibility owner or copied immutable rows")
 	}
 	e.mu.Lock()
@@ -256,9 +256,9 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	// The real replacement remapper preserves mode while reminting authority.
 	e := New()
 	p := inheritanceLifecycleTable(e, 20000, "p")
-	c := inheritanceLifecycleTable(e, 20001, "c", p.address)
+	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++
@@ -278,9 +278,9 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 		}
 		var got []ids.ObjectAddress
 		err = inheritanceQueryLeaves(e.CatalogRead(), []queryLeaf{{ref: remapped.ref, only: remapped.only}}, ids.SessionToken{}, func(leaf queryLeaf) error { got = append(got, leaf.ref.Address); return nil })
-		want := []ids.ObjectAddress{p.address}
+		want := []ids.ObjectAddress{p.Address()}
 		if !only {
-			want = append(want, c.address)
+			want = append(want, c.Address())
 		}
 		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Fatal(got, want, err)

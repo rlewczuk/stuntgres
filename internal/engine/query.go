@@ -555,10 +555,10 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.Obje
 	if g == nil {
 		return nil, fmt.Errorf("stuntgres: sequence state missing")
 	}
-	i := relation.columns[0].Usage.Type
+	i := relation.Columns[0].Usage.Type
 	last, _ := sqltype.Integer(i, g.last)
 	log, _ := sqltype.Integer(i, 0)
-	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.columns[2].Usage.Type, g.called)}}}, nil
+	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.called)}}}, nil
 }
 func (s *querySource) count() int {
 	if s.window {
@@ -1061,7 +1061,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 				return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
 			}
 			data := source.view.read()
-			if source.ref.Domain() != data.catalog.owner.domain || source.ref.Epoch != data.catalog.Epoch() {
+			if source.ref.Domain() != data.catalog.owner.Domain || source.ref.Epoch != data.catalog.Epoch() {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 			}
 		}

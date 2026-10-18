@@ -26,11 +26,11 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 	tableAddress := NameAddressForTempMove(t, e, source, "t")
 	table := e.catalog.state.MustRelation(tableAddress)
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
-	for _, subID := range []int32{0, table.attributes[0]} {
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
+	for _, subID := range []int32{0, table.Attributes[0]} {
 		address := tableAddress
 		address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, address), acl); err != nil {
+		if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, address), acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -58,16 +58,16 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	}
 	for i, a := range addresses {
 		after := e.catalog.state.MustRelation(a)
-		if after.namespace != dest || after.revision <= before[i].revision {
+		if after.Namespace() != dest || after.Revision() <= before[i].Revision() {
 			t.Fatal("namespace/revision", before[i], after)
 		}
 		copy := *after
-		copy.namespace, copy.revision = before[i].namespace, before[i].revision
+		copy.ObjectNamespace, copy.ObjectRevision = before[i].Namespace(), before[i].Revision()
 		if i != 0 {
-			if after.sequencePlanStamp <= before[i].sequencePlanStamp {
+			if after.SequencePlanStamp <= before[i].SequencePlanStamp {
 				t.Fatal("missing sequence invalidation")
 			}
-			copy.sequencePlanStamp = before[i].sequencePlanStamp
+			copy.SequencePlanStamp = before[i].SequencePlanStamp
 		}
 		if !reflect.DeepEqual(&copy, before[i]) {
 			t.Fatal("move changed nonnamespace definition", before[i], after)
@@ -105,10 +105,10 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
-			provider := e.catalog.providers[ids.RelationClassID]
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			provider := e.catalog.Providers[ids.RelationClassID]
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 				once.Do(func() {
-					e.catalog.providers[ids.RelationClassID] = provider
+					e.catalog.Providers[ids.RelationClassID] = provider
 					switch kind {
 					case "table_collision":
 						run(t, e, "CREATE TABLE s2.t(id INT)")

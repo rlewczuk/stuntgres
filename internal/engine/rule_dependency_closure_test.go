@@ -55,7 +55,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	ruleAddress := ids.ObjectAddress{ClassID: 2618, ObjectID: ruleOID}
 	found := false
 	for _, edge := range closure(provider) {
-		if edge.address == event.address {
+		if edge.address == event.Address() {
 			t.Fatal("ordinary rule dependency retired its event view", edge)
 		}
 		if edge.address == ruleAddress {
@@ -71,7 +71,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	// The separately analyzed SELECT definition remains the event relation's edge.
 	foundView := false
 	for _, edge := range closure(baseRef.Address) {
-		if edge.address == event.address {
+		if edge.address == event.Address() {
 			foundView = edge.target == baseRef.Address && edge.root == baseRef.Address
 		}
 	}
@@ -82,8 +82,8 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if err := stageRuleDependents(stage, []ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
-	current := e.stageRead(stage).MustRelation(event.address)
-	if current.view != event.view || len(rulesOf(current)) != 1 || rulesOf(current)[0].Name != "keep_r" {
+	current := e.stageRead(stage).MustRelation(event.Address())
+	if current.View != event.View || len(rulesOf(current)) != 1 || rulesOf(current)[0].Name != "keep_r" {
 		t.Fatal("rule-only retirement changed SELECT identity or unrelated ordinary rule")
 	}
 	if len(rulesOf(event)) != 2 {

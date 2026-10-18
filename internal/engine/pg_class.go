@@ -25,7 +25,7 @@ func representedCatalogHasIndexes(oid ids.OID) bool {
 // catalogRelation describes execution, not PostgreSQL relation kind. Keep this
 // classification separate from virtualView, which controls source dispatch.
 func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
-	switch relation.relationKind {
+	switch relation.RelationKind {
 	case foreignRelation:
 		return "f"
 	case sequenceRelation:
@@ -39,12 +39,12 @@ func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 	case partitionedRelation:
 		return "p"
 	case indexRelation:
-		if parent, ok := catalog.Relation(relation.sqlIndex.parent); ok && parent.partition != nil {
+		if parent, ok := catalog.Relation(relation.SQLIndex.Parent); ok && parent.Partition != nil {
 			return "I"
 		}
 		return "i"
 	case catalogRelation:
-		if relation.virtualView || representedSummaryViewDefinition(relation.address.ObjectID) != "" {
+		if relation.VirtualView || representedSummaryViewDefinition(relation.Address().ObjectID) != "" {
 			return "v"
 		}
 	}
@@ -52,20 +52,20 @@ func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 }
 
 func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) string {
-	if relation.sqlIndex != nil {
-		if parent, ok := catalog.Relation(relation.sqlIndex.parent); ok {
+	if relation.SQLIndex != nil {
+		if parent, ok := catalog.Relation(relation.SQLIndex.Parent); ok {
 			relation = parent
 		}
 	}
-	if relation.sequence != nil {
-		switch relation.sequence.persistence {
+	if relation.Sequence != nil {
+		switch relation.Sequence.Persistence {
 		case "temporary":
 			return "t"
 		case "unlogged":
 			return "u"
 		}
 	}
-	if namespace, ok := catalog.Namespace(relation.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
+	if namespace, ok := catalog.Namespace(relation.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 		return "t"
 	}
 	return "p"
@@ -79,25 +79,25 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		}
 		return value
 	}
-	oid := func(i int, n uint32) sqltype.Value { return checked(sqltype.OIDValue(source.columns[i].Usage.Type, n)) }
-	integer := func(i int, n int64) sqltype.Value { return checked(sqltype.Integer(source.columns[i].Usage.Type, n)) }
-	text := func(i int, s string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, s) }
-	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, b) }
+	oid := func(i int, n uint32) sqltype.Value { return checked(sqltype.OIDValue(source.Columns[i].Usage.Type, n)) }
+	integer := func(i int, n int64) sqltype.Value { return checked(sqltype.Integer(source.Columns[i].Usage.Type, n)) }
+	text := func(i int, s string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, s) }
+	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 	kind := pgClassKind(catalog, relation)
 	method := uint32(0)
 	if kind == "r" || kind == "m" {
 		method = 2
 	}
-	if relation.sqlIndex != nil {
+	if relation.SQLIndex != nil {
 		method = 403
-		if relation.sqlIndex.method == hashMethod {
+		if relation.SQLIndex.Method == hashMethod {
 			method = 405
 		}
-		if relation.sqlIndex.method == gistMethod {
+		if relation.SQLIndex.Method == gistMethod {
 			method = 783
 		}
 	}
-	shared := relation.relationKind == catalogRelation && (relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2396 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ids.ParameterClassID)
+	shared := relation.RelationKind == catalogRelation && (relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID)
 	tablespace := uint32(0)
 	if shared {
 		tablespace = 1664
@@ -107,39 +107,39 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		tuples = 1
 	}
 	replica := "n"
-	if relation.relationKind != catalogRelation && (kind == "r" || kind == "m" || kind == "p") {
+	if relation.RelationKind != catalogRelation && (kind == "r" || kind == "m" || kind == "p") {
 		replica = "d"
 	}
-	acl, err := e.pgClassACL(roles, source.columns[31].Usage.Type, relation.acl)
+	acl, err := e.pgClassACL(roles, source.Columns[31].Usage.Type, relation.ACL)
 	if err != nil {
 		return nil, err
 	}
-	options := sqltype.Null(source.columns[32].Usage.Type)
-	if relation.view != nil && len(viewOf(relation).options) != 0 {
+	options := sqltype.Null(source.Columns[32].Usage.Type)
+	if relation.View != nil && len(viewOf(relation).options) != 0 {
 		elements := make([]sqltype.Value, len(viewOf(relation).options))
 		for i, option := range viewOf(relation).options {
 			elements[i] = sqltype.String(options.Type().Element(), option)
 		}
 		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements))
 	}
-	bound := sqltype.Null(source.columns[33].Usage.Type)
-	if relation.membership != nil {
-		parent, ok := catalog.Relation(relation.membership.parent)
-		if !ok || parent.partition == nil {
+	bound := sqltype.Null(source.Columns[33].Usage.Type)
+	if relation.Membership != nil {
+		parent, ok := catalog.Relation(relation.Membership.Parent)
+		if !ok || parent.Partition == nil {
 			return nil, fmt.Errorf("stuntgres: missing partition bound parent")
 		}
-		bound = checked(sqltype.Tree(bound.Type(), partitionBoundTree{membership: relation.membership, keys: parent.partition.keys}))
+		bound = checked(sqltype.Tree(bound.Type(), partitionBoundTree{membership: relation.Membership, keys: parent.Partition.Keys}))
 	}
 	row := []sqltype.Value{
-		oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)),
-		oid(3, uint32(relation.rowType)), oid(4, uint32(relation.ofType.ObjectID)), oid(5, uint32(relation.owner.ID())),
-		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.columns[10].Usage.Type, tuples)),
-		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.hasIndexes), boolean(15, shared),
-		text(16, pgClassPersistence(catalog, relation)), text(17, kind), integer(18, int64(relation.attributeHighWater)), integer(19, int64(len(relation.checkConstraints))),
-		boolean(20, len(rulesOf(relation)) != 0 || relation.view != nil || relation.relationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.hasSubclasses),
-		boolean(23, relation.rlsEnabled), boolean(24, relation.rlsForced), boolean(25, relation.relationKind != materializedViewRelation || relation.populated),
-		text(26, replica), boolean(27, relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ids.ObjectAddress{})), oid(28, 0),
-		checked(sqltype.XIDValue(source.columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.columns[30].Usage.Type, 0)), acl, options, bound,
+		oid(0, uint32(relation.Address().ObjectID)), text(1, relation.Name()), oid(2, uint32(relation.Namespace().ObjectID)),
+		oid(3, uint32(relation.RowType)), oid(4, uint32(relation.OfType.ObjectID)), oid(5, uint32(relation.Owner.ID())),
+		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
+		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.HasIndexes), boolean(15, shared),
+		text(16, pgClassPersistence(catalog, relation)), text(17, kind), integer(18, int64(relation.AttributeHighWater)), integer(19, int64(len(relation.CheckConstraints))),
+		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.HasSubclasses),
+		boolean(23, relation.RLSEnabled), boolean(24, relation.RLSForced), boolean(25, relation.RelationKind != materializedViewRelation || relation.Populated),
+		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
+		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

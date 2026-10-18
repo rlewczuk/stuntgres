@@ -15,37 +15,37 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 	if isSystemColumn(name) {
 		return nil, 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, name))
 	}
-	slot, exists := old.index[name]
+	slot, exists := old.Index[name]
 	if !exists {
-		return nil, 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, old.name))
+		return nil, 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, old.Name()))
 	}
-	attribute := old.attributes[slot]
-	definition, generated := old.generations[attribute]
+	attribute := old.Attributes[slot]
+	definition, generated := old.Generations[attribute]
 	if !generated {
 		if action.Action == parser.DropExpression && action.IfExists {
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.name)})
+			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.Name())})
 			return old, 0, nil
 		}
-		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.name))
+		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.Name()))
 	}
-	if definition.kind == generationVirtual {
+	if definition.Kind == generationVirtual {
 		message := ""
 		if action.Action == parser.DropExpression {
 			message = "ALTER TABLE / DROP EXPRESSION is not supported for virtual generated columns"
-		} else if len(old.checkConstraints) != 0 {
+		} else if len(old.CheckConstraints) != 0 {
 			// PostgreSQL18.0 rejects even an unrelated CHECK; newer releases differ.
 			message = "ALTER TABLE / SET EXPRESSION is not supported for virtual generated columns in tables with check constraints"
 		}
 		if message != "" {
 			diagnostic := sqlError("0A000", message).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf(`Column "%s" of relation "%s" is a virtual generated column.`, name, old.name)
+			diagnostic.Detail = fmt.Sprintf(`Column "%s" of relation "%s" is a virtual generated column.`, name, old.Name())
 			return nil, 0, diagnostic
 		}
 	}
 	next := *old
-	next.generations = maps.Clone(old.generations)
+	next.Generations = maps.Clone(old.Generations)
 	if action.Action == parser.DropExpression {
-		delete(next.generations, attribute)
+		delete(next.Generations, attribute)
 		return &next, 0, nil
 	}
 	if action.Generation == nil {
@@ -64,6 +64,6 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		}
 		return nil, 0, err
 	}
-	next.generations[attribute] = replacement
+	next.Generations[attribute] = replacement
 	return &next, attribute, nil
 }

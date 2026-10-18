@@ -13,7 +13,7 @@ import (
 func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
-		if leaf.relation.relationKind == viewRelation {
+		if leaf.relation.RelationKind == viewRelation {
 			hasView = true
 			break
 		}
@@ -25,13 +25,13 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 	visibilityDemand := false
 	var visit func(*relationDescriptor) error
 	visit = func(d *relationDescriptor) error {
-		if d.relationKind != viewRelation || done[d.address] {
+		if d.RelationKind != viewRelation || done[d.Address()] {
 			return nil
 		}
-		if active[d.address] {
-			return sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.name))
+		if active[d.Address()] {
+			return sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
 		}
-		active[d.address] = true
+		active[d.Address()] = true
 		visibilityDemand = visibilityDemand || viewOf(d).query.visibilitySnapshot
 		for _, leaf := range viewOf(d).sources {
 			child, ok := catalog.Relation(leaf.ref.Address)
@@ -42,15 +42,15 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 				return err
 			}
 		}
-		delete(active, d.address)
-		done[d.address] = true
+		delete(active, d.Address())
+		done[d.Address()] = true
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.relation.relationKind != viewRelation {
+		if leaf.relation.RelationKind != viewRelation {
 			continue
 		}
-		current, ok := catalog.Relation(leaf.relation.address)
+		current, ok := catalog.Relation(leaf.relation.Address())
 		if !ok {
 			return false, ids.ErrCatalogReplaced
 		}

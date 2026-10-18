@@ -17,10 +17,10 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			relation := e.CatalogRead().MustRelation(ref.Address)
 			project := query.Root.(*projectNode)
 			project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, offset: queryLimitBound(t, e, 1), count: queryLimitBound(t, e, count)}
-			typ := relation.columns[1].Usage.Type
+			typ := relation.Columns[1].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
 			calls := 0
-			probe := queryProbe(relation.columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
+			probe := queryProbe(relation.Columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				return value, nil
 			})
@@ -47,10 +47,10 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	relation := e.CatalogRead().MustRelation(ref.Address)
 	project := query.Root.(*projectNode)
 	project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, count: queryLimitBound(t, e, 2)}
-	value, _ := sqltype.Integer(relation.columns[1].Usage.Type, 7)
+	value, _ := sqltype.Integer(relation.Columns[1].Usage.Type, 7)
 	failure := errors.New("retained runtime default failure")
 	calls := 0
-	probe := queryProbe(relation.columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
+	probe := queryProbe(relation.Columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, failure

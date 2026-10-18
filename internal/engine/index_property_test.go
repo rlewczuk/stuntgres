@@ -32,7 +32,7 @@ func TestIndexPropertyCapabilityMatrix(t *testing.T) {
 	if _, known := indexAMProperty(403, "asc"); known {
 		t.Fatal("wrong property level")
 	}
-	index := &indexDefinition{keys: []indexKey{{desc: false, nullsFirst: true}, {desc: true, nullsFirst: false}}, include: []int32{3}, ready: true, valid: true, live: true}
+	index := &indexDefinition{Keys: []indexKey{{Desc: false, NullsFirst: true}, {Desc: true, NullsFirst: false}}, Include: []int32{3}, Ready: true, Valid: true, Live: true}
 	for _, tc := range []struct {
 		ordinal     int64
 		property    string

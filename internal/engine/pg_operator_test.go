@@ -21,7 +21,7 @@ func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obj
 	if !ok {
 		t.Fatal("missing pg_operator")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
@@ -50,7 +50,7 @@ func pgOperatorUnitBag(t *testing.T, rows *querySource, source *relationDescript
 		fields := make([]string, 15)
 		var oid uint32
 		for i, value := range row {
-			if value.IsNull() || value.Type() != source.columns[i].Usage.Type {
+			if value.IsNull() || value.Type() != source.Columns[i].Usage.Type {
 				t.Fatal("unowned/null cell", i, value)
 			}
 			var err error
@@ -92,7 +92,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgOperatorUnitSource(t, e)
-	if d.rowType != 10009 || !d.hasIndexes || d.attributeHighWater != 15 || d.namespace.ObjectID != 11 || len(d.columns) != 15 {
+	if d.RowType != 10009 || !d.HasIndexes || d.AttributeHighWater != 15 || d.Namespace().ObjectID != 11 || len(d.Columns) != 15 {
 		t.Fatal("relation facts", d)
 	}
 	for i, name := range []string{"oid", "oprname", "oprnamespace", "oprowner", "oprkind", "oprcanmerge", "oprcanhash", "oprleft", "oprright", "oprresult", "oprcom", "oprnegate", "oprcode", "oprrest", "oprjoin"} {
@@ -108,17 +108,17 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 			id = sqltype.Regproc
 		}
 		owned, ok := catalog.LookupType(id)
-		c := d.columns[i]
-		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2617 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i {
+		c := d.Columns[i]
+		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2617 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
 		}
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
 		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		if row.owningRelation != d.address || row.owner != d.owner {
+		if row.OwningRelation != d.Address() || row.Owner != d.Owner {
 			t.Fatal("row/array ownership", id, row)
 		}
 	}
@@ -154,9 +154,9 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	rows.anonymous[0] = rows.anonymous[0][:15:15]
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
-	invalid.columns[0].Usage.Type = foreign
-	for _, source := range []*relationDescriptor{&invalid, {columns: d.columns[:14]}} {
+	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns[0].Usage.Type = foreign
+	for _, source := range []*relationDescriptor{&invalid, {Columns: d.Columns[:14]}} {
 		if got, err := capturePGOperator(context.Background(), catalog, ref, source); got != nil || err == nil {
 			t.Fatal("invalid source accepted", got, err)
 		}
@@ -178,7 +178,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fresh.columns[0].Usage.Type == d.columns[0].Usage.Type || !reflect.DeepEqual(pgOperatorUnitBag(t, freshRows, fresh), want) || !reflect.DeepEqual(pgOperatorUnitBag(t, rows, d), want) {
+	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type || !reflect.DeepEqual(pgOperatorUnitBag(t, freshRows, fresh), want) || !reflect.DeepEqual(pgOperatorUnitBag(t, rows, d), want) {
 		t.Fatal("replacement changed facts/old capture or retained generation")
 	}
 	if got, err := capturePGOperator(context.Background(), e.CatalogRead(), freshRef, d); got != nil || err == nil {

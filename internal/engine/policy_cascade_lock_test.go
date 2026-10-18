@@ -60,8 +60,8 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					projected := 0
 					project := func(old, next *relationDescriptor) error {
 						projected++
-						if old != owners[0] || shape != "column_and_policy" || len(next.columns) != 1 || next.columns[0].Name != "keep" {
-							t.Fatal("policy lock target became a column projection", old.name, next.columns)
+						if old != owners[0] || shape != "column_and_policy" || len(next.Columns) != 1 || next.Columns[0].Name != "keep" {
+							t.Fatal("policy lock target became a column projection", old.Name(), next.Columns)
 						}
 						return nil
 					}
@@ -76,14 +76,14 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						t.Fatal("wrong projection count", projected)
 					}
 					for _, old := range owners {
-						next, ok := stage.descriptors[old.address].(*relationDescriptor)
-						if !ok || len(next.policies) != 1 || next.policies[0].Name != "retained" {
-							t.Fatal("wrong surviving policy owner", old.name, next)
+						next, ok := stage.descriptors[old.Address()].(*relationDescriptor)
+						if !ok || len(next.Policies) != 1 || next.Policies[0].Name != "retained" {
+							t.Fatal("wrong surviving policy owner", old.Name(), next)
 						}
-						if _, removed := stage.removals[old.address]; removed {
-							t.Fatal("lock target became a physical deletion", old.name)
+						if _, removed := stage.removals[old.Address()]; removed {
+							t.Fatal("lock target became a physical deletion", old.Name())
 						}
-						if len(old.policies) != 3 || e.CatalogRead().state != base.state {
+						if len(old.Policies) != 3 || e.CatalogRead().state != base.state {
 							t.Fatal("staging mutated published roots")
 						}
 					}
@@ -94,7 +94,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						resources := len(lockState.Journals[scope.ticket])
 						valid := true
 						for _, old := range owners {
-							ref := e.catalog.domain.Ref(base.Epoch(), old.address)
+							ref := e.catalog.Domain.Ref(base.Epoch(), old.Address())
 							entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 							valid = valid && entry != nil && entry.Holders[scope.ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 0
 						}

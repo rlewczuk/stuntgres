@@ -94,7 +94,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 	}
 	var result []ids.ObjectAddress
 	if auth.pathPrefix != (ids.ObjectAddress{}) && !auth.materializedPopulation {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), auth.pathPrefix)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), auth.pathPrefix)
 		if err := auth.CanUse(ref); err != nil {
 			return nil, false, err
 		}
@@ -132,7 +132,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.definitionNamespace(a); ok && ns.temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
+		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -145,7 +145,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 		if duplicate {
 			continue
 		}
-		rights, err := auth.Effective(e.catalog.domain.Ref(auth.catalog.Epoch(), a), false)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), a), false)
 		if err != nil {
 			return nil, false, err
 		}
@@ -184,7 +184,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress,
 		filtered := path[:0]
 		for _, a := range path {
 			ns, _ := auth.definitionNamespace(a)
-			if ns.temporary == (ids.SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
+			if ns.Temporary == (ids.SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -265,18 +265,18 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, nil
 	}
 	ns, _ := auth.definitionNamespace(a)
-	foreignTemporary := ns.temporary != (ids.SessionToken{}) && !ns.temporaryToast && !ownTemporaryNamespace(auth, ns)
+	foreignTemporary := ns.Temporary != (ids.SessionToken{}) && !ns.TemporaryToast && !ownTemporaryNamespace(auth, ns)
 	if foreignTemporary {
 		actor, exists := auth.roles.Find(auth.state.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser
 	}
 	if foreignTemporary && kind != installedFunctionLookup {
 		if kind == relationLookup {
-			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.name))
+			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()))
 		}
-		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
+		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
 	}
-	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), a)); err != nil {
+	if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
 			copy := *diagnostic
 			copy.Position = strconv.Itoa(n.Pos.Character)
@@ -332,7 +332,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 			if !ok || !ownTemporaryNamespace(auth, ns) {
 				return ids.ObjectRef{}, true, nil
 			}
-			a = ns.address
+			a = ns.Address()
 		} else {
 			var ok bool
 			a, ok = auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n})
@@ -356,5 +356,5 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 	if !system && a.ObjectID == ids.PGCatalogNamespaceOID {
 		return ids.ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
 	}
-	return e.catalog.domain.Ref(auth.catalog.Epoch(), a), false, nil
+	return e.catalog.Domain.Ref(auth.catalog.Epoch(), a), false, nil
 }

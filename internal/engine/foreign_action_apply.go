@@ -37,14 +37,14 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	}
 	plan := &foreignActionPlan{targets: make([]int, len(attributes))}
 	for i, a := range attributes {
-		plan.targets[i] = slices.Index(job.child.attributes, a)
+		plan.targets[i] = slices.Index(job.child.Attributes, a)
 		if plan.targets[i] < 0 {
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	plan.input = s.input
 	for _, slot := range plan.targets {
-		plan.domainChecks = plan.domainChecks || sqltype.ContainsDomainChecks(job.child.columns[slot].Usage.Type)
+		plan.domainChecks = plan.domainChecks || sqltype.ContainsDomainChecks(job.child.Columns[slot].Usage.Type)
 	}
 	if plan.domainChecks {
 		e := s.op.session.Engine()
@@ -89,7 +89,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			}
 			defaultEvaluation := evaluation
 			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-			defaultEvaluation.routineReferences = job.child.defaults[job.child.attributes[plan.targets[i]]].dependencies
+			defaultEvaluation.routineReferences = job.child.Defaults[job.child.Attributes[plan.targets[i]]].Dependencies
 			defaultEvaluation.routineConsumer = job.child
 			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
@@ -104,8 +104,8 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	if action == parser.ForeignKeySetNull && plan.domainChecks {
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		for i, slot := range plan.targets {
-			if job.child.columns[slot].Usage.Type.HasDomainChecks() {
-				plan.defaults[i] = domainNullInputExpression(job.child.columns[slot].Usage)
+			if job.child.Columns[slot].Usage.Type.HasDomainChecks() {
+				plan.defaults[i] = domainNullInputExpression(job.child.Columns[slot].Usage)
 			}
 		}
 	}
@@ -115,12 +115,12 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		plan.convert = make([]bool, len(attributes))
 		for i, a := range attributes {
 			at := slices.Index(job.definition.Attributes, a)
-			parentSlot := slices.Index(job.parent.attributes, job.definition.Referenced[at])
+			parentSlot := slices.Index(job.parent.Attributes, job.definition.Referenced[at])
 			if parentSlot < 0 {
 				return nil, ids.ErrCatalogReplaced
 			}
 			plan.parentSlots[i] = parentSlot
-			source, dest := job.parent.columns[parentSlot].Usage, job.child.columns[plan.targets[i]].Usage
+			source, dest := job.parent.Columns[parentSlot].Usage, job.child.Columns[plan.targets[i]].Usage
 			if source != dest {
 				var err error
 				plan.conversions[i], err = sqltype.PlanCoercion(source, dest, sqltype.Assignment)
@@ -141,7 +141,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 
 func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
 	e := s.op.session.Engine()
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), job.child.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.Address())
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
@@ -177,12 +177,12 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			}
 			copy := *diagnostic
 			copy.Code = "23001"
-			copy.Message = fmt.Sprintf(`update or delete on table "%s" violates RESTRICT setting of foreign key constraint "%s" on table "%s"`, job.parent.name, job.definition.Name, job.child.name)
+			copy.Message = fmt.Sprintf(`update or delete on table "%s" violates RESTRICT setting of foreign key constraint "%s" on table "%s"`, job.parent.Name(), job.definition.Name, job.child.Name())
 			copy.Detail = strings.Replace(copy.Detail, " is still referenced", " is referenced", 1)
 			return false, &copy
 		})
 	}
-	ownerAuth := foreignActionOwner(auth, job.child.owner)
+	ownerAuth := foreignActionOwner(auth, job.child.Owner)
 	previous := s.foreignActionAuth
 	s.foreignActionAuth = &ownerAuth
 	defer func() { s.foreignActionAuth = previous }()
@@ -241,7 +241,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
-	schema := auth.catalog.Get(job.child.namespace).Name()
+	schema := auth.catalog.Get(job.child.Namespace()).Name()
 	for _, candidate := range candidates {
 		mode := lock.ForNoKeyUpdate
 		if deletion {
@@ -296,7 +296,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 					row[slot], err = plan.conversions[i].Apply(evaluation.Context, row[slot], evaluation.Input, evaluation.Output)
 				}
 			case parser.ForeignKeySetNull, parser.ForeignKeySetDefault:
-				row[slot] = sqltype.Null(job.child.columns[slot].Usage.Type)
+				row[slot] = sqltype.Null(job.child.Columns[slot].Usage.Type)
 				if len(plan.defaults) != 0 && plan.defaults[i] != nil {
 					row[slot], err = plan.defaults[i].Eval(&evaluation)
 				}
@@ -348,7 +348,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		parentRef := e.catalog.domain.Ref(auth.catalog.Epoch(), job.parent.address)
+		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.parent.Address())
 		parents, err := s.captureForeignKeyRows(parentRef, job.definition.Index)
 		if err != nil {
 			return err
@@ -393,9 +393,9 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 	} else {
 		q.WriteString("UPDATE ONLY ")
 	}
-	q.WriteString(quoteIdentifier(view.Get(job.child.namespace).Name()))
+	q.WriteString(quoteIdentifier(view.Get(job.child.Namespace()).Name()))
 	q.WriteByte('.')
-	q.WriteString(quoteIdentifier(job.child.name))
+	q.WriteString(quoteIdentifier(job.child.Name()))
 	offset := 0
 	if !deletion {
 		q.WriteString(" SET ")
@@ -407,7 +407,7 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 			if i != 0 {
 				q.WriteString(", ")
 			}
-			q.WriteString(quoteIdentifier(job.child.columns[slices.Index(job.child.attributes, a)].Name))
+			q.WriteString(quoteIdentifier(job.child.Columns[slices.Index(job.child.Attributes, a)].Name))
 			q.WriteString(" = ")
 			switch action {
 			case parser.ForeignKeyCascade:
@@ -426,8 +426,8 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 		if i != 0 {
 			q.WriteString(" AND ")
 		}
-		childSlot := slices.Index(job.child.attributes, a)
-		parentSlot := slices.Index(job.parent.attributes, job.definition.Referenced[i])
+		childSlot := slices.Index(job.child.Attributes, a)
+		parentSlot := slices.Index(job.parent.Attributes, job.definition.Referenced[i])
 		var comparison sqltype.IndexForeignKeyComparison
 		for _, c := range job.comparisons {
 			if c.child == childSlot {
@@ -438,15 +438,15 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 		parentInput, childInput := comparison.InputTypes()
 		q.WriteByte('$')
 		q.WriteString(strconv.Itoa(offset + i + 1))
-		if job.parent.columns[parentSlot].Usage.Type != parentInput {
+		if job.parent.Columns[parentSlot].Usage.Type != parentInput {
 			q.WriteString("::")
 			q.WriteString(pgIdentifier(parentInput.NamespaceName()))
 			q.WriteByte('.')
 			q.WriteString(pgIdentifier(parentInput.Name()))
 		}
 		q.WriteString(" OPERATOR(pg_catalog.=) ")
-		q.WriteString(quoteIdentifier(job.child.columns[childSlot].Name))
-		if job.child.columns[childSlot].Usage.Type != childInput {
+		q.WriteString(quoteIdentifier(job.child.Columns[childSlot].Name))
+		if job.child.Columns[childSlot].Usage.Type != childInput {
 			q.WriteString("::")
 			q.WriteString(pgIdentifier(childInput.NamespaceName()))
 			q.WriteByte('.')

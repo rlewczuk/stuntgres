@@ -40,7 +40,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
 			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
@@ -53,9 +53,9 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			original := append([]expressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dependency := range original {
-				if dependency.ref.Address == address {
+				if dependency.Ref.Address == address {
 					found = true
-					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.Domain() != e.catalog.domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical dependency", dependency)
 					}
 				}
@@ -69,7 +69,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			}
 			missing := make([]expressionDependency, 0, len(original))
 			for _, dependency := range original {
-				if dependency.ref.Address != address {
+				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
@@ -83,11 +83,11 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, epoch := range []bool{false, true} {
 				stale := append([]expressionDependency(nil), original...)
 				for i := range stale {
-					if stale[i].ref.Address == address {
+					if stale[i].Ref.Address == address {
 						if epoch {
-							stale[i].ref.Epoch++
+							stale[i].Ref.Epoch++
 						} else {
-							stale[i].revision++
+							stale[i].Revision++
 						}
 					}
 				}
@@ -121,7 +121,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			changed := *evaluation.routineAuthority
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
-			replacement.strict = false
+			replacement.Strict = false
 			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
@@ -346,7 +346,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if ref, err := expressionRoutineDescriptor(folded); err != nil || ref != nil {
 			t.Fatal("folded literal retained executable identity", ref, err)
 		}
-		if ref, err := expressionRoutineDescriptor(node); err != nil || ref == nil || ref.address.ObjectID != 3537 {
+		if ref, err := expressionRoutineDescriptor(node); err != nil || ref == nil || ref.Address().ObjectID != 3537 {
 			t.Fatal("folding erased original identity", ref, err)
 		}
 		if folded.ResultUsage() != node.ResultUsage() || !reflect.DeepEqual(before, expr.InfoOf(node)) {

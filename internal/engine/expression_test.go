@@ -51,7 +51,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal(project.Schema())
 	}
 	column := project.expressions[1].(columnExpression)
-	if column.origin.Domain() != e.catalog.domain || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
+	if column.origin.Domain() != e.catalog.Domain || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
 	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != expr.Immutable || !project.expressions[0].Properties().ParameterDependent {
@@ -59,10 +59,10 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	refs := map[ids.ObjectRef]bool{}
 	for _, d := range b.dependencies {
-		if refs[d.ref] || d.ref.Domain() != e.catalog.domain || d.revision == 0 {
+		if refs[d.Ref] || d.Ref.Domain() != e.catalog.Domain || d.Revision == 0 {
 			t.Fatal(d)
 		}
-		refs[d.ref] = true
+		refs[d.Ref] = true
 	}
 	if !refs[column.origin] || len(refs) < 4 {
 		t.Fatal(b.dependencies)

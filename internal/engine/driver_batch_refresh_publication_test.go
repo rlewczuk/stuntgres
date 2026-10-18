@@ -64,7 +64,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if suffix == "WITH NO DATA" {
 						want = 0
 					}
-					if len(shape.replacement.versions) != want || shape.relation.populated != (want != 0) {
+					if len(shape.replacement.versions) != want || shape.relation.Populated != (want != 0) {
 						t.Fatal("incomplete private population", shape)
 					}
 					for _, row := range shape.replacement.versions {
@@ -163,7 +163,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "descriptor":
 				next := cloneCatalog(e.catalog.state)
 				copy := *next.MustRelation(target.Address)
-				copy.revision++
+				copy.ObjectRevision++
 				next.setDescriptor(target.Address, &copy)
 				e.catalog.state = next
 			case "roles":

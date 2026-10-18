@@ -7,22 +7,22 @@ import (
 
 func droppedConstraint(parent *relationDescriptor, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
 	if action.Action == parser.DropConstraint {
-		for _, c := range parent.uniqueConstraints {
+		for _, c := range parent.UniqueConstraints {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
 			}
 		}
-		for _, c := range parent.exclusionConstraints {
+		for _, c := range parent.ExclusionConstraints {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
 			}
 		}
-		for _, c := range parent.checkConstraints {
+		for _, c := range parent.CheckConstraints {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
 			}
 		}
-		for _, c := range parent.notNullConstraints {
+		for _, c := range parent.NotNullConstraints {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
 			}
@@ -74,7 +74,7 @@ func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor
 		retired := [2]ids.ObjectAddress{constraint, address}
 		roots := retired[:1]
 		if address != (ids.ObjectAddress{}) {
-			if err := provider.remove(provider.owner.catalog.domain.Ref(provider.base.Epoch(), address)); err != nil {
+			if err := provider.remove(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)); err != nil {
 				return next, err
 			}
 			roots = retired[:]
@@ -83,7 +83,7 @@ func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor
 			return next, err
 		}
 		// CASCADE can remove a self-reference from this same parent.
-		next = provider.descriptor(old.address).(*relationDescriptor)
+		next = provider.descriptor(old.Address()).(*relationDescriptor)
 	}
 	return next, nil
 }

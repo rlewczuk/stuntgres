@@ -100,7 +100,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	ns := base.MustNamespace(owner.temporaryNamespace)
 	var children []ids.ObjectAddress
 	for a, d := range base.Descriptors() {
-		if d.Namespace() == ns.address {
+		if d.Namespace() == ns.Address() {
 			children = append(children, a)
 		}
 	}
@@ -114,7 +114,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 		t.Fatal("stale candidate partially published namespace or children")
 	}
 	for _, name := range []string{"coll_cleanup_first", "coll_cleanup_late"} {
-		if len(current.Lookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.address, Name: name})) != 1 {
+		if len(current.Lookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.Address(), Name: name})) != 1 {
 			t.Fatal("cleanup lost owned child", name)
 		}
 	}

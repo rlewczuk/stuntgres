@@ -17,13 +17,13 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	earlier := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
-	first.namespace = earlier.address
+	first.ObjectNamespace = earlier.Address()
 	nondefault := conversionUnitDefinition(e, 90003, "shadow_nondefault", false)
-	nondefault.namespace = earlier.address
+	nondefault.ObjectNamespace = earlier.Address()
 	stage := e.BeginCatalogStage(view)
 	for _, d := range []Descriptor{earlier, low, high, first, nondefault} {
 		if err := stage.Create(d); err != nil {
@@ -32,17 +32,17 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	scope := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.address, low.Namespace()}}
+	scope := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}
 	procedure, err := scope.conversionProcedure(6, 8)
-	if err != nil || procedure == nil || procedure.address != low.handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
+	if err != nil || procedure == nil || procedure.Address() != low.Handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
-	reversed := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.address}}
+	reversed := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}
 	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("default index OID order, not name order", err)
 	}
 	removedDefault := *first
-	removedDefault.defaultConversion, removedDefault.revision = false, 2
+	removedDefault.DefaultConversion, removedDefault.ObjectRevision = false, 2
 	stage = e.BeginCatalogStage(view)
 	if err = stage.Replace(&removedDefault); err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	actor := auth.roles.LookupRef("pg_monitor")
 	auth.state.CurrentUser = actor
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
@@ -135,7 +135,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	private := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	private := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
@@ -148,10 +148,10 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), private.address)); err == nil {
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), private.Address())); err == nil {
 		t.Fatal("private schema supplied implicit USAGE")
 	}
-	if err = e.SetObjectACL(context.Background(), e.catalog.domain.Ref(auth.catalog.Epoch(), private.address), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err = e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(auth.catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
@@ -161,7 +161,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), private.address)); err != nil {
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), private.Address())); err != nil {
 		t.Fatal("actual namespace USAGE grant", err)
 	}
 }
@@ -173,9 +173,9 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: expr.Stable, strict: true, implementation: stockUnaccent}
+	first := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
-	second.address.ObjectID, second.namespace = 90001, catalog
+	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalog
 	stage := e.BeginCatalogStage(view)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -186,14 +186,14 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
 	path := []ids.ObjectAddress{public, catalog}
-	if actual := regprocSpelling(view, path, second.address.ObjectID); actual != "pg_catalog.unaccent" {
+	if actual := regprocSpelling(view, path, second.Address().ObjectID); actual != "pg_catalog.unaccent" {
 		t.Fatal("real namespace shadow output", actual)
 	}
-	if actual := regprocSpelling(view, path, first.address.ObjectID); actual != "unaccent" {
+	if actual := regprocSpelling(view, path, first.Address().ObjectID); actual != "unaccent" {
 		t.Fatal("visible routine output", actual)
 	}
 	proc, _ := view.LookupType(sqltype.Regproc)
-	value, err := sqltype.RegprocValue(proc, uint32(second.address.ObjectID))
+	value, err := sqltype.RegprocValue(proc, uint32(second.Address().ObjectID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,14 +202,14 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage = e.BeginCatalogStage(view)
-	if err = stage.Remove(e.catalog.domain.Ref(view.Epoch(), first.address)); err != nil {
+	if err = stage.Remove(e.catalog.Domain.Ref(view.Epoch(), first.Address())); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if actual := regprocSpelling(e.CatalogRead(), path, second.address.ObjectID); actual != "unaccent" {
+	if actual := regprocSpelling(e.CatalogRead(), path, second.Address().ObjectID); actual != "unaccent" {
 		t.Fatal("fresh routine output", actual)
 	}
-	if actual, err := rows.FormatRegproc(uint32(second.address.ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
+	if actual, err := rows.FormatRegproc(uint32(second.Address().ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
 		t.Fatal("retained REGPROC presentation changed", actual, err)
 	}
 	// Remove the referent itself through real catalog publication. Native SQL
@@ -217,7 +217,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	// drop/reinstall witness with the native captured-identity invariant.
 	view = e.CatalogRead()
 	procedureType, _ := view.LookupType(sqltype.Regprocedure)
-	procedureValue, err := sqltype.RegprocValue(procedureType, uint32(second.address.ObjectID))
+	procedureValue, err := sqltype.RegprocValue(procedureType, uint32(second.Address().ObjectID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	}
 	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{{offset: 7, typeID: sqltype.Regprocedure, value: procedureValue}}}}
 	stage = e.BeginCatalogStage(view)
-	if err := stage.Remove(e.catalog.domain.Ref(view.Epoch(), second.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
@@ -235,7 +235,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal("retained literal after referent removal", err)
 	}
-	if id, err := heldValue.ProcedureOID(); err != nil || id != uint32(second.address.ObjectID) {
+	if id, err := heldValue.ProcedureOID(); err != nil || id != uint32(second.Address().ObjectID) {
 		t.Fatal("retained literal identity changed", id, err)
 	}
 	op, auth := conversionUnitAuth(t, e)
@@ -255,13 +255,13 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 			t.Fatal("fresh removed-referent diagnostic", err)
 		}
 	}
-	if actual := routineSpelling(e.CatalogRead(), path, second.address.ObjectID, true, false); actual != "90001" {
+	if actual := routineSpelling(e.CatalogRead(), path, second.Address().ObjectID, true, false); actual != "90001" {
 		t.Fatal("fresh removed-referent output", actual)
 	}
-	if actual, err := rows.FormatRegproc(uint32(second.address.ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
+	if actual, err := rows.FormatRegproc(uint32(second.Address().ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
 		t.Fatal("retained REGPROC after referent removal", actual, err)
 	}
-	if actual, err := rows.FormatRegprocedure(uint32(second.address.ObjectID)); err != nil || actual != "unaccent(text)" {
+	if actual, err := rows.FormatRegprocedure(uint32(second.Address().ObjectID)); err != nil || actual != "unaccent(text)" {
 		t.Fatal("retained REGPROCEDURE after referent removal", actual, err)
 	}
 }

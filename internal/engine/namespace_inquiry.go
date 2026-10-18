@@ -134,7 +134,7 @@ func (n namespaceInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid namespace inquiry")
 	}
 	ns, _ := auth.catalog.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
-	other := ns != nil && ns.temporary != (ids.SessionToken{}) && ns.temporary != auth.session.token
+	other := ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.session.token
 	return sqltype.Boolean(n.Usage.Type, other), nil
 }
 
@@ -150,7 +150,7 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 	}
 	if s.catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
 		for a, d := range s.catalog.descriptors {
-			if ns, ok := d.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == auth.session.token {
+			if ns, ok := d.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				auth.stagedTemporary = a
 				break
 			}

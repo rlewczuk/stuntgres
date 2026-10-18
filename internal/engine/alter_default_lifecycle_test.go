@@ -29,8 +29,8 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 				case "revision":
 					old := e.catalog.state.MustRelation(ref.Address)
 					next := *old
-					next.revision++
-					next.comment = "retained"
+					next.ObjectRevision++
+					next.Comment = "retained"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					defer e.DiscardCatalogStage(stage)
 					if err := stage.Replace(&next); err != nil {
@@ -65,7 +65,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 					if kind == "revision" {
 						lockAwait(t, done, nil)
 						d := e.catalog.state.MustRelation(ref.Address)
-						if d.comment != "retained" {
+						if d.Comment != "retained" {
 							t.Fatal("lost grant-time revision")
 						}
 						run(t, e, "INSERT INTO t DEFAULT VALUES")
@@ -101,21 +101,21 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			storage := e.storage[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()
 				case "descriptor":
 					next := *old
-					next.revision++
-					next.comment = "changed"
+					next.ObjectRevision++
+					next.Comment = "changed"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					defer e.DiscardCatalogStage(stage)
 					if err := stage.Replace(&next); err != nil {
@@ -142,7 +142,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 				t.Fatal("stale DROP published")
 			}
 			current := e.catalog.state.MustRelation(ref.Address)
-			if current.defaults[current.attributes[0]].expression != old.defaults[old.attributes[0]].expression || e.storage[ref.Address] != storage {
+			if current.Defaults[current.Attributes[0]].Expression != old.Defaults[old.Attributes[0]].Expression || e.storage[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}
 			lockEmpty(t, e)

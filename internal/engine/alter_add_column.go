@@ -46,18 +46,18 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(insertError("0A000", "ALTER TABLE action is unsupported", action.Pos))
 		}
 	}
-	if old.relationKind != compositeRelation && isSystemColumn(column.Name) {
+	if old.RelationKind != compositeRelation && isSystemColumn(column.Name) {
 		return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name)))
 	}
-	if _, exists := old.index[column.Name]; exists {
-		message := fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.name)
+	if _, exists := old.Index[column.Name]; exists {
+		message := fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.Name())
 		if !action.IfNotExists {
 			return fail(sqlError("42701", message))
 		}
 		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
 		return old, addedColumn{}, nil
 	}
-	if old.attributeHighWater >= 1600 {
+	if old.AttributeHighWater >= 1600 {
 		return fail(sqlError("54011", "tables can have at most 1600 columns"))
 	}
 	if serialTypeName(column.TypeName) != "" {
@@ -81,7 +81,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	}
-	declaration, err := bindCreateColumnDeclaration(column, old.name)
+	declaration, err := bindCreateColumnDeclaration(column, old.Name())
 	if err != nil {
 		return fail(err)
 	}
@@ -91,19 +91,19 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.generation != nil {
 		return fail(insertError("0A000", "ADD COLUMN generated declarations are unsupported", declaration.generation.Pos))
 	}
-	attribute := old.attributeHighWater + 1
+	attribute := old.AttributeHighWater + 1
 	next := *old
-	next.attributeHighWater = attribute
-	next.columns = slices.Clone(old.columns)
-	next.attributes = slices.Clone(old.attributes)
-	next.index = maps.Clone(old.index)
-	next.defaults = maps.Clone(old.defaults)
-	next.notNullConstraints = slices.Clone(old.notNullConstraints)
-	next.checkConstraints = slices.Clone(old.checkConstraints)
-	next.index[column.Name] = len(next.columns)
-	definition := ColumnDescriptor{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.address.ObjectID), OriginAttribute: int16(attribute)}
-	next.columns = append(next.columns, definition)
-	next.attributes = append(next.attributes, attribute)
+	next.AttributeHighWater = attribute
+	next.Columns = slices.Clone(old.Columns)
+	next.Attributes = slices.Clone(old.Attributes)
+	next.Index = maps.Clone(old.Index)
+	next.Defaults = maps.Clone(old.Defaults)
+	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
+	next.CheckConstraints = slices.Clone(old.CheckConstraints)
+	next.Index[column.Name] = len(next.Columns)
+	definition := ColumnDescriptor{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
+	next.Columns = append(next.Columns, definition)
+	next.Attributes = append(next.Attributes, attribute)
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
 	if usage.Type.HasDomainChecks() {
 		// The omitted value is fresh base-type NULL, not an already checked
@@ -120,22 +120,22 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.defaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.queryAuth = &auth
-		binder.defaultTemporary = auth.catalog.MustNamespace(old.namespace).temporary
+		binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
 		node, err := binder.bindDefault(declaration.defaultExpr, definition)
 		if err != nil {
 			return fail(alterCookingError(err))
 		}
 		if !structuralNull(node) {
-			persisted := columnDefault{expression: node}
-			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.dependencies, commentSnapshot: &persisted.catalogSnapshot, catalogAliasReferences: &persisted.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+			persisted := columnDefault{Expression: node}
+			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
-			if next.defaults == nil {
-				next.defaults = make(map[int32]columnDefault)
+			if next.Defaults == nil {
+				next.Defaults = make(map[int32]columnDefault)
 			}
-			next.defaults[attribute] = persisted
+			next.Defaults[attribute] = persisted
 			added.expression = node
-			added.dependencies, added.consumer = persisted.dependencies, old
+			added.dependencies, added.consumer = persisted.Dependencies, old
 		}
 	}
 	if err := refreshGenerationChecks(&next, auth.catalog); err != nil {

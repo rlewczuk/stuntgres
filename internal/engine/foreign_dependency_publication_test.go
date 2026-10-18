@@ -260,9 +260,9 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, b, "BEGIN")
 		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *CatalogStage, old *foreignDescriptor) error {
 			next := *old
-			next.wrapper = target
+			next.Wrapper = target
 			var err error
-			next.revision, err = e.catalog.revisionLocked()
+			next.ObjectRevision, err = e.catalog.revisionLocked()
 			if err != nil {
 				return err
 			}
@@ -287,7 +287,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, b, create)
 		late := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
 		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
-			return stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), old.address), false)
+			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -367,7 +367,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				t.Fatal("unrelated metadata change blocked or lost independent retirement", err)
 			}
 			server := e.catalog.state.MustForeign(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_unrelated_server"}))
-			if len(server.options) != 1 || server.options[0] != (ForeignOption{Name: "tag", Value: "changed"}) {
+			if len(server.Options) != 1 || server.Options[0] != (ForeignOption{Name: "tag", Value: "changed"}) {
 				t.Fatal("unrelated committed server revision was lost", server)
 			}
 		})
@@ -387,9 +387,9 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	// publisher's final candidate override when the old incoming edge is gone.
 	err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
 		next := *old
-		next.wrapper = survivor
+		next.Wrapper = survivor
 		var err error
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
@@ -400,7 +400,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	}
 	sessionSQL(t, a, "COMMIT")
 	server, ok := e.catalog.state.Foreign(late)
-	if !ok || server.wrapper != survivor || e.catalog.state.Get(target) != nil || e.catalog.state.Get(survivor) == nil {
+	if !ok || server.Wrapper != survivor || e.catalog.state.Get(target) != nil || e.catalog.state.Get(survivor) == nil {
 		t.Fatal("final valid rewire falsely conflicted or published a dangling edge", server)
 	}
 }

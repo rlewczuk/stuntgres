@@ -16,7 +16,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 		t.Run(map[bool]string{false: "growth", true: "cancel"}[cancelWait], func(t *testing.T) {
 			e := New()
 			parent := inheritanceLifecycleTable(e, 20000, "p")
-			firstChild := inheritanceLifecycleTable(e, 20001, "first", parent.address)
+			firstChild := inheritanceLifecycleTable(e, 20001, "first", parent.Address())
 			inheritanceLifecycleInstall(e, parent, firstChild)
 			holder, holderDone := roleOperation(t, e, "postgres")
 			defer holderDone()
@@ -25,7 +25,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				t.Fatal(err)
 			}
 			base := e.CatalogRead()
-			ref := e.catalog.domain.Ref(base.Epoch(), parent.address)
+			ref := e.catalog.Domain.Ref(base.Epoch(), parent.Address())
 			if err = e.locks.Acquire(context.Background(), holder.session.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
 				t.Fatal(err)
 			}
@@ -75,14 +75,14 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 					}
 				}
 			}()
-			go func() { result <- lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{parent.address}) }()
+			go func() { result <- lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{parent.Address()}) }()
 			lockPending(t, e, 1)
 			if cancelWait {
 				cancel()
 			} else {
 				// Publish immutable metadata while the older SUE ticket owns the
 				// parent. The queued drop must see this child after receiving AX.
-				child := inheritanceLifecycleTable(e, 20002, "late", firstChild.address)
+				child := inheritanceLifecycleTable(e, 20002, "late", firstChild.Address())
 				e.mu.Lock()
 				inheritanceLifecycleInstall(e, child)
 				e.mu.Unlock()
@@ -107,13 +107,13 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if stage.base.state == base.state || len(inheritanceChildren(stage.base, firstChild.address)) != 1 {
+				if stage.base.state == base.state || len(inheritanceChildren(stage.base, firstChild.Address())) != 1 {
 					t.Fatal("late child omitted")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
+				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 					t.Fatal("late child did not block RESTRICT")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 					t.Fatal(err)
 				}
 				if len(stage.removals) != 3 {
@@ -141,7 +141,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 		lockEmpty(t, e)
 	}()
 	base := e.CatalogRead()
-	ref := e.catalog.domain.Ref(base.Epoch(), table.address)
+	ref := e.catalog.Domain.Ref(base.Epoch(), table.Address())
 	if err := e.locks.Acquire(context.Background(), holder.session.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{table.address}); err != nil {
+	if err := lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{table.Address()}); err != nil {
 		t.Fatal("standalone DROP attempted an extra root grant", err)
 	}
 	lockState := e.locks.Inspect(scope.ticket)

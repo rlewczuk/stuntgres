@@ -11,11 +11,11 @@ import (
 // admission or volatility policy. Captured closed expressions and the selected
 // closed regclass result subset may install after their providers are created.
 func defaultReplayDeferrable(definition columnDefault) bool {
-	node := definition.expression
+	node := definition.Expression
 	if node == nil {
 		return false
 	}
-	if definition.catalogAliasReferences {
+	if definition.CatalogAliasReferences {
 		return true
 	}
 	if closedSequenceDefault(node) {
@@ -23,7 +23,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 		walkBoundExpression(node, func(child expr.Expr) {
 			if call, ok := child.(sequenceCallExpression); ok {
 				captured = true
-				if !slices.Contains(definition.dependencies, call.ref) {
+				if !slices.Contains(definition.Dependencies, call.ref) {
 					eligible = false
 				}
 			}
@@ -46,7 +46,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 		if ok && literal.RegclassRef != (ids.ObjectRef{}) &&
 			literal.RegclassRef.Address.ClassID == ids.RelationClassID && literal.RegclassRef.Address.SubID == 0 &&
 			literal.ResultUsage().Type.ID() == sqltype.Regclass && !literal.value.IsNull() &&
-			slices.Contains(definition.dependencies, literal.RegclassRef) {
+			slices.Contains(definition.Dependencies, literal.RegclassRef) {
 			captured = true
 		}
 	})

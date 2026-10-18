@@ -12,11 +12,11 @@ import (
 )
 
 func operatorSQLName(view CatalogRead, d *operatorDescriptor) string {
-	return quoteIdentifier(view.Get(d.namespace).Name()) + "." + d.name
+	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + d.Name()
 }
 func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, error) {
 	arguments := [2]string{"NONE", "NONE"}
-	for i, id := range [...]ids.OID{d.left, d.right} {
+	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
 			continue
 		}
@@ -37,11 +37,11 @@ func operatorRoutineSQLName(view CatalogRead, id ids.OID) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
 	}
-	namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.namespace})
+	namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.Namespace})
 	if namespace == nil {
 		return "", fmt.Errorf("stuntgres: missing operator routine namespace")
 	}
-	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.name), nil
+	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.Name), nil
 }
 func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
@@ -50,7 +50,7 @@ func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles author
 	if err := (operatorProvider{}).Validate(view, d); err != nil {
 		return dumpDomain{}, err
 	}
-	if d.function == 0 {
+	if d.Function == 0 {
 		return orphanOperatorShellDump(ctx, view, roles, d)
 	}
 	return operatorDumpDefined(ctx, view, roles, d, false)
@@ -60,19 +60,19 @@ func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles author
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-	if peer == nil || peer.function == 0 || peer.seeded() {
+	if peer == nil || peer.Function == 0 || peer.seeded() {
 		return false
 	}
-	reciprocal := peer.commutator
+	reciprocal := peer.Commutator
 	if kind == 1 {
-		reciprocal = peer.negator
+		reciprocal = peer.Negator
 	}
-	return reciprocal == source.address.ObjectID
+	return reciprocal == source.Address().ObjectID
 }
 
 func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor, keepForwardLinks bool) (dumpDomain, error) {
 	options := make([]string, 0, 10)
-	for i, id := range [...]ids.OID{d.left, d.right} {
+	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
 			continue
 		}
@@ -87,12 +87,12 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		options = append(options, key+" = "+text)
 	}
-	routine, err := operatorRoutineSQLName(view, d.function)
+	routine, err := operatorRoutineSQLName(view, d.Function)
 	if err != nil {
 		return dumpDomain{}, err
 	}
 	options = append(options, "FUNCTION = "+routine)
-	for i, id := range [...]ids.OID{d.commutator, d.negator} {
+	for i, id := range [...]ids.OID{d.Commutator, d.Negator} {
 		if id == 0 {
 			continue
 		}
@@ -109,7 +109,7 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		options = append(options, key+" = OPERATOR("+operatorSQLName(view, peer)+")")
 	}
-	for i, id := range [...]ids.OID{d.restriction, d.join} {
+	for i, id := range [...]ids.OID{d.Restriction, d.Join} {
 		if id == 0 {
 			continue
 		}
@@ -123,22 +123,22 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		options = append(options, key+" = "+name)
 	}
-	if d.hash {
+	if d.Hash {
 		options = append(options, "HASHES")
 	}
-	if d.merge {
+	if d.Merge {
 		options = append(options, "MERGES")
 	}
 	text := "CREATE OPERATOR " + operatorSQLName(view, d) + " (" + strings.Join(options, ", ") + ");\n"
 	owners := []*operatorDescriptor{d}
-	for _, id := range [...]ids.OID{d.commutator, d.negator} {
+	for _, id := range [...]ids.OID{d.Commutator, d.Negator} {
 		peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-		if peer != nil && peer.function == 0 {
+		if peer != nil && peer.Function == 0 {
 			owners = append(owners, peer)
 		}
 	}
 	for _, owned := range owners {
-		owner, err := roles.Descriptor(owned.owner)
+		owner, err := roles.Descriptor(owned.Owner)
 		if err != nil {
 			return dumpDomain{}, err
 		}
@@ -158,7 +158,7 @@ func operatorShellGenerator(view CatalogRead, shell *operatorDescriptor) *operat
 	var selected *operatorDescriptor
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*operatorDescriptor)
-		if ok && d.function != 0 && (d.commutator == shell.address.ObjectID || d.negator == shell.address.ObjectID) && (selected == nil || d.address.ObjectID < selected.address.ObjectID) {
+		if ok && d.Function != 0 && (d.Commutator == shell.Address().ObjectID || d.Negator == shell.Address().ObjectID) && (selected == nil || d.Address().ObjectID < selected.Address().ObjectID) {
 			selected = d
 		}
 	}
@@ -168,13 +168,13 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 	var routine *procedureDescriptor
 	negator := false
 	for key, declaration := range builtinOperatorRoutineByDeclaration {
-		comm := shell.left != 0 && key.left == shell.right && key.right == shell.left
-		neg := key.left == shell.left && key.right == shell.right && declaration.result == ids.OID(sqltype.Bool)
+		comm := shell.Left != 0 && key.left == shell.Right && key.right == shell.Left
+		neg := key.left == shell.Left && key.right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
 			continue
 		}
-		candidate, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id})
-		if candidate != nil && (routine == nil || candidate.address.ObjectID < routine.address.ObjectID) {
+		candidate, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID})
+		if candidate != nil && (routine == nil || candidate.Address().ObjectID < routine.Address().ObjectID) {
 			routine = candidate
 			negator = !comm
 		}
@@ -195,31 +195,31 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 			}
 		}
 		symbol += "#"
-		left, right := shell.right, shell.left
+		left, right := shell.Right, shell.Left
 		if negator {
-			left, right = shell.left, shell.right
+			left, right = shell.Left, shell.Right
 		}
-		key := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, namespace: shell.namespace, name: symbol, left: left, right: right}
+		key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: shell.Namespace(), ObjectName: symbol, Left: left, Right: right}
 		if _, exists := view.LookupName(descriptorNameKey(&key)); !exists {
 			name = symbol
 			break
 		}
 	}
 	generator := *shell
-	generator.name = name
-	generator.left, generator.right = shell.right, shell.left
+	generator.ObjectName = name
+	generator.Left, generator.Right = shell.Right, shell.Left
 	if negator {
-		generator.left, generator.right = shell.left, shell.right
+		generator.Left, generator.Right = shell.Left, shell.Right
 	}
-	generator.function, generator.result = routine.address.ObjectID, routine.result
-	generator.commutator, generator.negator = 0, 0
+	generator.Function, generator.Result = routine.Address().ObjectID, routine.Result
+	generator.Commutator, generator.Negator = 0, 0
 	if negator {
-		generator.negator = shell.address.ObjectID
+		generator.Negator = shell.Address().ObjectID
 	} else {
-		generator.commutator = shell.address.ObjectID
+		generator.Commutator = shell.Address().ObjectID
 	}
-	generator.hash, generator.merge = false, false
-	generator.restriction, generator.join = 0, 0
+	generator.Hash, generator.Merge = false, false
+	generator.Restriction, generator.Join = 0, 0
 	declaration, err := operatorDumpDefined(ctx, view, roles, &generator, true)
 	if err != nil {
 		return dumpDomain{}, err
@@ -238,13 +238,13 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 // redirected to completion; redirecting structural edges would invent cycles.
 func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph map[dumpEventKey][]dumpEventKey) {
 	for _, source := range operators {
-		if source.function == 0 {
+		if source.Function == 0 {
 			continue
 		}
-		declaration := dumpEventKey{oid: source.address.ObjectID}
-		for kind, id := range [...]ids.OID{source.commutator, source.negator} {
+		declaration := dumpEventKey{oid: source.Address().ObjectID}
+		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-			if peer == nil || peer.function == 0 || peer.seeded() {
+			if peer == nil || peer.Function == 0 || peer.seeded() {
 				continue
 			}
 			target := dumpEventKey{oid: id}
@@ -282,7 +282,7 @@ func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey]
 
 func operatorDumpLinks(view CatalogRead, source *operatorDescriptor) (string, error) {
 	var options []string
-	for kind, id := range [...]ids.OID{source.commutator, source.negator} {
+	for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 		if id == 0 || !operatorDumpDeferredLink(view, source, kind, id) {
 			continue
 		}

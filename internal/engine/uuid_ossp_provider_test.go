@@ -16,7 +16,7 @@ func TestUUIDOsspZeroArity(t *testing.T) {
 		want      int64
 	}{{"", 0}, {"25", 1}, {"25,23", 2}, {"25,23,2950,16", 4}} {
 		t.Run(string(tc.signature), func(t *testing.T) {
-			if got := procedureArity(&procedureDescriptor{signature: tc.signature}); got != tc.want {
+			if got := procedureArity(&procedureDescriptor{Signature: tc.signature}); got != tc.want {
 				t.Fatalf("procedureArity(%q)=%d want=%d", tc.signature, got, tc.want)
 			}
 		})
@@ -42,15 +42,15 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestUUIDOsspProviderIdentity(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.version != "1.1" || len(ext.members) != 1 || ext.Namespace() != (ids.ObjectAddress{}) {
+	if ext.Version != "1.1" || len(ext.Members) != 1 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
-	address := ext.members[0]
+	address := ext.Members[0]
 	proc := view.MustProcedure(address)
-	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != expr.Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
+	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
-	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := collectPGDepend(context.Background(), view)
@@ -59,7 +59,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			count++
 			if edge.dependent != address {
 				t.Fatal(edge)
@@ -71,30 +71,30 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*procedureDescriptor){
 		func(p *procedureDescriptor) {
-			p.implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
+			p.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
 		},
-		func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
-		func(p *procedureDescriptor) { p.builtin = builtinRoutineByOID[3432] },
-		func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
-		func(p *procedureDescriptor) { p.implementation = stockFuzzystrmatch },
-		func(p *procedureDescriptor) { p.implementation = stockUnaccent },
-		func(p *procedureDescriptor) { p.implementation = stockIntarray },
-		func(p *procedureDescriptor) { p.implementation = stockIntagg },
-		func(p *procedureDescriptor) { p.aggregate = &ownedAggregate{} },
-		func(p *procedureDescriptor) { p.foreign = &foreignProcedure{} },
-		func(p *procedureDescriptor) { p.name = "uuidv4" },
-		func(p *procedureDescriptor) { p.signature = "25" },
-		func(p *procedureDescriptor) { p.result = 25 },
-		func(p *procedureDescriptor) { p.volatility = expr.Immutable },
-		func(p *procedureDescriptor) { p.strict = false },
-		func(p *procedureDescriptor) { p.revision = 0 },
-		func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
-		func(p *procedureDescriptor) { p.dictionary = ext.address },
+		func(p *procedureDescriptor) { p.RoutineKind = procedureRoutine },
+		func(p *procedureDescriptor) { p.Builtin = builtinRoutineByOID[3432] },
+		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
+		func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch },
+		func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
+		func(p *procedureDescriptor) { p.Implementation = stockIntarray },
+		func(p *procedureDescriptor) { p.Implementation = stockIntagg },
+		func(p *procedureDescriptor) { p.Aggregate = &ownedAggregate{} },
+		func(p *procedureDescriptor) { p.Foreign = &foreignProcedure{} },
+		func(p *procedureDescriptor) { p.ObjectName = "uuidv4" },
+		func(p *procedureDescriptor) { p.Signature = "25" },
+		func(p *procedureDescriptor) { p.Result = 25 },
+		func(p *procedureDescriptor) { p.Volatility = expr.Immutable },
+		func(p *procedureDescriptor) { p.Strict = false },
+		func(p *procedureDescriptor) { p.ObjectRevision = 0 },
+		func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
+		func(p *procedureDescriptor) { p.Dictionary = ext.Address() },
 	} {
 		bad := *proc
 		mutate(&bad)
 		view.state.setDescriptor(address, &bad)
-		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
+		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.ValidateExtension(view, ext)
 		view.state.setDescriptor(address, proc)
 		if failure == nil || manifest == nil {
@@ -102,10 +102,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*extensionDescriptor){
-		func(x *extensionDescriptor) { x.version = "missing" },
-		func(x *extensionDescriptor) { x.name = "pgcrypto" },
-		func(x *extensionDescriptor) { x.members = nil },
-		func(x *extensionDescriptor) { x.members = []ids.ObjectAddress{address, address} },
+		func(x *extensionDescriptor) { x.Version = "missing" },
+		func(x *extensionDescriptor) { x.ObjectName = "pgcrypto" },
+		func(x *extensionDescriptor) { x.Members = nil },
+		func(x *extensionDescriptor) { x.Members = []ids.ObjectAddress{address, address} },
 	} {
 		bad := *ext
 		mutate(&bad)
@@ -116,24 +116,24 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	// Existing providers must reject a mixed uuid-ossp authority marker too.
 	cryptoEngine, cryptoExt := pgcryptoUnitInstalled(t)
 	cryptoView := cryptoEngine.CatalogRead()
-	original := cryptoView.MustProcedure(cryptoExt.members[0])
+	original := cryptoView.MustProcedure(cryptoExt.Members[0])
 	bad := *original
-	bad.implementation = stockUUIDOssp
-	cryptoView.state.setDescriptor(bad.address, &bad)
+	bad.Implementation = stockUUIDOssp
+	cryptoView.state.setDescriptor(bad.Address(), &bad)
 	failure := stockPgcrypto.ValidateExtension(cryptoView, cryptoExt)
-	cryptoView.state.setDescriptor(bad.address, original)
+	cryptoView.state.setDescriptor(bad.Address(), original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
 	}
 	intaggEngine, intaggExt := intaggUnitInstalled(t)
 	intaggView := intaggEngine.CatalogRead()
-	for _, address := range intaggExt.members {
+	for _, address := range intaggExt.Members {
 		original := intaggView.MustProcedure(address)
 		bad := *original
-		bad.implementation = stockUUIDOssp
+		bad.Implementation = stockUUIDOssp
 		intaggView.state.setDescriptor(address, &bad)
 		manifestFailure := stockIntagg.ValidateExtension(intaggView, intaggExt)
-		admissionFailure := intaggEngine.catalog.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
+		admissionFailure := intaggEngine.catalog.Providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.state.setDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
@@ -141,8 +141,8 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	builtin := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 	mixed := *builtin
-	mixed.implementation = stockUUIDOssp
-	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
+	mixed.Implementation = stockUUIDOssp
+	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
 }
@@ -150,18 +150,18 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 func TestUUIDOsspProviderCollision(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	before := e.catalog.state
-	member := ext.members[0]
+	member := ext.Members[0]
 	procedure := before.Get(member)
 	descriptors, names := before.DescriptorCount(), before.NameCount()
 	key := descriptorNameKey(procedure)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
 	e.mu.Lock()
-	err := stockUUIDOssp.stage(e, stage, &copy, ext.owner, AuthorizationView{})
+	err := stockUUIDOssp.stage(e, stage, &copy, ext.Owner, AuthorizationView{})
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
-	if err == nil || e.catalog.state != before || e.catalog.state.DescriptorCount() != descriptors || e.catalog.state.NameCount() != names || e.catalog.state.Get(member) != procedure || e.catalog.state.Get(ext.address) != ext || e.catalog.state.NameAddress(key) != member {
+	if err == nil || e.catalog.state != before || e.catalog.state.DescriptorCount() != descriptors || e.catalog.state.NameCount() != names || e.catalog.state.Get(member) != procedure || e.catalog.state.Get(ext.Address()) != ext || e.catalog.state.NameAddress(key) != member {
 		t.Fatal("procedure collision was not rejected atomically", err)
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {

@@ -38,7 +38,7 @@ func TestRowLockViewAuthorization(t *testing.T) {
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	grant(table, entry(owner.Ref, authorization.SelectPrivilege))
-	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"}))
+	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"}))
 	grant(namespace, entry(owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege), entry(reader.Ref, authorization.UsagePrivilege))
 	for _, name := range []string{"s.owned", "s.invoker", "s.nested", "s.stored"} {
 		grant(roleTableRef(t, e, name), entry(owner.Ref, authorization.SelectPrivilege|authorization.UpdatePrivilege), entry(reader.Ref, authorization.SelectPrivilege|authorization.UpdatePrivilege))

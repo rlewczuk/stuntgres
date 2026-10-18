@@ -46,26 +46,26 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	view := e.stageRead(stage)
-	if !d.relationKind.stored() || d.populated || d.view == nil || viewOf(d).rule == 0 {
+	if !d.RelationKind.stored() || d.Populated || d.View == nil || viewOf(d).rule == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	populated := *d
-	populated.populated = true
+	populated.Populated = true
 	if err := (relationProvider{}).Validate(view, &populated); err != nil {
 		t.Fatal("empty populated descriptor:", err)
 	}
 	for _, kind := range []relationKind{tableRelation, viewRelation, catalogRelation} {
 		invalid := populated
-		invalid.relationKind = kind
+		invalid.RelationKind = kind
 		if err := (relationProvider{}).Validate(view, &invalid); err == nil {
 			t.Fatalf("accepted populated non-materialization %v", kind)
 		}
 	}
 	invalid := *d
-	invalid.view = nil
+	invalid.View = nil
 	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
 		t.Fatal("accepted missing definition")
 	}
@@ -75,8 +75,8 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 	e := New()
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	d.populated = true
-	value, err := sqltype.Integer(d.columns[0].Usage.Type, 7)
+	d.Populated = true
+	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,18 +84,18 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	store := stage.initialTables[d.address]
+	store := stage.initialTables[d.Address()]
 	if &store.versions[0].values[0] != &rows[0][0] {
 		t.Fatal("finalized row buffer copied")
 	}
 	if err := stage.validateInitialTables(); err != nil {
 		t.Fatal(err)
 	}
-	d.populated = false
+	d.Populated = false
 	if err := stage.validateInitialTables(); err == nil {
 		t.Fatal("unpopulated store accepted rows")
 	}
-	d.populated, d.relationKind = false, viewRelation
+	d.Populated, d.RelationKind = false, viewRelation
 	if err := stage.validateInitialTables(); err == nil {
 		t.Fatal("dynamic view accepted physical rows")
 	}
@@ -105,9 +105,9 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	e := New()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	source := &relationDescriptor{namespace: d.namespace, attributes: []int32{1, 3}}
-	ref := e.catalog.domain.Ref(stage.base.Epoch(), d.address)
-	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{ref: ref, revision: d.revision}}}
+	source := &relationDescriptor{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), d.Address())
+	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -119,7 +119,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source.attributes[1] = 9
+	source.Attributes[1] = 9
 	if definition.query != b.query || definition.syntax != viewOf(d).syntax || definition.rule == 0 || definition.rule == viewOf(d).rule {
 		t.Fatal("definition rebound or lost fresh rule identity")
 	}
@@ -178,12 +178,12 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
 			e.catalog.state = e.stageRead(stage).state
-			e.storage[d.address] = &relationStorage{}
-			before, store := e.catalog.state, e.storage[d.address]
+			e.storage[d.Address()] = &relationStorage{}
+			before, store := e.catalog.state, e.storage[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{{"public", "unit_mv", true, rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
-			if e.catalog.state != before || e.storage[d.address] != store || d.populated {
+			if e.catalog.state != before || e.storage[d.Address()] != store || d.Populated {
 				t.Fatal("failed private import published a prefix")
 			}
 		})
@@ -192,7 +192,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	e.catalog.state = e.stageRead(stage).state
-	e.storage[d.address] = &relationStorage{}
+	e.storage[d.Address()] = &relationStorage{}
 	record := materializedSnapshot{"public", "unit_mv", true, "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")
@@ -200,9 +200,9 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record}); err != nil {
 		t.Fatal(err)
 	}
-	current := e.catalog.state.MustRelation(d.address)
-	stored := e.storage[d.address].versions
-	if current == d || !current.populated || d.populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].values[0], stored[1].values[0]) || !stored[2].values[0].IsNull() {
+	current := e.catalog.state.MustRelation(d.Address())
+	stored := e.storage[d.Address()].versions
+	if current == d || !current.Populated || d.Populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].values[0], stored[1].values[0]) || !stored[2].values[0].IsNull() {
 		t.Fatal("import lost immutable descriptor, duplicate or NULL")
 	}
 }
@@ -211,11 +211,11 @@ func TestMaterializedViewPublication(t *testing.T) {
 	e := New()
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	d.populated = true
+	d.Populated = true
 	before := e.catalog.state
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	value, err := sqltype.Integer(d.columns[0].Usage.Type, 7)
+	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,19 +14,19 @@ const temporaryInheritanceReplacementError = "stuntgres: catalog replacement wit
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.inheritance == nil {
+		if !ok || table.Inheritance == nil {
 			continue
 		}
-		namespace := e.catalog.state.MustNamespace(table.namespace)
-		if namespace.temporary == (ids.SessionToken{}) {
+		namespace := e.catalog.state.MustNamespace(table.Namespace())
+		if namespace.Temporary == (ids.SessionToken{}) {
 			continue
 		}
-		for _, parent := range table.inheritance.parents {
+		for _, parent := range table.Inheritance.Parents {
 			source, ok := e.catalog.state.Relation(parent)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")
 			}
-			if e.catalog.state.MustNamespace(source.namespace).temporary == (ids.SessionToken{}) {
+			if e.catalog.state.MustNamespace(source.Namespace()).Temporary == (ids.SessionToken{}) {
 				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
 			}
 		}
@@ -40,39 +40,39 @@ func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) i
 	if graph == nil {
 		return nil
 	}
-	next := &tableInheritance{parents: make([]ids.ObjectAddress, len(graph.parents)), columns: make(map[int32]inheritedColumn, len(graph.columns)), checks: make(map[string]inheritedConstraint, len(graph.checks)), notNull: make(map[int32]inheritedConstraint, len(graph.notNull))}
+	next := &tableInheritance{Parents: make([]ids.ObjectAddress, len(graph.Parents)), Columns: make(map[int32]inheritedColumn, len(graph.Columns)), Checks: make(map[string]inheritedConstraint, len(graph.Checks)), NotNull: make(map[int32]inheritedConstraint, len(graph.NotNull))}
 	origins := func(source []inheritanceOrigin) []inheritanceOrigin {
 		result := make([]inheritanceOrigin, len(source))
 		for i, origin := range source {
 			result[i] = origin
-			result[i].constraint = constraint(origin)
-			result[i].parent = address(origin.parent)
+			result[i].Constraint = constraint(origin)
+			result[i].Parent = address(origin.Parent)
 		}
 		return result
 	}
 	retired := func(source []retiredInheritanceOrigin) []retiredInheritanceOrigin {
 		result := slices.Clone(source)
 		for i := range result {
-			result[i].parent.Address = address(result[i].parent.Address)
+			result[i].Parent.Address = address(result[i].Parent.Address)
 		}
 		return result
 	}
-	for i, parent := range graph.parents {
-		next.parents[i] = address(parent)
+	for i, parent := range graph.Parents {
+		next.Parents[i] = address(parent)
 	}
-	for attribute, column := range graph.columns {
-		column.origins = origins(column.origins)
-		next.columns[attribute] = column
+	for attribute, column := range graph.Columns {
+		column.Origins = origins(column.Origins)
+		next.Columns[attribute] = column
 	}
-	for name, check := range graph.checks {
-		check.origins = origins(check.origins)
-		check.retired = retired(check.retired)
-		next.checks[name] = check
+	for name, check := range graph.Checks {
+		check.Origins = origins(check.Origins)
+		check.Retired = retired(check.Retired)
+		next.Checks[name] = check
 	}
-	for attribute, notNull := range graph.notNull {
-		notNull.origins = origins(notNull.origins)
-		notNull.retired = retired(notNull.retired)
-		next.notNull[attribute] = notNull
+	for attribute, notNull := range graph.NotNull {
+		notNull.Origins = origins(notNull.Origins)
+		notNull.Retired = retired(notNull.Retired)
+		next.NotNull[attribute] = notNull
 	}
 	return next
 }
@@ -83,35 +83,35 @@ func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) i
 func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.inheritance == nil {
+		if !ok || table.Inheritance == nil {
 			continue
 		}
-		if namespace, ok := next.Namespace(table.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := next.Namespace(table.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		var remapErr error
-		graph := remapInheritance(table.inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin inheritanceOrigin) ids.OID {
-			if origin.constraint == 0 {
+		graph := remapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin inheritanceOrigin) ids.OID {
+			if origin.Constraint == 0 {
 				return 0
 			}
-			old, ok := previous[origin.parent].(*relationDescriptor)
-			parent, exists := next.Relation(origin.parent)
+			old, ok := previous[origin.Parent].(*relationDescriptor)
+			parent, exists := next.Relation(origin.Parent)
 			if !ok || !exists {
 				remapErr = fmt.Errorf("stuntgres: missing inheritance constraint parent")
-				return origin.constraint
+				return origin.Constraint
 			}
-			for _, check := range old.checkConstraints {
-				if check.OID == origin.constraint {
-					for _, current := range parent.checkConstraints {
+			for _, check := range old.CheckConstraints {
+				if check.OID == origin.Constraint {
+					for _, current := range parent.CheckConstraints {
 						if current.Name == check.Name {
 							return current.OID
 						}
 					}
 				}
 			}
-			for _, notNull := range old.notNullConstraints {
-				if notNull.OID == origin.constraint {
-					for _, current := range parent.notNullConstraints {
+			for _, notNull := range old.NotNullConstraints {
+				if notNull.OID == origin.Constraint {
+					for _, current := range parent.NotNullConstraints {
 						if current.Attribute == notNull.Attribute {
 							return current.OID
 						}
@@ -119,13 +119,13 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 				}
 			}
 			remapErr = fmt.Errorf("stuntgres: missing inheritance constraint origin")
-			return origin.constraint
+			return origin.Constraint
 		})
 		if remapErr != nil {
 			return remapErr
 		}
 		copy := *table
-		copy.inheritance = graph
+		copy.Inheritance = graph
 		next.setDescriptor(address, &copy)
 	}
 	return nil

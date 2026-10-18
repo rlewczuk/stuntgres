@@ -13,7 +13,7 @@ import (
 func TestPgClassCatalogACLRecheck(t *testing.T) {
 	e := New()
 	d := pgClassUnitSource(t, e)
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "class_metadata_reader", true, parser.RoleOptions{})
@@ -38,11 +38,11 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := retained.Check(requirement); err != nil {
 		t.Fatal("ACL replacement mutated retained authorization", err)
 	}
-	current := e.CatalogRead().MustRelation(d.address)
-	if current == d || len(current.acl.Entries) != 0 || !current.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public {
-		t.Fatal("ACL publication/source-root immutability", current.acl, d.acl)
+	current := e.CatalogRead().MustRelation(d.Address())
+	if current == d || len(current.ACL.Entries) != 0 || !current.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public {
+		t.Fatal("ACL publication/source-root immutability", current.ACL, d.ACL)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, d.acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, d.ACL); err != nil {
 		t.Fatal(err)
 	}
 	restored, err := reader.Authorization()

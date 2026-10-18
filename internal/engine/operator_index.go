@@ -9,20 +9,20 @@ import (
 // Membership only: descriptors, signatures and authorization always come from
 // the same captured catalog root, never from this derived index.
 type operatorNameKey struct {
-	namespace ids.ObjectAddress
-	name      string
+	Namespace ids.ObjectAddress
+	Name      string
 }
 
 type operatorNameIndex struct {
-	buckets map[operatorNameKey][]ids.ObjectAddress
+	Buckets map[operatorNameKey][]ids.ObjectAddress
 }
 
 var seededOperatorNames = func() *operatorNameIndex {
-	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
+	index := &operatorNameIndex{Buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		key := operatorNameKey{namespace, row.name}
-		index.buckets[key] = append(index.buckets[key], ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})
+		index.Buckets[key] = append(index.Buckets[key], ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})
 	}
 	return index
 }()
@@ -39,18 +39,18 @@ func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ids.Obje
 	if edit.touched == nil {
 		size := 1
 		if edit.index != nil {
-			size += len(edit.index.buckets)
+			size += len(edit.index.Buckets)
 		}
 		buckets := make(map[operatorNameKey][]ids.ObjectAddress, size)
 		if edit.index != nil {
-			for key, addresses := range edit.index.buckets {
+			for key, addresses := range edit.index.Buckets {
 				buckets[key] = addresses
 			}
 		}
-		edit.index = &operatorNameIndex{buckets: buckets}
+		edit.index = &operatorNameIndex{Buckets: buckets}
 		edit.touched = make(map[operatorNameKey]bool)
 	}
-	addresses := edit.index.buckets[key]
+	addresses := edit.index.Buckets[key]
 	if !edit.touched[key] {
 		detached := make([]ids.ObjectAddress, len(addresses), len(addresses)+extra)
 		copy(detached, addresses)
@@ -63,40 +63,40 @@ func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ids.Obje
 func (edit *operatorIndexEdit) replace(old, next Descriptor) {
 	before, wasOperator := old.(*operatorDescriptor)
 	after, isOperator := next.(*operatorDescriptor)
-	if wasOperator && isOperator && before.address == after.address && before.namespace == after.namespace && before.name == after.name {
+	if wasOperator && isOperator && before.Address() == after.Address() && before.Namespace() == after.Namespace() && before.Name() == after.Name() {
 		return
 	}
 	if wasOperator {
-		key := operatorNameKey{before.namespace, before.name}
+		key := operatorNameKey{before.Namespace(), before.Name()}
 		addresses := edit.bucket(key, 0)
 		for i, address := range addresses {
-			if address == before.address {
+			if address == before.Address() {
 				copy(addresses[i:], addresses[i+1:])
 				addresses = addresses[:len(addresses)-1]
 				break
 			}
 		}
 		if len(addresses) == 0 {
-			delete(edit.index.buckets, key)
+			delete(edit.index.Buckets, key)
 		} else {
-			edit.index.buckets[key] = addresses
+			edit.index.Buckets[key] = addresses
 		}
 	}
 	if isOperator {
-		key := operatorNameKey{after.namespace, after.name}
+		key := operatorNameKey{after.Namespace(), after.Name()}
 		addresses := edit.bucket(key, 1)
-		edit.index.buckets[key] = append(addresses, after.address)
+		edit.index.Buckets[key] = append(addresses, after.Address())
 	}
 }
 
 // Wholesale identity reconstruction only; ordinary catalog changes use deltas.
 // Call before any repair binder can capture the reconstructed descriptor maps.
 func rebuildOperatorNames(descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) *operatorNameIndex {
-	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
+	index := &operatorNameIndex{Buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
 	for address, descriptor := range descriptors {
 		if operator, ok := descriptor.(*operatorDescriptor); ok {
-			key := operatorNameKey{operator.namespace, operator.name}
-			index.buckets[key] = append(index.buckets[key], address)
+			key := operatorNameKey{operator.Namespace(), operator.Name()}
+			index.Buckets[key] = append(index.Buckets[key], address)
 		}
 	}
 	return index

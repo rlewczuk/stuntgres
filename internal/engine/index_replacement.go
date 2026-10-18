@@ -35,16 +35,16 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
-		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {
+		if temporary && namespace.Temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {
 			retained.setDescriptor(address, descriptor)
 			continue
 		}
-		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && (!index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live) {
-			parent, exists := next.Relation(index.sqlIndex.parent)
-			if exists && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
+			parent, exists := next.Relation(index.SQLIndex.Parent)
+			if exists && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 				continue
 			}
-			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.name))
+			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.Name()))
 		}
 	}
 	rowID, versionID := e.nextRow, e.nextVersion
@@ -54,7 +54,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
 		if descriptor := next.Get(address); descriptor != nil && e.storage[address] == relation {
-			if namespace, ok := next.Namespace(descriptor.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
+			if namespace, ok := next.Namespace(descriptor.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
 		}
@@ -85,14 +85,14 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	}
 	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}
-		parent, ok := next.Relation(index.sqlIndex.parent)
+		parent, ok := next.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
-		if parent.partition != nil {
+		if parent.Partition != nil {
 			continue
 		}
 		if retained.Get(address) != nil {
@@ -108,8 +108,8 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		schema := ""
-		if index.sqlIndex.unique || index.sqlIndex.isExclusion() {
-			namespace := next.Get(parent.namespace)
+		if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
+			namespace := next.Get(parent.Namespace())
 			if namespace == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}

@@ -12,12 +12,12 @@ import (
 // Project a DROP shape through committed, private-write and retained snapshot
 // roots. The original publication preconditions remain in shape.
 func projectColumnShape(scope *StatementScope, old, next *relationDescriptor, store *relationStorage, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool) (catalogStorageChange, []rowVersion, *privateDeletionRoot, error) {
-	writes, deletes := scope.columnProjectionRoots(old.address)
+	writes, deletes := scope.columnProjectionRoots(old.Address())
 	return projectColumnShapeRoots(scope.op.Context(), stableIsolation(scope.owner.isolation), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
 }
 
 func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relationDescriptor, store *relationStorage, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool, writes []rowVersion, deletes *privateDeletionRoot) (catalogStorageChange, []rowVersion, *privateDeletionRoot, error) {
-	if slices.Equal(old.attributes, next.attributes) {
+	if slices.Equal(old.Attributes, next.Attributes) {
 		shape.relation = next
 		return shape, writes, deletes, nil
 	}
@@ -46,7 +46,7 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relati
 	}
 	deletes = projectDeletions(deletes, shape.replacement)
 	if stable && snapshotExists && !shape.rewritten {
-		if slices.Equal(snapshot.relation.attributes, old.attributes) {
+		if slices.Equal(snapshot.relation.Attributes, old.Attributes) {
 			shape.snapshot, err = projection.versions(ctx, snapshot.versions)
 		} else {
 			shape.snapshot, err = projectVersions(ctx, snapshot.versions, snapshot.relation, next, shape.fills)
@@ -96,14 +96,14 @@ func (scope *StatementScope) stagePreparedColumnShape(stage *CatalogStage, chang
 }
 
 func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor, metadataPrepared bool) error {
-	writes, deletes := scope.columnProjectionRoots(old.address)
+	writes, deletes := scope.columnProjectionRoots(old.Address())
 	stage.owner.mu.Lock()
-	snapshot, snapshotExists := scope.owner.roots[old.address]
+	snapshot, snapshotExists := scope.owner.roots[old.Address()]
 	stage.owner.mu.Unlock()
 	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
 	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation), metadataPrepared)
 	if err == nil && projected {
-		scope.stageProjectedColumnRoots(old.address, writes, deletes)
+		scope.stageProjectedColumnRoots(old.Address(), writes, deletes)
 	}
 	return err
 }
@@ -118,15 +118,15 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()
-	original := e.storage[old.address]
-	store := e.privateStorageLocked(changes, old.address)
-	shape, exists := changes.storage[old.address]
+	original := e.storage[old.Address()]
+	store := e.privateStorageLocked(changes, old.Address())
+	shape, exists := changes.storage[old.Address()]
 	if store == nil || original == nil && !exists {
 		e.mu.Unlock()
 		return nil, nil, false, fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	if !exists {
-		storageOwner, ok := stage.base.Relation(old.address)
+		storageOwner, ok := stage.base.Relation(old.Address())
 		if !ok {
 			e.mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
@@ -146,12 +146,12 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	}
 	e.mu.Lock()
 	if !metadataPrepared {
-		err = e.evolveStageIndexesLocked(stage, old.address, nil)
+		err = e.evolveStageIndexesLocked(stage, old.Address(), nil)
 	}
 	if err == nil {
 		for address, descriptor := range stage.descriptors {
 			index, ok := descriptor.(*relationDescriptor)
-			if ok && index.sqlIndex != nil && index.sqlIndex.parent == old.address {
+			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == old.Address() {
 				e.catalogChangeLocked(changes, address, index)
 			}
 		}
@@ -161,7 +161,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	if err != nil {
 		return nil, nil, false, err
 	}
-	changes.storage[old.address] = shape
+	changes.storage[old.Address()] = shape
 	var transported bool
 	writes, transported, err = transportIndexLayouts(evaluation, stage, changes, next, store, shape.replacement, sourceWrites, writes)
 	if err != nil {
@@ -180,7 +180,7 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 	for address, rowShape := range stage.rowShapes {
 		old, oldOK := stage.base.Relation(address)
 		next, nextOK := stage.descriptors[address].(*relationDescriptor)
-		if !oldOK || !nextOK || slices.Equal(old.attributes, next.attributes) {
+		if !oldOK || !nextOK || slices.Equal(old.Attributes, next.Attributes) {
 			continue
 		}
 		shape := changes.storage[address]

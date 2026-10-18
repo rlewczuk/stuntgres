@@ -80,13 +80,13 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 				parent := view.MustRelation(roleTableRef(t, e, "p").Address)
 				child := view.MustRelation(roleTableRef(t, e, "c").Address)
 				var forward *foreignKeyConstraint
-				for i := range parent.foreignKeys {
-					if parent.foreignKeys[i].Name == "forward_fk" {
-						forward = &parent.foreignKeys[i]
+				for i := range parent.ForeignKeys {
+					if parent.ForeignKeys[i].Name == "forward_fk" {
+						forward = &parent.ForeignKeys[i]
 					}
 				}
-				if len(parent.foreignKeys) != 3 || forward == nil || forward.NotValid || forward.Target != child.address || len(parent.notNullConstraints) != 1 || !parent.notNullConstraints[0].NoInherit || !child.columns[child.index["a"]].Nullable {
-					t.Fatal("roundtrip changed actual physical constraint facts", parent.foreignKeys, parent.notNullConstraints, child.columns)
+				if len(parent.ForeignKeys) != 3 || forward == nil || forward.NotValid || forward.Target != child.Address() || len(parent.NotNullConstraints) != 1 || !parent.NotNullConstraints[0].NoInherit || !child.Columns[child.Index["a"]].Nullable {
+					t.Fatal("roundtrip changed actual physical constraint facts", parent.ForeignKeys, parent.NotNullConstraints, child.Columns)
 				}
 				_, err = testExecute(e, context.Background(), statement(t, "INSERT INTO p VALUES(2)"), nil)
 				state(t, err, "23503")

@@ -6,7 +6,7 @@ func materializedExtensionDepends(relation *relationDescriptor, target ids.Objec
 	if target.ClassID != ids.ExtensionClassID || target.SubID != 0 {
 		return false
 	}
-	for _, address := range relation.autoExtensions {
+	for _, address := range relation.AutoExtensions {
 		if address == target {
 			return true
 		}

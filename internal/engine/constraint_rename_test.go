@@ -24,17 +24,17 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			ref := roleTableRef(t, e, "t")
 			parent := e.catalog.state.MustRelation(ref.Address)
 			var indexAddress ids.ObjectAddress
-			if len(parent.uniqueConstraints) > 0 {
-				indexAddress = parent.uniqueConstraints[0].Index
+			if len(parent.UniqueConstraints) > 0 {
+				indexAddress = parent.UniqueConstraints[0].Index
 			} else {
-				indexAddress = parent.exclusionConstraints[0].Index
+				indexAddress = parent.ExclusionConstraints[0].Index
 			}
 			index := e.catalog.state.MustRelation(indexAddress)
 			store, root := e.storage[ref.Address], e.indexRoots[indexAddress]
 			// Populate representable descriptor comment through the existing stage provider;
 			// public COMMENT ON INDEX is intentionally absent.
 			copied := *index
-			copied.comment = "backing comment"
+			copied.Comment = "backing comment"
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			if err := stage.Replace(&copied); err != nil {
 				t.Fatal(err)
@@ -47,39 +47,39 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 				t.Fatal(err)
 			}
 			index = e.catalog.state.MustRelation(indexAddress)
-			beforeUnique := slices.Clone(parent.uniqueConstraints)
-			beforeExclusion := slices.Clone(parent.exclusionConstraints)
+			beforeUnique := slices.Clone(parent.UniqueConstraints)
+			beforeExclusion := slices.Clone(parent.ExclusionConstraints)
 			sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 			after := e.catalog.state.MustRelation(ref.Address)
 			backing := e.catalog.state.MustRelation(indexAddress)
-			if after == parent || backing == index || after.address != parent.address || backing.address != index.address || e.storage[ref.Address] != store || e.indexRoots[indexAddress] != root {
+			if after == parent || backing == index || after.Address() != parent.Address() || backing.Address() != index.Address() || e.storage[ref.Address] != store || e.indexRoots[indexAddress] != root {
 				t.Fatal("rename copied storage/root or changed group identity")
 			}
-			if backing.name != "new" || backing.comment != "backing comment" || backing.sqlIndex.constraint.Name != "new" || backing.sqlIndex.constraint.OID != index.sqlIndex.constraint.OID || !backingConstraintPresent(after, backing) {
+			if backing.Name() != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !backingConstraintPresent(after, backing) {
 				t.Fatal("nonreciprocal renamed group")
 			}
-			if !reflect.DeepEqual(parent.uniqueConstraints, beforeUnique) || !reflect.DeepEqual(parent.exclusionConstraints, beforeExclusion) || index.name != "old" || index.sqlIndex.constraint.Name != "old" {
+			if !reflect.DeepEqual(parent.UniqueConstraints, beforeUnique) || !reflect.DeepEqual(parent.ExclusionConstraints, beforeExclusion) || index.Name() != "old" || index.SQLIndex.Constraint.Name != "old" {
 				t.Fatal("mutated old descriptors")
 			}
-			if len(after.attributes) > 0 && &after.attributes[0] != &parent.attributes[0] {
+			if len(after.Attributes) > 0 && &after.Attributes[0] != &parent.Attributes[0] {
 				t.Fatal("copied attribute vector")
 			}
-			if &backing.sqlIndex.keys[0] != &index.sqlIndex.keys[0] {
+			if &backing.SQLIndex.Keys[0] != &index.SQLIndex.Keys[0] {
 				t.Fatal("copied immutable keys")
 			}
 			candidate := *after
-			candidate.revision = ids.DefinitionRevision(^uint64(0))
+			candidate.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 			exhaustedBase := cloneCatalog(e.catalog.state)
 			exhaustedBase.setDescriptor(ref.Address, &candidate)
 			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
-			attempt.name = "again"
-			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.descriptors) != 0 || backing.name != "new" {
+			attempt.ObjectName = "again"
+			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.descriptors) != 0 || backing.Name() != "new" {
 				t.Fatal("parent revision exhaustion changed group")
 			}
 			e.DiscardCatalogStage(failed)
 			// The local helper checks the same revision exhaustion before slicing.
-			candidate.notNullConstraints = []notNullConstraint{{Name: "nn"}}
+			candidate.NotNullConstraints = []notNullConstraint{{Name: "nn"}}
 			if _, err := renameLocalConstraint(&candidate, "nn", "renamed_nn", 'n'); err == nil {
 				t.Fatal("revision exhaustion admitted")
 			}
@@ -98,17 +98,17 @@ func TestConstraintRenameCheckOrder(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT,CONSTRAINT a CHECK(k>0) NO INHERIT,CONSTRAINT b CHECK(k>1))")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
-	a, b := old.checkConstraints[0], old.checkConstraints[1]
+	a, b := old.CheckConstraints[0], old.CheckConstraints[1]
 	next, err := renameLocalConstraint(old, "a", "z", 'c')
 	if err != nil {
 		t.Fatal(err)
 	}
-	if old.checkConstraints[0].Name != "a" || next.checkConstraints[0].Name != "b" || next.checkConstraints[1].Name != "z" {
+	if old.CheckConstraints[0].Name != "a" || next.CheckConstraints[0].Name != "b" || next.CheckConstraints[1].Name != "z" {
 		t.Fatal("lexical order or immutable vector")
 	}
-	renamed := next.checkConstraints[1]
+	renamed := next.CheckConstraints[1]
 	renamed.Name = a.Name
-	if !reflect.DeepEqual(renamed, a) || !reflect.DeepEqual(next.checkConstraints[0], b) {
+	if !reflect.DeepEqual(renamed, a) || !reflect.DeepEqual(next.CheckConstraints[0], b) {
 		t.Fatal("CHECK expression/OID/dependency/ordinal changed")
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -136,7 +136,7 @@ func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
-	index := old.uniqueConstraints[0].Index
+	index := old.UniqueConstraints[0].Index
 	store, root := e.storage[ref.Address], e.indexRoots[index]
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
@@ -175,7 +175,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 				sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
 				ref := roleTableRef(t, e, "t")
 				old := e.catalog.state.MustRelation(ref.Address)
-				index := old.uniqueConstraints[0].Index
+				index := old.UniqueConstraints[0].Index
 				backing := e.catalog.state.Get(index)
 				store, root := e.storage[ref.Address], e.indexRoots[index]
 				var dump bytes.Buffer
@@ -202,8 +202,8 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 					case "descriptor":
 						e.mu.Lock()
 						replacement := *old
-						replacement.revision++
-						replacement.comment = "concurrent"
+						replacement.ObjectRevision++
+						replacement.Comment = "concurrent"
 						state := cloneCatalog(e.catalog.state)
 						state.setDescriptor(ref.Address, &replacement)
 						e.catalog.state = state
@@ -212,10 +212,10 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 						run(t, e, "CREATE ROLE changed_authority")
 					}
 				}
-				provider := e.catalog.providers[ids.RelationClassID]
+				provider := e.catalog.Providers[ids.RelationClassID]
 				if phase == "validation" {
 					var once sync.Once
-					e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.catalog.providers[ids.RelationClassID] = provider; mutate() }) }}
+					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = provider; mutate() }) }}
 				}
 				op, err := s.Acquire(ctx)
 				if err != nil {
@@ -264,7 +264,7 @@ func TestConstraintRenameDeferredIdentity(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT,CONSTRAINT old EXCLUDE(k WITH =) DEFERRABLE)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	parent := e.catalog.state.MustRelation(roleTableRef(t, e, "t").Address)
-	oid := parent.exclusionConstraints[0].OID
+	oid := parent.ExclusionConstraints[0].OID
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "SET CONSTRAINTS old DEFERRED")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
@@ -326,13 +326,13 @@ func TestConstraintRenameNotNullIdentity(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old NOT NULL)")
 	ref := roleTableRef(t, e, "t")
 	before := e.catalog.state.MustRelation(ref.Address)
-	definition := before.notNullConstraints[0]
+	definition := before.NotNullConstraints[0]
 	storage := e.storage[ref.Address]
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	after := e.catalog.state.MustRelation(ref.Address)
-	renamed := after.notNullConstraints[0]
+	renamed := after.NotNullConstraints[0]
 	renamed.Name = definition.Name
-	if after == before || before.notNullConstraints[0].Name != "old" || !reflect.DeepEqual(renamed, definition) || !reflect.DeepEqual(after.columns, before.columns) || &after.attributes[0] != &before.attributes[0] || e.storage[ref.Address] != storage {
+	if after == before || before.NotNullConstraints[0].Name != "old" || !reflect.DeepEqual(renamed, definition) || !reflect.DeepEqual(after.Columns, before.Columns) || &after.Attributes[0] != &before.Attributes[0] || e.storage[ref.Address] != storage {
 		t.Fatal("NOT NULL rename changed stable attribute/enforcement/storage")
 	}
 }
@@ -347,7 +347,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
 	earlier := s.transactions.catalog
 	parent := earlier.descriptors[ref.Address].(*relationDescriptor)
-	index := parent.uniqueConstraints[0].Index
+	index := parent.UniqueConstraints[0].Index
 	root := earlier.uniqueRoots[index]
 	storage := earlier.storage[ref.Address].replacement
 	if root == nil || storage == nil {

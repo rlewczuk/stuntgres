@@ -36,7 +36,7 @@ func (n installedSoundexFunctionExpression) validate(v CatalogRead) error {
 		result = 23
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || proc.fuzzystrmatchProvider() != stockFuzzystrmatch || proc.name != n.Function || proc.signature != procedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.result != result {
+	if !ok || proc != n.procedure || proc.fuzzystrmatchProvider() != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != procedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
 		return fmt.Errorf("stuntgres: invalid stored Soundex identity")
 	}
 	if err := stockFuzzystrmatch.validateProcedure(v, proc); err != nil {

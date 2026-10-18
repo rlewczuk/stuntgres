@@ -32,7 +32,7 @@ func explicitLockMode(mode parser.TableLockMode) lock.Mode {
 }
 
 func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, mode lock.Mode) error {
-	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != viewRelation {
+	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation && d.RelationKind != viewRelation {
 		return tableKind(d, "lock")
 	}
 	rights, err := auth.Effective(ref, false)
@@ -53,7 +53,7 @@ func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDes
 		return nil
 	}
 	kind := "table"
-	if d.relationKind == viewRelation {
+	if d.RelationKind == viewRelation {
 		kind = "view"
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
@@ -101,7 +101,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	}
 	e := s.op.session.Engine()
 	inspect := func() (*relationDescriptor, error) {
-		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
 			return nil, ids.ErrCatalogReplaced
 		}
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
@@ -113,7 +113,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if !only || d.view != nil {
+		if !only || d.View != nil {
 			if err := inheritanceTargetGuard(auth.catalog, d); err != nil {
 				return nil, err
 			}
@@ -146,10 +146,10 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	if err != nil {
 		return err
 	}
-	if d.relationKind != viewRelation {
+	if d.RelationKind != viewRelation {
 		return nil
 	}
-	principal := d.owner
+	principal := d.Owner
 	if viewOf(d).invoker {
 		principal = invoker
 	}
@@ -164,10 +164,10 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		if !valid {
 			return ids.ErrCatalogReplaced
 		}
-		if child.relationKind == materializedViewRelation {
+		if child.RelationKind == materializedViewRelation {
 			return tableKind(child, "lock")
 		}
-		if child.relationKind != tableRelation && child.relationKind != partitionedRelation && child.relationKind != viewRelation {
+		if child.RelationKind != tableRelation && child.RelationKind != partitionedRelation && child.RelationKind != viewRelation {
 			continue
 		}
 		if err := s.acquireExplicitRelation(stmt, use, child.Name(), mode, policy, principal, invoker, ancestors, false); err != nil {

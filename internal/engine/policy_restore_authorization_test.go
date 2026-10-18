@@ -39,7 +39,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 			t.Fatal("selector vector", roles, warning, err)
 		}
 		for _, role := range roles {
-			if role.public || role.ref != want {
+			if role.Public || role.Ref != want {
 				t.Fatal("trusted authority leaked into target", role, want)
 			}
 		}

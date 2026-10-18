@@ -51,30 +51,30 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal("actual TID operator selection", err)
 			}
 			outer, err := expressionRoutineDescriptor(node)
-			if err != nil || outer == nil || outer.builtin == nil {
+			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing selected declaration", outer, err)
 			}
-			declaration := outer.builtin
+			declaration := outer.Builtin
 			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, "27,27"}
-			if declaration.identity != wantIdentity || declaration.result != 16 || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
+			if declaration.Identity != wantIdentity || declaration.Result != 16 || declaration.Kind != functionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.Get(address) != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != expr.Immutable {
+			if auth.catalog.Get(address) != outer || outer.Address() != address || outer.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.Name() != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != functionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
-			if len(outer.body) != 0 {
-				t.Fatal("INTERNAL TID operator acquired SQL helper edges", outer.body)
+			if len(outer.Body) != 0 {
+				t.Fatal("INTERNAL TID operator acquired SQL helper edges", outer.Body)
 			}
-			wantRef := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
+			wantRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
 			procedures := 0
 			for _, dependency := range binder.dependencies {
-				if dependency.ref.Address.ClassID != ids.ProcedureClassID {
+				if dependency.Ref.Address.ClassID != ids.ProcedureClassID {
 					continue
 				}
 				procedures++
-				if dependency.ref != wantRef || dependency.revision != outer.revision {
-					t.Fatal("original selected reference and revision", dependency, wantRef, outer.revision)
+				if dependency.Ref != wantRef || dependency.Revision != outer.Revision() {
+					t.Fatal("original selected reference and revision", dependency, wantRef, outer.Revision())
 				}
 			}
 			if procedures != 1 {
@@ -88,16 +88,16 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			for _, mode := range []string{"missing", "foreign", "stale epoch", "stale revision"} {
 				var checks []expressionDependency
 				for _, dependency := range binder.dependencies {
-					if dependency.ref.Address == address {
+					if dependency.Ref.Address == address {
 						switch mode {
 						case "missing":
 							continue
 						case "foreign":
-							dependency.ref = foreign.catalog.domain.Ref(dependency.ref.Epoch, dependency.ref.Address)
+							dependency.Ref = foreign.catalog.Domain.Ref(dependency.Ref.Epoch, dependency.Ref.Address)
 						case "stale epoch":
-							dependency.ref.Epoch++
+							dependency.Ref.Epoch++
 						case "stale revision":
-							dependency.revision++
+							dependency.Revision++
 						}
 					}
 					checks = append(checks, dependency)

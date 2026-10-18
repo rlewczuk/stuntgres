@@ -157,7 +157,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		if err == nil {
 			t.next++
 			e.diagnosticTx++
-			next = e.catalog.domain.Tx(t.session.token, t.next, e.catalog.state.epoch, t, e.diagnosticTx)
+			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.epoch, t, e.diagnosticTx)
 			e.enrollSerializableLocked(next, isolation)
 		}
 		op.session.mu.Unlock()

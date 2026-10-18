@@ -47,28 +47,28 @@ func (m exclusionModes) deferred(c *exclusionConstraint) bool {
 	return c.InitiallyDeferred
 }
 func exclusionDefinition(parent *relationDescriptor, index *relationDescriptor) *exclusionConstraint {
-	for i := range parent.exclusionConstraints {
-		c := &parent.exclusionConstraints[i]
-		if c.Index == index.address && c.OID == index.sqlIndex.constraint.OID {
+	for i := range parent.ExclusionConstraints {
+		c := &parent.ExclusionConstraints[i]
+		if c.Index == index.Address() && c.OID == index.SQLIndex.Constraint.OID {
 			return c
 		}
 	}
 	return nil
 }
 func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (indexOrdering, error) {
-	if d.method == gistMethod {
+	if d.Method == gistMethod {
 		return bindLogicalExclusionKeys(parent, d)
 	}
-	if d.method == btreeMethod {
+	if d.Method == btreeMethod {
 		return bindIndexOrdering(parent, d)
 	}
 	// The supported HASH equality has the same concrete scalar comparison as
 	// its default Btree class. This is a comparator binding, not an index or a
 	// UNIQUE owner, and HASH storage continues to use its actual provider.
 	copy := *d
-	copy.method = btreeMethod
-	copy.keys = slices.Clone(d.keys)
-	for i, key := range copy.keys {
+	copy.Method = btreeMethod
+	copy.Keys = slices.Clone(d.Keys)
+	for i, key := range copy.Keys {
 		u, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return indexOrdering{}, err
@@ -77,12 +77,12 @@ func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (inde
 		if !ok {
 			return indexOrdering{}, fmt.Errorf("stuntgres: missing exclusion equality comparator")
 		}
-		copy.keys[i].class = class
+		copy.Keys[i].Class = class
 	}
 	return bindIndexOrdering(parent, &copy)
 }
 func exclusionKeysMatch(ctx context.Context, d *indexDefinition, left, right []sqltype.Value) (bool, error) {
-	for i, operator := range d.exclusion {
+	for i, operator := range d.Exclusion {
 		match, err := operator.Matches(ctx, left[i], right[i])
 		if err != nil || !match {
 			return false, err
@@ -151,7 +151,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		return rowVersion{}, err
 	}
 	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.sqlIndex.hasRuntimeDomainConversion() || bound.index.sqlIndex.method == hashMethod) {
+	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
@@ -233,7 +233,7 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate deleteCandidate) {
 	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
-	if !ok || len(parent.exclusionConstraints) == 0 {
+	if !ok || len(parent.ExclusionConstraints) == 0 {
 		return
 	}
 	s.beginExclusionProjectionLocked(e)
@@ -244,7 +244,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 	}
 	ends[candidate.row] = candidate.version
 	p.ended[candidate.ref.Address] = ends
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		entries := p.entries[c.Index]
 		next := make([]exclusionEntry, 0, len(entries))
 		for _, entry := range entries {
@@ -284,25 +284,25 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 		return exclusionScan{}, err
 	}
 	if admission := s.foreignActionAdmissions[ref.Address]; admission != nil && admission.mutated {
-		auth = foreignActionOwner(auth, admission.relation.owner)
+		auth = foreignActionOwner(auth, admission.relation.Owner)
 	}
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
-	root := e.indexRoots[index.address]
+	root := e.indexRoots[index.Address()]
 	if s.owner.catalog != nil {
-		if private, ok := s.owner.catalog.uniqueRoots[index.address]; ok {
+		if private, ok := s.owner.catalog.uniqueRoots[index.Address()]; ok {
 			root = private
 		}
 	}
-	ns, ok := view.Namespace(binding.parent.namespace)
+	ns, ok := view.Namespace(binding.parent.Namespace())
 	if !ok {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
-	store := e.privateStorageLocked(s.owner.catalog, binding.parent.address)
+	store := e.privateStorageLocked(s.owner.catalog, binding.parent.Address())
 	if store == nil {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
-	return exclusionScan{generation: e.exclusionGeneration, root: root, pending: maps.Clone(e.exclusionPending), auth: auth, view: view, schema: ns.name, parent: binding.parent.address, store: store, storeGeneration: store.generation, versions: store.versions, ends: store.ends}, nil
+	return exclusionScan{generation: e.exclusionGeneration, root: root, pending: maps.Clone(e.exclusionPending), auth: auth, view: view, schema: ns.Name(), parent: binding.parent.Address(), store: store, storeGeneration: store.generation, versions: store.versions, ends: store.ends}, nil
 }
 func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.ObjectAddress) bool {
 	e := s.op.session.Engine()
@@ -328,7 +328,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		var current exclusionEntry
 		found := false
 		if own != nil {
-			for _, entry := range own.entries[index.address] {
+			for _, entry := range own.entries[index.Address()] {
 				if entry.row.row == candidate.row && entry.row.version == candidate.version {
 					current = entry
 					found = true
@@ -356,15 +356,15 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			if own != nil && own.ended[ref.Address][entry.row.row] == entry.row.version && committed {
 				return nil
 			}
-			match, err := exclusionKeysMatch(s.op.Context(), index.sqlIndex, current.keys, entry.keys)
+			match, err := exclusionKeysMatch(s.op.Context(), index.SQLIndex, current.keys, entry.keys)
 			if err != nil || !match {
 				return err
 			}
-			if purpose != indexProbeRevalidation && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+			if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 				if err := bound.ordering.fillKeys(entry.row.values, bound.scratch, &evaluation); err != nil {
 					return err
 				}
-				match, err = exclusionKeysMatch(s.op.Context(), index.sqlIndex, current.keys, bound.scratch)
+				match, err = exclusionKeysMatch(s.op.Context(), index.SQLIndex, current.keys, bound.scratch)
 				if err != nil || !match {
 					return err
 				}
@@ -385,7 +385,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			}
 			if hit.index == nil {
 				existing := entry.keys
-				if purpose != indexProbeRevalidation && index.sqlIndex.hasRuntimeDomainKeyConversion() {
+				if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
 					existing = slices.Clone(bound.scratch)
 				} else if committed && scan.root.hash != nil {
 					existing = slices.Clone(existing)
@@ -422,13 +422,13 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			}
 		}
 		for ticket, p := range scan.pending {
-			for _, entry := range p.entries[index.address] {
+			for _, entry := range p.entries[index.Address()] {
 				if err := visit(entry, ticket, false); err != nil {
 					return uniqueConflict{}, false, err
 				}
 			}
 		}
-		if !s.exclusionScanCurrent(scan, index.address) {
+		if !s.exclusionScanCurrent(scan, index.Address()) {
 			continue
 		}
 		c := exclusionDefinition(binding.parent, index)
@@ -449,7 +449,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 }
 func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []rowVersion, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
 	index := bound.index
-	if action != nil && !slices.Contains(action.selected, index.address) {
+	if action != nil && !slices.Contains(action.selected, index.Address()) {
 		return uniqueConflict{}, nil
 	}
 	candidate, err := s.publishExclusionCandidate(ref, binding, bound, proposal, excluded, action != nil, purpose)
@@ -461,8 +461,8 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		return uniqueConflict{}, ids.ErrCatalogReplaced
 	}
 	if action != nil && c.Deferrable {
-		schema := binding.catalog.Get(binding.parent.namespace).Name()
-		return uniqueConflict{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters", Schema: schema, Table: binding.parent.name, Constraint: index.name}
+		schema := binding.catalog.Get(binding.parent.Namespace()).Name()
+		return uniqueConflict{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters", Schema: schema, Table: binding.parent.Name(), Constraint: index.Name()}
 	}
 	if !c.Deferrable {
 		// Existing exact-key grants serialize nondeferrable equal admissions.
@@ -471,7 +471,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		projection := p.exclusionPending[s.ticket]
 		var keys []sqltype.Value
 		if projection != nil {
-			for _, entry := range projection.entries[index.address] {
+			for _, entry := range projection.entries[index.Address()] {
 				if entry.row.version == candidate.version {
 					keys = entry.keys
 					break
@@ -483,21 +483,21 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 			return uniqueConflict{}, nil
 		}
 		indexRef := ref
-		indexRef.Address = index.address
-		if index.sqlIndex.exactEqualityClaims() {
+		indexRef.Address = index.Address()
+		if index.SQLIndex.exactEqualityClaims() {
 			if err := s.acquireUnique(indexRef, bound, keys); err != nil {
 				return uniqueConflict{}, err
 			}
 		}
 		p.mu.Lock()
 		projected := cloneExclusionProjection(p.exclusionPending[s.ticket])
-		entries := slices.Clone(projected.entries[index.address])
+		entries := slices.Clone(projected.entries[index.Address()])
 		for at := range entries {
 			if entries[at].row.version == candidate.version {
 				entries[at].admitted = true
 			}
 		}
-		projected.entries[index.address] = entries
+		projected.entries[index.Address()] = entries
 		s.installExclusionProjectionLocked(p, projected)
 		p.mu.Unlock()
 	}
@@ -509,7 +509,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		return conflict, nil
 	}
 	if c.Deferrable && potential {
-		event := exclusionEvent{parent: ref, index: ref.Domain().Ref(ref.Epoch, index.address), constraint: c.OID, row: candidate.row, version: candidate.version}
+		event := exclusionEvent{parent: ref, index: ref.Domain().Ref(ref.Epoch, index.Address()), constraint: c.OID, row: candidate.row, version: candidate.version}
 		if !slices.Contains(s.exclusionModes.events, event) {
 			s.exclusionModes.events = append(slices.Clone(s.exclusionModes.events), event)
 			if s.foreignActionsSettling {

@@ -93,7 +93,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
-						return Result{}, insertValueError(auth.catalog, foldErr, destination.columns[destinationTargets[j]], b.insertRows[i][j], nil)
+						return Result{}, insertValueError(auth.catalog, foldErr, destination.Columns[destinationTargets[j]], b.insertRows[i][j], nil)
 					}
 					if changed {
 						if privateRow == nil {
@@ -192,11 +192,11 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 			defaultEvaluation := evaluation
 			physical := b.physicalBinding()
-			attribute := physical.relation.attributes[i]
-			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.defaults[attribute].OID}
+			attribute := physical.relation.Attributes[i]
+			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.Defaults[attribute].OID}
 			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
 			defaultEvaluation.routineChecks = nil
-			defaultEvaluation.routineReferences = physical.relation.defaults[attribute].dependencies
+			defaultEvaluation.routineReferences = physical.relation.Defaults[attribute].Dependencies
 			defaultEvaluation.routineConsumer = physical.relation
 			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
@@ -259,7 +259,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
-		if b.viewWrite == nil && b.relation.relationKind != materializedViewRelation {
+		if b.viewWrite == nil && b.relation.RelationKind != materializedViewRelation {
 			if err := tableKind(b.relation, "change"); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -306,7 +306,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	if scope.owner.readOnly {
 		if selecting {
 			for _, leaf := range b.querySources {
-				if leaf.mark.mode != 0 && leaf.relation.relationKind == viewRelation {
+				if leaf.mark.mode != 0 && leaf.relation.RelationKind == viewRelation {
 					tag = "SELECT"
 					break
 				}
@@ -327,7 +327,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	if b.relation != nil && b.relation.relationKind == materializedViewRelation {
+	if b.relation != nil && b.relation.RelationKind == materializedViewRelation {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete:
 			e.mu.Unlock()
@@ -439,7 +439,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		schema := auth.catalog.Get(b.relation.namespace).Name()
+		schema := auth.catalog.Get(b.relation.Namespace()).Name()
 		e.mu.Unlock()
 		return e.executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
@@ -488,7 +488,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				return Result{}, err
 			}
 		}
-		schema := auth.catalog.Get(b.relation.namespace).Name()
+		schema := auth.catalog.Get(b.relation.Namespace()).Name()
 		e.mu.Unlock()
 		return e.executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
@@ -515,7 +515,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			schema := auth.catalog.Get(b.relation.namespace).Name()
+			schema := auth.catalog.Get(b.relation.Namespace()).Name()
 			e.mu.Unlock()
 			if err := selectQuerySources(ctx, source); err != nil {
 				return Result{}, err
@@ -571,15 +571,15 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err = ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			row := make([]sqltype.Value, len(b.relation.columns))
-			for j, c := range b.relation.columns {
+			row := make([]sqltype.Value, len(b.relation.Columns))
+			for j, c := range b.relation.Columns {
 				row[j] = sqltype.Null(c.Usage.Type)
 			}
 			if len(b.insertProjection) != 0 {
 				if err = evaluateIdentityValuesRow(auth.catalog, &b, expressions[i], source, row, len(b.insertRows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
-				schema := auth.catalog.Get(b.relation.namespace).Name()
+				schema := auth.catalog.Get(b.relation.Namespace()).Name()
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
@@ -617,7 +617,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 					continue
 				}
 				target := b.targets[j]
-				c := b.relation.columns[target]
+				c := b.relation.Columns[target]
 				var value sqltype.Value
 				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
 					value, err = b.arrayTargets[j].applyExpression(&evaluation, row[target], expressions[i][j])
@@ -631,7 +631,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 					return Result{}, insertValueError(auth.catalog, err, c, v, nil)
 				}
 			}
-			schema := auth.catalog.Get(b.relation.namespace).Name()
+			schema := auth.catalog.Get(b.relation.Namespace()).Name()
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}

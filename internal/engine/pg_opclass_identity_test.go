@@ -44,7 +44,7 @@ func TestPGOpclassJSONBHashIdentity(t *testing.T) {
 		t.Fatal("update did not publish real hash root")
 	}
 	metadata, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "opclass_jsonb_private_h")
-	if got := index.sqlIndex.keys[0].class.OID(); got != 10089 {
+	if got := index.SQLIndex.Keys[0].Class.OID(); got != 10089 {
 		t.Errorf("JSONB hash class OID got %d want released hash identity 10089 (not btree 10088)", got)
 	}
 	if !reflect.DeepEqual(metadata.IndClass, []ids.OID{10089}) {

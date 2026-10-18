@@ -23,33 +23,33 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 		return prepared, nil
 	}
 	next := *parent
-	next.checkConstraints = slices.Clone(parent.checkConstraints)
+	next.CheckConstraints = slices.Clone(parent.CheckConstraints)
 	// The ordinary binder writes locality into this graph. A candidate must not
 	// mutate captured descriptors, including when a later descendant vetoes it.
-	next.inheritance = cloneInheritance(parent.inheritance)
+	next.Inheritance = cloneInheritance(parent.Inheritance)
 	ordinal := 0
-	for _, c := range parent.checkConstraints {
-		if c.ordinal >= ordinal {
-			ordinal = c.ordinal + 1
+	for _, c := range parent.CheckConstraints {
+		if c.Ordinal >= ordinal {
+			ordinal = c.Ordinal + 1
 		}
 	}
 	var inherited map[string]checkConstraint
 	if scope.inheritanceAlter != nil {
 		for _, a := range raw {
-			for _, c := range parent.checkConstraints {
+			for _, c := range parent.CheckConstraints {
 				if c.Name != a.Name.Text {
 					continue
 				}
 				merge := scope.inheritanceAlter.descendant
-				if parent.inheritance != nil {
-					provenance := parent.inheritance.checks[c.Name]
-					merge = merge || !provenance.local && provenance.count() != 0
+				if parent.Inheritance != nil {
+					provenance := parent.Inheritance.Checks[c.Name]
+					merge = merge || !provenance.Local && provenance.count() != 0
 				}
 				if !merge {
 					continue
 				}
 				if c.NoInherit {
-					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on relation "%s"`, c.Name, parent.name))
+					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on relation "%s"`, c.Name, parent.Name()))
 				}
 				if inherited == nil {
 					inherited = make(map[string]checkConstraint)
@@ -64,29 +64,29 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 	if err := scope.inheritanceOnlyCreatedConstraint(parent, &next); err != nil {
 		return prepared, err
 	}
-	if scope.inheritanceAlter != nil && scope.inheritanceAlter.descendant && next.inheritance != nil {
-		for _, check := range next.checkConstraints {
+	if scope.inheritanceAlter != nil && scope.inheritanceAlter.descendant && next.Inheritance != nil {
+		for _, check := range next.CheckConstraints {
 			if !slices.ContainsFunc(raw, func(declaration *parser.CheckConstraint) bool { return declaration.Name.Text == check.Name }) {
 				continue
 			}
-			provenance := next.inheritance.checks[check.Name]
-			before := parent.inheritance.checks[check.Name]
-			retained := slices.ContainsFunc(parent.checkConstraints, func(old checkConstraint) bool { return old.Name == check.Name })
-			provenance.local = retained && before.local
-			next.inheritance.checks[check.Name] = provenance
+			provenance := next.Inheritance.Checks[check.Name]
+			before := parent.Inheritance.Checks[check.Name]
+			retained := slices.ContainsFunc(parent.CheckConstraints, func(old checkConstraint) bool { return old.Name == check.Name })
+			provenance.Local = retained && before.Local
+			next.Inheritance.Checks[check.Name] = provenance
 		}
 	}
-	if scope.inheritanceAlter != nil && !scope.inheritanceAlter.descendant && next.inheritance != nil && len(inherited) != 0 {
-		graph := cloneInheritance(next.inheritance)
+	if scope.inheritanceAlter != nil && !scope.inheritanceAlter.descendant && next.Inheritance != nil && len(inherited) != 0 {
+		graph := cloneInheritance(next.Inheritance)
 		for name := range inherited {
-			provenance := graph.checks[name]
-			provenance.local = true
-			graph.checks[name] = provenance
+			provenance := graph.Checks[name]
+			provenance.Local = true
+			graph.Checks[name] = provenance
 		}
-		next.inheritance = graph
+		next.Inheritance = graph
 	}
 	for _, c := range orderedChecks(&next) {
-		if c.ordinal >= ordinal && !c.NotValid {
+		if c.Ordinal >= ordinal && !c.NotValid {
 			prepared.scans = append(prepared.scans, c)
 		}
 	}
@@ -132,8 +132,8 @@ func verifyAlterPrimaryPrerequisites(parent *relationDescriptor, actions []parse
 			continue
 		}
 		for _, column := range action.Unique.Columns {
-			if slot, exists := parent.index[column.Text]; exists {
-				if err := verifyNotNullPKCompatible(parent, parent.attributes[slot:slot+1]); err != nil {
+			if slot, exists := parent.Index[column.Text]; exists {
+				if err := verifyNotNullPKCompatible(parent, parent.Attributes[slot:slot+1]); err != nil {
 					return err
 				}
 			}
@@ -143,11 +143,11 @@ func verifyAlterPrimaryPrerequisites(parent *relationDescriptor, actions []parse
 }
 
 func verifyNotNullPKCompatible(parent *relationDescriptor, attributes []int32) error {
-	for _, n := range parent.notNullConstraints {
+	for _, n := range parent.NotNullConstraints {
 		if (!n.NotValid && !n.NoInherit) || !slices.Contains(attributes, n.Attribute) {
 			continue
 		}
-		column := parent.columns[slices.Index(parent.attributes, n.Attribute)].Name
+		column := parent.Columns[slices.Index(parent.Attributes, n.Attribute)].Name
 		d := sqlError("55000", fmt.Sprintf(`cannot create primary key on column "%s"`, column)).(*sqlstate.Error)
 		modifier := "NOT VALID"
 		d.Hint = "You might need to validate it using ALTER TABLE ... VALIDATE CONSTRAINT."
@@ -155,7 +155,7 @@ func verifyNotNullPKCompatible(parent *relationDescriptor, attributes []int32) e
 			modifier = "NO INHERIT"
 			d.Hint = "You might need to make the existing constraint inheritable using ALTER TABLE ... ALTER CONSTRAINT ... INHERIT."
 		}
-		d.Detail = fmt.Sprintf(`The constraint "%s" on column "%s" of table "%s", marked %s, is incompatible with a primary key.`, n.Name, column, parent.name, modifier)
+		d.Detail = fmt.Sprintf(`The constraint "%s" on column "%s" of table "%s", marked %s, is incompatible with a primary key.`, n.Name, column, parent.Name(), modifier)
 		return d
 	}
 	return nil
@@ -163,13 +163,13 @@ func verifyNotNullPKCompatible(parent *relationDescriptor, attributes []int32) e
 
 func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.UniqueConstraint) (*relationDescriptor, error) {
 	if raw.Primary {
-		for _, c := range parent.uniqueConstraints {
+		for _, c := range parent.UniqueConstraints {
 			if c.Primary {
-				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.name))
+				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.Name()))
 			}
 		}
 	}
-	definition, err := bindUniqueAttributes(raw, nil, parent.index, parent.attributes)
+	definition, err := bindUniqueAttributes(raw, nil, parent.Index, parent.Attributes)
 	if err != nil {
 		return nil, alterCookingError(err)
 	}
@@ -180,10 +180,10 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 		for _, attribute := range definition.Attributes {
 			// Raw PRIMARY reuses an existing NN tuple without direct-ADD locality
 			// changes. USING INDEX's separate implied ADD NN remains unconditional.
-			if slices.ContainsFunc(parent.notNullConstraints, func(constraint notNullConstraint) bool { return constraint.Attribute == attribute }) {
+			if slices.ContainsFunc(parent.NotNullConstraints, func(constraint notNullConstraint) bool { return constraint.Attribute == attribute }) {
 				continue
 			}
-			column := parent.columns[slices.Index(parent.attributes, attribute)].Name
+			column := parent.Columns[slices.Index(parent.Attributes, attribute)].Name
 			parent, err = notNullCandidate(op, e.stageRead(stage), parent, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: column}}, notNullDirect)
 			if err != nil {
 				return nil, err
@@ -202,7 +202,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 
 func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*relationDescriptor, error) {
 	next := *parent
-	next.foreignKeys = slices.Clone(parent.foreignKeys)
+	next.ForeignKeys = slices.Clone(parent.ForeignKeys)
 	if err := stage.Replace(&next); err != nil {
 		return nil, err
 	}

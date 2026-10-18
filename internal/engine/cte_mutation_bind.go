@@ -23,10 +23,10 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, ids.ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.MustRelation(b.ref.Address)
-		if b.relation.relationKind == compositeRelation {
+		if b.relation.RelationKind == compositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.relationKind == indexRelation {
+		if b.relation.RelationKind == indexRelation {
 			return b, tableKind(b.relation, "insert into")
 		}
 		binder.insertTarget = b.relation
@@ -35,12 +35,12 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			binder.queryFrame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
 		}
-		if op != nil && op.restoreInsertAuthority && len(b.relation.identities) != 0 && s.Override != parser.OverrideSystem {
+		if op != nil && op.restoreInsertAuthority && len(b.relation.Identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
-		if !b.relation.virtualView {
+		if !b.relation.VirtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil && b.relation.relationKind == tableRelation {
+			if b.storage == nil && b.relation.RelationKind == tableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -61,7 +61,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, err
 		}
 		if len(rulesOf(b.relation)) != 0 {
-			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.name), Detail: "MERGE is not supported for relations with rules."}
+			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.Name()), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:
 		var err error
@@ -73,15 +73,15 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, ids.ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.MustRelation(b.ref.Address)
-		if b.relation.relationKind == compositeRelation {
+		if b.relation.RelationKind == compositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.relationKind == indexRelation {
+		if b.relation.RelationKind == indexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
-		if !b.relation.virtualView {
+		if !b.relation.VirtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil && b.relation.relationKind == tableRelation {
+			if b.storage == nil && b.relation.RelationKind == tableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -89,7 +89,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if s.CurrentOf != nil {
 			b.currentOf = s.CurrentOf.Text
 		}
-		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
+		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.Name(), s.Alias.Text
 		binder.queryAuth = &auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()
@@ -102,7 +102,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 				return b, err
 			}
 			b.deleteSourceWidth = len(sources.frame)
-			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.columns)))
+			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.Columns)))
 			if err != nil {
 				return b, err
 			}
@@ -131,18 +131,18 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, ids.ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.MustRelation(b.ref.Address)
-		if b.relation.relationKind == compositeRelation {
+		if b.relation.RelationKind == compositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.relationKind == indexRelation {
+		if b.relation.RelationKind == indexRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		if !b.relation.virtualView && b.relation.relationKind == catalogRelation && !guardedCatalogRelation(b.relation) {
+		if !b.relation.VirtualView && b.relation.RelationKind == catalogRelation && !guardedCatalogRelation(b.relation) {
 			return b, tableKind(b.relation, "change")
 		}
-		if !b.relation.virtualView {
+		if !b.relation.VirtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil && b.relation.relationKind == tableRelation {
+			if b.storage == nil && b.relation.RelationKind == tableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -158,7 +158,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	if b.relation != nil {
 		switch statement.(type) {
 		case *parser.Insert, *parser.Update, *parser.Merge:
-			if err := binder.captureRetainedWriteInput(nil, b.relation.generations, b.relation.checkConstraints); err != nil {
+			if err := binder.captureRetainedWriteInput(nil, b.relation.Generations, b.relation.CheckConstraints); err != nil {
 				return b, err
 			}
 		}
@@ -171,7 +171,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	}
 	binder.querySources = b.querySources
 	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.generations, b.viewWrite.base.checkConstraints); err != nil {
+		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.Generations, b.viewWrite.base.CheckConstraints); err != nil {
 			return b, err
 		}
 	}

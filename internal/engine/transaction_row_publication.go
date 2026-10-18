@@ -11,7 +11,7 @@ import (
 func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materialize bool) error {
 	inserts, replacements := 0, 0
 	for _, row := range p.writes {
-		if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.columns) {
+		if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.Columns) {
 			return errors.New("stuntgres: invalid private row version")
 		}
 		if row.base == 0 {
@@ -90,7 +90,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			}
 		}
 		for id, candidate := range p.deletion.rows {
-			if candidate.ref.Domain() != e.catalog.domain || candidate.ref.Epoch != ref.Epoch() || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
+			if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Epoch != ref.Epoch() || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
 				return ids.ErrCatalogReplaced
 			}
 			predecessors := p.root
@@ -98,7 +98,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 				predecessors = p.writes
 			}
 			predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
-			if !found || predecessor.version != candidate.version || candidate.own && predecessor.base != candidate.base || len(predecessor.values) != len(p.relation.columns) {
+			if !found || predecessor.version != candidate.version || candidate.own && predecessor.base != candidate.base || len(predecessor.values) != len(p.relation.Columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}
 			if !candidate.own && !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {

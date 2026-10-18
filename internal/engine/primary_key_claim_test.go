@@ -23,12 +23,12 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
 		index := primaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
-		metadata, _, err := projectIndexMetadata(context.Background(), view, e.catalog.domain.Ref(view.Epoch(), index.address))
+		metadata, _, err := projectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), index.Address()))
 		if err != nil || !metadata.IndIsUnique || metadata.IndIsPrimary || !metadata.IndImmediate {
 			t.Fatal("ordinary unique provider became primary", name, metadata, err)
 		}
 	}
-	if !parent.uniqueConstraints[0].Primary {
+	if !parent.UniqueConstraints[0].Primary {
 		t.Fatal("unrelated provider changed retained primary")
 	}
 }
@@ -45,9 +45,9 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 		}
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
-	constraint := parent.uniqueConstraints[0]
+	constraint := parent.UniqueConstraints[0]
 	index := e.catalog.state.MustRelation(constraint.Index)
-	if !constraint.Primary || !index.sqlIndex.constraint.Primary {
+	if !constraint.Primary || !index.SQLIndex.Constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")
 	}
 	ast := primaryKeyUnitInsert(1)
@@ -61,14 +61,14 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	if err := scope.gate(ast); err != nil {
 		t.Fatal(err)
 	}
-	ordering, err := bindIndexOrdering(parent, index.sqlIndex)
+	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
 	groups := make([]sqltype.Grouping, 2)
 	firstValues, equivalentValues := make([]sqltype.Value, 2), make([]sqltype.Value, 2)
 	for i, spellings := range [][2]string{{"1.0", "1.00"}, {"x", "x "}} {
-		usage := parent.columns[i].Usage
+		usage := parent.Columns[i].Usage
 		groups[i], err = sqltype.BindGrouping(usage)
 		if err != nil {
 			t.Fatal(err)
@@ -82,7 +82,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, index.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, index.Address())
 	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)

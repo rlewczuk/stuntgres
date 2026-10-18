@@ -19,7 +19,7 @@ func pgGroupUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Object
 	if !ok {
 		t.Fatal("missing pg_group")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgGroupUnitRole(e *Engine, state *roleCatalog, id uint64, name string, login bool) authorization.PrincipalRef {
@@ -41,7 +41,7 @@ func pgGroupUnitRows(t *testing.T, source *querySource, d *relationDescriptor) m
 			t.Fatal("group width", len(row))
 		}
 		for i, value := range row {
-			if value.Type() != d.columns[i].Usage.Type || value.IsNull() {
+			if value.Type() != d.Columns[i].Usage.Type || value.IsNull() {
 				t.Fatal("group type/null", i)
 			}
 		}
@@ -91,19 +91,19 @@ func pgGroupUnitMembers(t *testing.T, row []sqltype.Value, want ...uint32) {
 func TestPGGroupDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgGroupUnitSource(t, e)
-	if d.name != "pg_group" || !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != 3 || len(d.attributes) != 3 || len(d.index) != 3 || d.attributeHighWater != 3 {
+	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
 		t.Fatal("descriptor shape")
 	}
 	for i, typ := range []sqltype.ID{sqltype.Name, sqltype.Oid, 1028} {
-		c := d.columns[i]
+		c := d.Columns[i]
 		name := []string{"groname", "grosysid", "grolist"}[i]
 		collation := []uint32{950, 0, 0}[i]
 		current, ok := e.CatalogRead().LookupType(typ)
-		if !ok || c.Name != name || c.Usage.Type != current || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12008 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[name] != i {
+		if !ok || c.Name != name || c.Usage.Type != current || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12008 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("exact group metadata", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner || d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
@@ -111,7 +111,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12011})
-	if d.rowType != 12012 || row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12011 || row.owner != d.owner || array.owner != d.owner || row.typ.Concrete() {
+	if d.RowType != 12012 || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 12011 || row.Owner != d.Owner || array.Owner != d.Owner || row.SQLType.Concrete() {
 		t.Fatal("existing row/array ownership links")
 	}
 	if representedSummaryTable(12008) || representedSummaryViewDefinition(12008) == "" {
@@ -180,16 +180,16 @@ func TestPGGroupProjection(t *testing.T) {
 	}
 	for _, slot := range []int{1, 2} {
 		invalid := *d
-		invalid.columns = slices.Clone(d.columns)
-		invalid.columns[slot].Usage.Type = testUsage(e, sqltype.Int4).Type
+		invalid.Columns = slices.Clone(d.Columns)
+		invalid.Columns[slot].Usage.Type = testUsage(e, sqltype.Int4).Type
 		if source, err := capturePGGroup(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 			t.Fatal("constructor failure published partial source", slot)
 		}
 	}
 	// A valid array descriptor with the wrong element type is not coerced.
 	invalid := *d
-	invalid.columns = slices.Clone(d.columns)
-	invalid.columns[2].Usage.Type = testUsage(e, sqltype.ID(1007)).Type
+	invalid.Columns = slices.Clone(d.Columns)
+	invalid.Columns[2].Usage.Type = testUsage(e, sqltype.ID(1007)).Type
 	if source, err := capturePGGroup(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("wrong element descriptor accepted")
 	}
@@ -235,13 +235,13 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name, view.relationKind, view.virtualView = name, viewRelation, false
-		attrs := slices.Clone(d.attributes)
-		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.address, &view)
-		return e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName, view.RelationKind, view.VirtualView = name, viewRelation, false
+		attrs := slices.Clone(d.Attributes)
+		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
+		e.catalog.state.setDescriptor(view.Address(), &view)
+		return e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
 	}
 	inner := addView(20010, "pg_group_inner", ref)
 	outer := addView(20011, "pg_group_outer", inner)

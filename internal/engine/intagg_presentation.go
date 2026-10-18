@@ -45,7 +45,7 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLit
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")
 	}
 	proc, ok := catalog.Procedure(ref.Address)
-	if !ok || proc.name != name || proc.intaggProvider() != stockIntagg {
+	if !ok || proc.Name() != name || proc.intaggProvider() != stockIntagg {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen intagg procedure")
 	}
 	if err := stockIntagg.validateProcedure(catalog, proc); err != nil {
@@ -59,9 +59,9 @@ func (v *viewRenderer) intaggRecipeName(catalog CatalogRead, path viewLiteralPat
 	if err != nil {
 		return "", err
 	}
-	namespace, ok := catalog.Namespace(proc.namespace)
+	namespace, ok := catalog.Namespace(proc.Namespace())
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing frozen intagg namespace")
 	}
-	return v.presentation.identifier(namespace.name) + "." + v.presentation.identifier(proc.name), nil
+	return v.presentation.identifier(namespace.Name()) + "." + v.presentation.identifier(proc.Name()), nil
 }

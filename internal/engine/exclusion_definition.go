@@ -22,13 +22,13 @@ type exclusionConstraint struct {
 }
 
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
-	for _, c := range parent.exclusionConstraints {
+	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)
-		if !ok || parent.relationKind != tableRelation && parent.partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.sqlIndex == nil || !index.sqlIndex.isExclusion() || index.name != c.Name || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.parent != parent.address || len(c.Operators) != len(index.sqlIndex.keys) || c.InitiallyDeferred && !c.Deferrable {
+		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
-		d := index.sqlIndex
-		if d.constraint.Name != c.Name || d.constraint.Index != c.Index || len(d.exclusion) != len(c.Operators) || len(c.Operators) == 0 || &d.exclusion[0] != &c.Operators[0] {
+		d := index.SQLIndex
+		if d.Constraint.Name != c.Name || d.Constraint.Index != c.Index || len(d.Exclusion) != len(c.Operators) || len(c.Operators) == 0 || &d.Exclusion[0] != &c.Operators[0] {
 			return fmt.Errorf("stuntgres: invalid exclusion operator ownership")
 		}
 		names[c.Name] = true
@@ -64,7 +64,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err != nil {
 		return err
 	}
-	definition.predicate = predicate
+	definition.Predicate = predicate
 	operators := make([]sqltype.ExclusionOperator, len(s.Keys))
 	for i, name := range raw.Operators {
 		path, err := e.lookupNamespaces(auth, name, operatorLookup)
@@ -78,7 +78,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 				break
 			}
 		}
-		usage, err := indexKeyUsage(parent, definition.keys[i])
+		usage, err := indexKeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return err
 		}
@@ -86,24 +86,24 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		if !visible {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("operator does not exist: %s %s %s", usage.Type.DiagnosticName(), objectNameText(name), usage.Type.DiagnosticName()), Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}
 		}
-		operators[i], err = sqltype.BindExclusionOperator(usage, definition.keys[i].class, operator)
+		operators[i], err = sqltype.BindExclusionOperator(usage, definition.Keys[i].Class, operator)
 		if err != nil {
 			return err
 		}
 		if len(s.Keys[i].Options) != 0 {
-			return sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.keys[i].class.Name))
+			return sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.Keys[i].Class.Name))
 		}
 	}
 	if len(s.Options) != 0 {
-		if err := validateIndexReloptions(s.Options, definition.method, false); err != nil {
+		if err := validateIndexReloptions(s.Options, definition.Method, false); err != nil {
 			return err
 		}
 		return indexCapability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
-	used := constraintNames(auth.catalog, parent.namespace, parent)
+	used := constraintNames(auth.catalog, parent.Namespace(), parent)
 	for key := range auth.catalog.Names() {
-		if key.ClassID == ids.RelationClassID && key.Namespace == parent.namespace {
+		if key.ClassID == ids.RelationClassID && key.Namespace == parent.Namespace() {
 			used[key.Name] = true
 		}
 	}
@@ -112,36 +112,36 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		for i := range s.Keys {
 			labels[i] = columns[i].Name
 		}
-		name = generatedConstraintName(parent.name, strings.Join(labels, "_"), "excl", used)
+		name = generatedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
-		if _, altering := stage.base.Find(parent.address); altering {
-			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}) != (ids.ObjectAddress{}) {
+		if _, altering := stage.base.Find(parent.Address()); altering {
+			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}
-		for _, c := range parent.foreignKeys {
+		for _, c := range parent.ForeignKeys {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.uniqueConstraints {
+		for _, c := range parent.UniqueConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.exclusionConstraints {
+		for _, c := range parent.ExclusionConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.checkConstraints {
+		for _, c := range parent.CheckConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.notNullConstraints {
+		for _, c := range parent.NotNullConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
 		if used[name] {
@@ -161,20 +161,20 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		return err
 	}
 	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
-	definition.constraint = exclusionBacking(&c)
-	definition.exclusion = operators
+	definition.Constraint = exclusionBacking(&c)
+	definition.Exclusion = operators
 	if err := partitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
-	index := &relationDescriptor{address: c.Index, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, relationKind: indexRelation, sqlIndex: definition, columns: columns, attributes: attributes, index: lookup, attributeHighWater: int32(len(attributes))}
+	index := &relationDescriptor{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, AttributeHighWater: int32(len(attributes))}
 	for i := range columns {
-		index.columns[i].Nullable = true
-		index.columns[i].NullabilityKnown = true
-		index.columns[i].OriginTable = uint32(indexOID)
-		index.columns[i].OriginAttribute = int16(i + 1)
+		index.Columns[i].Nullable = true
+		index.Columns[i].NullabilityKnown = true
+		index.Columns[i].OriginTable = uint32(indexOID)
+		index.Columns[i].OriginAttribute = int16(i + 1)
 	}
-	parent.exclusionConstraints = append(parent.exclusionConstraints, c)
-	if _, existing := stage.base.Find(parent.address); existing {
+	parent.ExclusionConstraints = append(parent.ExclusionConstraints, c)
+	if _, existing := stage.base.Find(parent.Address()); existing {
 		if err := stage.Replace(parent); err != nil {
 			return err
 		}
@@ -182,9 +182,9 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err := stage.Create(index); err != nil {
 		return err
 	}
-	if parent.partition != nil {
+	if parent.Partition != nil {
 		if !recurse {
-			definition.valid = len(parent.partition.children) == 0
+			definition.Valid = len(parent.Partition.Children) == 0
 			return nil
 		}
 		return e.stagePartitionIndexChildren(op, stage, parent, index, false)
@@ -204,11 +204,11 @@ func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnviron
 }
 
 func exclusionDiagnostic(ctx context.Context, parent, index *relationDescriptor, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog CatalogRead) error {
-	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.name)
+	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.Name())
 	if building {
-		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.name)
+		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.Name())
 	}
-	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23P01", Message: message, Schema: schema, Table: parent.name, Constraint: index.name, Detail: "Key conflicts with existing key."}
+	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23P01", Message: message, Schema: schema, Table: parent.Name(), Constraint: index.Name(), Detail: "Key conflicts with existing key."}
 	if building {
 		d.Detail = "Key conflicts exist."
 	}
@@ -219,7 +219,7 @@ func exclusionDiagnostic(ctx context.Context, parent, index *relationDescriptor,
 	values := make([]string, len(key))
 	prior := make([]string, len(key))
 	for i, value := range key {
-		attribute, node, err := indexCatalogKey(parent, index.sqlIndex.keys[i])
+		attribute, node, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
 		if err != nil {
 			return err
 		}

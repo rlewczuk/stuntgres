@@ -117,11 +117,11 @@ func checkAlterTablespaceCreate(auth AuthorizationView, ref ids.ObjectRef) error
 }
 
 func alterTablespaceKind(d *relationDescriptor) error {
-	switch d.relationKind {
+	switch d.RelationKind {
 	case tableRelation, partitionedRelation, indexRelation, materializedViewRelation:
 		return nil
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(d))}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(d))}
 }
 
 func tablespaceOnlyActions(actions []parser.AlterTableAction) bool {

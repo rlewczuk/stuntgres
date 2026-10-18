@@ -15,33 +15,33 @@ type backingConstraint struct {
 	OID     ids.OID
 	Name    string
 	Index   ids.ObjectAddress
-	kind    backingConstraintKind
+	Kind    backingConstraintKind
 	Primary bool // UNIQUE-family backing identity; EXCLUDE is never primary.
 }
 
 func uniqueBacking(c *uniqueConstraint) *backingConstraint {
-	return &backingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, kind: uniqueBackingKind, Primary: c.Primary}
+	return &backingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, Kind: uniqueBackingKind, Primary: c.Primary}
 }
 func exclusionBacking(c *exclusionConstraint) *backingConstraint {
-	return &backingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, kind: exclusionBackingKind}
+	return &backingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, Kind: exclusionBackingKind}
 }
 func (d *indexDefinition) isExclusion() bool {
-	return d.constraint != nil && d.constraint.kind == exclusionBackingKind
+	return d.Constraint != nil && d.Constraint.Kind == exclusionBackingKind
 }
 func backingConstraintPresent(parent *relationDescriptor, index *relationDescriptor) bool {
-	c := index.sqlIndex.constraint
+	c := index.SQLIndex.Constraint
 	if c == nil {
 		return true
 	}
-	if c.kind == uniqueBackingKind {
-		for _, definition := range parent.uniqueConstraints {
-			if definition.OID == c.OID && definition.Index == index.address && definition.Name == c.Name && definition.Primary == c.Primary {
+	if c.Kind == uniqueBackingKind {
+		for _, definition := range parent.UniqueConstraints {
+			if definition.OID == c.OID && definition.Index == index.Address() && definition.Name == c.Name && definition.Primary == c.Primary {
 				return true
 			}
 		}
-	} else if c.kind == exclusionBackingKind {
-		for _, definition := range parent.exclusionConstraints {
-			if definition.OID == c.OID && definition.Index == index.address && definition.Name == c.Name && !c.Primary {
+	} else if c.Kind == exclusionBackingKind {
+		for _, definition := range parent.ExclusionConstraints {
+			if definition.OID == c.OID && definition.Index == index.Address() && definition.Name == c.Name && !c.Primary {
 				return true
 			}
 		}

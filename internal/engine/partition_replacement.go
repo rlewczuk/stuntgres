@@ -10,7 +10,7 @@ import (
 
 func hasHashPartition(catalog *catalogState) bool {
 	for _, d := range catalog.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok && relation.partition != nil && relation.partition.strategy == parser.PartitionHash {
+		if relation, ok := d.(*relationDescriptor); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
 			return true
 		}
 	}
@@ -21,8 +21,8 @@ func hasHashPartition(catalog *catalogState) bool {
 // different physical order. Borrow values unless a real layout change is needed.
 func partitionReplacementRow(from, to *relationDescriptor, row []sqltype.Value) []sqltype.Value {
 	same := true
-	for i, c := range to.columns {
-		if from.columns[i].Name != c.Name {
+	for i, c := range to.Columns {
+		if from.Columns[i].Name != c.Name {
 			same = false
 			break
 		}
@@ -30,9 +30,9 @@ func partitionReplacementRow(from, to *relationDescriptor, row []sqltype.Value) 
 	if same {
 		return row
 	}
-	values := make([]sqltype.Value, len(to.columns))
-	for i, c := range to.columns {
-		values[i] = row[from.index[c.Name]]
+	values := make([]sqltype.Value, len(to.Columns))
+	for i, c := range to.Columns {
+		values[i] = row[from.Index[c.Name]]
 	}
 	return values
 }
@@ -46,7 +46,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 	var dirty map[ids.ObjectAddress]bool
 	for address, store := range storage {
 		source, ok := catalog.Relation(address)
-		if !ok || source.membership == nil || source.partition != nil {
+		if !ok || source.Membership == nil || source.Partition != nil {
 			continue
 		}
 		root := partitionHashReplayTarget(catalog, source)
@@ -78,19 +78,19 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 			}
 			destination := root
-			for destination.partition != nil {
+			for destination.Partition != nil {
 				var buffer [32]partitionDatum
 				key, err := partitionRowKey(destination, partitionReplacementRow(source, destination, version.values), evaluation, buffer[:])
 				if err != nil {
 					return nil, err
 				}
 				var selected *relationDescriptor
-				for _, childAddress := range destination.partition.children {
+				for _, childAddress := range destination.Partition.Children {
 					child := catalog.MustRelation(childAddress)
-					if child.membership.defaultBound {
+					if child.Membership.DefaultBound {
 						continue
 					}
-					contains, err := partitionContains(ctx, destination.partition.keys, child.membership, key, evaluation.Input)
+					contains, err := partitionContains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
 					if err != nil {
 						return nil, err
 					}
@@ -99,8 +99,8 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 						break
 					}
 				}
-				if selected == nil && destination.partition.defaultChild != (ids.ObjectAddress{}) {
-					selected = catalog.MustRelation(destination.partition.defaultChild)
+				if selected == nil && destination.Partition.DefaultChild != (ids.ObjectAddress{}) {
+					selected = catalog.MustRelation(destination.Partition.DefaultChild)
 				}
 				if selected == nil {
 					state := partitionInsertState{catalog: catalog, auth: auth, target: root}
@@ -110,7 +110,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			}
 			values := partitionReplacementRow(source, destination, version.values)
 			validation := destination
-			if destination.address == address && history.relation != nil {
+			if destination.Address() == address && history.relation != nil {
 				var err error
 				validation, err = retainedChecks.forRow(ctx, history, destination, original, values, snapshot, evaluation)
 				if err != nil {
@@ -118,15 +118,15 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 			}
 			detail := func() (string, error) { return failingRowDetail(values, evaluation.Output, nil, nil, destination) }
-			schema := catalog.Get(destination.namespace).Name()
+			schema := catalog.Get(destination.Namespace()).Name()
 			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
 				return nil, err
 			}
 			// The highest HASH target can itself have RANGE ancestors; ordinary direct
 			// insertion would enforce their constraints as well.
 			child := destination
-			for child.membership != nil {
-				parent := catalog.MustRelation(child.membership.parent)
+			for child.Membership != nil {
+				parent := catalog.MustRelation(child.Membership.Parent)
 				allowed, err := partitionAccepts(catalog, parent, child, partitionReplacementRow(source, parent, version.values), evaluation)
 				if err != nil {
 					return nil, err
@@ -136,7 +136,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 				child = parent
 			}
-			if destination.address == address {
+			if destination.Address() == address {
 				continue
 			}
 			if dirty == nil {
@@ -149,8 +149,8 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			}
 			removed[address][i] = true
 			version.values = values
-			incoming[destination.address] = append(incoming[destination.address], version)
-			dirty[address], dirty[destination.address] = true, true
+			incoming[destination.Address()] = append(incoming[destination.Address()], version)
+			dirty[address], dirty[destination.Address()] = true, true
 		}
 	}
 	for address := range dirty {

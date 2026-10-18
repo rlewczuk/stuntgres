@@ -11,7 +11,7 @@ import (
 )
 
 func policyDepends(p policyDefinition, target ids.ObjectAddress) bool {
-	for _, condition := range []policyPayload{p.using, p.check} {
+	for _, condition := range []policyPayload{p.Using, p.Check} {
 		if condition != nil && condition.DependsOn(target) {
 			return true
 		}
@@ -29,10 +29,10 @@ func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress,
 		if !ok {
 			continue
 		}
-		if slices.Contains(targets, d.address) {
+		if slices.Contains(targets, d.Address()) {
 			continue
 		}
-		for _, p := range d.policies {
+		for _, p := range d.Policies {
 			for _, target := range targets {
 				if policyDepends(p, target) {
 					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + dependencyIdentifier(p.Name) + " on table " + dependencyRelationName(catalog, d, path)})
@@ -59,11 +59,11 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.policies) == 0 {
+		if !ok || len(d.Policies) == 0 {
 			continue
 		}
 		var kept []policyDefinition
-		for _, p := range d.policies {
+		for _, p := range d.Policies {
 			drop := false
 			for _, target := range targets {
 				if policyDepends(p, target) {
@@ -75,16 +75,16 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 				kept = append(kept, p)
 			}
 		}
-		if len(kept) == len(d.policies) {
+		if len(kept) == len(d.Policies) {
 			continue
 		}
 		copy := *d
-		copy.policies = kept
-		revision, err := provider.revision(copy.revision)
+		copy.Policies = kept
+		revision, err := provider.revision(copy.Revision())
 		if err != nil {
 			return err
 		}
-		copy.revision = revision
+		copy.ObjectRevision = revision
 		if err = provider.replace(&copy); err != nil {
 			return err
 		}
@@ -99,28 +99,28 @@ func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error 
 		}
 	}
 	slices.SortFunc(owners, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
 	})
 	for _, owner := range owners {
-		for _, p := range owner.policies {
+		for _, p := range owner.Policies {
 			if !policyDepends(p, target) {
 				continue
 			}
 			provider := catalog.MustRelation(ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID})
 			column := ""
-			for i, a := range provider.attributes {
+			for i, a := range provider.Attributes {
 				if a == target.SubID {
-					column = provider.columns[i].Name
+					column = provider.Columns[i].Name
 					break
 				}
 			}
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used in a policy definition", Detail: fmt.Sprintf(`policy %s on table %s depends on column "%s"`, dependencyIdentifier(p.Name), dependencyIdentifier(owner.name), column)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used in a policy definition", Detail: fmt.Sprintf(`policy %s on table %s depends on column "%s"`, dependencyIdentifier(p.Name), dependencyIdentifier(owner.Name()), column)}
 		}
 	}
 	return nil

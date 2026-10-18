@@ -15,7 +15,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 	for _, overlay := range []string{"none", "delete", "outside_successor", "member_successor"} {
 		t.Run(overlay, func(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
-			store := uniquePublicationStore(f.stores[f.parent.address])
+			store := uniquePublicationStore(f.stores[f.parent.Address()])
 			original := uniquePublicationStore(&store)
 			// This is the effective final TYPE row image: the transformed predicate
 			// column admits a formerly excluded duplicate. The real retained predicate
@@ -37,7 +37,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []rowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.attributes[3], rewrite: true}}, nil, nil, true)
+			roots, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")
@@ -47,7 +47,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err == nil {
-				build := roots[f.index.name]
+				build := roots[f.index.Name()]
 				if build == nil || build.root == nil || build.store == &store {
 					t.Fatal("successful overlay lost its produced root or compact layout", build)
 				}
@@ -67,20 +67,20 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 
 func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	f := newPartialUniquePublication(t, true, false, "table")
-	baseline := uniquePublicationStore(f.stores[f.parent.address])
+	baseline := uniquePublicationStore(f.stores[f.parent.Address()])
 	baseline.versions = slices.Clone(baseline.versions[:2])
 	// Real candidate descriptor/predicate, separately owned private publication.
 	next := *f.index
-	definition := *f.index.sqlIndex
-	predicate := *definition.predicate
-	definition.predicate = &predicate
-	next.sqlIndex = &definition
-	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{next.address: &next}, originals: map[ids.ObjectAddress]Descriptor{next.address: f.index}}
+	definition := *f.index.SQLIndex
+	predicate := *definition.Predicate
+	definition.Predicate = &predicate
+	next.SQLIndex = &definition
+	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{next.Address(): &next}, originals: map[ids.ObjectAddress]Descriptor{next.Address(): f.index}}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, changes, f.auth.catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	root := changes.uniqueRoots[next.address]
-	if root == nil || root == f.roots[next.address] {
+	root := changes.uniqueRoots[next.Address()]
+	if root == nil || root == f.roots[next.Address()] {
 		t.Fatal("private baseline borrowed committed root")
 	}
 	want := map[ids.RowID]ids.VersionID{baseline.versions[0].row: baseline.versions[0].version, baseline.versions[1].row: baseline.versions[1].version}
@@ -88,19 +88,19 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 		t.Fatal("private TYPE membership", root)
 	}
 	cloned := cloneCatalogChanges(changes)
-	if cloned.uniqueRoots[next.address] != root {
+	if cloned.uniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint clone lost immutable baseline")
 	}
-	delete(cloned.uniqueRoots, next.address)
-	if changes.uniqueRoots[next.address] != root {
+	delete(cloned.uniqueRoots, next.Address())
+	if changes.uniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint map aliases private owner")
 	}
-	validated := map[string]*alterIndexBuild{next.name: {index: &next, root: root, store: &baseline}}
+	validated := map[string]*alterIndexBuild{next.Name(): {index: &next, root: root, store: &baseline}}
 	other := &catalogChanges{descriptors: changes.descriptors, originals: changes.originals}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, other, f.auth.catalog, f.parent, &baseline, validated, false); err != nil {
 		t.Fatal(err)
 	}
-	if other.uniqueRoots[next.address] != root {
+	if other.uniqueRoots[next.Address()] != root {
 		t.Fatal("validated immutable baseline not reused")
 	}
 	f.unchanged(t)

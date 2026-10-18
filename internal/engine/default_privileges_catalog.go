@@ -8,7 +8,7 @@ import (
 
 func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ids.ObjectAddress{{}, schema} {
-		key := defaultACLKey{creator: owner, schema: namespace, class: class}
+		key := defaultACLKey{Creator: owner, Schema: namespace, Class: class}
 		if s.defaultReads == nil {
 			s.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
 		}
@@ -79,7 +79,7 @@ func (s *CatalogStage) defaultPreflight(current *catalogState) error {
 		return CatalogConflict{}
 	}
 	for key := range current.defaultACLs {
-		if _, removed := s.removals[key.schema]; !removed {
+		if _, removed := s.removals[key.Schema]; !removed {
 			continue
 		}
 		if _, observed := s.defaultReads[key]; !observed {
@@ -90,7 +90,7 @@ func (s *CatalogStage) defaultPreflight(current *catalogState) error {
 }
 func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 	for key, record := range s.base.state.defaultACLs {
-		if key.schema != schema {
+		if key.Schema != schema {
 			continue
 		}
 		if s.defaultACLs == nil {
@@ -106,11 +106,11 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	for key, record := range view.state.defaultACLs {
 		kind := byte('a')
-		dependent := key.creator == ref
+		dependent := key.Creator == ref
 		if dependent {
 			kind = 'o'
 		} else {
-			for _, entry := range record.acl.Entries {
+			for _, entry := range record.ACL.Entries {
 				if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
 					dependent = true
 					break
@@ -123,11 +123,11 @@ func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref aut
 		if deps == nil {
 			return true
 		}
-		creator, _ := roles.Descriptor(key.creator)
-		class := [...]string{"", "relations", "sequences", "functions", "types", "schemas", "large objects"}[key.class]
+		creator, _ := roles.Descriptor(key.Creator)
+		class := [...]string{"", "relations", "sequences", "functions", "types", "schemas", "large objects"}[key.Class]
 		description := "default privileges on new " + class + " belonging to role " + creator.Name
-		if key.schema != (ids.ObjectAddress{}) {
-			description += " in schema " + view.Get(key.schema).Name()
+		if key.Schema != (ids.ObjectAddress{}) {
+			description += " in schema " + view.Get(key.Schema).Name()
 		}
 		prefix := "privileges for "
 		if kind == 'o' {
@@ -139,7 +139,7 @@ func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref aut
 }
 func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ids.ObjectAddress{{}, schema} {
-		key := defaultACLKey{creator: owner, schema: namespace, class: class}
+		key := defaultACLKey{Creator: owner, Schema: namespace, Class: class}
 		if _, private := c.defaultACLs[key]; !private {
 			if c.defaultReads == nil {
 				c.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
@@ -161,7 +161,7 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 func pruneNamespaceDefaults(source, next *catalogState, retired []ids.ObjectAddress) {
 	copied := false
 	for key := range next.defaultACLs {
-		if key.schema == (ids.ObjectAddress{}) || source.Get(key.schema) == nil || next.Get(key.schema) != nil && !slices.Contains(retired, key.schema) {
+		if key.Schema == (ids.ObjectAddress{}) || source.Get(key.Schema) == nil || next.Get(key.Schema) != nil && !slices.Contains(retired, key.Schema) {
 			continue
 		}
 		if !copied {
@@ -176,7 +176,7 @@ func remapDefaultSchemas(state *catalogState, mapping map[ids.ObjectAddress]ids.
 	original := state.defaultACLs
 	copied := false
 	for key, record := range original {
-		destination, changed := mapping[key.schema]
+		destination, changed := mapping[key.Schema]
 		if !changed {
 			continue
 		}
@@ -185,7 +185,7 @@ func remapDefaultSchemas(state *catalogState, mapping map[ids.ObjectAddress]ids.
 			copied = true
 		}
 		delete(state.defaultACLs, key)
-		key.schema = destination
+		key.Schema = destination
 		state.defaultACLs[key] = record
 	}
 }

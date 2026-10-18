@@ -20,30 +20,30 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 	// Temporary namespaces never participate in unqualified operator visibility.
 	operatorPath := path
 	for i, ns := range path {
-		if d, ok := view.Namespace(ns); ok && d.temporary != (ids.SessionToken{}) {
+		if d, ok := view.Namespace(ns); ok && d.Temporary != (ids.SessionToken{}) {
 			operatorPath = append([]ids.ObjectAddress(nil), path[:i]...)
 			for _, remaining := range path[i+1:] {
-				if d, ok := view.Namespace(remaining); !ok || d.temporary == (ids.SessionToken{}) {
+				if d, ok := view.Namespace(remaining); !ok || d.Temporary == (ids.SessionToken{}) {
 					operatorPath = append(operatorPath, remaining)
 				}
 			}
 			break
 		}
 	}
-	candidates := visibleOperators(groups, operatorPath, descriptor.name)
-	visible := len(candidates) == 1 && candidates[0].address == descriptor.address
+	candidates := visibleOperators(groups, operatorPath, descriptor.Name())
+	visible := len(candidates) == 1 && candidates[0].Address() == descriptor.Address()
 	if alias == sqltype.Regoperator {
 		visible = false
 		for _, d := range candidates {
-			if d.left == descriptor.left && d.right == descriptor.right {
-				visible = d.address == descriptor.address
+			if d.Left == descriptor.Left && d.Right == descriptor.Right {
+				visible = d.Address() == descriptor.Address()
 				break
 			}
 		}
 	}
-	name := descriptor.name
+	name := descriptor.Name()
 	if !visible {
-		name = regclassIdentifier(view.Get(descriptor.namespace).Name()) + "." + name
+		name = regclassIdentifier(view.Get(descriptor.Namespace()).Name()) + "." + name
 	}
 	if alias == sqltype.Regoperator {
 		operand := func(id ids.OID) string {
@@ -52,7 +52,7 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 			}
 			return regtypeSpelling(view, path, id)
 		}
-		name += "(" + operand(descriptor.left) + "," + operand(descriptor.right) + ")"
+		name += "(" + operand(descriptor.Left) + "," + operand(descriptor.Right) + ")"
 	}
 	return name
 }

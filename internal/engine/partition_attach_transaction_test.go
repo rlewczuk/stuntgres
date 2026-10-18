@@ -45,7 +45,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids
 	rows := make([][]sqltype.Value, len(values))
 	d := e.catalog.state.MustRelation(ref.Address)
 	for i, n := range values {
-		value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
+		value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,9 +82,9 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 	t.Run("latest_validation_preserves_rr_and_owner_effects", func(t *testing.T) {
 		e := New()
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
-		child.relationKind = tableRelation
+		child.RelationKind = tableRelation
 		partitionAttachUnitInstall(t, e, child)
-		ref := e.catalog.domain.Ref(e.catalog.state.epoch, child.address)
+		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, child.Address())
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
 		partitionAttachUnitWrite(t, e, writer, ref, 1)
 		partitionAttachUnitBegin(t, e, owner, RepeatableRead)
@@ -104,7 +104,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		partitionAttachUnitWrite(t, e, writer, ref, 3)
 		partitionAttachUnitWrite(t, e, owner, ref, 2)
 		deleting, deleteOp := partitionAttachUnitScope(t, e, owner)
-		deleteSyntax := &parser.Delete{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.name}}}}
+		deleteSyntax := &parser.Delete{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}}
 		if err := deleting.acquireRelation(deleteSyntax, true); err != nil {
 			t.Fatal(err)
 		}
@@ -163,15 +163,15 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_tx_parent", 46210)
 			child := inheritanceUnitRelation(e, "attach_tx_child", 46211, "k")
-			child.relationKind = tableRelation
+			child.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
-			parent = e.catalog.state.MustRelation(parent.address)
-			child = e.catalog.state.MustRelation(child.address)
+			parent = e.catalog.state.MustRelation(parent.Address())
+			child = e.catalog.state.MustRelation(child.Address())
 			owner := sessionStart(t, e, nil)
 			tx := partitionAttachUnitBegin(t, e, owner, ReadCommitted)
-			parentRef := e.catalog.domain.Ref(e.catalog.state.epoch, parent.address)
+			parentRef := e.catalog.Domain.Ref(e.catalog.state.epoch, parent.Address())
 			childRef := parentRef
-			childRef.Address = child.address
+			childRef.Address = child.Address()
 			before, beforeOp := partitionAttachUnitScope(t, e, owner)
 			partitionAttachUnitGrant(t, before, parentRef, lock.AccessShare)
 			if err := before.Finish(nil); err != nil {
@@ -200,7 +200,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			attachOp.Done()
 			private := e.privateCatalogLocked(owner.transactions.catalog)
-			if private.MustRelation(child.address).membership == nil || e.catalog.state.Get(child.address) != child || len(parent.partition.children) != 0 {
+			if private.MustRelation(child.Address()).Membership == nil || e.catalog.state.Get(child.Address()) != child || len(parent.Partition.Children) != 0 {
 				t.Fatal("overlay was not private and reciprocal")
 			}
 			if end == "savepoint" {
@@ -213,7 +213,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				rollbackOp.Done()
-				if e.privateCatalogLocked(owner.transactions.catalog).Get(child.address) != child {
+				if e.privateCatalogLocked(owner.transactions.catalog).Get(child.Address()) != child {
 					t.Fatal("savepoint retained attachment overlay")
 				}
 				lockState := e.locks.Inspect()
@@ -237,7 +237,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			attached := e.catalog.state.MustRelation(child.address).membership != nil
+			attached := e.catalog.state.MustRelation(child.Address()).Membership != nil
 			if attached != (end == "commit") {
 				t.Fatal("transaction end published wrong topology", attached)
 			}

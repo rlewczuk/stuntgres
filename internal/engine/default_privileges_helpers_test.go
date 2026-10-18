@@ -33,7 +33,7 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	e.roles = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
 	next := cloneCatalog(e.catalog.state)
-	namespace := &namespaceDescriptor{address: schema, name: "default_schema", revision: 2, owner: refs[0]}
+	namespace := &namespaceDescriptor{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
 	next.setDescriptor(schema, namespace)
 	next.bindName(descriptorNameKey(namespace), schema)
 	e.catalog.state = next
@@ -111,7 +111,7 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 	f.e.mu.Lock()
 	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []ColumnDescriptor{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
-		d.acl = stage.creationACL(owner, f.schema, authorization.DefaultTables)
+		d.ACL = stage.creationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.stageRowTypeLocked(stage, d)
 	}
 	f.e.mu.Unlock()

@@ -40,35 +40,35 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	if err := ctx.Err(); err != nil {
 		return m, names, err
 	}
-	if catalog.owner == nil || catalog.state == nil || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
+	if catalog.owner == nil || catalog.state == nil || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	index, ok := catalog.Relation(ref.Address)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		return m, names, fmt.Errorf("stuntgres: index metadata target is missing")
 	}
 	sql, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{})
 	if err != nil {
 		return m, names, err
 	}
-	definition := index.sqlIndex
-	parent := catalog.MustRelation(definition.parent)
-	n := len(definition.keys)
+	definition := index.SQLIndex
+	parent := catalog.MustRelation(definition.Parent)
+	n := len(definition.Keys)
 	ready, valid, live := definition.publicationState()
-	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
-	m.IndIsUnique = definition.unique
-	m.IndNullsNotDistinct = definition.nullsNotDistinct
-	m.IndIsPrimary = definition.constraint != nil && definition.constraint.kind == uniqueBackingKind && definition.constraint.Primary
+	m = indexMetadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
+	m.IndIsUnique = definition.Unique
+	m.IndNullsNotDistinct = definition.NullsNotDistinct
+	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind && definition.Constraint.Primary
 	if definition.isExclusion() {
 		m.IndIsExclusion = true
 		if c := exclusionDefinition(parent, index); c != nil {
 			m.IndImmediate = !c.Deferrable
 		}
 	}
-	if predicate := definition.predicate; predicate != nil {
-		m.Predicate = predicate.definition
+	if predicate := definition.Predicate; predicate != nil {
+		m.Predicate = predicate.Definition
 	}
-	for i, key := range definition.keys {
+	for i, key := range definition.Keys {
 		if err := ctx.Err(); err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
@@ -91,22 +91,22 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		if err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
-		m.IndClass[i] = ids.OID(key.class.OID())
+		m.IndClass[i] = ids.OID(key.Class.OID())
 		if m.IndClass[i] == 0 {
 			return indexMetadata{}, indexesMetadata{}, fmt.Errorf("stuntgres: index class has no released identity")
 		}
 		m.IndCollation[i] = ids.OID(usage.Collation.ID)
-		if definition.method != btreeMethod {
+		if definition.Method != btreeMethod {
 			continue
 		}
-		if key.desc {
+		if key.Desc {
 			m.IndOption[i] |= 1
 		}
-		if key.nullsFirst {
+		if key.NullsFirst {
 			m.IndOption[i] |= 2
 		}
 	}
-	for i, attribute := range definition.include {
+	for i, attribute := range definition.Include {
 		if err := ctx.Err(); err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
@@ -115,7 +115,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		}
 		m.IndKey[n+i] = int16(attribute)
 	}
-	names = indexesMetadata{SchemaName: catalog.Get(parent.namespace).Name(), TableName: parent.name, IndexName: index.name, IndexDef: sql}
+	names = indexesMetadata{SchemaName: catalog.Get(parent.Namespace()).Name(), TableName: parent.Name(), IndexName: index.Name(), IndexDef: sql}
 	return m, names, nil
 }
 
@@ -133,16 +133,16 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
 	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.address.ObjectID, b.address.ObjectID) })
+	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
 	records := make([]indexMetadata, len(indexes))
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.domain.Ref(catalog.Epoch(), index.address))
+		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.Domain.Ref(catalog.Epoch(), index.Address()))
 		if err != nil {
 			return nil, nil, err
 		}

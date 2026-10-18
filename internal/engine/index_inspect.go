@@ -26,13 +26,13 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, fmt.Errorf("stuntgres: index %s.%s does not exist", quoteIdentifier(schema), quoteIdentifier(name))
 	}
 	index, ok := catalog.Relation(address)
-	if !ok || index.sqlIndex == nil {
+	if !ok || index.SQLIndex == nil {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: relation %s.%s is not an index", quoteIdentifier(schema), quoteIdentifier(name))
 	}
-	ready, valid, live := index.sqlIndex.publicationState()
+	ready, valid, live := index.SQLIndex.publicationState()
 	wait, admitted := e.indexBuildWaits[address]
-	admitted = admitted && wait.owner.Domain() == e.catalog.domain && wait.owner.Epoch() == e.catalog.state.epoch && live && !valid
+	admitted = admitted && wait.owner.Domain() == e.catalog.Domain && wait.owner.Epoch() == e.catalog.state.epoch && live && !valid
 	older := admitted && ready && wait.kind == indexWaitOlderSnapshots
 	writers := admitted && wait.kind == indexWaitWriters
 	e.mu.Unlock()

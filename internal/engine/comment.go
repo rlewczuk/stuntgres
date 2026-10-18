@@ -105,7 +105,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}
-		ref = e.catalog.domain.Ref(auth.catalog.Epoch(), a)
+		ref = e.catalog.Domain.Ref(auth.catalog.Epoch(), a)
 	case parser.CommentTable, parser.CommentColumn:
 		ref = scope.lockedRef
 		if ref.Domain() == nil {
@@ -119,13 +119,13 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := tableKind(relation, operation); err != nil {
 			return nil, err
 		}
-		if err := auth.CanUse(e.catalog.domain.Ref(ref.Epoch, relation.namespace)); err != nil {
+		if err := auth.CanUse(e.catalog.Domain.Ref(ref.Epoch, relation.Namespace())); err != nil {
 			return nil, err
 		}
 		if s.Kind == parser.CommentColumn {
 			d := relation
 			name := s.Name.Parts[len(s.Name.Parts)-1].Text
-			index, ok := d.index[name]
+			index, ok := d.Index[name]
 			if !ok {
 				parts := make([]string, len(s.Name.Parts)-1)
 				for i := range parts {
@@ -133,7 +133,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 				}
 				return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, strings.Join(parts, ".")))
 			}
-			ref.Address.SubID = d.attributes[index]
+			ref.Address.SubID = d.Attributes[index]
 		}
 	default:
 		return nil, sqlError("0A000", "COMMENT object kind is unsupported")
@@ -151,23 +151,23 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	switch d := auth.catalog.Get(a).(type) {
 	case *namespaceDescriptor:
 		n := *d
-		n.comment = text
-		n.revision = revision
+		n.Comment = text
+		n.ObjectRevision = revision
 		updated = &n
 	case *relationDescriptor:
 		n := *d
-		n.revision = revision
+		n.ObjectRevision = revision
 		if ref.Address.SubID == 0 {
-			n.comment = text
+			n.Comment = text
 		} else {
-			n.columnComments = make(map[int32]string, len(d.columnComments)+1)
-			for key, value := range d.columnComments {
-				n.columnComments[key] = value
+			n.ColumnComments = make(map[int32]string, len(d.ColumnComments)+1)
+			for key, value := range d.ColumnComments {
+				n.ColumnComments[key] = value
 			}
 			if text == "" {
-				delete(n.columnComments, ref.Address.SubID)
+				delete(n.ColumnComments, ref.Address.SubID)
 			} else {
-				n.columnComments[ref.Address.SubID] = text
+				n.ColumnComments[ref.Address.SubID] = text
 			}
 		}
 		updated = &n

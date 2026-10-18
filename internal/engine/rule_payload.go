@@ -1,7 +1,7 @@
 package engine
 
 // rulesPayload is a relation's ordered rewrite rules, as
-// relationDescriptor.rules holds them. Catalog code only validates them; the
+// relationDescriptor.Rules holds them. Catalog code only validates them; the
 // concrete ruleDefinition, with its condition and action bindings (cuts 8
 // and 9), stays in the engine behind rulesOf.
 type rulesPayload interface {
@@ -19,7 +19,7 @@ func (r ruleList) Validate(v CatalogRead, owner *relationDescriptor) error {
 
 // rulesOf returns d's rules, or nil when d stores none.
 func rulesOf(d *relationDescriptor) []ruleDefinition {
-	r, _ := d.rules.(ruleList)
+	r, _ := d.Rules.(ruleList)
 	return r
 }
 

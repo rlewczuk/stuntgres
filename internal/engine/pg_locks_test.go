@@ -49,18 +49,18 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID})
-	if !d.virtualView || d.relationKind != catalogRelation || d.rowType != 12075 {
+	if !d.VirtualView || d.RelationKind != catalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.acl)
+	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	for _, id := range []ids.OID{12075, 12074} {
 		typ := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.owningRelation != d.address {
+		if typ.OwningRelation != d.Address() {
 			t.Fatal("type owner", typ)
 		}
 		if err := (typeProvider{}).Validate(catalog, typ); err != nil {
@@ -266,15 +266,15 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	})
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
-		ref := e.catalog.domain.Tx(e.catalog.domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
-		if _, _, err := lock.PublicOwner(e.catalog.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
+		ref := e.catalog.Domain.Tx(e.catalog.Domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
+		if _, _, err := lock.PublicOwner(e.catalog.Domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
-		if owner, ok, err := lock.PublicOwner(e.catalog.domain, ref, true); err != nil || !ok || !owner.Prepared {
+		if owner, ok, err := lock.PublicOwner(e.catalog.Domain, ref, true); err != nil || !ok || !owner.Prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref = withTxSession(ref, e.catalog.domain.PrivateSession(&Session{}))
-		if _, ok, err := lock.PublicOwner(e.catalog.domain, ref, false); err != nil || ok {
+		ref = withTxSession(ref, e.catalog.Domain.PrivateSession(&Session{}))
+		if _, ok, err := lock.PublicOwner(e.catalog.Domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})
@@ -303,8 +303,8 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
-	store := e.storage[d.address]
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+	store := e.storage[d.Address()]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID
 	switch route {
@@ -317,7 +317,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)
 		next := *d
-		next.revision++
+		next.ObjectRevision++
 		if err = stage.Replace(&next); err == nil {
 			var publication *PreparedCatalogPublication
 			publication, err = e.ValidateCatalogStage(context.Background(), stage)
@@ -358,7 +358,7 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	e.enrollSerializableLocked(b.Ref(), Serializable)
 	first, overlap := e.serializable.nodes[a.Ref()], e.serializable.nodes[b.Ref()]
 	first.captured, overlap.captured = true, true
-	first.reads[d.address] = struct{}{}
+	first.reads[d.Address()] = struct{}{}
 	before, err := e.capturePGPredicateLocksLocked()
 	if err != nil || len(before) != 1 {
 		t.Fatal("real SSI read", before, err)

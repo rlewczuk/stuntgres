@@ -16,11 +16,11 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.
 		}
 		refs = append(refs, a)
 	}
-	add(d.namespace)
-	for _, id := range [...]ids.OID{d.left, d.right, d.result} {
+	add(d.Namespace())
+	for _, id := range [...]ids.OID{d.Left, d.Right, d.Result} {
 		add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 	}
-	for _, id := range [...]ids.OID{d.function, d.restriction, d.join} {
+	for _, id := range [...]ids.OID{d.Function, d.Restriction, d.Join} {
 		a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 		if _, ok := view.Find(a); ok {
 			add(a)
@@ -31,27 +31,27 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.
 func (p *dropProvider) clearOperatorLinks(d *operatorDescriptor) error {
 	for address, descriptor := range p.base.Descriptors() {
 		peer, ok := descriptor.(*operatorDescriptor)
-		if !ok || address == d.address || p.removed(address) {
+		if !ok || address == d.Address() || p.removed(address) {
 			continue
 		}
 		if current, ok := p.replacement(address).(*operatorDescriptor); ok {
 			peer = current
 		}
-		if peer.commutator != d.address.ObjectID && peer.negator != d.address.ObjectID {
+		if peer.Commutator != d.Address().ObjectID && peer.Negator != d.Address().ObjectID {
 			continue
 		}
 		next := *peer
-		if next.commutator == d.address.ObjectID {
-			next.commutator = 0
+		if next.Commutator == d.Address().ObjectID {
+			next.Commutator = 0
 		}
-		if next.negator == d.address.ObjectID {
-			next.negator = 0
+		if next.Negator == d.Address().ObjectID {
+			next.Negator = 0
 		}
-		revision, err := p.revision(peer.revision)
+		revision, err := p.revision(peer.Revision())
 		if err != nil {
 			return err
 		}
-		next.revision = revision
+		next.ObjectRevision = revision
 		if err = p.replace(&next); err != nil {
 			return err
 		}

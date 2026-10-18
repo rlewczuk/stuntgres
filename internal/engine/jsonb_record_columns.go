@@ -39,24 +39,24 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 		view := c.evaluation.domainCatalog()
 		if view.state != nil {
 			d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
-			if ok && d.typ == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.namespace).Name() {
+			if ok && d.SQLType == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.ObjectNamespace).Name() {
 				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
 					return err
 				}
 				// Inherited checks report the requested domain, but retain their
 				// declaring constraint name. Read only the captured generation.
 				for current := d; ; {
-					for _, check := range current.domainChecks {
+					for _, check := range current.DomainChecks {
 						if diagnostic.Constraint == check.Name {
 							return err
 						}
 					}
-					base := current.typ.DomainBase().Type
+					base := current.SQLType.DomainBase().Type
 					if !base.IsDomain() {
 						break
 					}
 					parent, found := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
-					if !found || parent.typ != base {
+					if !found || parent.SQLType != base {
 						break
 					}
 					current = parent
@@ -216,10 +216,10 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 		return annotation, err
 	}
 	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())})
-	if !ok || descriptor.typ != current {
+	if !ok || descriptor.SQLType != current {
 		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
 	}
-	namespace := view.Get(descriptor.namespace)
+	namespace := view.Get(descriptor.ObjectNamespace)
 	if namespace == nil {
 		return annotation, fmt.Errorf("stuntgres: missing retained composite namespace")
 	}

@@ -55,7 +55,7 @@ func (m indexMethod) lookupClass(name string) (sqltype.IndexClass, bool) {
 }
 
 func bindIndexProvider(parent *relationDescriptor, d *indexDefinition) error {
-	switch d.method {
+	switch d.Method {
 	case btreeMethod:
 		_, err := bindIndexOrdering(parent, d)
 		return err
@@ -81,23 +81,23 @@ type hashIndexBinding struct {
 
 func bindHashIndex(parent *relationDescriptor, d *indexDefinition) (hashIndexBinding, error) {
 	var b hashIndexBinding
-	if d.method != hashMethod || len(d.keys) != 1 || len(d.include) != 0 || d.unique {
+	if d.Method != hashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return b, fmt.Errorf("stuntgres: invalid hash index definition")
 	}
-	key := d.keys[0]
-	if key.desc || key.nullsFirst {
+	key := d.Keys[0]
+	if key.Desc || key.NullsFirst {
 		return b, fmt.Errorf("stuntgres: ordered hash index key")
 	}
 	usage, err := indexKeyUsage(parent, key)
 	if err != nil {
 		return b, err
 	}
-	class := key.class
+	class := key.Class
 	if class.Name == "" {
 		var exists bool
-		class, exists = d.method.defaultClass(usage.Type)
+		class, exists = d.Method.defaultClass(usage.Type)
 		if !exists {
-			return b, indexDefaultClassError(usage.Type.DiagnosticName(), d.method)
+			return b, indexDefaultClassError(usage.Type.DiagnosticName(), d.Method)
 		}
 	}
 	b.provider, err = sqltype.BindIndexHash(usage, class)
@@ -105,14 +105,14 @@ func bindHashIndex(parent *relationDescriptor, d *indexDefinition) (hashIndexBin
 		return b, err
 	}
 	b.usage, b.class = usage, class
-	b.derived = key.derived
-	if key.derived != nil {
-		if key.derived.definition == nil || key.derived.execution == nil {
+	b.derived = key.Derived
+	if key.Derived != nil {
+		if key.Derived.Definition == nil || key.Derived.Execution == nil {
 			return b, fmt.Errorf("stuntgres: missing hash expression")
 		}
-		b.slot, b.expression = -1, key.derived.execution
+		b.slot, b.expression = -1, key.Derived.Execution
 	} else {
-		b.slot = slices.Index(parent.attributes, key.attribute)
+		b.slot = slices.Index(parent.Attributes, key.Attribute)
 		if b.slot < 0 {
 			return b, fmt.Errorf("stuntgres: missing hash attribute")
 		}
@@ -225,8 +225,8 @@ func publicationSlot(p *rowPublication, i int) int {
 
 func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old *logicalIndexRoot, p *rowPublication, reconstruct, materialize bool) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
-	d := index.sqlIndex
-	if d.method != hashMethod || len(d.keys) != 1 || len(d.include) != 0 || d.unique {
+	d := index.SQLIndex
+	if d.Method != hashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return nil, fmt.Errorf("stuntgres: invalid hash merge definition")
 	}
 	var binding hashIndexBinding
@@ -242,20 +242,20 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 		}
 	} else {
 		binding = old.hash.binding
-		key := d.keys[0]
+		key := d.Keys[0]
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return nil, err
 		}
-		class := key.class
+		class := key.Class
 		if class.Name == "" {
-			class, _ = d.method.defaultClass(usage.Type)
+			class, _ = d.Method.defaultClass(usage.Type)
 		}
-		slot := slices.Index(parent.attributes, key.attribute)
-		if key.derived != nil {
+		slot := slices.Index(parent.Attributes, key.Attribute)
+		if key.Derived != nil {
 			slot = -1
 		}
-		if usage != binding.usage || class != binding.class || slot != binding.slot || key.derived != binding.derived || key.desc || key.nullsFirst {
+		if usage != binding.usage || class != binding.class || slot != binding.slot || key.Derived != binding.derived || key.Desc || key.NullsFirst {
 			binding, err = bindHashIndex(parent, d)
 			if err != nil {
 				return nil, err
@@ -310,7 +310,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 				continue
 			}
 		}
-		output, produced := row.indexOutputs[index.address]
+		output, produced := row.indexOutputs[index.Address()]
 		produced = produced && output.matches(index)
 		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue

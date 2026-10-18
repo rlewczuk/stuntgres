@@ -87,7 +87,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 				if col, ok := child.(columnExpression); ok {
 					found := false
 					for _, d := range bound.dependencies {
-						if d.ref == col.origin {
+						if d.Ref == col.origin {
 							found = true
 						}
 					}

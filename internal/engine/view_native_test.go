@@ -42,11 +42,11 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 	for _, name := range []string{"s.v", "s.w"} {
 		ref := roleTableRef(t, e, name)
 		descriptor := e.CatalogRead().MustRelation(ref.Address)
-		if descriptor.owner != owner.Ref {
-			t.Fatal("view owner remap", name, descriptor.owner)
+		if descriptor.Owner != owner.Ref {
+			t.Fatal("view owner remap", name, descriptor.Owner)
 		}
 		for _, leaf := range viewOf(descriptor).sources {
-			if leaf.ref.Domain() != e.catalog.domain || leaf.ref.Epoch != e.catalog.state.epoch {
+			if leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.epoch {
 				t.Fatal("view identity remap", name, leaf.ref)
 			}
 		}
@@ -70,8 +70,8 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TEMPORARY SEQUENCE retained")
-	oldInt8 := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).typ
-	oldBool := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).typ
+	oldInt8 := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).SQLType
+	oldBool := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
 	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal("view retained type generation")
 	}
 	for _, dependency := range definition.dependencies {
-		if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != e.catalog.state.epoch {
+		if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.epoch {
 			t.Fatal("view dependency generation", dependency)
 		}
 	}
@@ -102,8 +102,8 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	old := base.MustRelation(vref.Address)
 	replacement := *old
 	definition := *viewOf(old)
-	replacement.view = &definition
-	replacement.revision++
+	replacement.View = &definition
+	replacement.ObjectRevision++
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	previous := definition.sources[0].ref
 	definition.sources[0].ref = wref

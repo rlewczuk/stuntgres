@@ -54,7 +54,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 		t.Fatal("authorized metadata lost after actor mutation")
 	}
 	current := e.catalog.state.MustRelation(table.Address)
-	if current.columns[0].Nullable || e.storage[table.Address] != store {
+	if current.Columns[0].Nullable || e.storage[table.Address] != store {
 		t.Fatal("metadata/storage publication changed")
 	}
 	op = transactionOperation(t, s)

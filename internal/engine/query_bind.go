@@ -138,7 +138,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					b.viewStars = make(map[viewLiteralPath][]viewColumn)
 				}
 				b.viewStars[path] = nil
-				for _, column := range b.ruleNamespace.relation.columns {
+				for _, column := range b.ruleNamespace.relation.Columns {
 					name := star.Qualifier
 					name.Parts = []parser.Identifier{star.Qualifier.Parts[0], {Text: column.Name}}
 					expression, _, err := b.ruleColumn(parser.ColumnExpr{Name: name, Pos: star.Pos})
@@ -162,7 +162,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			if len(star.Qualifier.Parts) != 0 {
 				returningScope, newValues = b.outerReturningScope(star.Qualifier)
 				if returningScope != nil {
-					columns = returningScope.namespace.columns[:len(returningScope.relation.columns)]
+					columns = returningScope.namespace.columns[:len(returningScope.relation.Columns)]
 					frame = returningScope.frame
 				} else {
 					q, err := b.queryQualifier(star.Qualifier, star.Pos)

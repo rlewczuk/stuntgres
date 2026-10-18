@@ -22,10 +22,10 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	old := read.MustRelation(ref.Address)
 	storage := e.storage[ref.Address]
 	ends, generation := storage.ends, storage.generation
-	oldA, oldB := old.defaults[old.attributes[0]], old.defaults[old.attributes[1]]
+	oldA, oldB := old.Defaults[old.Attributes[0]], old.Defaults[old.Attributes[1]]
 	run(t, e, "ALTER TABLE t ALTER renamed SET DEFAULT 7")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.revision != old.revision+1 || next.address != old.address || !reflect.DeepEqual(next.attributes, old.attributes) || &next.columns[0] != &old.columns[0] || next.defaults[old.attributes[1]].expression != oldB.expression || old.defaults[old.attributes[0]].expression != oldA.expression || read.Get(ref.Address) != old {
+	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
 		t.Fatal("descriptor immutability/stable attributes violated")
 	}
 	if e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
@@ -38,10 +38,10 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
 	d := e.catalog.state.MustRelation(ref.Address)
-	if _, ok := d.defaults[old.attributes[0]]; ok {
+	if _, ok := d.Defaults[old.Attributes[0]]; ok {
 		t.Fatal("default retained")
 	}
-	if d.defaults[old.attributes[1]].expression != oldB.expression {
+	if d.Defaults[old.Attributes[1]].Expression != oldB.Expression {
 		t.Fatal("other default changed")
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
@@ -50,7 +50,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	}
 	e.mu.Lock()
 	exhausted := *d
-	exhausted.revision = ids.DefinitionRevision(^uint64(0))
+	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	e.catalog.state.setDescriptor(ref.Address, &exhausted)
 	e.mu.Unlock()
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER renamed SET DEFAULT 9"), nil)
@@ -106,14 +106,14 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 			storage := e.storage[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()

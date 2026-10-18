@@ -21,12 +21,12 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					f.store.versions[i] = rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), born: 1, values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
 				f.e.nextRow, f.e.nextVersion, f.e.commitSeq = uint64(size), uint64(size), 1
-				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.sqlIndex, f.store, nil)
+				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				f.e.indexRoots[f.index.address] = root
-				session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.owner})
+				f.e.indexRoots[f.index.Address()] = root
+				session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.Owner})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -55,7 +55,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.owner.isolation, scope.owner.frontier = isolation, 1
-				ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
+				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Address())
 				action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
 				evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
 				if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {

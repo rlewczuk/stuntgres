@@ -13,7 +13,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
-	child.inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}}
+	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
 	e.catalog.state = inheritanceUnitView(e, parent).state
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
@@ -25,7 +25,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if err := holder.gate(&parser.CreateTable{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
 	if err := holder.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.descriptors[child.address] = child
+	stage.descriptors[child.Address()] = child
 	stage.captureLikeSource(parent)
 	completed := make(chan error, 1)
 	go func() { completed <- scope.acquireDefinitionProviders(stage) }()
@@ -59,7 +59,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if !exact {
 		t.Fatal("parent admission did not queue exact SUE")
 	}
-	if e.catalog.state.Get(child.address) != nil || stage.likeSources[0] != parent {
+	if e.catalog.state.Get(child.Address()) != nil || stage.likeSources[0] != parent {
 		t.Fatal("canceled admission published or changed parent capture")
 	}
 }
@@ -73,7 +73,7 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	replacement := *parent
-	replacement.revision++
+	replacement.ObjectRevision++
 	for _, current := range []CatalogRead{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
 		if err := stage.validateLikeSources(current); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("stale parent capture accepted", err)

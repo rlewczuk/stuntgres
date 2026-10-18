@@ -22,33 +22,33 @@ func capturePGRoles(ctx context.Context, roles authorization.Read, ref ids.Objec
 		if principal.ID() > math.MaxUint32 {
 			continue
 		}
-		id, err := sqltype.OIDValue(source.columns[12].Usage.Type, uint32(principal.ID()))
+		id, err := sqltype.OIDValue(source.Columns[12].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}
-		expiry := sqltype.Null(source.columns[9].Usage.Type)
+		expiry := sqltype.Null(source.Columns[9].Usage.Type)
 		if role.HasValidUntil {
-			expiry, err = sqltype.TimestampValue(source.columns[9].Usage.Type, role.ValidUntil)
+			expiry, err = sqltype.TimestampValue(source.Columns[9].Usage.Type, role.ValidUntil)
 			if err != nil {
 				return nil, err
 			}
 		}
-		limit, err := sqltype.Integer(source.columns[7].Usage.Type, int64(role.ConnectionLimit))
+		limit, err := sqltype.Integer(source.Columns[7].Usage.Type, int64(role.ConnectionLimit))
 		if err != nil {
 			return nil, err
 		}
 		rows = append(rows, []sqltype.Value{
-			sqltype.String(source.columns[0].Usage.Type, role.Name),
-			sqltype.Boolean(source.columns[1].Usage.Type, role.Superuser),
-			sqltype.Boolean(source.columns[2].Usage.Type, role.Inherit),
-			sqltype.Boolean(source.columns[3].Usage.Type, role.CreateRole),
-			sqltype.Boolean(source.columns[4].Usage.Type, role.CreateDB),
-			sqltype.Boolean(source.columns[5].Usage.Type, role.Login),
-			sqltype.Boolean(source.columns[6].Usage.Type, role.Replication),
+			sqltype.String(source.Columns[0].Usage.Type, role.Name),
+			sqltype.Boolean(source.Columns[1].Usage.Type, role.Superuser),
+			sqltype.Boolean(source.Columns[2].Usage.Type, role.Inherit),
+			sqltype.Boolean(source.Columns[3].Usage.Type, role.CreateRole),
+			sqltype.Boolean(source.Columns[4].Usage.Type, role.CreateDB),
+			sqltype.Boolean(source.Columns[5].Usage.Type, role.Login),
+			sqltype.Boolean(source.Columns[6].Usage.Type, role.Replication),
 			limit,
-			sqltype.String(source.columns[8].Usage.Type, "********"), expiry,
-			sqltype.Boolean(source.columns[10].Usage.Type, role.BypassRLS),
-			sqltype.Null(source.columns[11].Usage.Type), id,
+			sqltype.String(source.Columns[8].Usage.Type, "********"), expiry,
+			sqltype.Boolean(source.Columns[10].Usage.Type, role.BypassRLS),
+			sqltype.Null(source.Columns[11].Usage.Type), id,
 		})
 	}
 	if err := ctx.Err(); err != nil {

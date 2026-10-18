@@ -51,9 +51,9 @@ func TestTableLikeOptionMask(t *testing.T) {
 
 func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
-	source := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, attributes: []int32{1, 3}}
-	destination := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, attributes: []int32{1, 2, 3, 4}}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), source.address)
+	source := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
+	destination := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(columnExpression)
-	if got.origin.Domain() != e.catalog.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
+	if got.origin.Domain() != e.catalog.Domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.Address().ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
 		t.Fatal(got, column)
 	}
 	owner := tableOIDExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, owner: ref}
@@ -77,7 +77,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(tableOIDExpression).owner.Domain() != e.catalog.domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
+	if mapped.(tableOIDExpression).owner.Domain() != e.catalog.Domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.Address() || owner.owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
@@ -113,28 +113,28 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.state || destination.address == source.address || destination.rowType == source.rowType || destination.defaults[3].OID == source.defaults[2].OID || destination.generations[5].OID == source.generations[4].OID || destination.checkConstraints[0].OID == source.checkConstraints[0].OID {
+	if e.catalog.state != before.state || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.Defaults[3].OID == source.Defaults[2].OID || destination.Generations[5].OID == source.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
-	if !destination.checkConstraints[0].NoInherit || destination.checkConstraints[0].Name != "positive" || destination.columnComments[3] != "exact" || len(source.columns) != 3 || len(destination.columns) != 5 {
+	if !destination.CheckConstraints[0].NoInherit || destination.CheckConstraints[0].Name != "positive" || destination.ColumnComments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
 		t.Fatal(destination, source)
 	}
-	identity := destination.identities[4]
-	sequence := stage.descriptors[identity.sequence].(*relationDescriptor)
-	if identity.sequence == source.identities[3].sequence || sequence.sequence.owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.owner != destination.owner || sequence.sequence.persistence != "logged" || stage.generators[identity.sequence].called {
+	identity := destination.Identities[4]
+	sequence := stage.descriptors[identity.Sequence].(*relationDescriptor)
+	if identity.Sequence == source.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
-	for _, ref := range destination.generations[5].dependencies {
-		if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == source.address.ObjectID {
+	for _, ref := range destination.Generations[5].Dependencies {
+		if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == source.Address().ObjectID {
 			t.Fatal("generation retained source row", ref)
 		}
 	}
-	for _, dep := range destination.checkConstraints[0].dependencies {
-		if dep.ref.Address.ObjectID == source.address.ObjectID {
+	for _, dep := range destination.CheckConstraints[0].Dependencies {
+		if dep.Ref.Address.ObjectID == source.Address().ObjectID {
 			t.Fatal("CHECK retained source row", dep)
 		}
 	}
-	if stage.descriptors[source.address] != nil || before.Get(source.address) != source {
+	if stage.descriptors[source.Address()] != nil || before.Get(source.Address()) != source {
 		t.Fatal("source descriptor modified")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -144,7 +144,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.storage[destination.address].versions) != 0 {
+	if len(e.storage[destination.Address()].versions) != 0 {
 		t.Fatal("source rows imported")
 	}
 }
@@ -199,12 +199,12 @@ func TestTableLikePublicationFence(t *testing.T) {
 	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	next := *source
 	e.mu.Lock()
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.comment = "intervening descriptor"
+	next.Comment = "intervening descriptor"
 	update := e.BeginCatalogStage(e.CatalogRead())
 	if err := update.Replace(&next); err != nil {
 		t.Fatal(err)

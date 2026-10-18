@@ -13,39 +13,39 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 }
 
 func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationDescriptor) error {
-	if relation.partition != nil {
-		for _, address := range relation.partition.children {
-			ref := provider.owner.catalog.domain.Ref(provider.base.Epoch(), address)
+	if relation.Partition != nil {
+		for _, address := range relation.Partition.Children {
+			ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)
 			if err := provider.removeObjectLocked(ref, false); err != nil {
 				return err
 			}
 		}
 	}
-	if relation.membership == nil {
+	if relation.Membership == nil {
 		return nil
 	}
-	address := relation.membership.parent
+	address := relation.Membership.Parent
 	if provider.removed(address) {
 		return nil
 	}
 	parent, ok := provider.inputDescriptor(address).(*relationDescriptor)
-	if !ok || parent.partition == nil {
+	if !ok || parent.Partition == nil {
 		return fmt.Errorf("stuntgres: missing partition parent")
 	}
 	if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
 		parent = staged
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent
-	definition := *parent.partition
-	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(child ids.ObjectAddress) bool { return child == relation.address })
-	if definition.defaultChild == relation.address {
-		definition.defaultChild = ids.ObjectAddress{}
+	definition := *parent.Partition
+	definition.Children = slices.DeleteFunc(slices.Clone(definition.Children), func(child ids.ObjectAddress) bool { return child == relation.Address() })
+	if definition.DefaultChild == relation.Address() {
+		definition.DefaultChild = ids.ObjectAddress{}
 	}
-	next.partition = &definition
-	next.revision++
+	next.Partition = &definition
+	next.ObjectRevision++
 	if err := provider.replace(&next); err != nil {
 		return err
 	}
@@ -66,13 +66,13 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 		return nil
 	}
 	var ancestors []ids.ObjectRef
-	for relation.membership != nil {
-		relation, ok = catalog.Relation(relation.membership.parent)
+	for relation.Membership != nil {
+		relation, ok = catalog.Relation(relation.Membership.Parent)
 		if !ok {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.address))
+		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.Address()))
 	}
 	e.mu.Unlock()
 	slices.Reverse(ancestors)
@@ -92,22 +92,22 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 }
 
 func partitionDependsOn(relation *relationDescriptor, target ids.ObjectAddress) bool {
-	if relation.partition == nil {
+	if relation.Partition == nil {
 		return false
 	}
-	for _, key := range relation.partition.keys {
-		if target.ClassID == ids.TypeClassID && ids.OID(key.usage.Type.ID()) == target.ObjectID {
+	for _, key := range relation.Partition.Keys {
+		if target.ClassID == ids.TypeClassID && ids.OID(key.Usage.Type.ID()) == target.ObjectID {
 			return true
 		}
 		if target.ClassID == ids.CollationClassID && target.SubID == 0 && target.ObjectID != 0 &&
-			(ids.OID(key.usage.Collation.ID) == target.ObjectID || ids.OID(key.collation) == target.ObjectID) {
+			(ids.OID(key.Usage.Collation.ID) == target.ObjectID || ids.OID(key.Collation) == target.ObjectID) {
 			return true
 		}
-		if key.attribute != 0 && target.ClassID == ids.RelationClassID && target.ObjectID == relation.address.ObjectID && target.SubID == key.attribute {
+		if key.Attribute != 0 && target.ClassID == ids.RelationClassID && target.ObjectID == relation.Address().ObjectID && target.SubID == key.Attribute {
 			return true
 		}
-		if key.derived != nil {
-			for _, ref := range key.derived.dependencies {
+		if key.Derived != nil {
+			for _, ref := range key.Derived.Dependencies {
 				address := ref.Address
 				if address.ClassID == target.ClassID && address.ObjectID == target.ObjectID && (target.SubID == 0 || address.SubID == target.SubID) {
 					return true

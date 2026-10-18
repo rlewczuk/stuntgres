@@ -20,7 +20,7 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 	}
 	for oid, domain := range domains {
 		event := dumpEventKey{oid: oid, phase: dumpDomainChecks}
-		for _, check := range domain.domainChecks {
+		for _, check := range domain.DomainChecks {
 			if !check.NotValid {
 				continue
 			}
@@ -37,11 +37,11 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 				}
 				return nil
 			}
-			if err := regclassReplayReferences(view, check.expression, add); err != nil {
+			if err := regclassReplayReferences(view, check.Expression, add); err != nil {
 				return err
 			}
-			for _, dependency := range check.dependencies {
-				if err := add(dependency.ref.Address); err != nil {
+			for _, dependency := range check.Dependencies {
+				if err := add(dependency.Ref.Address); err != nil {
 					return err
 				}
 			}
@@ -54,17 +54,17 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 }
 
 func domainInvalidDumpStatement(ctx context.Context, view CatalogRead, domain *typeDescriptor) (string, error) {
-	qualified, err := catalogTypeDeclaration(view, domain.typ.Usage())
+	qualified, err := catalogTypeDeclaration(view, domain.SQLType.Usage())
 	if err != nil {
 		return "", err
 	}
-	base := domain.typ.DomainBase()
+	base := domain.SQLType.DomainBase()
 	var text strings.Builder
-	for _, check := range domain.domainChecks {
+	for _, check := range domain.DomainChecks {
 		if !check.NotValid {
 			continue
 		}
-		expression, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.expression)
+		expression, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.Expression)
 		if err != nil {
 			return "", err
 		}
@@ -108,25 +108,25 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.domain || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
+	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.Domain || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
 		return reject()
 	}
 	if _, captured := e.importTargets[owner]; !captured {
 		return reject()
 	}
 	domain, ok := auth.catalog.Type(created.Address)
-	if !ok || !domain.typ.IsDomain() {
+	if !ok || !domain.SQLType.IsDomain() {
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(domain.namespace)
-	if !ok || namespace.temporary != (ids.SessionToken{}) {
+	namespace, ok := auth.catalog.Namespace(domain.ObjectNamespace)
+	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 	if err != nil {
 		return restoredDomainOwner{}, err
 	}
-	if !actor.Superuser || domain.owner != actor.Ref || owner == actor.Ref {
+	if !actor.Superuser || domain.Owner != actor.Ref || owner == actor.Ref {
 		return reject()
 	}
 	if _, err := auth.roles.Descriptor(owner); err != nil {

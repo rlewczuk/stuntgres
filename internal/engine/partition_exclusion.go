@@ -22,7 +22,7 @@ func partitionExclusionAddActions(raw *parser.AlterTable) bool {
 }
 
 func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *relationDescriptor) (Result, error) {
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), table.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
 	e.mu.Unlock()
 	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err
@@ -33,7 +33,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.Get(table.address) != table {
+	if auth.catalog.Get(table.Address()) != table {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -44,13 +44,13 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
 	next := *table
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	next.exclusionConstraints = slices.Clone(table.exclusionConstraints)
+	next.ExclusionConstraints = slices.Clone(table.ExclusionConstraints)
 	for _, action := range raw.Actions {
 		if err = e.stageExclusion(op, scope.input, auth, stage, &next, action.Exclusion, !raw.Only); err != nil {
 			break

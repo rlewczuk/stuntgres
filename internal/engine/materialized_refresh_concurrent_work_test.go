@@ -27,11 +27,11 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		e := New()
 		d := concurrentUnitRelation(t, e)
 		index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i,p", "")
-		d = e.catalog.state.MustRelation(d.address)
+		d = e.catalog.state.MustRelation(d.Address())
 		rows := concurrentUnitRows(t, d, make([]any, count)...)
 		d = concurrentUnitReplace(t, e, d, rows, false, true)
-		old := e.storage[d.address]
-		ordering, err := bindIndexOrdering(d, index.sqlIndex)
+		old := e.storage[d.Address()]
+		ordering, err := bindIndexOrdering(d, index.SQLIndex)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,13 +62,13 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		e := New()
 		d := concurrentUnitRelation(t, e)
 		index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-		d = e.catalog.state.MustRelation(d.address)
+		d = e.catalog.state.MustRelation(d.Address())
 		payloads := make([]any, count)
 		for i := range payloads {
 			payloads[i] = int64(10)
 		}
 		rows := concurrentUnitRows(t, d, payloads...)
-		ordering, err := bindIndexOrdering(d, index.sqlIndex)
+		ordering, err := bindIndexOrdering(d, index.SQLIndex)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,16 +92,16 @@ func TestMaterializedRefreshConcurrentDuplicateDiagnosticOrder(t *testing.T) {
 	e := New()
 	d := concurrentUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	rows := concurrentUnitRows(t, d, int64(10), int64(10), int64(20), int64(20), int64(10))
 	for i, key := range []int64{9, 8, 1, 1, 8} {
-		value, err := sqltype.Integer(d.columns[0].Usage.Type, key)
+		value, err := sqltype.Integer(d.Columns[0].Usage.Type, key)
 		if err != nil {
 			t.Fatal(err)
 		}
 		rows[i][0] = value
 	}
-	ordering, err := bindIndexOrdering(d, index.sqlIndex)
+	ordering, err := bindIndexOrdering(d, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -39,21 +39,21 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if isSystemColumn(s.Column.Text) {
 		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
 	}
-	slot, exists := old.index[s.Column.Text]
+	slot, exists := old.Index[s.Column.Text]
 	if !exists {
-		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.name)))
+		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.Name())))
 	}
-	attr := old.attributes[slot]
-	if _, generated := old.generations[attr]; generated {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.name)).(*sqlstate.Error)
+	attr := old.Attributes[slot]
+	if _, generated := old.Generations[attr]; generated {
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION instead."
 		if s.Action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP EXPRESSION instead."
 		}
 		return fail(diagnostic)
 	}
-	if _, ok := old.identities[attr]; ok {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.name)).(*sqlstate.Error)
+	if _, ok := old.Identities[attr]; ok {
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.Name())).(*sqlstate.Error)
 		if s.Action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
 		}
@@ -68,7 +68,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-	} else if _, present := old.defaults[attr]; !present {
+	} else if _, present := old.Defaults[attr]; !present {
 		op.session.mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.session.mu.Unlock()
@@ -81,11 +81,11 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	original := e.authorizationStorageLocked(auth, ref.Address)
-	if original == nil && old.partition == nil {
+	if original == nil && old.Partition == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}
 	var length int
@@ -95,26 +95,26 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		length, generation, ends = len(original.versions), original.generation, original.ends
 	}
 	next := *old
-	next.revision++
-	capacity := len(old.defaults)
-	if definition.expression == nil {
-		if _, present := old.defaults[attr]; present {
+	next.ObjectRevision++
+	capacity := len(old.Defaults)
+	if definition.Expression == nil {
+		if _, present := old.Defaults[attr]; present {
 			capacity--
 		}
-	} else if _, present := old.defaults[attr]; !present {
+	} else if _, present := old.Defaults[attr]; !present {
 		capacity++
 	}
-	next.defaults = nil
+	next.Defaults = nil
 	if capacity != 0 {
-		next.defaults = make(map[int32]columnDefault, capacity)
+		next.Defaults = make(map[int32]columnDefault, capacity)
 	}
-	for key, value := range old.defaults {
+	for key, value := range old.Defaults {
 		if key != attr {
-			next.defaults[key] = value
+			next.Defaults[key] = value
 		}
 	}
-	if definition.expression != nil {
-		next.defaults[attr] = definition
+	if definition.Expression != nil {
+		next.Defaults[attr] = definition
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
@@ -146,11 +146,11 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 	var definition columnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.catalog.MustNamespace(old.namespace).temporary
+	binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
 	var err error
-	definition.expression, err = binder.bindDefault(expression, old.columns[slot])
+	definition.Expression, err = binder.bindDefault(expression, old.Columns[slot])
 	if err == nil {
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, definition.expression)
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.catalog, definition.Expression)
 	}
 	if err != nil {
 		var diagnostic *sqlstate.Error
@@ -161,7 +161,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 		}
 		return columnDefault{}, err
 	}
-	if structuralNull(definition.expression) {
+	if structuralNull(definition.Expression) {
 		return columnDefault{}, nil
 	}
 	definition.OID, err = e.catalog.allocateOIDLocked()

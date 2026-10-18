@@ -15,10 +15,10 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
 			before, frontier := e.catalog.state, e.commitSeq
-			original := e.catalog.providers[ids.RelationClassID]
-			defer func() { e.catalog.providers[ids.RelationClassID] = original }()
+			original := e.catalog.Providers[ids.RelationClassID]
+			defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
 			calls := 0
-			e.catalog.providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate CatalogRead) {
+			e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate CatalogRead) {
 				calls++
 				if !e.mu.TryLock() {
 					t.Error("catalog provider under Engine.mu")
@@ -96,7 +96,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 					t.Fatal(end)
 				}
 			}
-			e.catalog.providers[ids.RelationClassID] = original
+			e.catalog.Providers[ids.RelationClassID] = original
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(4)}}) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}

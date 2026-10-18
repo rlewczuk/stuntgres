@@ -23,15 +23,15 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	}
 	capture := description.temporals[0]
 	member, _ := capture.value.EnumMemberID()
-	members := old.typ.EnumMembers()
+	members := old.SQLType.EnumMembers()
 	members[1].Label = "end"
-	typ, err := sqltype.EnumWithMembers(old.typ.ID(), old.Name(), old.typ.SQLName(), members)
+	typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *old
-	next.typ = typ
-	next.revision++
+	next.SQLType = typ
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
@@ -81,14 +81,14 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ, err := sqltype.EnumWithMembers(old.typ.ID(), old.Name(), old.typ.SQLName(),
-		append(old.typ.EnumMembers(), sqltype.EnumMember{ID: 100000, Label: "pending", SortOrder: 2}))
+	typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(),
+		append(old.SQLType.EnumMembers(), sqltype.EnumMember{ID: 100000, Label: "pending", SortOrder: 2}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *old
-	next.typ = typ
-	next.revision++
+	next.SQLType = typ
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {
@@ -105,7 +105,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
 	}
-	if node.ResultUsage().Type != typ || b.parameters[1].Type != typ || description.Parameters.Types[0].Type != old.typ || domainUnitType(t, e.CatalogRead(), "mood") != old {
+	if node.ResultUsage().Type != typ || b.parameters[1].Type != typ || description.Parameters.Types[0].Type != old.SQLType || domainUnitType(t, e.CatalogRead(), "mood") != old {
 		t.Fatal("private parameter refresh lost codec, immutable contract or published root")
 	}
 	stale := description

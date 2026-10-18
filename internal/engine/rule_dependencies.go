@@ -53,7 +53,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 		if b.relation != nil {
 			for _, slot := range b.targets {
 				a := b.ref.Address
-				a.SubID = b.relation.attributes[slot]
+				a.SubID = b.relation.Attributes[slot]
 				add([]ids.ObjectAddress{a})
 			}
 			if len(b.targets) == 0 {
@@ -122,7 +122,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			if b.conflict.update != nil {
 				// PostgreSQL's EXCLUDED targetlist captures every live attribute
 				// at definition time, independently of executable ACL read demand.
-				for _, attribute := range b.relation.attributes {
+				for _, attribute := range b.relation.Attributes {
 					a := b.ref.Address
 					a.SubID = attribute
 					add([]ids.ObjectAddress{a})
@@ -135,7 +135,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 						return err
 					}
 					a := b.ref.Address
-					a.SubID = b.relation.attributes[b.conflict.updateTargets[i]]
+					a.SubID = b.relation.Attributes[b.conflict.updateTargets[i]]
 					add([]ids.ObjectAddress{a})
 				}
 				if err := expr(b.conflict.update.predicate); err != nil {
@@ -144,7 +144,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			}
 		}
 		for _, dependency := range b.dependencies {
-			add([]ids.ObjectAddress{dependency.ref.Address})
+			add([]ids.ObjectAddress{dependency.Ref.Address})
 		}
 		for _, definition := range b.ctes {
 			if definition.mutation == nil || seen[definition] {
@@ -192,14 +192,14 @@ func ruleDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, p
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || slices.Contains(targets, d.address) {
+		if !ok || slices.Contains(targets, d.Address()) {
 			continue
 		}
 		for _, r := range rulesOf(d) {
 			for _, target := range targets {
 				if ruleDepends(catalog, r, target) {
 					if observe != nil {
-						observe(d.address)
+						observe(d.Address())
 					}
 					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)})
 					break
@@ -246,12 +246,12 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 			continue
 		}
 		copy := *d
-		copy.rules = rulesPayloadOf(kept)
-		revision, err := provider.revision(copy.revision)
+		copy.Rules = rulesPayloadOf(kept)
+		revision, err := provider.revision(copy.Revision())
 		if err != nil {
 			return err
 		}
-		copy.revision = revision
+		copy.ObjectRevision = revision
 		if err := provider.replace(&copy); err != nil {
 			return err
 		}

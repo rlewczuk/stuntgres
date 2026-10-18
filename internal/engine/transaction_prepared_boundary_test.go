@@ -293,11 +293,11 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 	arrived, release := make(chan struct{}), make(chan struct{})
 	for _, descriptor := range entry.catalog.cached.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.name != "prepared_boundary_index" {
+		if !ok || index.SQLIndex == nil || index.Name() != "prepared_boundary_index" {
 			continue
 		}
-		derived := index.sqlIndex.keys[0].derived
-		derived.execution = &preparedBoundaryExpression{Expr: derived.execution, barrier: func() {
+		derived := index.SQLIndex.Keys[0].Derived
+		derived.Execution = &preparedBoundaryExpression{Expr: derived.Execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
 			for _, lock := range []*sync.Mutex{&e.mu, &origin.mu, &origin.transactions.mu, &finisher.mu, &finisher.transactions.mu} {
@@ -406,7 +406,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		t.Fatal("completion did not publish exactly once")
 	}
 	relation := e.catalog.state.MustRelation(parent)
-	if len(relation.columns) != 1 || relation.columns[0].Name != "v" {
+	if len(relation.Columns) != 1 || relation.Columns[0].Name != "v" {
 		t.Fatal("catalogue shape did not publish")
 	}
 	store := e.storage[parent]
@@ -434,7 +434,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	found := false
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent {
+		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
 			root := e.indexRoots[address]
 			if root == nil || len(root.entries) != 2 {
 				t.Fatal("coupled UPDATE/insert index root did not publish")
@@ -594,7 +594,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	}
 	losingName := []string{"gid_first", "gid_second"}[loser.owner]
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == losingName {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == losingName {
 			t.Fatal("losing GID catalogue/generator survived")
 		}
 	}

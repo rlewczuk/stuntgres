@@ -37,7 +37,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if len(addresses) != 1 {
 			t.Fatal(tc, addresses)
 		}
-		ref := e.catalog.domain.Ref(e.catalog.state.epoch, addresses[0])
+		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, addresses[0])
 		refs = append(refs, ref)
 	}
 	// Namespace/relation ACLs use their existing internal publication seam.
@@ -57,10 +57,10 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 			return e.SetObjectACL(context.Background(), ref, acl)
 		}
 		next := *typ
-		next.revision++
+		next.ObjectRevision++
 		acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
-		next.acl = acl
-		next.aclSyntheticDefault = false
+		next.ACL = acl
+		next.ACLSyntheticDefault = false
 		stage := e.BeginCatalogStage(view.catalog)
 		defer e.DiscardCatalogStage(stage)
 		if err = stage.Replace(&next); err != nil {

@@ -24,7 +24,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 	userType := func(name string) *sqltype.Descriptor {
 		for _, d := range catalog.Descriptors() {
 			if typ, ok := d.(*typeDescriptor); ok && typ.Name() == name {
-				return typ.typ
+				return typ.SQLType
 			}
 		}
 		t.Fatal("missing witness type", name)
@@ -131,9 +131,9 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				var err error
 				if executable {
 					b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-					b.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, attributes: []int32{1, 2}, index: map[string]int{"l": 0, "r": 1}}
+					b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 					if left != nil {
-						b.relation.columns[0].Usage = left.Usage()
+						b.relation.Columns[0].Usage = left.Usage()
 					}
 					column := func(name string) parser.Expr {
 						return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}

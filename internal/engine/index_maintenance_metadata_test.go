@@ -35,7 +35,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	ni, _ := btreeRoot(t, e, "ni")
 	ei, _ := btreeRoot(t, e, "ei")
 	m, n := indexMaintenanceMetadata(t, e, capture, "ni")
-	want := indexMaintenanceMetadataFlags(ni.address.ObjectID, ni.sqlIndex.parent.ObjectID, 4)
+	want := indexMaintenanceMetadataFlags(ni.Address().ObjectID, ni.SQLIndex.Parent.ObjectID, 4)
 	want.IndKey = []int16{2, 2, 2, 2}
 	want.IndClass = []ids.OID{1978, 1978, 1978, 1978}
 	want.IndCollation = []ids.OID{0, 0, 0, 0}
@@ -44,27 +44,27 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal("complete simple metadata", m, n, want)
 	}
 	expressions, names := indexMaintenanceMetadata(t, e, capture, "ei")
-	expected := indexMaintenanceMetadataFlags(ei.address.ObjectID, ei.sqlIndex.parent.ObjectID, 3)
+	expected := indexMaintenanceMetadataFlags(ei.Address().ObjectID, ei.SQLIndex.Parent.ObjectID, 3)
 	expected.IndKey = []int16{0, 0, 2}
 	expected.IndClass = []ids.OID{3126, 1978, 1978}
 	expected.IndCollation = []ids.OID{100, 0, 0}
 	expected.IndOption = []int16{0, 0, 1}
-	expected.IndexExpressions = []expr.Expr{ei.sqlIndex.keys[0].derived.definition, ei.sqlIndex.keys[1].derived.definition}
+	expected.IndexExpressions = []expr.Expr{ei.SQLIndex.Keys[0].Derived.Definition, ei.SQLIndex.Keys[1].Derived.Definition}
 	if !reflect.DeepEqual(expressions, expected) || names.IndexDef != "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + (2 - 1))), n DESC NULLS LAST)" {
 		t.Fatal("derived metadata lost original trees/providers", expressions, names, expected)
 	}
 	first := expressions.IndexExpressions[0].(functions.String)
-	original := ei.sqlIndex.keys[0].derived.definition.(functions.String)
+	original := ei.SQLIndex.Keys[0].Derived.Definition.(functions.String)
 	if &first.Args[0] != &original.Args[0] {
 		t.Fatal("metadata copied an immutable analyzed function tree")
 	}
-	if reflect.DeepEqual(expressions.IndexExpressions[1], ei.sqlIndex.keys[1].derived.execution) {
+	if reflect.DeepEqual(expressions.IndexExpressions[1], ei.SQLIndex.Keys[1].Derived.Execution) {
 		t.Fatal("fixture or projection lost the original-vs-simplified distinction")
 	}
 	for _, name := range []string{"u", "distinct_u"} {
 		index, _ := btreeRoot(t, e, name)
 		got, n := indexMaintenanceMetadata(t, e, capture, name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 1)
 		want.IndIsUnique = true
 		want.IndNullsNotDistinct = name == "u"
 		want.IndKey = []int16{1}
@@ -88,7 +88,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	run(t, e, "ALTER INDEX ni RENAME TO renamed_ni")
 	run(t, e, "ALTER TABLE t RENAME COLUMN n TO renamed_n")
 	run(t, e, "ALTER TABLE t RENAME TO renamed_t")
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.domain.Ref(capture.Epoch(), ni.address))
+	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames.IndexName != "ni" || oldNames.TableName != "t" {
 		t.Fatal("historical capture consulted current catalog", old, oldNames, err)
 	}
@@ -102,11 +102,11 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, record := range records {
-		if record.IndexRelID == ni.address.ObjectID {
+		if record.IndexRelID == ni.Address().ObjectID {
 			t.Fatal("dropped metadata remained published")
 		}
 	}
-	old, _, err = projectIndexMetadata(context.Background(), capture, e.catalog.domain.Ref(capture.Epoch(), ni.address))
+	old, _, err = projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) {
 		t.Fatal("drop mutated old capture", old, err)
 	}
@@ -124,23 +124,23 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		run(t, e, q)
 	}
 	un, _ := btreeRoot(t, e, "un")
-	constraint := *un.sqlIndex.constraint
+	constraint := *un.SQLIndex.Constraint
 	run(t, e, "ALTER INDEX un RENAME TO renamed_un")
 	renamed, _ := btreeRoot(t, e, "renamed_un")
-	if renamed.address != un.address || renamed.sqlIndex.constraint.OID != constraint.OID || renamed.sqlIndex.constraint.Index != constraint.Index {
+	if renamed.Address() != un.Address() || renamed.SQLIndex.Constraint.OID != constraint.OID || renamed.SQLIndex.Constraint.Index != constraint.Index {
 		t.Fatal("domain backing rename lost real constraint/index link")
 	}
 	check := func(name string, attribute int16, class, collation ids.OID) {
 		t.Helper()
 		index, _ := btreeRoot(t, e, name)
 		got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 1)
 		want.IndIsUnique, want.IndNullsNotDistinct = true, true
 		want.IndKey = []int16{attribute}
 		want.IndClass = []ids.OID{class}
 		want.IndCollation = []ids.OID{collation}
 		want.IndOption = []int16{0}
-		if !reflect.DeepEqual(got, want) || index.sqlIndex.keys[0].class.OID() != uint32(class) || index.sqlIndex.constraint.Index != index.address {
+		if !reflect.DeepEqual(got, want) || index.SQLIndex.Keys[0].Class.OID() != uint32(class) || index.SQLIndex.Constraint.Index != index.Address() {
 			t.Fatal("real domain backing descriptor/vector truth", name, got, want)
 		}
 	}
@@ -150,10 +150,10 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 		check("us", 2, 3126, 950)
 	}
 	beforeType, oldRoot := btreeRoot(t, e, "renamed_un")
-	oldConstraint := *beforeType.sqlIndex.constraint
+	oldConstraint := *beforeType.SQLIndex.Constraint
 	run(t, e, "ALTER TABLE q ALTER n TYPE BIGINT USING n::bigint")
 	afterType, typedRoot := btreeRoot(t, e, "renamed_un")
-	if afterType.address == beforeType.address || afterType.sqlIndex.constraint.OID == oldConstraint.OID || afterType.sqlIndex.constraint.Index != afterType.address || typedRoot == oldRoot || beforeType.sqlIndex.keys[0].class.OID() != 1978 || beforeType.sqlIndex.constraint.Index != oldConstraint.Index {
+	if afterType.Address() == beforeType.Address() || afterType.SQLIndex.Constraint.OID == oldConstraint.OID || afterType.SQLIndex.Constraint.Index != afterType.Address() || typedRoot == oldRoot || beforeType.SQLIndex.Keys[0].Class.OID() != 1978 || beforeType.SQLIndex.Constraint.Index != oldConstraint.Index {
 		t.Fatal("TYPE lost candidate identities/backing link or mutated retained class/root")
 	}
 	if !reflect.DeepEqual(btreeKeys(t, oldRoot), []string{"1", "NULL"}) {
@@ -176,7 +176,7 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "ci")
 	got, names := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ci")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 3)
 	want.IndKey = []int16{3, 3, 3}
 	want.IndClass = []ids.OID{3126, 3126, 3126}
 	want.IndCollation = []ids.OID{950, 951, 100}
@@ -191,7 +191,7 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	}
 	repeated, _ := btreeRoot(t, e, "repeated")
 	m, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "repeated")
-	expected := indexMaintenanceMetadataFlags(repeated.address.ObjectID, repeated.sqlIndex.parent.ObjectID, 32)
+	expected := indexMaintenanceMetadataFlags(repeated.Address().ObjectID, repeated.SQLIndex.Parent.ObjectID, 32)
 	expected.IndKey = make([]int16, 32)
 	expected.IndClass = make([]ids.OID, 32)
 	expected.IndCollation = make([]ids.OID, 32)
@@ -212,7 +212,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "ix")
 	got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ix")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 3)
 	want.IndKey = []int16{1, 2, 3}
 	want.IndClass = []ids.OID{1978, 3126, 10069}
 	want.IndCollation = []ids.OID{0, 100, 0}
@@ -221,7 +221,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("domain/enum metadata substituted declared type OIDs", got, want)
 	}
 	// An explicit empty table ACL cannot hide a structural metadata record.
-	parent := e.catalog.domain.Ref(e.CatalogRead().Epoch(), index.sqlIndex.parent)
+	parent := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), index.SQLIndex.Parent)
 	if err := e.SetObjectACL(context.Background(), parent, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -247,16 +247,16 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("metadata ignored cancellation", err)
 	}
 	foreign := New()
-	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.catalog.domain.Ref(old.Epoch(), index.address)); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), index.Address())); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
 		t.Fatal("missing ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.domain.Ref(old.Epoch(), parent.Address)); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), parent.Address)); err == nil {
 		t.Fatal("non-index ref accepted by capture")
 	}
-	if p, err := sqltype.BindOrdering(index.columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {
+	if p, err := sqltype.BindOrdering(index.Columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {
 		t.Fatal("enum central provider was not retained", p, err)
 	}
 }

@@ -48,7 +48,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if declaration.identity.id != tc.oid || declaration.identity.signature != "" || declaration.kind != functionRoutine || declaration.result != 25 || !declaration.strict || declaration.parallel != 's' || declaration.volatility != tc.volatility || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 {
+		if declaration.Identity.ID != tc.oid || declaration.Identity.Signature != "" || declaration.Kind != functionRoutine || declaration.Result != 25 || !declaration.Strict || declaration.Parallel != 's' || declaration.Volatility != tc.volatility || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 {
 			t.Fatalf("incorrect declaration %#v", declaration)
 		}
 		if plannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {

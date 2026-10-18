@@ -7,11 +7,11 @@ import (
 )
 
 type defaultACLKey struct {
-	creator authorization.PrincipalRef
-	schema  ids.ObjectAddress
-	class   authorization.DefaultACLClass
+	Creator authorization.PrincipalRef
+	Schema  ids.ObjectAddress
+	Class   authorization.DefaultACLClass
 }
-type defaultACLRecord struct{ acl authorization.ACLValue }
+type defaultACLRecord struct{ ACL authorization.ACLValue }
 
 func cloneDefaultACLs(source map[defaultACLKey]*defaultACLRecord) map[defaultACLKey]*defaultACLRecord {
 	next := make(map[defaultACLKey]*defaultACLRecord, len(source))
@@ -37,12 +37,12 @@ func overlayDefaultACLs(source map[defaultACLKey]*defaultACLRecord, changes map[
 
 func creationDefaultACL(view CatalogRead, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	var global, scoped *authorization.ACLValue
-	if record := view.state.defaultACLs[defaultACLKey{creator: owner, class: class}]; record != nil {
-		global = &record.acl
+	if record := view.state.defaultACLs[defaultACLKey{Creator: owner, Class: class}]; record != nil {
+		global = &record.ACL
 	}
 	if schema != (ids.ObjectAddress{}) {
-		if record := view.state.defaultACLs[defaultACLKey{creator: owner, schema: schema, class: class}]; record != nil {
-			scoped = &record.acl
+		if record := view.state.defaultACLs[defaultACLKey{Creator: owner, Schema: schema, Class: class}]; record != nil {
+			scoped = &record.ACL
 		}
 	}
 	return authorization.CreationDefaultACL(owner, class, global, scoped)
@@ -52,15 +52,15 @@ func validateDefaultACLs(roles authorization.Read, view CatalogRead) error {
 		if record == nil {
 			return fmt.Errorf("stuntgres: invalid default ACL record")
 		}
-		if err := authorization.ValidateDefaultACLHeader(roles, key.creator, key.class, key.schema != (ids.ObjectAddress{}), record.acl); err != nil {
+		if err := authorization.ValidateDefaultACLHeader(roles, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{}), record.ACL); err != nil {
 			return err
 		}
-		if key.schema != (ids.ObjectAddress{}) {
-			if _, ok := view.Namespace(key.schema); !ok {
+		if key.Schema != (ids.ObjectAddress{}) {
+			if _, ok := view.Namespace(key.Schema); !ok {
 				return CatalogConflict{}
 			}
 		}
-		if err := authorization.ValidateDefaultACL(roles, key.creator, key.class, key.schema != (ids.ObjectAddress{}), record.acl); err != nil {
+		if err := authorization.ValidateDefaultACL(roles, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{}), record.ACL); err != nil {
 			return err
 		}
 	}

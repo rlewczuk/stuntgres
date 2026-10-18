@@ -45,7 +45,7 @@ func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool
 	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	index, ok := e.catalog.state.Relation(address)
-	if !ok || index.sqlIndex == nil || index.sqlIndex.ready != ready || index.sqlIndex.valid != valid || !index.sqlIndex.live {
+	if !ok || index.SQLIndex == nil || index.SQLIndex.Ready != ready || index.SQLIndex.Valid != valid || !index.SQLIndex.Live {
 		t.Fatalf("index %s has unexpected phase: %#v", name, index)
 	}
 	return index, e.indexRoots[address]
@@ -72,11 +72,11 @@ func concurrentUnitError(t *testing.T, s *Session, query, code string) error {
 func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *relationDescriptor) {
 	t.Helper()
 	e.mu.Lock()
-	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
-	snapshot := *e.storage[parent.address]
-	root := e.indexRoots[index.address]
+	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
+	snapshot := *e.storage[parent.Address()]
+	root := e.indexRoots[index.Address()]
 	e.mu.Unlock()
-	expected, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.sqlIndex, &snapshot, nil)
+	expected, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.SQLIndex, &snapshot, nil)
 	if err != nil || !reflect.DeepEqual(root, expected) {
 		t.Fatalf("installed logical root differs from actual live row-version build: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	healthy, root := concurrentUnitIndex(t, e, "ix", true, true)
-	if healthy == initial || initial.sqlIndex.ready || initial.sqlIndex.valid || root == nil || !reflect.DeepEqual(btreeKeys(t, root), []string{"4", "2"}) {
+	if healthy == initial || initial.SQLIndex.Ready || initial.SQLIndex.Valid || root == nil || !reflect.DeepEqual(btreeKeys(t, root), []string{"4", "2"}) {
 		t.Fatal("phase mutated predecessor or missed committed row versions")
 	}
 	concurrentUnitRootMatchesStorage(t, e, healthy)
@@ -140,8 +140,8 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	if absent != nil {
 		t.Fatal("not-ready root present")
 	}
-	parent := e.CatalogRead().MustRelation(initial.sqlIndex.parent)
-	if len(parent.uniqueConstraints) != 0 || initial.sqlIndex.constraint != nil || !initial.sqlIndex.unique {
+	parent := e.CatalogRead().MustRelation(initial.SQLIndex.Parent)
+	if len(parent.UniqueConstraints) != 0 || initial.SQLIndex.Constraint != nil || !initial.SQLIndex.Unique {
 		t.Fatal("standalone index fabricated a parent constraint")
 	}
 	sessionSQL(t, d, "BEGIN ISOLATION LEVEL READ COMMITTED")
@@ -149,7 +149,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	sessionSQL(t, a, "COMMIT")
 	concurrentUnitCompletion(t, e, d.transactions.ticket, b)
 	ready, before := concurrentUnitIndex(t, e, "ui", true, false)
-	if !reflect.DeepEqual(btreeKeys(t, before), []string{"1", "2"}) || initial.sqlIndex.ready {
+	if !reflect.DeepEqual(btreeKeys(t, before), []string{"1", "2"}) || initial.SQLIndex.Ready {
 		t.Fatal("first root/admission predecessor")
 	}
 	concurrentUnitError(t, c, "INSERT INTO t VALUES(1,'rejected')", "23505")
@@ -160,7 +160,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 		t.Fatal(err)
 	}
 	invalid, after := concurrentUnitIndex(t, e, "ui", true, false)
-	if after != before || ready.sqlIndex.valid {
+	if after != before || ready.SQLIndex.Valid {
 		t.Fatal("pre-ready commit maintained root or failed validation healed it")
 	}
 	sessionSQL(t, c, "INSERT INTO t VALUES(3,'distinct')")
@@ -174,7 +174,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	concurrentUnitIndex(t, e, "ui", true, false)
 	sessionSQL(t, c, "ALTER INDEX ui RENAME TO renamed")
 	renamed, _ := concurrentUnitIndex(t, e, "renamed", true, false)
-	if renamed.name != "renamed" || invalid.name != "ui" || !renamed.sqlIndex.unique || !invalid.sqlIndex.unique || renamed.sqlIndex.constraint != nil {
+	if renamed.Name() != "renamed" || invalid.Name() != "ui" || !renamed.SQLIndex.Unique || !invalid.SQLIndex.Unique || renamed.SQLIndex.Constraint != nil {
 		t.Fatal("standalone rename corrupted immutable identity")
 	}
 	sessionSQL(t, c, "DELETE FROM t WHERE n=1")
@@ -222,7 +222,7 @@ func TestConcurrentIndexU5ComputedTupleAndClassClaims(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES('a',1,'seed')")
 	sessionSQL(t, s, `CREATE UNIQUE INDEX CONCURRENTLY ui ON t(lower(v) COLLATE "C" bpchar_ops DESC NULLS LAST,(n+1),n,n) INCLUDE(p)`)
 	index, root := concurrentUnitIndex(t, e, "ui", true, true)
-	if len(root.entries[0].keys) != 4 || index.sqlIndex.constraint != nil {
+	if len(root.entries[0].keys) != 4 || index.SQLIndex.Constraint != nil {
 		t.Fatal("computed tuple or standalone identity")
 	}
 	concurrentUnitError(t, s, "INSERT INTO t VALUES('A ',1,'other')", "23505")

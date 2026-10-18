@@ -17,30 +17,30 @@ import (
 // Definitions use stable parent attributes; roots own current live identities.
 // Hash equality uses captured immutable buckets; all other reads retain scans.
 type indexKey struct {
-	attribute        int32
-	desc, nullsFirst bool
-	derived          *derivedIndexKey
-	collation        uint32
-	collationRef     sqltype.CollationRef
-	class            sqltype.IndexClass
-	explicitClass    bool
+	Attribute        int32
+	Desc, NullsFirst bool
+	Derived          *derivedIndexKey
+	Collation        uint32
+	CollationRef     sqltype.CollationRef
+	Class            sqltype.IndexClass
+	ExplicitClass    bool
 }
 type indexDefinition struct {
-	method             indexMethod
-	parent             ids.ObjectAddress
-	partitionParent    ids.ObjectAddress
-	keys               []indexKey
-	include            []int32
-	unique             bool
-	nullsNotDistinct   bool
-	constraint         *backingConstraint
-	ready, valid, live bool
-	predicate          *indexPredicate
-	exclusion          []sqltype.ExclusionOperator
+	Method             indexMethod
+	Parent             ids.ObjectAddress
+	PartitionParent    ids.ObjectAddress
+	Keys               []indexKey
+	Include            []int32
+	Unique             bool
+	NullsNotDistinct   bool
+	Constraint         *backingConstraint
+	Ready, Valid, Live bool
+	Predicate          *indexPredicate
+	Exclusion          []sqltype.ExclusionOperator
 }
 
 func (d *indexDefinition) publicationState() (ready, valid, live bool) {
-	return d.ready, d.valid, d.live
+	return d.Ready, d.Valid, d.Live
 }
 
 type logicalIndexEntry struct {
@@ -72,13 +72,13 @@ func indexColumnLabel(name string, suffix int) string {
 }
 
 func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) (indexOrdering, error) {
-	if definition.method != btreeMethod {
+	if definition.Method != btreeMethod {
 		return indexOrdering{}, fmt.Errorf("stuntgres: non-btree ordering definition")
 	}
-	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.IndexComparison, len(definition.keys)), keys: definition.keys}
-	for i, key := range definition.keys {
-		if key.derived != nil {
-			if definition.constraint != nil && definition.constraint.kind == uniqueBackingKind {
+	o := indexOrdering{slots: make([]int, len(definition.Keys)), comparisons: make([]sqltype.IndexComparison, len(definition.Keys)), keys: definition.Keys}
+	for i, key := range definition.Keys {
+		if key.Derived != nil {
+			if definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind {
 				attribute, expression, err := indexCatalogKey(parent, key)
 				if err != nil {
 					return o, err
@@ -87,18 +87,18 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 					return o, fmt.Errorf("stuntgres: expression key in unique backing index")
 				}
 			}
-			if key.derived.definition == nil || key.derived.execution == nil {
+			if key.Derived.Definition == nil || key.Derived.Execution == nil {
 				return o, fmt.Errorf("stuntgres: missing derived index expression")
 			}
 			if o.derived == nil {
-				o.derived = make([]expr.Expr, len(definition.keys))
+				o.derived = make([]expr.Expr, len(definition.Keys))
 			}
-			o.slots[i], o.derived[i] = -1, key.derived.execution
+			o.slots[i], o.derived[i] = -1, key.Derived.Execution
 			usage, err := indexKeyUsage(parent, key)
 			if err != nil {
 				return o, err
 			}
-			class := key.class
+			class := key.Class
 			if class.Name == "" {
 				var exists bool
 				class, exists = sqltype.DefaultIndexClass(usage.Type)
@@ -113,8 +113,8 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 			continue
 		}
 		slot := -1
-		for j, attribute := range parent.attributes {
-			if attribute == key.attribute {
+		for j, attribute := range parent.Attributes {
+			if attribute == key.Attribute {
 				slot = j
 				break
 			}
@@ -122,11 +122,11 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 		if slot < 0 {
 			return o, fmt.Errorf("stuntgres: index attribute is missing")
 		}
-		if key.collation != 0 && parent.columns[slot].Usage.Type.Usage().Collation.ID == 0 {
-			return o, sqlError("42804", "collations are not supported by type "+parent.columns[slot].Usage.Type.DiagnosticName())
+		if key.Collation != 0 && parent.Columns[slot].Usage.Type.Usage().Collation.ID == 0 {
+			return o, sqlError("42804", "collations are not supported by type "+parent.Columns[slot].Usage.Type.DiagnosticName())
 		}
-		usage := indexKeyCollation(parent.columns[slot].Usage, key)
-		class := key.class
+		usage := indexKeyCollation(parent.Columns[slot].Usage, key)
+		class := key.Class
 		if class.Name == "" {
 			var exists bool
 			class, exists = sqltype.DefaultIndexClass(usage.Type)
@@ -143,19 +143,19 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	return o, nil
 }
 func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error {
-	d := index.sqlIndex
-	if d == nil || len(d.keys) == 0 || len(d.keys)+len(d.include) > 32 || len(index.columns) != len(d.keys)+len(d.include) || d.parent.SubID != 0 || index.sequence != nil || index.view != nil {
+	d := index.SQLIndex
+	if d == nil || len(d.Keys) == 0 || len(d.Keys)+len(d.Include) > 32 || len(index.Columns) != len(d.Keys)+len(d.Include) || d.Parent.SubID != 0 || index.Sequence != nil || index.View != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
 	}
-	if d.valid && (!d.ready || !d.live) || d.ready && !d.live {
+	if d.Valid && (!d.Ready || !d.Live) || d.Ready && !d.Live {
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
-	parent, ok := view.Relation(d.parent)
-	if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) || parent.owner != index.owner || parent.namespace != index.namespace {
+	parent, ok := view.Relation(d.Parent)
+	if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) || parent.Owner != index.Owner || parent.Namespace() != index.Namespace() {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
-	if d.constraint != nil {
-		if !backingConstraintPresent(parent, index) || d.unique != (d.constraint.kind == uniqueBackingKind) {
+	if d.Constraint != nil {
+		if !backingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == uniqueBackingKind) {
 			return fmt.Errorf("stuntgres: orphan constraint backing index")
 		}
 	}
@@ -166,21 +166,21 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	if err != nil {
 		return err
 	}
-	if p := d.predicate; p != nil {
-		if p.definition == nil || p.execution == nil || p.definition.ResultUsage() != p.execution.ResultUsage() || p.execution.ResultUsage().Type == nil || p.execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.execution) != expr.Immutable || !slices.Equal(p.attributes, parent.attributes) {
+	if p := d.Predicate; p != nil {
+		if p.Definition == nil || p.Execution == nil || p.Definition.ResultUsage() != p.Execution.ResultUsage() || p.Execution.ResultUsage().Type == nil || p.Execution.ResultUsage().Type.ID() != sqltype.Bool || plannedVolatility(p.Execution) != expr.Immutable || !slices.Equal(p.Attributes, parent.Attributes) {
 			return fmt.Errorf("stuntgres: invalid index predicate")
 		}
-		if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, p.definition); err != nil {
+		if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, p.Definition); err != nil {
 			return err
 		}
 	}
-	for i, key := range d.keys {
-		if key.derived != nil {
-			derived := key.derived
-			if key.attribute != 0 || derived.definition == nil || derived.execution == nil || derived.definition.ResultUsage() != derived.execution.ResultUsage() || plannedVolatility(derived.execution) != expr.Immutable {
+	for i, key := range d.Keys {
+		if key.Derived != nil {
+			derived := key.Derived
+			if key.Attribute != 0 || derived.Definition == nil || derived.Execution == nil || derived.Definition.ResultUsage() != derived.Execution.ResultUsage() || plannedVolatility(derived.Execution) != expr.Immutable {
 				return fmt.Errorf("stuntgres: invalid derived index key")
 			}
-			if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, derived.definition); err != nil {
+			if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, derived.Definition); err != nil {
 				return err
 			}
 		}
@@ -188,13 +188,13 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		if err != nil {
 			return err
 		}
-		if index.columns[i].Usage != usage {
+		if index.Columns[i].Usage != usage {
 			return fmt.Errorf("stuntgres: invalid index key usage")
 		}
 	}
-	for i, attribute := range d.include {
-		slot := slices.Index(parent.attributes, attribute)
-		if slot < 0 || index.columns[len(d.keys)+i].Usage != parent.columns[slot].Usage {
+	for i, attribute := range d.Include {
+		slot := slices.Index(parent.Attributes, attribute)
+		if slot < 0 || index.Columns[len(d.Keys)+i].Usage != parent.Columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid included attribute usage")
 		}
 	}
@@ -210,7 +210,7 @@ func (o indexOrdering) compareKeys(ctx context.Context, a, b logicalIndexEntry) 
 			if av.IsNull() == bv.IsNull() {
 				continue
 			}
-			if av.IsNull() == key.nullsFirst {
+			if av.IsNull() == key.NullsFirst {
 				return -1, nil
 			}
 			return 1, nil
@@ -219,7 +219,7 @@ func (o indexOrdering) compareKeys(ctx context.Context, a, b logicalIndexEntry) 
 		if err != nil {
 			return 0, err
 		}
-		if key.desc {
+		if key.Desc {
 			c = -c
 		}
 		if c != 0 {
@@ -312,7 +312,7 @@ func (o indexOrdering) sort(ctx context.Context, entries []logicalIndexEntry) er
 	return nil
 }
 func buildIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, capture *indexBuildCapture) (*logicalIndexRoot, error) {
-	if d.method == hashMethod {
+	if d.Method == hashMethod {
 		return buildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
 	entries, err := buildIndexEntries(evaluation, parent, d, store, capture)
@@ -362,7 +362,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 			entries = append(entries, entry)
 		}
 	}
-	if d.method == btreeMethod {
+	if d.Method == btreeMethod {
 		if err := o.sort(ctx, entries); err != nil {
 			return nil, err
 		}
@@ -371,8 +371,8 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 }
 func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
-	d := index.sqlIndex
-	validate := (d.unique || d.isExclusion()) && (d.constraint != nil || d.valid || reconstruct)
+	d := index.SQLIndex
+	validate := (d.Unique || d.isExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
@@ -396,7 +396,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 				continue
 			}
 		}
-		output, produced := row.indexOutputs[index.address]
+		output, produced := row.indexOutputs[index.Address()]
 		produced = produced && output.matches(index)
 		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue
@@ -445,7 +445,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 		// No changed root to install; the publisher keeps its actual predecessor.
 		return nil, ctx.Err()
 	}
-	if d.method == gistMethod {
+	if d.Method == gistMethod {
 		// Preserve immutable predecessor entries and cached produced keys.
 		// Validation needs the complete candidate membership even in PREPARE.
 		entries := make([]logicalIndexEntry, 0, len(old)+len(added))
@@ -559,13 +559,13 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Keys)+len(s.Include) > 32 {
 			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
 		}
-		if parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation {
-			if parent.relationKind == indexRelation {
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.name), Detail: "This operation is not supported for indexes."})
+		if parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation {
+			if parent.RelationKind == indexRelation {
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.Name()), Detail: "This operation is not supported for indexes."})
 			}
-			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
+			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
 		}
-		ns := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.namespace)
+		ns := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Namespace())
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
 			if !scope.op.restoreTableDestination || !ok || denied.Code != "42501" {
@@ -598,7 +598,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if err != nil {
 			return fail(err)
 		}
-		definition.predicate = predicate
+		definition.Predicate = predicate
 		name := s.Name.Text
 		if name == "" {
 			var addition strings.Builder
@@ -611,12 +611,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 					break
 				}
 			}
-			name = generatedRelationName(parent.name, addition.String(), "idx", func(n string) bool {
-				_, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: n})
+			name = generatedRelationName(parent.Name(), addition.String(), "idx", func(n string) bool {
+				_, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n})
 				return ok
 			})
 		}
-		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}
+		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}
 		if _, exists := auth.catalog.LookupName(key); exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
@@ -629,10 +629,10 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		// The released provider-options phase follows catalog name admission.
 		for i, raw := range s.Keys {
 			if len(raw.Options) != 0 {
-				return fail(sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.keys[i].class.Name)))
+				return fail(sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.Keys[i].Class.Name)))
 			}
 		}
-		definition.unique, definition.nullsNotDistinct = s.Unique, s.NullsNotDistinct
+		definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
 		if s.Unique && s.Concurrent.Character == 0 && !scope.op.restoreTableDestination {
 			if err := validateUniqueProviders(parent, definition, s.Keys); err != nil {
 				return fail(err)
@@ -656,10 +656,10 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginTable = uint32(oid)
 			columns[i].OriginAttribute = int16(i + 1)
 		}
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition}
-		d.attributeHighWater = int32(len(attributes))
+		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
+		d.AttributeHighWater = int32(len(attributes))
 		if s.Concurrent.Character != 0 {
-			definition.ready, definition.valid = false, false
+			definition.Ready, definition.Valid = false, false
 			if err := e.visibilityWriteLocked(scope.txRef); err != nil {
 				return fail(err)
 			}
@@ -669,9 +669,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexOutput = scope.output
 		err = stage.Create(d)
-		if err == nil && parent.partition != nil {
+		if err == nil && parent.Partition != nil {
 			if s.Only {
-				definition.valid = len(parent.partition.children) == 0
+				definition.Valid = len(parent.Partition.Children) == 0
 			} else {
 				err = e.stagePartitionIndexChildren(scope.op, stage, parent, d, true)
 			}
@@ -700,7 +700,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				currentAuth, authErr := e.statementAuthorizationLocked(scope.op, s)
 				current := e.privateCatalogLocked(scope.owner.catalog)
 				_, exists := current.LookupName(key)
-				same := current.Epoch() == base.Epoch() && current.Get(parent.address) != nil
+				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
 				if authErr == nil && same && exists {
 					authErr = currentAuth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true})
 				}

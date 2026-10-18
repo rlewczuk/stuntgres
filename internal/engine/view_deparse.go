@@ -192,7 +192,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			// qualification so unchanged labels still omit redundant AS.
 			setSourceColumns = source.columns
 			for _, column := range source.columns {
-				source.slots[column.slot] = presentation.identifier(relation.name) + "." + presentation.identifier(column.name)
+				source.slots[column.slot] = presentation.identifier(relation.Name()) + "." + presentation.identifier(column.name)
 			}
 		}
 	}
@@ -592,10 +592,10 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 		if err != nil {
 			return "", err
 		}
-		if strings.HasPrefix(text, v.presentation.identifier(relation.name)+".") {
+		if strings.HasPrefix(text, v.presentation.identifier(relation.Name())+".") {
 			return text, nil
 		}
-		return v.presentation.identifier(relation.name) + "." + text, nil
+		return v.presentation.identifier(relation.Name()) + "." + text, nil
 	}
 	return v.slotSQL(ctx, catalog, root, column.slot)
 }
@@ -810,7 +810,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			if !exists {
 				return "'" + strconv.FormatUint(uint64(ref.Address.ObjectID), 10) + "'", nil
 			}
-			name := quoteIdentifier(catalog.Get(d.namespace).Name()) + "." + quoteIdentifier(d.name)
+			name := quoteIdentifier(catalog.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
 		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral || path.clause == viewDistinctOnLiteral || path.clause == viewValuesOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
@@ -935,8 +935,8 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing frozen selected operator")
 			}
-			ns := catalog.Get(d.namespace).Name()
-			e.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: d.name}}}
+			ns := catalog.Get(d.Namespace()).Name()
+			e.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: d.Name()}}}
 		}
 		spelling := e.Name.Parts[len(e.Name.Parts)-1].Text
 		op := spelling

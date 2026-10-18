@@ -18,9 +18,9 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			f := partitionDetachUnitTree(t, false)
 			owner := sessionStart(t, f.e, nil)
-			ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.child.address)
+			ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.child.Address())
 			parentRef := ref
-			parentRef.Address = f.parent.address
+			parentRef.Address = f.parent.Address()
 			partitionAttachUnitWrite(t, f.e, owner, ref, 1)
 			tx := partitionAttachUnitBegin(t, f.e, owner, ReadCommitted)
 			partitionAttachUnitWrite(t, f.e, owner, ref, 2)
@@ -51,7 +51,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			}
 			op.Done()
 			private := f.e.privateCatalogLocked(owner.transactions.catalog)
-			if private.MustRelation(ref.Address).membership != nil || f.e.catalog.state.Get(ref.Address) != f.child {
+			if private.MustRelation(ref.Address).Membership != nil || f.e.catalog.state.Get(ref.Address) != f.child {
 				t.Fatal("detach overlay did not remain private")
 			}
 			if !reflect.DeepEqual(beforeRows, owner.transactions.roots) {
@@ -93,7 +93,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			standalone := f.e.catalog.state.MustRelation(ref.Address).membership == nil
+			standalone := f.e.catalog.state.MustRelation(ref.Address).Membership == nil
 			if standalone != (end == "commit") {
 				t.Fatal("wrong end graph")
 			}
@@ -138,14 +138,14 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				case "descendant":
 					victim = f.leaf
 				}
-				ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, victim.address)
+				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, victim.Address())
 				// A real explicit holder retains relation locks without retaining
 				// implicit row-work replacement admission.
 				holderSession := sessionStart(t, f.e, nil)
 				holderRef := partitionAttachUnitBegin(t, f.e, holderSession, ReadCommitted)
 				holder, holderOp := partitionAttachUnitScope(t, f.e, holderSession)
 				partitionAttachUnitGrant(t, holder, ref, lock.AccessShare)
-				raw := &parser.AlterTableDetachPartition{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: f.parent.name}}}, Partition: parser.ObjectName{Parts: []parser.Identifier{{Text: f.child.name}}}}
+				raw := &parser.AlterTableDetachPartition{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: f.parent.Name()}}}, Partition: parser.ObjectName{Parts: []parser.Identifier{{Text: f.child.Name()}}}}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				op, err := sessionStart(t, f.e, nil).Acquire(ctx)
@@ -194,11 +194,11 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					f.e.mu.Lock()
 					next := cloneCatalog(f.e.catalog.state)
 					changed := *victim
-					changed.revision++
-					changed.name += "_new"
+					changed.ObjectRevision++
+					changed.ObjectName += "_new"
 					next.unbindName(descriptorNameKey(victim))
-					next.bindName(descriptorNameKey(&changed), changed.address)
-					next.setDescriptor(changed.address, &changed)
+					next.bindName(descriptorNameKey(&changed), changed.Address())
+					next.setDescriptor(changed.Address(), &changed)
 					f.e.catalog.state = next
 					f.e.mu.Unlock()
 					if err := holder.Finish(nil); err != nil {
@@ -220,7 +220,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				if veto == "cancel" && f.e.catalog.state != before {
 					t.Fatal("canceled late admission changed catalog")
 				}
-				if veto != "epoch" && f.e.catalog.state.MustRelation(f.child.address).membership == nil {
+				if veto != "epoch" && f.e.catalog.state.MustRelation(f.child.Address()).Membership == nil {
 					t.Fatal("wait failure partially detached")
 				}
 				_ = holder.Finish(nil)

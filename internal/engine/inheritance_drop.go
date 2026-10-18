@@ -47,12 +47,12 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 			}
 			seen[address] = true
 			table, ok := catalog.Relation(address)
-			if !ok || table.relationKind != tableRelation || address.SubID != 0 {
+			if !ok || table.RelationKind != tableRelation || address.SubID != 0 {
 				return
 			}
 			tables = append(tables, address)
 			for _, child := range inheritanceChildren(catalog, address) {
-				visit(child.address)
+				visit(child.Address())
 			}
 		}
 		for _, root := range roots {
@@ -72,7 +72,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 			if locked[address] {
 				continue
 			}
-			if err := scope.acquireSequence(catalog.owner.domain.Ref(catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
+			if err := scope.acquireSequence(catalog.owner.Domain.Ref(catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 				return catalog, err
 			}
 			locked[address] = true
@@ -86,7 +86,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		private := false
 		for _, address := range tables {
 			table := catalog.MustRelation(address)
-			if catalog.MustNamespace(table.namespace).temporary != (ids.SessionToken{}) {
+			if catalog.MustNamespace(table.Namespace()).Temporary != (ids.SessionToken{}) {
 				private = true
 				break
 			}

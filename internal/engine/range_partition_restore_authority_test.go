@@ -99,7 +99,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	public := stage.catalog.domain.Ref(stage.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	public := stage.catalog.Domain.Ref(stage.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := stage.SetObjectACL(context.Background(), public, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -177,8 +177,8 @@ SET SESSION AUTHORIZATION postgres;`
 	for name, owner := range map[string]string{"parents.root": "parent_owner", "middles.middle": "middle_owner", "leaves.leaf": "leaf_owner"} {
 		relation := rangePartitionRelation(t, target, name)
 		principal, ok := target.Roles().Lookup(owner)
-		if !ok || relation.owner != principal.Ref {
-			t.Fatal("child owner replaced with importer principal", name, relation.owner)
+		if !ok || relation.Owner != principal.Ref {
+			t.Fatal("child owner replaced with importer principal", name, relation.Owner)
 		}
 	}
 	roleExecute(t, target, targetOp, "SET SESSION AUTHORIZATION middle_owner")

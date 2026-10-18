@@ -30,13 +30,13 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	}
 	sessionSQL(t, s, `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(pg_catalog.nextval('i_id_seq')>0)) CREATE TABLE c(p INT CHECK(nextval('portable.i_id_seq')>0))`)
 	table := e.catalog.state.MustRelation(roleTableRef(t, e, "portable.i").Address)
-	identity := table.identities[table.attributes[0]]
-	provider := e.catalog.state.MustRelation(identity.sequence)
+	identity := table.Identities[table.Attributes[0]]
+	provider := e.catalog.state.MustRelation(identity.Sequence)
 	found := false
-	for _, dependency := range table.checkConstraints[0].dependencies {
-		if dependency.ref.Address == identity.sequence {
+	for _, dependency := range table.CheckConstraints[0].Dependencies {
+		if dependency.Ref.Address == identity.Sequence {
 			found = true
-			if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != e.catalog.state.epoch || dependency.revision != provider.revision {
+			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.epoch || dependency.Revision != provider.Revision() {
 				t.Fatal("CHECK did not capture exact candidate provider", dependency)
 			}
 		}
@@ -44,7 +44,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	if !found {
 		t.Fatal("CHECK lost its identity sequence dependency")
 	}
-	g := e.sequences[identity.sequence]
+	g := e.sequences[identity.Sequence]
 	beforeGenerator := *g
 	var dump bytes.Buffer
 	if err := e.Dump(context.Background(), &dump); err != nil {
@@ -60,7 +60,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	sequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 3)
 	sessionSQL(t, s, `DROP TABLE portable.c`)
 	sessionSQL(t, s, `DROP TABLE portable.i`)
-	if e.catalog.state.Get(identity.sequence) != nil || e.sequences[identity.sequence] != nil {
+	if e.catalog.state.Get(identity.Sequence) != nil || e.sequences[identity.Sequence] != nil {
 		t.Fatal("own CHECK blocked reciprocal cleanup")
 	}
 }
@@ -121,11 +121,11 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				t.Fatal("fixture lacks predecessor inversion", owner, view, check)
 			}
 			table := dest.catalog.state.MustRelation(owner)
-			identity := table.identities[table.attributes[0]]
-			sequence := dest.catalog.state.MustRelation(identity.sequence)
+			identity := table.Identities[table.Attributes[0]]
+			sequence := dest.catalog.state.MustRelation(identity.Sequence)
 			owned := owner
-			owned.SubID = table.attributes[0]
-			if !sequence.sequence.identity || sequence.sequence.owned != owned {
+			owned.SubID = table.Attributes[0]
+			if !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
 				t.Fatal("reciprocal owner remapping failed")
 			}
 			var dump bytes.Buffer
@@ -154,7 +154,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			sessionSQL(t, b, `DROP TABLE portable.i CASCADE`)
 			sequenceScalar(t, b, `SELECT COUNT(*) FROM portable.c`, 1)
 			sessionSQL(t, b, `INSERT INTO portable.c VALUES(9)`)
-			if dest.catalog.state.Get(identity.sequence) != nil || dest.sequences[identity.sequence] != nil {
+			if dest.catalog.state.Get(identity.Sequence) != nil || dest.sequences[identity.Sequence] != nil {
 				t.Fatal("linked sequence survived owner cleanup")
 			}
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
@@ -211,7 +211,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	consumer := roleTableRef(t, e, "c").Address
 	view := roleTableRef(t, e, "v").Address
 	table := read.MustRelation(owner)
-	sequence := table.identities[table.attributes[0]].sequence
+	sequence := table.Identities[table.Attributes[0]].Sequence
 	ordinary := catalogRef(t, e, read, "ordinary").Address
 	for _, tc := range []struct {
 		provider, consumer ids.ObjectAddress
@@ -227,9 +227,9 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	}
 	descriptor := read.MustRelation(sequence)
 	bad := *descriptor
-	options := *descriptor.sequence
-	options.owned.SubID = 99
-	bad.sequence = &options
+	options := *descriptor.Sequence
+	options.Owned.SubID = 99
+	bad.Sequence = &options
 	stage := e.BeginCatalogStage(read)
 	stage.descriptors[sequence] = &bad
 	if _, err := dumpPredecessor(e.stageRead(stage), sequence, consumer); err == nil {
@@ -255,15 +255,15 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	sessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 	read := e.CatalogRead()
 	table := read.MustRelation(roleTableRef(t, e, "i").Address)
-	address := table.identities[table.attributes[0]].sequence
+	address := table.Identities[table.Attributes[0]].Sequence
 	original := read.MustRelation(address)
 	stage := e.BeginCatalogStage(read)
 	candidate := *original
-	candidate.name = "candidate_only"
-	candidate.sequencePlanStamp++
+	candidate.ObjectName = "candidate_only"
+	candidate.SequencePlanStamp++
 	stage.descriptors[address] = &candidate
-	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
-	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
+	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.Namespace(), Name: candidate.Name()}] = address
+	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.Namespace()
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -284,7 +284,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal(binder.sequenceConstants)
 	}
 	constant := binder.sequenceConstants[0]
-	if constant.ref.Address != address || constant.ref.Domain() != e.catalog.domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.sequencePlanStamp {
+	if constant.ref.Address != address || constant.ref.Domain() != e.catalog.Domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.SequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)

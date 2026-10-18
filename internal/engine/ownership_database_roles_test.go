@@ -26,7 +26,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	before := e.catalog.read(e.catalog.state)
 	candidate := cloneCatalog(e.catalog.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
-	database.owner = next
+	database.Owner = next
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	after := e.catalog.read(candidate)
 	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
@@ -72,7 +72,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(currentDatabaseAddress).owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(currentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
 		t.Fatal("source pair mutated")
 	}
 }
@@ -82,10 +82,10 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	auth := catalogAuthorization(e, retained)
 	candidate := cloneCatalog(retained.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
-	database.revision++
+	database.ObjectRevision++
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth.catalog = e.catalog.read(candidate)
-	ref := e.catalog.domain.Ref(retained.Epoch(), currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(retained.Epoch(), currentDatabaseAddress)
 	if _, err := auth.object(ref); err == nil {
 		t.Fatal("mixed retained pair accepted")
 	}
@@ -105,11 +105,11 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	e, _, _, _, reader := ownershipUnitRoles()
 	candidate := cloneCatalog(e.catalog.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
-	database.name = `ownership "odd" database`
+	database.ObjectName = `ownership "odd" database`
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth := catalogAuthorization(e, e.catalog.read(candidate))
 	auth.state.CurrentUser = reader
-	ref := e.catalog.domain.Ref(candidate.epoch, currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(candidate.epoch, currentDatabaseAddress)
 	for _, tc := range []struct {
 		requirement AccessRequirement
 		message     string

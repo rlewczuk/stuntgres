@@ -21,7 +21,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			defer op.Done()
 			defer target.close()
 			defer inputs.close()
-			one, _ := sqltype.Integer(b.relation.columns[0].Usage.Type, 1)
+			one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 			primary, cleanup := errors.New("late DELETE source Next"), errors.New("required DELETE source Close")
 			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}}}
 			if phase == "next" || phase == "primaryWins" {

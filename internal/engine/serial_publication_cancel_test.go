@@ -23,9 +23,9 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 				ctx,cancel := context.WithCancel(context.Background()); defer cancel()
 				reset := make(chan error,1)
 				var once sync.Once
-				provider := e.catalog.providers[ids.RelationClassID]
-				e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
-					e.catalog.providers[ids.RelationClassID] = provider
+				provider := e.catalog.Providers[ids.RelationClassID]
+				e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
+					e.catalog.Providers[ids.RelationClassID] = provider
 					if replacement {
 						go func(){ reset <- e.Reset(context.Background()) }()
 						deadline := time.Now().Add(5*time.Second)

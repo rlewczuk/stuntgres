@@ -124,7 +124,7 @@ func TestBtreeIndexGrantTimeCompatibleRevision(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	old := base.MustRelation(ref.Address)
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {

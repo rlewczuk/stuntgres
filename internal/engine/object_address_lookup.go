@@ -320,7 +320,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			return missing("42883", noun+" "+sig+" does not exist")
 		}
-		actual := objectRoutineKind(p.id)
+		actual := objectRoutineKind(p.ID)
 		if kind == "aggregate" && actual != "aggregate" {
 			return missing("42809", "function "+sig+" is not an aggregate")
 		}
@@ -330,7 +330,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if kind == "function" && actual == "procedure" {
 			return missing("42809", sig+" is not a function")
 		}
-		a.ObjectID = p.id
+		a.ObjectID = p.ID
 		return a, nil
 	case 2617:
 		path, err := objectLookupPath(scope, names)
@@ -391,7 +391,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	case 2606:
 		if kind == "domain constraint" {
 			if domain, ok := view.Type(ids.ObjectAddress{ClassID: 1247, ObjectID: ids.OID(typeID)}); ok {
-				for _, check := range domain.domainChecks {
+				for _, check := range domain.DomainChecks {
 					if check.Name == args[0] {
 						a.ObjectID = check.OID
 						return a, nil
@@ -426,19 +426,19 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			if !child {
 				actual := objectRelationKind(view, relation)
 				if actual != kind {
-					return missing("42809", fmt.Sprintf("%q is not a%s %s", relation.name, map[string]string{"index": "n"}[kind], kind))
+					return missing("42809", fmt.Sprintf("%q is not a%s %s", relation.Name(), map[string]string{"index": "n"}[kind], kind))
 				}
-				return relation.address, nil
+				return relation.Address(), nil
 			}
 			column := names[len(names)-1]
-			for _, sub := range relation.attributes {
+			for _, sub := range relation.Attributes {
 				if objectAttributeName(view, relation, sub) == column {
-					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
+					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
 				}
 			}
 			for sub := int32(-1); sub >= -6; sub-- {
 				if objectAttributeName(view, relation, sub) == column {
-					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
+					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
 				}
 			}
 			return missing("42703", fmt.Sprintf("column %q of relation %q does not exist", column, strings.Join(relationNames, ".")))
@@ -459,7 +459,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if class == 2618 {
 			owner = "relation"
 		}
-		return missing("42704", fmt.Sprintf("%s %q for %s %q does not exist", object, name, owner, relation.name))
+		return missing("42704", fmt.Sprintf("%s %q for %s %q does not exist", object, name, owner, relation.Name()))
 	}
 	if class == 3456 || class == 2607 || class == 3764 || class == 3600 {
 		d, err := objectLookupDescriptor(scope, class, names)
@@ -494,46 +494,46 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 func ownedAddressByName(d *relationDescriptor, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
-		for _, x := range d.notNullConstraints {
+		for _, x := range d.NotNullConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.checkConstraints {
+		for _, x := range d.CheckConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.uniqueConstraints {
+		for _, x := range d.UniqueConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.exclusionConstraints {
+		for _, x := range d.ExclusionConstraints {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.foreignKeys {
+		for _, x := range d.ForeignKeys {
 			if x.Name == name {
 				return x.OID
 			}
 		}
 	case 2604:
-		for i, col := range d.columns {
+		for i, col := range d.Columns {
 			if col.Name == name {
-				sub := d.attributes[i]
-				if def, ok := d.defaults[sub]; ok {
+				sub := d.Attributes[i]
+				if def, ok := d.Defaults[sub]; ok {
 					return def.OID
 				}
-				if def, ok := d.generations[sub]; ok {
+				if def, ok := d.Generations[sub]; ok {
 					return def.OID
 				}
 			}
 		}
 	case 2618:
-		if name == "_RETURN" && d.view != nil {
-			return d.view.RuleOID()
+		if name == "_RETURN" && d.View != nil {
+			return d.View.RuleOID()
 		}
 		for _, x := range rulesOf(d) {
 			if x.Name == name {
@@ -541,7 +541,7 @@ func ownedAddressByName(d *relationDescriptor, class ids.OID, name string) ids.O
 			}
 		}
 	case 3256:
-		for _, x := range d.policies {
+		for _, x := range d.Policies {
 			if x.Name == name {
 				return x.OID
 			}

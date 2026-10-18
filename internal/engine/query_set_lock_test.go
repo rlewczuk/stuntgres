@@ -71,17 +71,17 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	right := base
 	right.Address.ObjectID = 1000000
 	copy := *original
-	copy.address, copy.name = right.Address, "t_right"
+	copy.ObjectAddress, copy.ObjectName = right.Address, "t_right"
 	e.catalog.state.setDescriptor(right.Address, &copy)
 	refs := make(map[string]ids.ObjectRef)
 	next := ids.OID(1000001)
 	add := func(name string, invoker bool, root *projectNode, leaves []viewLeaf) ids.ObjectRef {
-		ref := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *original
-		d.address, d.name, d.owner, d.relationKind = ref.Address, name, owner, viewRelation
-		d.columns, d.attributes, d.columnACL = query.Root.Schema(), []int32{1}, nil
-		d.view = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
+		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, viewRelation
+		d.Columns, d.Attributes, d.ColumnACL = query.Root.Schema(), []int32{1}, nil
+		d.View = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
 		e.catalog.state.setDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
@@ -110,8 +110,8 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		entries := []authorization.ACLEntry{
-			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: mask},
-			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: mask},
+			{Grantor: original.Owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: mask},
+			{Grantor: original.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: mask},
 		}
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
 			t.Fatal(err)
@@ -178,10 +178,10 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	next := ids.OID(1000100)
 	add := func(name string, definition *viewDefinition, kind relationKind) ids.ObjectRef {
-		ref := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *e.catalog.state.MustRelation(base.Address)
-		d.address, d.name, d.view, d.relationKind = ref.Address, name, viewPayloadOf(definition), kind
+		d.ObjectAddress, d.ObjectName, d.View, d.RelationKind = ref.Address, name, viewPayloadOf(definition), kind
 		e.catalog.state.setDescriptor(ref.Address, &d)
 		return ref
 	}
@@ -227,12 +227,12 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		e.mu.Unlock()
 		if tc.code == "" {
 			if err != nil {
-				t.Fatal(d.name, err)
+				t.Fatal(d.Name(), err)
 			}
 		} else {
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
-				t.Fatal(d.name, err)
+				t.Fatal(d.Name(), err)
 			}
 		}
 	}
@@ -252,7 +252,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	definition := *viewOf(&d)
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	definition.sources[1].ref.Epoch++
-	d.view = &definition
+	d.View = &definition
 	e.catalog.state.setDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &transactionOwner{}}
 	e.mu.Lock()

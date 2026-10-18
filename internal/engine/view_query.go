@@ -46,7 +46,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	catalog = e.privateCatalogLocked(scope.owner.catalog)
 	consumer = catalog.MustRelation(ref.Address)
-	relationPrincipal := consumer.owner
+	relationPrincipal := consumer.Owner
 	if definition.invoker {
 		relationPrincipal = invoker
 	}
@@ -59,7 +59,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			return nil, nil, err
 		}
 		leaves[i] = queryLeaf{ref: use, relation: relation, only: leaf.only, principal: relationPrincipal, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark), analysisOnly: leaf.analysisOnly}
-		leaves[i].uses, err = querySourceReadUses(reads[i], relation.attributes)
+		leaves[i].uses, err = querySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
@@ -90,7 +90,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		if sources != nil {
 			child = sources[i]
 		}
-		live := leaves[i].relation.attributes
+		live := leaves[i].relation.Attributes
 		unchanged := len(leaf.attributes) == len(live)
 		if unchanged {
 			for slot, attribute := range leaf.attributes {

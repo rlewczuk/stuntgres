@@ -105,7 +105,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.ref.Domain() != e.catalog.domain || candidate.ref.Epoch != e.catalog.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Epoch != e.catalog.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -139,7 +139,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if candidate.ref.Domain() != e.catalog.domain || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
+	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
 	if candidate.ref.Epoch != e.catalog.state.epoch || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
@@ -169,7 +169,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	}
 	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
 	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
-	if !found || !ok || len(original.values) != len(relation.columns) {
+	if !found || !ok || len(original.values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
 	if !liveVersion(original, e.commitSeq, storage.ends, s.ownDeletes[candidate.ref.Address]) {
@@ -414,7 +414,7 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility catalog")
 	}
-	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() {
+	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.Domain || ref.Epoch != data.catalog.Epoch() {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}

@@ -32,7 +32,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return sqlError("42501", "permission denied for table pg_attribute")
 	}
 	e.mu.Lock()
-	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
+	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.Domain != e.catalog.Domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}
@@ -47,31 +47,31 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.relationKind != tableRelation {
+	if !ok || old.RelationKind != tableRelation {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)
 	}
-	slot, exists := old.index[column]
+	slot, exists := old.Index[column]
 	if !exists {
 		e.mu.Unlock()
-		return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, old.name))
+		return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, old.Name()))
 	}
-	if rank != 0 && !old.columns[slot].Usage.Type.IsArray() {
+	if rank != 0 && !old.Columns[slot].Usage.Type.IsArray() {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)
 	}
-	if old.columns[slot].DeclaredDimensions == rank {
+	if old.Columns[slot].DeclaredDimensions == rank {
 		e.mu.Unlock()
 		return nil
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *old
-	next.revision++
-	next.columns = slices.Clone(old.columns)
-	next.columns[slot].DeclaredDimensions = rank
+	next.ObjectRevision++
+	next.Columns = slices.Clone(old.Columns)
+	next.Columns[slot].DeclaredDimensions = rank
 	staged := e.BeginCatalogStage(auth.catalog)
 	staged.authorizeLocked(auth, op.session)
 	e.mu.Unlock()

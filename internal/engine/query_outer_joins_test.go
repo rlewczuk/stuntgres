@@ -196,8 +196,8 @@ func TestQueryOuterJoinsExecutionRowmarkModes(t *testing.T) {
 func TestQueryOuterJoinsLocalMarkFrontierManifest(t *testing.T) {
 	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
 	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
-		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
 	}}
 	left := &rowLockNode{child: &sourceNode{occurrence: 0}, marks: []queryRowMark{{mode: lock.ForUpdate}}, firstMode: lock.ForUpdate}
 	for _, kind := range []parser.JoinKind{parser.JoinInner, parser.JoinLeft, parser.JoinRight, parser.JoinFull} {

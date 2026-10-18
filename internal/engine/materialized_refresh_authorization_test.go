@@ -25,11 +25,11 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	owner, caller := refreshUnitPrincipals(e)
-	d.owner = owner
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	d.Owner = owner
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 	auth := AuthorizationView{engine: e, pairedCatalog: e.CatalogRead(), roleRecord: e.roles, catalog: e.CatalogRead(), roles: e.Roles(), state: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
-		d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
+		d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := materializedRefreshAccess(auth, ref)
 		if privilege == authorization.MaintainPrivilege {
 			if err != nil {
@@ -43,13 +43,13 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 		}
 	}
 	for _, kind := range []relationKind{viewRelation, sequenceRelation, indexRelation} {
-		d.relationKind = kind
+		d.RelationKind = kind
 		var diagnostic *sqlstate.Error
 		if err := materializedRefreshAccess(auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "42809" {
 			t.Fatal(kind, err)
 		}
 	}
-	d.relationKind = tableRelation
+	d.RelationKind = tableRelation
 	var diagnostic *sqlstate.Error
 	if err := materializedRefreshAccess(auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		e := New()
 		d := refreshUnitRelation(t, e)
 		owner, caller := refreshUnitPrincipals(e)
-		d.owner = owner
+		d.Owner = owner
 		op, done := roleOperation(t, e, "refresh_unit_caller")
 		t.Cleanup(done)
 		scope, err := e.StartStatement(op)
@@ -98,9 +98,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		sentinel := errors.New("producer failed")
 		routine, _ := e.CatalogRead().LookupType(sqltype.Regprocedure)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		columns := append([]ColumnDescriptor(nil), d.columns...)
+		columns := append([]ColumnDescriptor(nil), d.Columns...)
 		columns[0].Usage = routine.Usage()
-		d.columns = columns
+		d.Columns = columns
 		probe := queryProbe(text.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
@@ -142,10 +142,10 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		}
 		converted := coercionExpression{Info: expr.Info{Usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
 		definition := *viewOf(d)
-		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []expr.Expr{converted}}}
-		d.view = &definition
+		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.Columns, child: &singletonNode{}, expressions: []expr.Expr{converted}}}
+		d.View = &definition
 		e.mu.Lock()
-		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.domain.Ref(e.catalog.state.epoch, d.address), d)
+		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address()), d)
 		if fail {
 			if !errors.Is(err, sentinel) || rows != nil {
 				t.Fatal(rows, err)

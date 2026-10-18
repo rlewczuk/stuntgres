@@ -23,8 +23,8 @@ func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, rev
 func ownedPolicies(policies []policyDefinition, sources map[authorization.PrincipalRef]bool) ([]policyDefinition, bool) {
 	needed := false
 	for _, policy := range policies {
-		for _, role := range policy.roles {
-			needed = needed || !role.public && sources[role.ref]
+		for _, role := range policy.Roles {
+			needed = needed || !role.Public && sources[role.Ref]
 		}
 	}
 	if !needed {
@@ -33,8 +33,8 @@ func ownedPolicies(policies []policyDefinition, sources map[authorization.Princi
 	out := make([]policyDefinition, 0, len(policies))
 	for _, policy := range policies {
 		removed := 0
-		for _, role := range policy.roles {
-			if !role.public && sources[role.ref] {
+		for _, role := range policy.Roles {
+			if !role.Public && sources[role.Ref] {
 				removed++
 			}
 		}
@@ -42,14 +42,14 @@ func ownedPolicies(policies []policyDefinition, sources map[authorization.Princi
 			out = append(out, policy)
 			continue
 		}
-		if removed == len(policy.roles) {
+		if removed == len(policy.Roles) {
 			continue
 		}
 		copy := policy
-		copy.roles = make([]policyRole, 0, len(policy.roles)-removed)
-		for _, role := range policy.roles {
-			if role.public || !sources[role.ref] {
-				copy.roles = append(copy.roles, role)
+		copy.Roles = make([]policyRole, 0, len(policy.Roles)-removed)
+		for _, role := range policy.Roles {
+			if role.Public || !sources[role.Ref] {
+				copy.Roles = append(copy.Roles, role)
 			}
 		}
 		out = append(out, copy)
@@ -98,7 +98,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		var policies []policyDefinition
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			var different bool
-			policies, different = ownedPolicies(relation.policies, sources)
+			policies, different = ownedPolicies(relation.Policies, sources)
 			changed = changed || different
 		}
 		if !changed {
@@ -111,46 +111,46 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		switch old := descriptor.(type) {
 		case *databaseDescriptor:
 			next := *old
-			next.acl, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *namespaceDescriptor:
 			next := *old
-			next.acl = nextACL
-			next.revision = revision
+			next.ACL = nextACL
+			next.ObjectRevision = revision
 			err = stage.Replace(&next)
 		case *typeDescriptor:
 			next := *old
-			next.acl = nextACL
-			next.aclSyntheticDefault = false
-			next.revision = revision
+			next.ACL = nextACL
+			next.ACLSyntheticDefault = false
+			next.ObjectRevision = revision
 			err = stage.Replace(&next)
 		case *procedureDescriptor:
 			next := *old
-			next.acl, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *foreignDescriptor:
 			next := *old
-			next.acl, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *parameterDescriptor:
 			next := *old
-			next.acl, next.revision = nextACL, revision
-			if !next.acl.Explicit || authorization.MatchesDefaultBaseline(next.acl, next.owner, authorization.DefaultParameters, false) {
-				err = stage.Remove(stage.owner.catalog.domain.Ref(stage.base.Epoch(), address))
+			next.ACL, next.ObjectRevision = nextACL, revision
+			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
+				err = stage.Remove(stage.owner.catalog.Domain.Ref(stage.base.Epoch(), address))
 			} else {
 				err = stage.Replace(&next)
 			}
 		case *tablespaceDescriptor:
 			next := *old
-			next.acl, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *relationDescriptor:
 			next := *old
-			next.acl = nextACL
-			next.revision = revision
-			next.policies = policies
+			next.ACL = nextACL
+			next.ObjectRevision = revision
+			next.Policies = policies
 			if nextColumns != nil {
-				next.columnACL = nextColumns
+				next.ColumnACL = nextColumns
 			}
 			err = stage.Replace(&next)
 		default:
@@ -172,16 +172,16 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			record = staged
 		}
 		var next *defaultACLRecord
-		if !sources[key.creator] {
-			acl, changed, err := authorization.OwnedACL(ctx, roles, record.acl, key.creator, sources)
+		if !sources[key.Creator] {
+			acl, changed, err := authorization.OwnedACL(ctx, roles, record.ACL, key.Creator, sources)
 			if err != nil {
 				return err
 			}
 			if !changed {
 				continue
 			}
-			if !authorization.MatchesDefaultBaseline(acl, key.creator, key.class, key.schema != (ids.ObjectAddress{})) {
-				next = &defaultACLRecord{acl: acl}
+			if !authorization.MatchesDefaultBaseline(acl, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{})) {
+				next = &defaultACLRecord{ACL: acl}
 			}
 		}
 		// Creator ownership removes the entire actual record, including a
@@ -211,14 +211,14 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// scoped records already tombstoned by namespace AUTO removal. Recipient
 	// normalization and other creators' AUTO records are not owner roots.
 	for key := range stage.base.state.defaultACLs {
-		if sources[key.creator] {
+		if sources[key.Creator] {
 			return true
 		}
 	}
 	for address, descriptor := range stage.descriptors {
 		next, ok := descriptor.(*relationDescriptor)
 		original, existed := stage.base.Relation(address)
-		if ok && existed && len(next.policies) < len(original.policies) {
+		if ok && existed && len(next.Policies) < len(original.Policies) {
 			return true
 		}
 	}
@@ -226,8 +226,8 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// They are excluded from independent mutation roots, not from collection.
 	for _, descriptor := range stage.base.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
-		if ok && relation.relationKind == sequenceRelation && relation.sequence != nil &&
-			relation.sequence.owned != (ids.ObjectAddress{}) && sources[relation.owner] {
+		if ok && relation.RelationKind == sequenceRelation && relation.Sequence != nil &&
+			relation.Sequence.Owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
 			return true
 		}
 	}
@@ -238,10 +238,10 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 		if !ok {
 			continue
 		}
-		for _, policy := range relation.policies {
-			selected := len(policy.roles) > 0
-			for _, role := range policy.roles {
-				if role.public || !sources[role.ref] {
+		for _, policy := range relation.Policies {
+			selected := len(policy.Roles) > 0
+			for _, role := range policy.Roles {
+				if role.Public || !sources[role.Ref] {
 					selected = false
 					break
 				}

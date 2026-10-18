@@ -15,19 +15,19 @@ func (e *Engine) capturePreparedSourceLocked(ctx context.Context, ref ids.Object
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		xid, err := sqltype.XIDValue(source.columns[0].Usage.Type, e.visibility[entry.ref].assignedXID)
+		xid, err := sqltype.XIDValue(source.Columns[0].Usage.Type, e.visibility[entry.ref].assignedXID)
 		if err != nil {
 			return nil, err
 		}
-		prepared, err := sqltype.TimestampFromTime(source.columns[2].Usage.Type, entry.prepared)
+		prepared, err := sqltype.TimestampFromTime(source.Columns[2].Usage.Type, entry.prepared)
 		if err != nil {
 			return nil, err
 		}
-		owner := sqltype.Null(source.columns[3].Usage.Type)
+		owner := sqltype.Null(source.Columns[3].Usage.Type)
 		if role, ok := e.roles.root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
-			owner = sqltype.String(source.columns[3].Usage.Type, role.Name)
+			owner = sqltype.String(source.Columns[3].Usage.Type, role.Name)
 		}
-		rows = append(rows, []sqltype.Value{xid, sqltype.String(source.columns[1].Usage.Type, entry.gid), prepared, owner, sqltype.String(source.columns[4].Usage.Type, entry.database)})
+		rows = append(rows, []sqltype.Value{xid, sqltype.String(source.Columns[1].Usage.Type, entry.gid), prepared, owner, sqltype.String(source.Columns[4].Usage.Type, entry.database)})
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
@@ -43,7 +43,7 @@ func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.Object
 	if !ok {
 		return
 	}
-	if ns, ok := catalog.Namespace(d.namespace); ok && ns.temporary == scope.op.session.token {
+	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
 }

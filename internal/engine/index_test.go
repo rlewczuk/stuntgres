@@ -15,7 +15,7 @@ func btreeRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *logi
 	ref := roleTableRef(t, e, name)
 	index := e.catalog.state.MustRelation(ref.Address)
 	root := e.indexRoots[ref.Address]
-	if index.relationKind != indexRelation || index.sqlIndex == nil || root == nil || e.storage[ref.Address] != nil {
+	if index.RelationKind != indexRelation || index.SQLIndex == nil || root == nil || e.storage[ref.Address] != nil {
 		t.Fatal("not a substantive index", index, root)
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -61,8 +61,8 @@ func TestBtreeIndexBuildAndBatchMaintenance(t *testing.T) {
 	run(t, e, "CREATE INDEX s_idx ON t USING btree(s DESC NULLS LAST,n)")
 	old := btreeWantKeys(t, e, "n_idx", "1", "2", "2", "3", "NULL")
 	index, descending := btreeRoot(t, e, "s_idx")
-	if len(index.sqlIndex.keys) != 2 || !index.sqlIndex.keys[0].desc || index.sqlIndex.keys[0].nullsFirst {
-		t.Fatal(index.sqlIndex)
+	if len(index.SQLIndex.Keys) != 2 || !index.SQLIndex.Keys[0].Desc || index.SQLIndex.Keys[0].NullsFirst {
+		t.Fatal(index.SQLIndex)
 	}
 	if got := btreeKeys(t, descending); !reflect.DeepEqual(got, []string{"c", "b", "b", "a", "NULL"}) {
 		t.Fatal(got)
@@ -129,14 +129,14 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	run(t, e, "CREATE SCHEMA moved")
 	run(t, e, "ALTER TABLE renamed SET SCHEMA moved")
 	index, _ := btreeRoot(t, e, "moved.ni")
-	if e.catalog.state.Get(index.namespace).Name() != "moved" {
+	if e.catalog.state.Get(index.Namespace()).Name() != "moved" {
 		t.Fatal(index)
 	}
 	run(t, e, "ALTER TABLE moved.renamed DROP s")
-	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.namespace, Name: "si"})) != 0 {
+	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.Namespace(), Name: "si"})) != 0 {
 		t.Fatal("indexed column left orphan")
 	}
-	old := e.indexRoots[index.address]
+	old := e.indexRoots[index.Address()]
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestBtreeIndexEmptyNullRepeatedAndCancellation(t *testing.T) {
 	keys := strings.TrimSuffix(strings.Repeat("n,", 32), ",")
 	run(t, e, "CREATE INDEX repeated ON t("+keys+")")
 	index, root := btreeRoot(t, e, "repeated")
-	if len(index.columns) != 32 || len(root.entries) != 2 {
+	if len(index.Columns) != 32 || len(root.entries) != 2 {
 		t.Fatal(index, root)
 	}
 	run(t, e, "CREATE TABLE build(n INT)")

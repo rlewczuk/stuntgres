@@ -20,12 +20,12 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 	if !ok {
 		return "", fmt.Errorf("stuntgres: policy owner is missing")
 	}
-	r.reserved[d.name] = true
+	r.reserved[d.Name()] = true
 	slots := make(map[int]string, len(leaf.attributes))
 	for i, attribute := range leaf.attributes {
-		for j, current := range d.attributes {
+		for j, current := range d.Attributes {
 			if current == attribute {
-				slots[i] = quoteIdentifier(d.name) + "." + quoteIdentifier(d.columns[j].Name)
+				slots[i] = quoteIdentifier(d.Name()) + "." + quoteIdentifier(d.Columns[j].Name)
 				break
 			}
 		}
@@ -38,36 +38,36 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.policies) == 0 {
+		if !ok || len(d.Policies) == 0 {
 			continue
 		}
-		ns := view.MustNamespace(d.namespace)
-		if ns.temporary != (ids.SessionToken{}) {
+		ns := view.MustNamespace(d.Namespace())
+		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		owner, err := roles.Descriptor(d.owner)
+		owner, err := roles.Descriptor(d.Owner)
 		if err != nil {
 			return nil, err
 		}
-		table := quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name)
+		table := quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name())
 		var sql strings.Builder
-		for _, policy := range d.policies {
+		for _, policy := range d.Policies {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			option := "PERMISSIVE"
-			if !policy.permissive {
+			if !policy.Permissive {
 				option = "RESTRICTIVE"
 			}
-			sql.WriteString("CREATE POLICY " + quoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.command)) + " TO ")
-			for i, role := range policy.roles {
+			sql.WriteString("CREATE POLICY " + quoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.Command)) + " TO ")
+			for i, role := range policy.Roles {
 				if i != 0 {
 					sql.WriteString(", ")
 				}
-				if role.public {
+				if role.Public {
 					sql.WriteString("PUBLIC")
 				} else {
-					principal, err := roles.Descriptor(role.ref)
+					principal, err := roles.Descriptor(role.Ref)
 					if err != nil {
 						return nil, err
 					}
@@ -77,7 +77,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 			for _, clause := range []struct {
 				name string
 				expr *policyExpression
-			}{{"USING", policyExpressionOf(policy.using)}, {"WITH CHECK", policyExpressionOf(policy.check)}} {
+			}{{"USING", policyExpressionOf(policy.Using)}, {"WITH CHECK", policyExpressionOf(policy.Check)}} {
 				if clause.expr == nil {
 					continue
 				}
@@ -86,18 +86,18 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if view.MustNamespace(relation.namespace).temporary != (ids.SessionToken{}) {
+					if view.MustNamespace(relation.Namespace()).Temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
 				for _, dependency := range clause.expr.presentation.dependencies {
-					address := dependency.ref.Address
+					address := dependency.Ref.Address
 					address.SubID = 0
 					provider := view.Get(address)
 					if provider == nil {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
+					if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}

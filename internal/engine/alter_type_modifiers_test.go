@@ -22,7 +22,7 @@ func TestAlterTypeModifiers(t *testing.T) {
 	if schema[0].Usage.Type.ID() != 1043 || schema[0].Usage.Typmod != 6 || schema[0].Usage.Collation.ID != 951 || schema[1].Usage.Type.ID() != 1700 || schema[1].Usage.Typmod != (5<<16|2)+4 || schema[2].Usage.Type.ID() != 1114 || schema[2].Usage.Typmod != 2 {
 		t.Fatal(schema)
 	}
-	if !reflect.DeepEqual(old.attributes, next.attributes) || old.columns[0].Usage.Typmod != 9 {
+	if !reflect.DeepEqual(old.Attributes, next.Attributes) || old.Columns[0].Usage.Typmod != 9 {
 		t.Fatal("changed original descriptor", old, next)
 	}
 	cursor := independentFinalRows(run(t, e, "SELECT c,n FROM t").Rows)
@@ -70,12 +70,12 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO d(id) VALUES(1)")
 	ref := roleTableRef(t, e, "d")
 	before := e.catalog.state.MustRelation(ref.Address)
-	if before.defaults[before.attributes[1]].expression.Properties().Volatility != expr.Stable {
+	if before.Defaults[before.Attributes[1]].Expression.Properties().Volatility != expr.Stable {
 		t.Fatal("fixture default is not Stable")
 	}
 	sessionSQL(t, s, "ALTER TABLE d ALTER c TYPE TIMESTAMPTZ(2)")
 	after := e.catalog.state.MustRelation(ref.Address)
-	if after.columns[1].Usage.Typmod != 2 || after.defaults[after.attributes[1]].expression.Properties().Volatility != expr.Stable {
+	if after.Columns[1].Usage.Typmod != 2 || after.Defaults[after.Attributes[1]].Expression.Properties().Volatility != expr.Stable {
 		t.Fatal("TYPE froze stable default", after)
 	}
 	sessionSQL(t, s, "SET TIME ZONE 'America/New_York'")
@@ -92,7 +92,7 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored := e.catalog.state.MustRelation(roleTableRef(t, e, "d").Address)
-	if restored.columns[1].Usage.Typmod != 2 || restored.defaults[restored.attributes[1]].expression.Properties().Volatility != expr.Stable {
+	if restored.Columns[1].Usage.Typmod != 2 || restored.Defaults[restored.Attributes[1]].Expression.Properties().Volatility != expr.Stable {
 		t.Fatal("Restore lost stable default or precision", restored)
 	}
 	sessionSQL(t, s, "SET TIME ZONE 'UTC'")
