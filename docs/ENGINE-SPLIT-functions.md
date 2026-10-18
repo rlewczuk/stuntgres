@@ -53,6 +53,20 @@ methods next to their definitions. If a switch case encodes behavior that does
 not fit the protocol, give the protocol a small, named hook rather than
 keeping a special case, and record it in the `expr` README.
 
+State after 2c: 35 function nodes and the four installed-routine wrappers
+implement `expr.Composite`; the walk switch keeps explicit cases for the rest.
+Still to design here:
+
+- the render hooks for deparse and node-tree output (deferred from 2c);
+- protocol membership for nodes whose `Reconstruct` takes engine-derived
+  inputs: `Math`, `String`, `ArrayTransform`, `ArraySearch`, `Posix`,
+  `Similar`, `Regexp`/`RegexpSet` (`RegexpCall`), `UUIDGeneration`,
+  `DatetimeSleep` and the retained-descriptor datetime nodes (`Justify`,
+  `Extract`, `Overlaps`, `Bin`, `Trunc`, `ZoneCalendar`, `AgeFinite`), plus
+  `Timezone`, `Format`, `NullCount` and `Random`, which have no `Reconstruct`;
+- removing `Arguments()` where it duplicates `Children()`, once no switch
+  calls it.
+
 ### F3 — Binder interface and registry, with a pilot family
 
 - Define `functions.Binder`, starting from the methods that function glue uses

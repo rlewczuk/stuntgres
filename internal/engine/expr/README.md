@@ -48,6 +48,28 @@ package-level variable. Evaluation always receives a non-nil `Context`.
 - **Clocks:** statement time, wall time, time-of-day zone, sleep clock.
 - **Regex cache** and **conversion handlers.**
 
+## Node protocol
+
+- **`Composite`** is a node whose expression children are all lexical:
+  `Children()` lists them in evaluation order (entries may be nil; the slice
+  may alias the node and must not be modified), and `Rebuild(Info, children)`
+  returns a revalidated copy with new metadata and children of the same
+  length, leaving the receiver unchanged. Rebuild is the copy-on-change
+  reconstruction that function nodes implement as `Reconstruct`.
+- **`Walk`** visits a node and then its children depth first, skipping nil.
+  The caller supplies the children enumerator, so the engine's own switch
+  decides lexical boundaries (a subquery's plan is a separate frame) and falls
+  back to `Composite` for protocol nodes.
+- **`Map`** maps the non-nil children with the engine's changed-bit callback
+  and rebuilds only when one changed, on a fresh slice with `InfoOf(node)`.
+  Composite nodes never carry `UnknownNull` or `RegclassRef`.
+- A central engine switch adopts the protocol with one final
+  `case expr.Composite:` branch; the explicit cases before it keep precedence,
+  for example over engine wrappers that embed a protocol node.
+- Adopted so far: the lexical walk (`boundExpressionChildren`,
+  `query_expression_walk.go`). The SQL-deparse and node-tree render hooks are
+  designed in step 3 F2 together with the switches that call them.
+
 ## What stays in the engine
 
 The concrete nodes (column, parameter, coercion, CASE, row, subquery and the
@@ -64,15 +86,13 @@ volatility constants and the forwarding helpers `boundExpressionInfo`,
 Since step 3 (F1), `functions` nodes embed `Info` and evaluate against
 `Context` directly, with no type parameters.
 
-The node protocol (`Composite`, render hooks, walk/map helpers) arrives in
-step 2c.
-
 ## Testing
 
-Unit tests pin the helpers: property merging, intrinsic rules, `InfoOf` and
-the positioned errors. Expression evaluation itself is covered by the engine
+Unit tests pin the helpers: property merging, intrinsic rules, `InfoOf`,
+the positioned errors, and the `Walk`/`Map` protocol helpers. Expression evaluation itself is covered by the engine
 and `functions` tests and the `reference/` suite.
 
 ```sh
 make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|WithPosition)'
+make check RUN='^Test(WalkVisitsPreOrderAndSkipsNil|MapUnchangedKeepsNode|MapChangedRebuildsCopy|MapPropagatesErrors)$'
 ```

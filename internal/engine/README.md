@@ -33,6 +33,7 @@ make check RUN='^TestTransactionIdentity(MultiHistory|GrantActions|Savepoint|Com
 make check RUN='^TestCommitTime(Assignment|Publication|Replacement|Expression)$'
 make check RUN='^TestPGLocks(ProjectionModes|TransactionLifetime|PredicateLifetime)$'
 make check RUN='^TestUpdateCore(MultirowAllocation|StagedPrefixOverlap|SparseAllocation)$'
+make check RUN='^Test(WalkBoundExpressionVisitsCompositeChildren|InstalledFunctionRebuildKeepsWrapper)$'
 ```
 
 Use external 900-second deadlines. These actual-seam units seed wrap/horizon/
