@@ -249,7 +249,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.domain.Ref(old.Epoch(), index.address)); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123456})); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, e.domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {
 		t.Fatal("missing ref accepted by capture")
 	}
 	if _, _, err := projectIndexMetadata(context.Background(), old, e.domain.Ref(old.Epoch(), parent.Address)); err == nil {

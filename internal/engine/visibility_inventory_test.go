@@ -147,9 +147,9 @@ func TestVisibilityInquiryReleaseNames(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		address := ids.ObjectAddress{ClassID: ConversionClassID, ObjectID: ids.OID(id)}
+		address := ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: ids.OID(id)}
 		d, ok := view.Descriptor(address)
-		if !ok || d.Name() != fields[1] || d.Namespace() != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 11}) || d.Revision() != 1 || d.Kind() != ids.ConversionObject {
+		if !ok || d.Name() != fields[1] || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Revision() != 1 || d.Kind() != ids.ConversionObject {
 			t.Fatal(entry, d, ok)
 		}
 	}
@@ -158,7 +158,7 @@ func TestVisibilityInquiryReleaseNames(t *testing.T) {
 		name     string
 		encoding int32
 	}{{100, "default", -1}, {950, "C", -1}, {951, "POSIX", -1}, {962, "ucs_basic", 6}, {963, "unicode", -1}, {811, "pg_c_utf8", 6}, {6411, "pg_unicode_fast", 6}} {
-		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: entry.id}].(*collationDescriptor)
+		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: entry.id}].(*collationDescriptor)
 		if !ok || d.name != entry.name || d.encoding != entry.encoding {
 			t.Fatal(entry, d, ok)
 		}

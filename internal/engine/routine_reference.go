@@ -22,7 +22,7 @@ func expressionRoutineDescriptor(node BoundExpr) (*procedureDescriptor, error) {
 		return nil, nil
 	}
 	d, ok := reference.(*procedureDescriptor)
-	if !ok || d == nil || d.address.ClassID != ProcedureClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 {
+	if !ok || d == nil || d.address.ClassID != ids.ProcedureClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 {
 		return nil, fmt.Errorf("stuntgres: invalid routine reference carrier")
 	}
 	return d, nil
@@ -64,7 +64,7 @@ func expressionRecipeDescriptor(node BoundExpr) (*relationDescriptor, error) {
 		return nil, nil
 	}
 	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
-	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != RelationClassID || recipe.address.ObjectID == 0 ||
+	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 ||
 		recipe.view.consumer != (ids.ObjectAddress{}) && recipe.view.consumer != recipe.address ||
 		recipe.view.temporary != (SessionToken{}) && recipe.view.consumer != recipe.address {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")

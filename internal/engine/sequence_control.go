@@ -153,7 +153,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			return
 		}
 		retained[typ.ID()] = true
-		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		source, ok := e.state.descriptors[address].(*typeDescriptor)
 		if !ok || source.typ != typ {
 			return
@@ -168,7 +168,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			retainBuiltin(typ.Element())
 		}
 		if source.array != 0 {
-			if array, ok := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.array)}].(*typeDescriptor); ok {
+			if array, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.array)}].(*typeDescriptor); ok {
 				retainBuiltin(array.typ)
 			}
 		}
@@ -305,7 +305,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			// These are mapping-only identities, not callable descriptors.
 			// Publish their mapping before scalar/default/expression remapping.
 			for _, helper := range proc.aggregate.helpers {
-				if err := remapCollision(ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}); err != nil {
+				if err := remapCollision(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}); err != nil {
 					return err
 				}
 			}
@@ -390,9 +390,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				if mapped, ok := mapping[n.namespace]; ok {
 					n.namespace = mapped
 				}
-				n.left, n.right, n.result = move(TypeClassID, n.left), move(TypeClassID, n.right), move(TypeClassID, n.result)
-				n.function, n.restriction, n.join = move(ProcedureClassID, n.function), move(ProcedureClassID, n.restriction), move(ProcedureClassID, n.join)
-				n.commutator, n.negator = move(OperatorClassID, n.commutator), move(OperatorClassID, n.negator)
+				n.left, n.right, n.result = move(ids.TypeClassID, n.left), move(ids.TypeClassID, n.right), move(ids.TypeClassID, n.result)
+				n.function, n.restriction, n.join = move(ids.ProcedureClassID, n.function), move(ids.ProcedureClassID, n.restriction), move(ids.ProcedureClassID, n.join)
+				n.commutator, n.negator = move(ids.OperatorClassID, n.commutator), move(ids.OperatorClassID, n.negator)
 				if n != *r {
 					d = &n
 				}
@@ -727,7 +727,7 @@ func arrayDomainDependency(typ *sqltype.Descriptor) bool {
 	return typ.IsArray() && arrayDomainDependency(typ.Element())
 }
 func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descriptor) bool {
-	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
+	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 	old, ok := source.descriptors[address].(*typeDescriptor)
 	if !ok {
 		return false

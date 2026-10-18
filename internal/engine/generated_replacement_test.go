@@ -94,10 +94,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	next := cloneCatalog(view.state)
 	next.epoch++
 	next.descriptors[d.address] = d
-	next.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	next.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	// Retain a real TEMP namespace and row vector in the target generation.
-	tempNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 27000}
-	tempAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 27001}
+	tempNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 27000}
+	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
 	temp := *d
 	temp.address, temp.namespace, temp.name = tempAddress, tempNamespace, "retained"
 	temp.generations, temp.checkConstraints = nil, nil
@@ -120,7 +120,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
 	session.random.rand = *rand.New(gate)
 	session.random.initialized = true
-	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.address: {versions: []rowVersion{{values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}, imported: d.address, temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
+	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.address: {versions: []rowVersion{{values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}, imported: d.address, temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
 		session.RequestEnd(CleanClose)

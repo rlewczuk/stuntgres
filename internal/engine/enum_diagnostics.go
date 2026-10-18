@@ -23,7 +23,7 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if err != nil {
 		return typ.DiagnosticName()
 	}
-	definition, _ := auth.definitionDescriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
+	definition, _ := auth.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 	descriptor, ok := definition.(*typeDescriptor)
 	if !ok {
 		return typ.DiagnosticName()
@@ -44,7 +44,7 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 	}
 	catalog := auth.catalog
 	return func(id sqltype.ID) string {
-		descriptor, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		descriptor, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		if !ok {
 			return ""
 		}

@@ -35,9 +35,9 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
-			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.kind != functionRoutine || declaration.result != 1700 || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || !declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers&seriesRoutineProvider == 0 {
@@ -58,7 +58,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.Domain() != e.domain {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
-				} else if dependency.ref.Address.ClassID == ProcedureClassID {
+				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("numeric series invented a SQL helper/sibling dependency", dependency)
 				}
 			}

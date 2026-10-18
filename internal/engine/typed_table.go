@@ -15,7 +15,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 		return nil, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 1 {
 			return auth.catalog.state.descriptors[found[0]].(*typeDescriptor), nil
 		}
@@ -119,7 +119,7 @@ func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) err
 	if table.ofType == (ids.ObjectAddress{}) {
 		return nil
 	}
-	if table.ofType.ClassID != TypeClassID || table.ofType.SubID != 0 || table.relationKind != tableRelation {
+	if table.ofType.ClassID != ids.TypeClassID || table.ofType.SubID != 0 || table.relationKind != tableRelation {
 		return fmt.Errorf("stuntgres: invalid typed attachment")
 	}
 	typ, ok := catalog.state.descriptors[table.ofType].(*typeDescriptor)

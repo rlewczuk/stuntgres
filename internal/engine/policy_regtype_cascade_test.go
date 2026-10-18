@@ -28,9 +28,9 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					old := base.state.descriptors[ownerRef.Address].(*relationDescriptor)
 					providerRef := roleTableRef(t, e, "provider")
 					provider := base.state.descriptors[providerRef.Address].(*relationDescriptor)
-					rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(provider.rowType)}
+					rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(provider.rowType)}
 					row := base.state.descriptors[rowAddress].(*typeDescriptor)
-					arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}
+					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}
 					storage := e.storage[old.address]
 					retained := old.policies[1]
 					stage := e.BeginCatalogStage(base)

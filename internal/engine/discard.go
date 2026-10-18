@@ -245,12 +245,12 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	}
 	var relations []ids.ObjectAddress
 	for address := range stage.removals {
-		if address.ClassID == RelationClassID {
+		if address.ClassID == ids.RelationClassID {
 			relations = append(relations, address)
 		}
 	}
 	for _, address := range children {
-		if address.ClassID == RelationClassID {
+		if address.ClassID == ids.RelationClassID {
 			relations = append(relations, address)
 		}
 	}

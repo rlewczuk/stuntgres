@@ -158,7 +158,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	validInputs := true
 	for _, expression := range bound {
 		walkBoundExpression(expression, func(node BoundExpr) {
-			address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
 			if provider, exists := catalog.Descriptor(address); exists {
 				validInputs = validInputs && current.catalog.state.descriptors[address] == provider
 			}

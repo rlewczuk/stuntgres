@@ -212,10 +212,10 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 						run(t, e, "CREATE ROLE changed_authority")
 					}
 				}
-				provider := e.providers[RelationClassID]
+				provider := e.providers[ids.RelationClassID]
 				if phase == "validation" {
 					var once sync.Once
-					e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.providers[RelationClassID] = provider; mutate() }) }}
+					e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.providers[ids.RelationClassID] = provider; mutate() }) }}
 				}
 				op, err := s.Acquire(ctx)
 				if err != nil {

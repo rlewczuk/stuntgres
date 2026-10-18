@@ -14,8 +14,8 @@ type pgDependEdge struct {
 
 // Pinning follows represented bootstrap authorities, never an OID cutoff.
 func pgDependPinned(catalog CatalogRead, address ids.ObjectAddress) bool {
-	if address.ClassID == NamespaceClassID {
-		return address.ObjectID == PGCatalogNamespaceOID || address.ObjectID == PGToastNamespaceOID
+	if address.ClassID == ids.NamespaceClassID {
+		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}
 	whole := address
 	whole.SubID = 0
@@ -98,7 +98,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			add(d.address, d.namespace, 'n')
 			if d.queryCodec != nil {
 				if d.name == "bqarr_in" {
-					add(d.address, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: d.result}, 'n')
+					add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.result}, 'n')
 				} else {
 					ext := catalog.state.descriptors[d.extension].(*extensionDescriptor)
 					add(d.address, ext.members[0], 'n')
@@ -128,7 +128,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			}
 			add(d.Address(), d.extension, 'e')
 			if d.typ.IsArray() {
-				add(d.Address(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}, 'i')
+				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}, 'i')
 			} else if d.owningRelation != (ids.ObjectAddress{}) && !d.typ.IsComposite() {
 				add(d.Address(), d.owningRelation, 'i')
 			} else if d.typ.IsComposite() && catalog.state.descriptors[d.owningRelation].(*relationDescriptor).relationKind != compositeRelation {
@@ -136,8 +136,8 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
 				if d.typ.IsDomain() {
-					add(d.Address(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.DomainBase().Type.ID())}, 'n')
-					add(d.Address(), ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(d.typ.DomainBase().Collation.ID)}, 'n')
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.DomainBase().Type.ID())}, 'n')
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.typ.DomainBase().Collation.ID)}, 'n')
 				}
 			}
 		case *relationDescriptor:
@@ -151,7 +151,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(d.address, extension, 'x')
 			}
 			for _, policy := range d.policies {
-				owner := ids.ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}
+				owner := ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.address, 'a')
 				for _, condition := range []*policyExpression{policy.using, policy.check} {
 					if condition != nil {
@@ -211,7 +211,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					if key.derived != nil {
 						refs.expression(key.derived.definition)
 					}
-					refs.add(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.collation)})
+					refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.collation)})
 				}
 				addresses, err := refs.finish()
 				if err != nil {
@@ -233,7 +233,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				continue
 			}
 			if d.relationKind == compositeRelation {
-				add(d.address, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}, 'i')
+				add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}, 'i')
 			} else {
 				add(d.address, d.namespace, 'n')
 			}
@@ -254,9 +254,9 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					if key.derived != nil {
 						refs.expression(key.derived.definition)
 					}
-					refs.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(key.usage.Type.ID())})
-					refs.add(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.collation)})
-					refs.add(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.usage.Collation.ID)})
+					refs.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.usage.Type.ID())})
+					refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.collation)})
+					refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.usage.Collation.ID)})
 				}
 				addresses, err := refs.finish()
 				if err != nil {
@@ -271,8 +271,8 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					return nil, err
 				}
 				owner := attribute(d.address, d.attributes[i])
-				add(owner, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, 'n')
-				add(owner, ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(column.Usage.Collation.ID)}, 'n')
+				add(owner, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, 'n')
+				add(owner, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(column.Usage.Collation.ID)}, 'n')
 			}
 			if d.sequence != nil && d.sequence.owned != (ids.ObjectAddress{}) {
 				flavor := byte('a')
@@ -335,7 +335,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 						return nil, err
 					}
 					for _, ref := range refs {
-						if ref.ClassID == RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
+						if ref.ClassID == ids.RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
 							add(owner, ref, 'a')
 						}
 						add(owner, ref, 'n')
@@ -350,7 +350,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 						return nil, err
 					}
 					for _, ref := range refs {
-						if ref.ClassID == RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
+						if ref.ClassID == ids.RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
 							add(owner, ref, 'a')
 						}
 						add(owner, ref, 'n')
@@ -368,7 +368,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					if err := ctx.Err(); err != nil {
 						return nil, err
 					}
-					if ref.ClassID == RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
+					if ref.ClassID == ids.RelationClassID && ref.ObjectID == d.address.ObjectID && ref.SubID != 0 {
 						add(owner, ref, 'a')
 						columns = true
 					}

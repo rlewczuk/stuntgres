@@ -211,7 +211,7 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(Bo
 func cteVolatile(root LogicalNode) bool {
 	volatile := false
 	visitCTEQuery(root, func(n LogicalNode) {
-		if source, ok := n.(*sourceNode); ok && source.ref.Address.ClassID == RelationClassID && source.ref.Address.ObjectID == 12048 {
+		if source, ok := n.(*sourceNode); ok && source.ref.Address.ClassID == ids.RelationClassID && source.ref.Address.ObjectID == 12048 {
 			volatile = true
 		}
 		for _, mark := range queryRootRowMarks(n) {
@@ -258,7 +258,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 	var visit func(*relationDescriptor) bool
 	visit = func(relation *relationDescriptor) bool {
 		if relation.relationKind != viewRelation {
-			return relation.relationKind == catalogRelation && relation.address.ClassID == RelationClassID && relation.address.ObjectID == 12048
+			return relation.relationKind == catalogRelation && relation.address.ClassID == ids.RelationClassID && relation.address.ObjectID == 12048
 		}
 		if volatile, ok := memo[relation.address]; ok {
 			return volatile

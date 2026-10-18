@@ -23,7 +23,7 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			roleExecute(t, e, admin, "CREATE TABLE queue_source(i INT,s TEXT)")
 			roleExecute(t, e, admin, "INSERT INTO queue_source VALUES(1,'a'),(2,NULL)")
 			roleExecute(t, e, admin, "CREATE MATERIALIZED VIEW queued AS SELECT i,s FROM queue_source")
-			address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "queued"}]
+			address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "queued"}]
 			d := e.state.descriptors[address].(*relationDescriptor)
 			index := materializedAlterIndex(t, e, admin, d)
 			d = e.state.descriptors[address].(*relationDescriptor)
@@ -43,7 +43,7 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			case "schema":
 				firstSuffix = "SET SCHEMA queue_destination"
 				wantSecond = "s"
-				wantNamespace = e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "queue_destination"}]
+				wantNamespace = e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "queue_destination"}]
 			}
 			holder, firstWorker, secondWorker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
@@ -117,9 +117,9 @@ func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW label_parent AS SELECT 1 AS i,'a'::text AS s")
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX label_index ON label_parent(i) INCLUDE(s)")
-	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	parentAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "label_parent"}]
-	indexAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "label_index"}]
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	parentAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_parent"}]
+	indexAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_index"}]
 	parent := e.state.descriptors[parentAddress].(*relationDescriptor)
 	captured := e.state.descriptors[indexAddress].(*relationDescriptor)
 	store, root := e.storage[parentAddress], e.indexRoots[indexAddress]
@@ -159,7 +159,7 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 			roleExecute(t, e, op, "CREATE TABLE refresh_queue_source(i INT,s TEXT)")
 			roleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(1,'old')")
 			roleExecute(t, e, op, "CREATE MATERIALIZED VIEW refreshed AS SELECT i,s FROM refresh_queue_source")
-			address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "refreshed"}]
+			address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "refreshed"}]
 			parent := e.state.descriptors[address].(*relationDescriptor)
 			index := materializedAlterIndex(t, e, op, parent)
 			parent = e.state.descriptors[address].(*relationDescriptor)
@@ -272,7 +272,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	d = e.state.descriptors[d.address].(*relationDescriptor)
 	store, root := e.storage[d.address], e.indexRoots[index.address]
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW producer_fixture AS SELECT 9 AS i")
-	producer := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: "producer_fixture"}]].(*relationDescriptor)
+	producer := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "producer_fixture"}]].(*relationDescriptor)
 	holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	tx := transactionBegin(t, holder)
 	released, joined := false, false
@@ -355,7 +355,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	defer done()
 	d := refreshUnitRelation(t, e)
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW authority_fixture AS SELECT 9 AS other")
-	other := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: "authority_fixture"}]].(*relationDescriptor)
+	other := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "authority_fixture"}]].(*relationDescriptor)
 	if d.view == other.view || d.rowType == other.rowType || &d.columns[0] == &other.columns[0] || &d.attributes[0] == &other.attributes[0] {
 		t.Fatal("fixture lacks distinct genuine defining authorities")
 	}
@@ -389,8 +389,8 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)
-	row := target.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
+	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)
+	row := target.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
 	if row.owningRelation != imported.address || len(imported.attributes) != 1 || imported.attributes[0] != d.attributes[0] || len(target.storage[imported.address].versions) != 3 || e.state.descriptors[d.address] != d {
 		t.Fatal("real replacement lost coherent rowtype/attributes/stored authority")
 	}

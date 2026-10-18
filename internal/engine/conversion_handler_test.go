@@ -18,7 +18,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	// Corrupt actual routine metadata in an unpublished candidate, preserving
 	// its real six-argument identity/provider, to exercise return-type admission.
 	candidate := cloneCatalog(view.state)
-	procedure := *candidate.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 4375}].(*procedureDescriptor)
+	procedure := *candidate.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}].(*procedureDescriptor)
 	procedure.result = 25
 	candidate.descriptors[procedure.address] = &procedure
 	auth.recaptureCatalog(CatalogRead{e, candidate})

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -46,11 +47,11 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.providers[RelationClassID]
+			provider := e.providers[ids.RelationClassID]
 			calls := 0
-			e.providers[RelationClassID] = alterDropProvider{provider, func() {
+			e.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.providers[RelationClassID] = provider
+				e.providers[ids.RelationClassID] = provider
 				if !e.mu.TryLock() {
 					t.Fatal("provider called under engine lock")
 				}

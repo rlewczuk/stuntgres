@@ -185,7 +185,7 @@ type CatalogProvider interface {
 }
 type namespaceProvider struct{}
 
-func (namespaceProvider) ClassID() ids.OID { return NamespaceClassID }
+func (namespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := d.(*namespaceDescriptor)
 	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
@@ -197,7 +197,7 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	a := d.Address()
 	key := descriptorNameKey(d)
 	found := v.Lookup(key)
-	if d.Kind() != ids.NamespaceObject || a.ClassID != NamespaceClassID || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || d.Namespace() != (ids.ObjectAddress{}) || len(found) != 1 || found[0] != a {
+	if d.Kind() != ids.NamespaceObject || a.ClassID != ids.NamespaceClassID || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || d.Namespace() != (ids.ObjectAddress{}) || len(found) != 1 || found[0] != a {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor")
 	}
 	return nil
@@ -205,10 +205,10 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 
 type relationProvider struct{}
 
-func (relationProvider) ClassID() ids.OID { return RelationClassID }
+func (relationProvider) ClassID() ids.OID { return ids.RelationClassID }
 func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	r, ok := d.(*relationDescriptor)
-	if !ok || d.Kind() != ids.RelationObject || d.Address().ClassID != RelationClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
+	if !ok || d.Kind() != ids.RelationObject || d.Address().ClassID != ids.RelationClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
 		return fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
 	ns, ok := v.Descriptor(r.namespace)
@@ -218,7 +218,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.onCommit > parser.OnCommitDrop || r.onCommit != parser.OnCommitUnspecified && (r.relationKind != tableRelation || ns.(*namespaceDescriptor).temporary == (SessionToken{})) {
 		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
-	found := v.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: r.namespace, Name: r.name})
+	found := v.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: r.namespace, Name: r.name})
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
@@ -232,19 +232,19 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return fmt.Errorf("stuntgres: extension dependency requires a materialized view")
 	}
 	for i, address := range r.autoExtensions {
-		if address.ClassID != ExtensionClassID || address.ObjectID == 0 || address.SubID != 0 || i > 0 && r.autoExtensions[i-1].ObjectID >= address.ObjectID {
+		if address.ClassID != ids.ExtensionClassID || address.ObjectID == 0 || address.SubID != 0 || i > 0 && r.autoExtensions[i-1].ObjectID >= address.ObjectID {
 			return fmt.Errorf("stuntgres: invalid materialized extension dependency")
 		}
 		extension, ok := v.state.descriptors[address].(*extensionDescriptor)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing materialized extension provider")
 		}
-		if err := (extensionCatalogProvider{class: ExtensionClassID}).Validate(v, extension); err != nil {
+		if err := (extensionCatalogProvider{class: ids.ExtensionClassID}).Validate(v, extension); err != nil {
 			return err
 		}
 	}
 	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation || r.relationKind == foreignRelation {
-		types := v.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
+		types := v.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
 			if len(types) != 1 || !ok || row.owningRelation != r.address || row.typ.ID() != r.rowType {
@@ -257,7 +257,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return fmt.Errorf("stuntgres: missing foreign relation definition")
 		}
 		server, ok := v.state.descriptors[r.foreign.server].(*foreignDescriptor)
-		if !ok || server.address.ClassID != ForeignServerClassID {
+		if !ok || server.address.ClassID != ids.ForeignServerClassID {
 			return fmt.Errorf("stuntgres: missing foreign server identity")
 		}
 	} else if r.foreign != nil {
@@ -793,11 +793,11 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	d := provider.base.state.descriptors[ref.Address]
 	switch d.(type) {
 	case *relationDescriptor:
-		if ref.Address.ClassID != RelationClassID {
+		if ref.Address.ClassID != ids.RelationClassID {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
 		}
 	case *namespaceDescriptor:
-		if !namespace || ref.Address.ClassID != NamespaceClassID {
+		if !namespace || ref.Address.ClassID != ids.NamespaceClassID {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
 		}
 	case *typeDescriptor:
@@ -868,14 +868,14 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		}
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.rowType != 0 {
-		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(r.rowType)}).(*typeDescriptor)
+		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}).(*typeDescriptor)
 		if !ok || row.owningRelation != r.address {
 			return CatalogConflict{}
 		}
 		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.rowType, row.array} {
 			if id != 0 {
-				if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
+				if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
 					return err
 				}
 			}
@@ -1120,7 +1120,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		for a := range s.removals {
-			if a.ClassID == NamespaceClassID {
+			if a.ClassID == ids.NamespaceClassID {
 				for address, d := range current.descriptors {
 					if _, removed := s.removals[address]; d.Namespace() == a && (!removed || d != s.base.state.descriptors[address]) {
 						e.mu.Unlock()
@@ -1130,7 +1130,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			// A newly attached MV was not in the validated retirement closure.
 			// Recheck its live immutable x authority at the final publication fence.
-			if a.ClassID == ExtensionClassID {
+			if a.ClassID == ids.ExtensionClassID {
 				for address, descriptor := range current.descriptors {
 					if descriptor == s.base.state.descriptors[address] {
 						continue
@@ -1495,10 +1495,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil {
 			namespaceChanged := false
 			for a := range s.descriptors {
-				namespaceChanged = namespaceChanged || a.ClassID == NamespaceClassID
+				namespaceChanged = namespaceChanged || a.ClassID == ids.NamespaceClassID
 			}
 			for a := range s.removals {
-				namespaceChanged = namespaceChanged || a.ClassID == NamespaceClassID
+				namespaceChanged = namespaceChanged || a.ClassID == ids.NamespaceClassID
 			}
 			if namespaceChanged {
 				err = next.advanceNamespaceGeneration()

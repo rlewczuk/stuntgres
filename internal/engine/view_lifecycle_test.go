@@ -31,7 +31,7 @@ func TestViewRecursiveLockCancellation(t *testing.T) {
 			lockAwait(t, done, context.Canceled)
 			lockPending(t, e, 0)
 			transactionEnd(t, holder, tx, false)
-			if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "pending"}]; exists {
+			if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "pending"}]; exists {
 				t.Fatal("canceled view published")
 			}
 			lockEmpty(t, e)
@@ -42,13 +42,13 @@ func TestViewRecursiveLockCancellation(t *testing.T) {
 func TestViewValidationReplacementAdmission(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
-	original := e.providers[RelationClassID]
+	original := e.providers[ids.RelationClassID]
 	var once sync.Once
 	callbackRan, admissionReleased := false, false
-	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() {
 		once.Do(func() {
 			callbackRan = true
-			e.providers[RelationClassID] = original
+			e.providers[ids.RelationClassID] = original
 			admissionReleased = e.replacementMu.TryLock()
 			if !admissionReleased {
 				return
@@ -66,7 +66,7 @@ func TestViewValidationReplacementAdmission(t *testing.T) {
 	if !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
-	if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "v"}]; exists {
+	if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "v"}]; exists {
 		t.Fatal("replacement-fenced view published")
 	}
 }
@@ -77,9 +77,9 @@ func TestViewValidationCancellationAtomicity(t *testing.T) {
 	before := e.CatalogRead().state
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := e.providers[RelationClassID]
+	original := e.providers[ids.RelationClassID]
 	var once sync.Once
-	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.providers[RelationClassID] = original; cancel() }) }}
+	e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.providers[ids.RelationClassID] = original; cancel() }) }}
 	_, err := testExecute(e, ctx, statement(t, "CREATE VIEW v AS SELECT id FROM sentinel"), nil)
 	if !errors.Is(err, context.Canceled) || e.CatalogRead().state != before {
 		t.Fatal(err, "partial catalog publication")

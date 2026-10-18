@@ -32,7 +32,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 		index[column.Name] = i
 	}
 	e.mu.Lock()
-	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
+	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
 	if err == nil {
 		source.relationKind = compositeRelation
 		if !empty {
@@ -48,7 +48,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 		table, err = e.newTableDescriptorLocked(source.namespace, "typed", source.owner, append([]ColumnDescriptor(nil), columns...), index)
 	}
 	if err == nil {
-		table.ofType = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}
+		table.ofType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}
 		if !empty {
 			table.attributes = []int32{1, 7}
 			table.attributeHighWater = 7
@@ -94,7 +94,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if len(actions) != 1 || actions[0].action.Column.Text != "note" || actions[0].action.Action != parser.DropColumn {
 		t.Fatal(actions)
 	}
-	for _, bad := range []ids.ObjectAddress{{ClassID: RelationClassID, ObjectID: source.address.ObjectID}, {ClassID: TypeClassID, ObjectID: 999999}} {
+	for _, bad := range []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: source.address.ObjectID}, {ClassID: ids.TypeClassID, ObjectID: 999999}} {
 		invalid := *table
 		invalid.ofType = bad
 		if err := validateTypedAttachment(view, &invalid); err == nil {
@@ -102,7 +102,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 		}
 	}
 	invalid := *table
-	invalid.ofType = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(table.rowType)}
+	invalid.ofType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}
 	if err := validateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("physical own-row source admitted")
 	}

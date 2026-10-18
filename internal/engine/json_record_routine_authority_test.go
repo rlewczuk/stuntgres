@@ -90,9 +90,9 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
-			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.kind != functionRoutine || declaration.result != tc.result || declaration.strict != tc.strict || declaration.volatility != Stable || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.variadic != 0 || int(declaration.defaults) != tc.defaults || declaration.providers&jsonRoutineProvider == 0 {
@@ -109,7 +109,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					if dependency.ref.Domain() != e.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
-				} else if dependency.ref.Address.ClassID == ProcedureClassID {
+				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("implicit JSON codec/helper/body EXECUTE edge", dependency)
 				}
 			}
@@ -319,7 +319,7 @@ func TestJSONRecordRoutineFailedConstructor(t *testing.T) {
 		t.Fatal("original constructor error not propagated", err)
 	}
 	for _, dependency := range b.dependencies {
-		if dependency.ref.Address == (ids.ObjectAddress{ProcedureClassID, 3960, 0}) {
+		if dependency.ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3960, 0}) {
 			t.Fatal("failed constructor captured the unselected outer declaration", dependency)
 		}
 	}

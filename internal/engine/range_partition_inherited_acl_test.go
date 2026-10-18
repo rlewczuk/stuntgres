@@ -28,14 +28,14 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		t.Fatal("actor missing")
 	}
 	view := e.CatalogRead()
-	namespaces := view.Lookup(ids.NameKey{ClassID: NamespaceClassID, Name: "private_types"})
+	namespaces := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "private_types"})
 	if len(namespaces) != 1 {
 		t.Fatal(namespaces)
 	}
 	namespace := e.domain.Ref(view.Epoch(), namespaces[0])
 	typeRefs := make([]ids.ObjectRef, 2)
 	for i, name := range []string{"state", "quantity"} {
-		addresses := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: namespaces[0], Name: name})
+		addresses := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespaces[0], Name: name})
 		if len(addresses) != 1 {
 			t.Fatal(addresses)
 		}
@@ -131,7 +131,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	for _, name := range []string{"enum_denied", "domain_denied", "cast_denied", "check_denied"} {
-		if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name})) != 0 {
+		if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})) != 0 {
 			t.Fatal("failed inherited authority published relation", name)
 		}
 	}

@@ -113,9 +113,9 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 func TestPgcryptoControlRemap(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	before := e.CatalogRead()
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.members {
-		mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001 + i)}
+		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
@@ -129,12 +129,12 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	view := CatalogRead{owner: e, state: next}
 	remapped := next.descriptors[mapping[ext.address]].(*extensionDescriptor)
-	if err := (extensionCatalogProvider{ExtensionClassID}).Validate(view, remapped); err != nil {
+	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)
 	}
 	for i, original := range ext.members {
 		proc := next.descriptors[mapping[original]].(*procedureDescriptor)
-		if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, proc); err != nil {
+		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.state.descriptors[original].(*procedureDescriptor)
@@ -159,7 +159,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := bound.(installedCryptoFunctionExpression)
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900010}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{
 		address:  address,
 		defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}},

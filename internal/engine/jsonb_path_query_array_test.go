@@ -32,14 +32,14 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err != nil || captured == nil || captured.builtin == nil {
 		t.Fatal("missing actual bound declaration", captured, err)
 	}
-	address := ids.ObjectAddress{ProcedureClassID, 4007, 0}
-	identity := routineIdentity{4007, PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}
+	address := ids.ObjectAddress{ids.ProcedureClassID, 4007, 0}
+	identity := routineIdentity{4007, ids.PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}
 	d := captured.builtin
 	if d.identity != identity || d.kind != functionRoutine || d.result != 3802 || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.defaults != 2 || d.variadic != 0 || d.providers != jsonRoutineProvider {
 		t.Fatal("released full-IN declaration", d)
 	}
 	view := e.CatalogRead()
-	if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || captured.result != 3802 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || view.state.descriptors[address] != captured {
+	if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || captured.result != 3802 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || view.state.descriptors[address] != captured {
 		t.Fatal("bound descriptor is not the owned released routine", captured)
 	}
 	for i, id := range []sqltype.ID{3802, 4072, 3802, 16} {

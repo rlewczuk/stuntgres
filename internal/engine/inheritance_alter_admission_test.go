@@ -508,7 +508,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			assertPhase(dropTypes, []string{"a"})
 			assertPhase(prepared.steps[1].types, []string{"a", "z"})
 			assertPhase(prepared.steps[2].types, []string{"a", "z", "u"})
-			assertShape(before.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(p.rowType)}].(*typeDescriptor).typ, []string{"a", "b"})
+			assertShape(before.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.rowType)}].(*typeDescriptor).typ, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression
@@ -612,7 +612,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if !slices.Equal(constraintAttributeKeys(cooked, cooked.checkConstraints[0].expression), []int32{newAttribute}) || cooked.checkConstraints[0].Name != "ck" || cooked.notNullConstraints[0].Name != "nn" || cooked.checkConstraints[0].OID != 0 || cooked.notNullConstraints[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
-			key := ids.NameKey{ClassID: RelationClassID, Namespace: p.namespace, Name: "old_b"}
+			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.namespace, Name: "old_b"}
 			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().state.descriptors[view.address] != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}

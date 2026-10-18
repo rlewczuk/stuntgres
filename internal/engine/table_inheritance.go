@@ -50,7 +50,7 @@ func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
 func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
 	var children []*relationDescriptor
 	for address := range v.state.descriptors {
-		if address.ClassID != RelationClassID {
+		if address.ClassID != ids.RelationClassID {
 			continue
 		}
 		d, ok := v.state.descriptors[address].(*relationDescriptor)

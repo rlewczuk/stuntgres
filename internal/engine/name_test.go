@@ -52,7 +52,7 @@ func TestNameDescriptors(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO names VALUES('MiXeD',NULL,NULL)")
 	old := run(t, e, "SELECT * FROM names")
-	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 19})
+	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 19})
 	other := New()
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign NAME reference")
@@ -91,7 +91,7 @@ func TestNameCatalogRejectsForeignAndStale(t *testing.T) {
 	for _, usage := range []sqltype.Usage{testUsage(New(), sqltype.Name), stale} {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "invalid", revision: 1, columns: []ColumnDescriptor{{Name: "n", Usage: usage}}, index: map[string]int{"n": 0}, attributes: []int32{1}}
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "invalid", revision: 1, columns: []ColumnDescriptor{{Name: "n", Usage: usage}}, index: map[string]int{"n": 0}, attributes: []int32{1}}
 		d.attributeHighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)

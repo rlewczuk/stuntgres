@@ -30,7 +30,7 @@ func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineId
 }
 
 func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) {
-	if p, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
+	if p, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
 		return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}, true
 	}
 	if p, ok := routineByOID[id]; ok {
@@ -71,7 +71,7 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 				}
 			}
 		}
-		if namespace.ObjectID == PGCatalogNamespaceOID {
+		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
 			if p, ok := routineBySignature[routineKey{name, signature}]; ok {
 				return p, 1
 			}
@@ -117,7 +117,7 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 				}
 			}
 		}
-		if namespace.ObjectID == PGCatalogNamespaceOID {
+		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
 			for _, p := range routinesByName[name] {
 				if accept(p) {
 					return selected, count

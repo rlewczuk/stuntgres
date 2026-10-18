@@ -17,7 +17,7 @@ func regclassReplayReferences(view CatalogRead, node BoundExpr, visit func(ids.O
 			return
 		}
 		_, err := remapRegclassDatum(literal.value, func(oid ids.OID) ids.OID {
-			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 			if _, exists := view.Descriptor(address); exists && failure == nil && oid != 0 {
 				failure = visit(address)
 			}

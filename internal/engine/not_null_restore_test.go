@@ -152,7 +152,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		case "nullable":
 			altered.columns[0].Nullable = true
 		case "inherited":
-			altered.inheritance = &tableInheritance{notNull: map[int32]inheritedConstraint{1: {origins: []inheritanceOrigin{{parent: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 22001}, attribute: 1, constraint: 23001}}}}}
+			altered.inheritance = &tableInheritance{notNull: map[int32]inheritedConstraint{1: {origins: []inheritanceOrigin{{parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22001}, attribute: 1, constraint: 23001}}}}}
 		case "primary":
 			altered.uniqueConstraints = []uniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
 		}

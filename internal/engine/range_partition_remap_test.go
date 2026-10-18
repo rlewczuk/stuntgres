@@ -66,11 +66,11 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	roleExecute(t, e, op, "CREATE INDEX retained_table_expression ON retained_table((k+0)) WHERE payload>0")
 	roleExecute(t, e, op, "INSERT INTO retained_table(k) VALUES(1)")
 	tempGeneratorState, tempMemoryState := *tempGenerator, *tempMemory
-	tempTableAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: tempNamespace, Name: "retained_table"}]
-	tempIndexAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"}]
+	tempTableAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table"}]
+	tempIndexAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"}]
 	tempTableDescriptor, tempIndexDescriptor := e.state.descriptors[tempTableAddress], e.state.descriptors[tempIndexAddress]
 	tempTableStore, tempIndexRoot := e.storage[tempTableAddress], e.indexRoots[tempIndexAddress]
-	tempExpressionAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"}]
+	tempExpressionAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"}]
 	tempExpressionDescriptor, tempExpressionRoot := e.state.descriptors[tempExpressionAddress], e.indexRoots[tempExpressionAddress]
 	tempVersions := slices.Clone(tempTableStore.versions)
 	tempTableCursor := roleExecute(t, e, op, "SELECT k,payload FROM retained_table")
@@ -295,7 +295,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	// The old identity belongs to the retained live overlay, not the import.
 	temporary := *provider
 	temporary.name = "retained_temp_provider"
-	temporary.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90002}
+	temporary.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
 	temporaryBefore := temporary
 	next := cloneCatalog(view.state)
 	next.descriptors[provider.Address()] = &temporary

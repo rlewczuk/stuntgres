@@ -38,7 +38,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	if !ok || array.Name() != "_collision_1" || array.DatabaseName() != "_COLLISION_1" || array.Element() != domain.typ || array.ID() == domain.typ.ID() {
 		t.Fatal("collision association", array)
 	}
-	associated := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())}].(*typeDescriptor)
+	associated := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}].(*typeDescriptor)
 	if associated.owner != domain.owner || associated.Namespace() != domain.Namespace() || associated.Revision() != domain.Revision() {
 		t.Fatal("association ownership", associated, domain)
 	}
@@ -53,7 +53,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	// Both halves of an uncommitted publication remain invisible.
 	before := e.CatalogRead()
 	stage := domainUnitStage(t, e, op, "CREATE DOMAIN public.pending AS TEXT")
-	if len(stage.descriptors) != 2 || len(before.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: domain.Namespace(), Name: "pending"})) != 0 || len(before.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: domain.Namespace(), Name: "_pending"})) != 0 {
+	if len(stage.descriptors) != 2 || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: "pending"})) != 0 || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: "_pending"})) != 0 {
 		t.Fatal("partial domain publication")
 	}
 	e.DiscardCatalogStage(stage)
@@ -157,7 +157,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"whole", "nested", "_whole", "_nested"} {
-		if len(next.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: domain.Namespace(), Name: name})) != 0 {
+		if len(next.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: domain.Namespace(), Name: name})) != 0 {
 			t.Fatal("transitive type survived", name)
 		}
 	}
@@ -212,15 +212,15 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	storage := map[ids.ObjectAddress]*relationStorage{table.address: original}
 	next := cloneCatalog(e.state)
 	fresh := New()
-	regclassAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
+	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
 	// Replace only the builtin scalar generation, retaining this catalog's
 	// principal authority; a foreign descriptor would invalidate its array owner.
 	reboundRegclass := *next.descriptors[regclassAddress].(*typeDescriptor)
 	reboundRegclass.typ = fresh.state.descriptors[regclassAddress].(*typeDescriptor).typ
 	next.descriptors[regclassAddress] = &reboundRegclass
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: RelationClassID, ObjectID: 60021}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
-		mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(60001 + i)}
+		mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
 	}
 	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {
@@ -230,7 +230,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := storage[table.address].versions[0].values[0]
-	expected := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(nestedArray.ID())}].(*typeDescriptor).typ
+	expected := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}].(*typeDescriptor).typ
 	if imported.Type() != expected || imported.ArrayElement(0).Type().ID() != 60005 || imported.ArrayElement(1).Type().ID() != 60005 || imported.ArrayElement(0).ArrayElement(0).Type().ID() != 60003 || imported.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type().ID() != 60001 {
 		t.Fatal("nested element generations", imported)
 	}
@@ -312,9 +312,9 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	if err != nil {
 		t.Fatal(err)
 	}
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: nsOID}, name: "pg_temp_array_component", revision: revision, owner: op.RoleState().CurrentUser, temporary: op.session.token}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, name: "pg_temp_array_component", revision: revision, owner: op.RoleState().CurrentUser, temporary: op.session.token}
 	table := *prototype
-	table.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: tableOID}
+	table.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tableOID}
 	table.namespace = ns.address
 	table.name = "array_component_temp"
 	table.revision = revision
@@ -442,7 +442,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 			t.Fatal("source type catalog mutated", address)
 		}
 	}
-	importedAddresses := current.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "imported_arrays"})
+	importedAddresses := current.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "imported_arrays"})
 	if len(importedAddresses) != 1 {
 		t.Fatal("missing imported persistent table", importedAddresses)
 	}

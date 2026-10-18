@@ -41,7 +41,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		// user-defined/domain generations under this exception.
 		return ref.Address.SubID == 0 && !target.typ.IsUserDefined() && !target.typ.IsDomain() && !(target.typ.IsArray() && target.typ.Element().IsDomain())
 	case *collationDescriptor:
-		if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != domainOf(view.owner) || view.state.descriptors[consumer.Address()] != consumer {
+		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != domainOf(view.owner) || view.state.descriptors[consumer.Address()] != consumer {
 			return false
 		}
 		if capability, err := target.usage(); err != nil || !capability.Valid() {
@@ -53,16 +53,16 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		ns, ok := view.state.descriptors[target.Namespace()].(*namespaceDescriptor)
 		return ok && ns.temporary == namespace.temporary && (collationProvider{}).Validate(view, target) == nil
 	case *procedureDescriptor:
-		if ref.Address.ClassID != ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != domainOf(view.owner) || view.state.descriptors[consumer.Address()] != consumer {
+		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != domainOf(view.owner) || view.state.descriptors[consumer.Address()] != consumer {
 			return false
 		}
 		if target.builtin != nil {
 			// Only the genuine immutable release declaration can bridge a
 			// retained TEMP recipe; ACL authority is recaptured separately.
-			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ProcedureClassID}).Validate(view, target) == nil
+			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 		}
 		ns, ok := view.state.descriptors[target.namespace].(*namespaceDescriptor)
-		return ok && ns.temporary == namespace.temporary && (extensionCatalogProvider{ProcedureClassID}).Validate(view, target) == nil
+		return ok && ns.temporary == namespace.temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 	}
 	return false
 }
@@ -185,7 +185,7 @@ func (r scalarRenderer) recordStoredType(view CatalogRead, ref ids.ObjectRef) {
 }
 
 func storedCollationReferenceValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, capability sqltype.CollationRef) bool {
-	if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || ids.OID(capability.ID) != ref.Address.ObjectID || !storedReferenceEpochValid(view, consumer, ref) {
+	if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || ids.OID(capability.ID) != ref.Address.ObjectID || !storedReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
 	target, ok := view.Descriptor(ref.Address)

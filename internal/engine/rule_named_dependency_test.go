@@ -247,7 +247,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.
 			collision := *alterConstraintDescriptor(t, e, "log")
-			collision.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oldConstraint.ObjectID}
+			collision.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oldConstraint.ObjectID}
 			collision.name = "collision"
 			next.descriptors[collision.address] = &collision
 			e.mu.Lock()

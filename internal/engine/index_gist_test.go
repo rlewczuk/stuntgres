@@ -106,10 +106,10 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 		t.Run(map[bool]string{false: "prepare", true: "materialize"}[materialize], func(t *testing.T) {
 			e := New()
 			parent, index, row := logicalGiSTFixture(t)
-			parent.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
-			parent.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			parent.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
+			parent.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			parent.relationKind = tableRelation
-			index.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}
+			index.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 			index.namespace = parent.namespace
 			index.relationKind = indexRelation
 			index.columns = append([]ColumnDescriptor(nil), parent.columns...)

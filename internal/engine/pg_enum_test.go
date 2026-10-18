@@ -99,7 +99,7 @@ func TestPGEnumSortInsertion(t *testing.T) {
 
 func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 3501}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3501}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_enum")
@@ -124,8 +124,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 			t.Fatal("source column", i, c)
 		}
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10045}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10044}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045}].(*typeDescriptor)
+	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044}].(*typeDescriptor)
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("row/array ownership", row, array)
 	}

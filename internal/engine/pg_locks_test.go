@@ -47,7 +47,7 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *relationTicket) uint32 {
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgLocksOID}].(*relationDescriptor)
+	d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID}].(*relationDescriptor)
 	if !d.virtualView || d.relationKind != catalogRelation || d.rowType != 12075 {
 		t.Fatal("view identity", d)
 	}
@@ -58,7 +58,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
 	for _, id := range []ids.OID{12075, 12074} {
-		typ := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
+		typ := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}].(*typeDescriptor)
 		if typ.owningRelation != d.address {
 			t.Fatal("type owner", typ)
 		}

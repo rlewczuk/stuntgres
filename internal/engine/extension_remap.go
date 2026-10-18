@@ -72,10 +72,10 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n.aggregate = remapOwnedAggregate(d.aggregate, n.address, n.namespace, mapping)
 		if n.queryCodec != nil {
 			if n.name == "bqarr_in" {
-				n.result = address(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: n.result}).ObjectID
+				n.result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.result}).ObjectID
 			} else {
 				if oid, err := strconv.ParseUint(string(n.signature), 10, 32); err == nil {
-					next := address(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(oid)})
+					next := address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oid)})
 					if next.ObjectID != ids.OID(oid) {
 						n.signature = queryIntSignature(sqltype.ID(next.ObjectID))
 					}

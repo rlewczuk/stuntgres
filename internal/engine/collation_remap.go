@@ -11,7 +11,7 @@ type collationRemapper func(sqltype.CollationRef) (sqltype.CollationRef, error)
 func remappedCollationCapabilities(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) collationRemapper {
 	needed := false
 	for from, to := range mapping {
-		if from.ClassID == CollationClassID && from != to {
+		if from.ClassID == ids.CollationClassID && from != to {
 			needed = true
 			break
 		}
@@ -20,7 +20,7 @@ func remappedCollationCapabilities(next *catalogState, mapping map[ids.ObjectAdd
 		return nil
 	}
 	return func(old sqltype.CollationRef) (sqltype.CollationRef, error) {
-		from := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(old.ID)}
+		from := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(old.ID)}
 		to, ok := mapping[from]
 		if !ok {
 			return old, nil

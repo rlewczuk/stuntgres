@@ -61,7 +61,7 @@ func regtypeSpellingMode(view CatalogRead, path []ids.ObjectAddress, id ids.OID,
 	case sqltype.JSON:
 		return "json"
 	}
-	d := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}]
+	d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}]
 	name := regclassIdentifier(d.Name())
 	if !qualified && namedObjectVisible(view, path, d) {
 		return name

@@ -112,7 +112,7 @@ func (e *Engine) initializeConversionRoutines() {
 		if !ok {
 			panic("stuntgres: missing released encoding conversion provider")
 		}
-		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: routine.oid}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, revision: 1, name: routine.name, signature: conversionSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 23, volatility: Immutable, strict: true, conversion: provider}
+		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, revision: 1, name: routine.name, signature: conversionSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 23, volatility: Immutable, strict: true, conversion: provider}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}

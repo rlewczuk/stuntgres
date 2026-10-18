@@ -157,14 +157,14 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 	key := a
 	key.SubID = 0
 	d := view.state.descriptors[key]
-	if a.ClassID == ProcedureClassID {
+	if a.ClassID == ids.ProcedureClassID {
 		p, ok := routineIdentityByOID(view, a.ObjectID)
 		if !ok {
 			return r, nil
 		}
 		r.found = true
 		r.kind = objectRoutineKind(p.id)
-		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: p.namespace})
+		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.namespace})
 		r.schema = pgIdentifier(ns)
 		r.names = []string{ns, p.name}
 		if p.signature != "" {

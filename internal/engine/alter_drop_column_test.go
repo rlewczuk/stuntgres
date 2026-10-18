@@ -249,7 +249,7 @@ func TestAlterDropColumnProviderCancellationAndReset(t *testing.T) {
 		original := e.storage[ref.Address]
 		ctx, cancel := context.WithCancel(context.Background())
 		var triggered atomic.Bool
-		e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() {
+		e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() {
 			if !triggered.CompareAndSwap(false, true) {
 				return
 			}

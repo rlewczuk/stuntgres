@@ -33,15 +33,15 @@ func (d *operatorDescriptor) seeded() bool {
 		return false
 	}
 	row := builtinOperators[index]
-	return row.oid == d.address.ObjectID && d.namespace == (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) && row.name == d.name && row.left == d.left && row.right == d.right
+	return row.oid == d.address.ObjectID && d.namespace == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) && row.name == d.name && row.left == d.left && row.right == d.right
 }
 
 type operatorProvider struct{}
 
-func (operatorProvider) ClassID() ids.OID { return OperatorClassID }
+func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
 func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*operatorDescriptor)
-	if !ok || d.address.ClassID != OperatorClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || d.name == "" || v.state.names[descriptorNameKey(d)] != d.address {
+	if !ok || d.address.ClassID != ids.OperatorClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || d.name == "" || v.state.names[descriptorNameKey(d)] != d.address {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")
 	}
 	if _, ok := v.state.descriptors[d.namespace].(*namespaceDescriptor); !ok {
@@ -75,7 +75,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	}
 	if d.function != 0 {
 		if !seeded {
-			procedure, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
+			procedure, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid operator implementation")
 			}
@@ -96,7 +96,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 			if id == 0 {
 				continue
 			}
-			peer, ok := v.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+			peer, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 			left, right := d.right, d.left
 			if i == 1 {
 				left, right = d.left, d.right
@@ -113,14 +113,14 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 }
 func (e *Engine) initializeOperators() {
 	e.state.operatorNames = seededOperatorNames
-	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
-		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: row.oid}, namespace: ns, revision: 1, name: row.name, left: row.left, right: row.right, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, namespace: ns, revision: 1, name: row.name, left: row.left, right: row.right, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		e.state.descriptors[d.address] = d
 		e.state.names[descriptorNameKey(d)] = d.address
 	}
 	for _, row := range supportedOperatorMetadata {
-		d := e.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: row.oid}].(*operatorDescriptor)
+		d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}].(*operatorDescriptor)
 		d.result, d.function = ids.OID(row.result), ids.OID(row.procedure)
 		d.commutator, d.negator = ids.OID(row.commutator), ids.OID(row.negator)
 		d.restriction, d.join = ids.OID(row.restriction), ids.OID(row.join)

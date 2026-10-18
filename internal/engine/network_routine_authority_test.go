@@ -55,7 +55,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing selected declaration", outer, err)
 			}
 			declaration := outer.builtin
-			wantIdentity := routineIdentity{test.id, PGCatalogNamespaceOID, test.name, procedureSignature(test.formals)}
+			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, procedureSignature(test.formals)}
 			if declaration.identity != wantIdentity || declaration.result != test.result || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
@@ -72,7 +72,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			}
 			found := make(map[ids.OID]bool)
 			for _, dependency := range binder.dependencies {
-				if dependency.ref.Address.ClassID == ProcedureClassID {
+				if dependency.ref.Address.ClassID == ids.ProcedureClassID {
 					found[dependency.ref.Address.ObjectID] = true
 				}
 			}
@@ -88,7 +88,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				for _, mode := range []string{"missing", "foreign", "stale"} {
 					var checks []expressionDependency
 					for _, dependency := range binder.dependencies {
-						if dependency.ref.Address == (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}) {
+						if dependency.ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}) {
 							switch mode {
 							case "missing":
 								continue

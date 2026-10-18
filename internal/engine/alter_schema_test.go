@@ -22,8 +22,8 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	s := sessionStart(t, e, nil)
 	peer := sessionStart(t, e, nil)
-	source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
-	dest := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+	source := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
+	dest := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"}]
 	tableAddress := NameAddressForTempMove(t, e, source, "t")
 	table := e.state.descriptors[tableAddress].(*relationDescriptor)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
@@ -95,7 +95,7 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			source := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
 			original := make(map[ids.ObjectAddress]Descriptor)
 			for _, name := range []string{"t", "q1", "q2", "free"} {
 				a := NameAddressForTempMove(t, e, source, name)
@@ -105,10 +105,10 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
-			provider := e.providers[RelationClassID]
-			e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			provider := e.providers[ids.RelationClassID]
+			e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 				once.Do(func() {
-					e.providers[RelationClassID] = provider
+					e.providers[ids.RelationClassID] = provider
 					switch kind {
 					case "table_collision":
 						run(t, e, "CREATE TABLE s2.t(id INT)")

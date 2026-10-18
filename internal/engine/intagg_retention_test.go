@@ -40,7 +40,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		if err != nil {
 			return nil, nil, err
 		}
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace.address, name: name, revision: revision, owner: namespace.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: namespace.address, name: name, revision: revision, owner: namespace.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 		definition.consumer = d.address
 		stage := e.BeginCatalogStage(auth.catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {

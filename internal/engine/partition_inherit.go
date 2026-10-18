@@ -27,7 +27,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for _, column := range parent.columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
+			ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 			if err := auth.CanUse(ref); err != nil {
 				return nil, err
 			}

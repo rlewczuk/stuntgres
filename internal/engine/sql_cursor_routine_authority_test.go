@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // These exercise actual DECLARE capture and borrowed producer admission, not
@@ -28,7 +30,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					original := slices.Clone(c.routineDependencies)
 					selected := -1
 					for i, dependency := range original {
-						if dependency.ref.Address.ClassID == ProcedureClassID {
+						if dependency.ref.Address.ClassID == ids.ProcedureClassID {
 							selected = i
 							break
 						}

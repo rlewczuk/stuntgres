@@ -36,7 +36,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), acl: authorization.ACLValue{Explicit: true}}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), acl: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -51,12 +51,12 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, install); err != nil {
 		t.Fatal("trusted explicit schema requires neither USAGE nor CREATE", err)
 	}
-	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 	if ext.owner != actor.Ref {
 		t.Fatal("extension owner")
 	}
 	for _, a := range ext.members {
-		if a.ClassID != TSTemplateClassID {
+		if a.ClassID != ids.TSTemplateClassID {
 			owner, _, _ := descriptorACL(e.state.descriptors[a])
 			if owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")

@@ -295,7 +295,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}), nil
+		return e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
@@ -367,7 +367,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	}
 	path := r.path
 	if len(name.Parts) == 2 {
-		ns := r.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
+		ns := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
@@ -385,7 +385,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 		}
 	}
 	for _, ns := range path {
-		if address := r.auth.definitionLookup(ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ids.ObjectAddress{}) {
+		if address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ids.ObjectAddress{}) {
 			descriptor, _ := r.auth.definitionDescriptor(address)
 			if _, ok := descriptor.(*relationDescriptor); !ok {
 				return 0, fmt.Errorf("stuntgres: invalid relation descriptor")
@@ -429,7 +429,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		ref = e.domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)})
+		ref = e.domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 	}
 	if x.name == "lastval" {
 		e.mu.Lock()

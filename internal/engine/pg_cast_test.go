@@ -13,7 +13,7 @@ import (
 
 func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2605}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2605}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_cast")
@@ -54,7 +54,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	class := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestPGCastProjection(t *testing.T) {
 	state := *e.state
 	state.descriptors = maps.Clone(e.state.descriptors)
 	for a := range state.descriptors {
-		if a.ClassID == RelationClassID {
+		if a.ClassID == ids.RelationClassID {
 			delete(state.descriptors, a)
 		}
 	}
@@ -159,7 +159,7 @@ func TestPGCastProjection(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
-	delete(state.descriptors, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
+	delete(state.descriptors, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
 	if rows, err := capturePGCast(context.Background(), view, ref, d); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}

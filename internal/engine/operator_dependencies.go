@@ -18,10 +18,10 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.
 	}
 	add(d.namespace)
 	for _, id := range [...]ids.OID{d.left, d.right, d.result} {
-		add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id})
+		add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 	}
 	for _, id := range [...]ids.OID{d.function, d.restriction, d.join} {
-		a := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
+		a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 		if _, ok := view.state.descriptors[a]; ok {
 			add(a)
 		}

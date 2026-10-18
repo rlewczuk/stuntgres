@@ -42,7 +42,7 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor
 	name := r.identifier(parent.name)
 	visible := false
 	for _, namespace := range path {
-		if a, ok := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: parent.name}]; ok {
+		if a, ok := view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: parent.name}]; ok {
 			visible = a == parent.address
 			break
 		}

@@ -49,7 +49,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					}
 				} else {
 					last := len(node.args) - 1
-					column := columnExpression{expressionInfo: expressionInfo{usage: node.args[last].ResultUsage(), properties: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}}
+					column := columnExpression{expressionInfo: expressionInfo{usage: node.args[last].ResultUsage(), properties: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
 					stored := node
 					stored.args = append([]BoundExpr(nil), node.args...)
 					stored.args[last] = column

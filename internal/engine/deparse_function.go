@@ -369,7 +369,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		var relation *relationDescriptor
 		if id != 0 {
-			relation, ok = view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(id)}].(*relationDescriptor)
+			relation, ok = view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)}].(*relationDescriptor)
 			if !ok {
 				return sqltype.Null(e.usage.Type), nil
 			}
@@ -446,7 +446,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(id)}
+		address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)}
 	}
 	relation, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {

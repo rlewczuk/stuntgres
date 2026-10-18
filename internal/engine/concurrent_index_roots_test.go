@@ -42,8 +42,8 @@ func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	namespace := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "public"}]
-	address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	namespace := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]
+	address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
 	index, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok || index.sqlIndex == nil || index.sqlIndex.ready != ready || index.sqlIndex.valid != valid || !index.sqlIndex.live {
 		t.Fatalf("index %s has unexpected phase: %#v", name, index)

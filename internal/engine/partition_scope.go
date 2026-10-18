@@ -133,7 +133,7 @@ func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
 		}
 		if key.derived != nil {
 			for _, ref := range key.derived.dependencies {
-				if ref.Address.ClassID == RelationClassID && ref.Address.ObjectID == d.address.ObjectID && ref.Address.SubID == attribute {
+				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == d.address.ObjectID && ref.Address.SubID == attribute {
 					return true
 				}
 			}

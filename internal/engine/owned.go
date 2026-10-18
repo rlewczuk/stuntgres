@@ -154,7 +154,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if reassign {
 		local := roots[:0]
 		for _, address := range roots {
-			if address.ClassID != ForeignMappingClassID {
+			if address.ClassID != ids.ForeignMappingClassID {
 				local = append(local, address)
 			}
 		}
@@ -164,7 +164,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if !reassign {
 		local := roots[:0]
 		for _, a := range roots {
-			if a.ClassID != DatabaseClassID {
+			if a.ClassID != ids.DatabaseClassID {
 				local = append(local, a)
 			}
 		}
@@ -231,7 +231,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			case *foreignDescriptor:
 				foreign := d.(*foreignDescriptor)
 				err = foreignOwnershipEligibility(auth, foreign, target)
-				if err == nil && foreign.address.ClassID == ForeignServerClassID {
+				if err == nil && foreign.address.ClassID == ids.ForeignServerClassID {
 					stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[foreign.wrapper])
 				}
 			case *namespaceDescriptor:
@@ -279,7 +279,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	} else {
 		for _, a := range roots {
-			if err = stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), a), a.ClassID == NamespaceClassID); err != nil {
+			if err = stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
 				break
 			}
 		}

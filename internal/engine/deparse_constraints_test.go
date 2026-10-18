@@ -412,7 +412,7 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pretty := range []bool{false, true} {
-		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
+		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
 		want := "((nextval('s'::regclass) > 0) AND (random() > (0)::double precision))"
 		if pretty {
 			want = "nextval('s'::regclass) > 0 AND random() > 0::double precision"

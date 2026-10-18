@@ -18,7 +18,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 	if err := partitionAttachEligibility(view, parent, child); err != nil {
 		t.Fatal(err)
 	}
-	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32202}
+	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32202}
 	view.state.descriptors[ns] = &namespaceDescriptor{address: ns, temporary: e.domain.Session(99)}
 	child.namespace = ns
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `cannot attach a temporary relation as partition of permanent relation "parent"`}
@@ -56,14 +56,14 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 		}
 	}
 	check(true)
-	one := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32212}
-	two := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32213}
+	one := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32212}
+	two := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32213}
 	token := e.domain.Session(99)
 	view.state.descriptors[one] = &namespaceDescriptor{address: one, temporary: token}
 	view.state.descriptors[two] = &namespaceDescriptor{address: two, temporary: e.domain.Session(100)}
 	child.namespace = one
 	check(false) // Permanent parent, temporary child.
-	parent.namespace, child.namespace = one, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	parent.namespace, child.namespace = one, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	check(false) // Temporary parent, permanent child.
 	child.namespace = two
 	check(false) // Equal persistence cannot bridge physical-session authority.

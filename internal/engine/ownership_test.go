@@ -51,7 +51,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	base := e.CatalogRead()
-	table := base.state.descriptors[base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_t"}]].(*relationDescriptor)
+	table := base.state.descriptors[base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_t"}]].(*relationDescriptor)
 	// Explicit stable-sub-ID and associated-type ACL payloads are not public
 	// GRANT-provider extensions. Install them in the canonical private stage.
 	setup := e.BeginCatalogStage(base)
@@ -62,8 +62,8 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []sqltype.ID{table.rowType, base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(table.rowType)}].(*typeDescriptor).array} {
-		d := base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+	for _, id := range []sqltype.ID{table.rowType, base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}].(*typeDescriptor).array} {
+		d := base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		next := *d
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
 		next.aclSyntheticDefault = false
@@ -83,9 +83,9 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(base)
 	for _, name := range []string{"ownership_t", "ownership_e", "ownership_d", "ownership_c"} {
-		class := TypeClassID
+		class := ids.TypeClassID
 		if name == "ownership_t" {
-			class = RelationClassID
+			class = ids.RelationClassID
 		}
 		d := base.state.descriptors[base.state.names[ids.NameKey{ClassID: class, Namespace: table.namespace, Name: name}]]
 		if d == nil {
@@ -97,9 +97,9 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, stage)
 	current := e.CatalogRead()
-	compositeAddress := base.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: table.namespace, Name: "ownership_c"}]
+	compositeAddress := base.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: table.namespace, Name: "ownership_c"}]
 	composite := base.state.descriptors[compositeAddress].(*typeDescriptor)
-	arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(composite.array)}
+	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.array)}
 	array := base.state.descriptors[arrayAddress].(*typeDescriptor)
 	backing := base.state.descriptors[composite.owningRelation].(*relationDescriptor)
 	movedComposite := current.state.descriptors[compositeAddress].(*typeDescriptor)
@@ -146,7 +146,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 				t.Fatal("represented database missing from ownership roots", d)
 			}
 		case ids.NamespaceObject:
-			expected := d.Address().ObjectID == PublicNamespaceOID
+			expected := d.Address().ObjectID == ids.PublicNamespaceOID
 			if ownershipRoot(base, d) != expected {
 				t.Fatal("public exception or protected catalog namespace misclassified", d)
 			}
@@ -156,7 +156,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 			}
 		}
 	}
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: ids.DefinitionRevision(^uint64(0)), owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: ids.DefinitionRevision(^uint64(0)), owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)

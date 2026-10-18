@@ -11,7 +11,7 @@ func regtypeReference(view CatalogRead, id uint32) string {
 	if id == 0 {
 		return "-"
 	}
-	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}
+	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}
 	if typ, ok := view.LookupType(sqltype.ID(id)); ok && typ.IsArray() {
 		if array, associated := view.LookupArray(typ.Element()); associated && array == typ {
 			return regtypeReference(view, uint32(typ.Element().ID())) + "[]"
@@ -29,21 +29,21 @@ func (r dumpCatalogAliasOutput) FormatRegtype(id uint32) (string, error) {
 	return regtypeReference(r.view, id), nil
 }
 func (r dumpCatalogAliasOutput) FormatRegcollation(id uint32) (string, error) {
-	return regObjectSpelling(r.view, nil, CollationClassID, ids.OID(id)), nil
+	return regObjectSpelling(r.view, nil, ids.CollationClassID, ids.OID(id)), nil
 }
 func (r dumpCatalogAliasOutput) FormatRegnamespace(id uint32) (string, error) {
-	return regObjectSpelling(r.view, nil, NamespaceClassID, ids.OID(id)), nil
+	return regObjectSpelling(r.view, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 
 func catalogAliasAddress(value sqltype.Value) (ids.ObjectAddress, error) {
 	if value.Type().BaseType().ID() == sqltype.Regtype {
 		id, err := value.TypeOID()
-		return ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}, err
+		return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}, err
 	}
 	id, err := value.ObjectOID()
-	class := NamespaceClassID
+	class := ids.NamespaceClassID
 	if value.Type().BaseType().ID() == sqltype.Regcollation {
-		class = CollationClassID
+		class = ids.CollationClassID
 	}
 	return ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}, err
 }
@@ -104,7 +104,7 @@ func walkCatalogAliasDependenciesAt(view CatalogRead, reader definitionReader, v
 		return nil
 	}
 	return walkCatalogAliasReferencesAt(view, reader, value, func(address ids.ObjectAddress) error {
-		if address.ClassID == TypeClassID {
+		if address.ClassID == ids.TypeClassID {
 			return record(address)
 		}
 		return nil
@@ -162,7 +162,7 @@ func remapCatalogAliasDatum(value sqltype.Value, destination func(ids.ObjectAddr
 		return value, nil
 	}
 	var physical sqltype.Value
-	if address.ClassID == TypeClassID {
+	if address.ClassID == ids.TypeClassID {
 		physical, err = sqltype.RegtypeValue(value.Type().BaseType(), uint32(target.ObjectID))
 	} else {
 		physical, err = sqltype.RegObjectValue(value.Type().BaseType(), uint32(target.ObjectID))

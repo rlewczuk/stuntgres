@@ -117,14 +117,14 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return text, err
 	}
-	d, ok := r.view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())}].(*typeDescriptor)
+	d, ok := r.view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}].(*typeDescriptor)
 	if !ok || d.typ != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
 	}
 	if r.output.QuoteAllIdentifiers {
 		name := r.identifier(d.Name())
 		for _, ns := range r.path {
-			if a, ok := r.view.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+			if a, ok := r.view.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
 				if a == d.Address() {
 					return name, nil
 				}

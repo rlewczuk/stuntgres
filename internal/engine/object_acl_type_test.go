@@ -25,7 +25,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	view := e.CatalogRead()
 	for _, name := range []string{"acl_provenance_domain", "acl_provenance_enum", "acl_provenance_composite"} {
 		d := domainUnitType(t, view, name)
-		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: TypeClassID, ObjectID: ids.OID(d.array)}} {
+		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}} {
 			typ := view.state.descriptors[address].(*typeDescriptor)
 			acl, err := rawObjectACL(view, address)
 			if !typ.aclSyntheticDefault || !defaultDomainACL(typ) || err != nil || acl.Explicit {
@@ -38,7 +38,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	e.mu.Lock()
 	integer, _ := view.LookupType(sqltype.Int4)
-	relation, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}}, nil)
+	relation, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}}, nil)
 	if err == nil {
 		err = e.stageRowTypeLocked(stage, relation)
 	}
@@ -51,14 +51,14 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
-	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: TypeClassID, ObjectID: ids.OID(row.array)}} {
+	row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
 		if d := view.state.descriptors[address].(*typeDescriptor); !d.aclSyntheticDefault {
 			t.Fatal("relation row/array has explicit raw ACL", address)
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.ACLItemArray} {
-		d := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		if d.aclSyntheticDefault || d.acl.Explicit {
 			t.Fatal("builtin raw absence does not need synthetic baseline", id)
 		}
@@ -66,7 +66,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	t.Run("extension_constructor", func(t *testing.T) {
 		extensionEngine, _, base := intarrayUnitInstalled(t)
 		catalog := extensionEngine.CatalogRead()
-		for _, address := range []ids.ObjectAddress{base.Address(), {ClassID: TypeClassID, ObjectID: ids.OID(base.array)}} {
+		for _, address := range []ids.ObjectAddress{base.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}} {
 			d := catalog.state.descriptors[address].(*typeDescriptor)
 			if !d.aclSyntheticDefault || !defaultDomainACL(d) {
 				t.Fatal("extension baseline provenance", address)

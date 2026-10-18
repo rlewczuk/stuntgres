@@ -96,9 +96,9 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				state.epoch++
 				e.state = state
 			case "provider":
-				stage.domainBases = append(stage.domainBases, e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)}])
+				stage.domainBases = append(stage.domainBases, e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}])
 				state := cloneCatalog(e.state)
-				provider := *state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)}].(*typeDescriptor)
+				provider := *state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}].(*typeDescriptor)
 				provider.revision++
 				state.descriptors[provider.Address()] = &provider
 				e.state = state

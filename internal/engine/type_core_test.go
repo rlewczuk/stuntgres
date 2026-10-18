@@ -61,7 +61,7 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 			t.Fatal(v)
 		}
 	}
-	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23})
+	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	other := New()
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign type ref")
@@ -96,8 +96,8 @@ func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
 		descriptor := &relationDescriptor{
-			address:   ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000},
-			namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID},
+			address:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000},
+			namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
 			name:      "invalid", revision: 1,
 			columns: []ColumnDescriptor{{Name: "id", Usage: usage}},
 			index:   map[string]int{"id": 0}, attributes: []int32{1},

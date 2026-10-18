@@ -75,7 +75,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if n.validateStored() != nil {
 			t.Fatal("retag mutated original")
 		}
-		column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+		column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 		n.arg = column
 		n.properties.RowDependent = true
 		visited := 0

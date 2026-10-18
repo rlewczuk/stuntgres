@@ -26,7 +26,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 		t.Fatal(err)
 	}
 	typ := &typeDescriptor{typ: domain, namespace: d.namespace, revision: 1, owner: d.owner}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: d.namespace, name: "consumer", revision: 1, owner: d.owner, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: usage}}, attributes: []int32{1, 7}, attributeHighWater: 7, index: map[string]int{"id": 0, "v": 1}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, namespace: d.namespace, name: "consumer", revision: 1, owner: d.owner, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: usage}}, attributes: []int32{1, 7}, attributeHighWater: 7, index: map[string]int{"id": 0, "v": 1}}
 	for _, descriptor := range []Descriptor{d, typ, table} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)

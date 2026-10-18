@@ -161,8 +161,8 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 	sessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
 	catalog := e.CatalogRead()
-	ownAddress := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"}]
-	peerAddress := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"}]
+	ownAddress := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"}]
+	peerAddress := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"}]
 	persistent := roleTableRef(t, e, "persistent_child")
 	if ownAddress == (ids.ObjectAddress{}) || peerAddress == (ids.ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")

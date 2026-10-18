@@ -30,7 +30,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				if !ok || array.Concrete() || !array.IsArray() || array.Element() != domain.typ || array.ID() != domain.array {
 					t.Fatal("lookup-only reciprocal", domain, array, ok)
 				}
-				arrays[i] = view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(domain.array)}].(*typeDescriptor)
+				arrays[i] = view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.array)}].(*typeDescriptor)
 				if _, err := sqltype.Array(61000, "_forged", domain.typ); err == nil {
 					t.Fatal("recursive network array constructor admitted")
 				}
@@ -47,13 +47,13 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			storage := map[ids.ObjectAddress]*relationStorage{table.address: original}
 			next := cloneCatalog(e.CatalogRead().state)
 			physical, _ := New().CatalogRead().LookupType(tc.id)
-			builtinAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(tc.id)}
+			builtinAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)}
 			builtin := *next.descriptors[builtinAddress].(*typeDescriptor)
 			builtin.typ = physical
 			next.descriptors[builtinAddress] = &builtin
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{
-				direct.Address(): {ClassID: TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: TypeClassID, ObjectID: 60002},
-				arrays[0].Address(): {ClassID: TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: TypeClassID, ObjectID: 60004},
+				direct.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002},
+				arrays[0].Address(): {ClassID: ids.TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: ids.TypeClassID, ObjectID: 60004},
 			}
 			changed, err := reownDomainTypes(next, mapping, false)
 			if err != nil || !changed {

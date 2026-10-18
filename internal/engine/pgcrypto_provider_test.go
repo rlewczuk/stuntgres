@@ -25,7 +25,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "pgcrypto"}]
+	address := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}]
 	return e, e.state.descriptors[address].(*extensionDescriptor)
 }
 
@@ -57,7 +57,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(proc)
 		}
 		seen[address] = true
-		if err := e.providers[ProcedureClassID].Validate(view, proc); err != nil {
+		if err := e.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -95,7 +95,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		bad := *original.(*procedureDescriptor)
 		mutate(&bad)
 		view.state.descriptors[ext.members[0]] = &bad
-		failure := e.providers[ProcedureClassID].Validate(view, &bad)
+		failure := e.providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifestFailure := stockPgcrypto.validate(view, ext)
 		view.state.descriptors[ext.members[0]] = original
 		if failure == nil {
@@ -199,7 +199,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
 	if mapped.crypto != stockPgcrypto || mapped.signature != n.procedure.signature || mapped.result != 17 || mapped.address == n.procedure.address {
 		t.Fatal(mapped)
 	}
@@ -230,7 +230,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil || !slices.Contains(aesRefs, aesCall.ref.Address) {
 		t.Fatal(aesRefs, err)
 	}
-	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
+	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
 	if mappedAES.crypto != stockPgcrypto || mappedAES.signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
 		t.Fatal(mappedAES)
 	}

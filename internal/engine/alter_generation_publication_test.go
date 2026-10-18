@@ -130,12 +130,12 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			provider := e.providers[RelationClassID]
-			defer func() { e.providers[RelationClassID] = provider }()
+			provider := e.providers[ids.RelationClassID]
+			defer func() { e.providers[ids.RelationClassID] = provider }()
 			calls := 0
-			e.providers[RelationClassID] = alterDropProvider{provider, func() {
+			e.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.providers[RelationClassID] = provider
+				e.providers[ids.RelationClassID] = provider
 				if !e.mu.TryLock() {
 					t.Error("generation callback held Engine.mu")
 				} else {

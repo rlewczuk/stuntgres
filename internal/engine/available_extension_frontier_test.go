@@ -13,7 +13,7 @@ import (
 // publication completes after the first source opens and before the next opens.
 // All three choices of first occurrence must retain the statement's old frontier.
 func TestAvailableExtensionsStatementFrontier(t *testing.T) {
-	for _, first := range []ids.OID{12081, 12085, ExtensionClassID} {
+	for _, first := range []ids.OID{12081, 12085, ids.ExtensionClassID} {
 		t.Run(fmt.Sprint(first), func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
@@ -65,7 +65,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			if fresh.commentCatalog.state == before || old.commentCatalog.state != before {
 				t.Fatal("publication did not advance only the fresh statement frontier")
 			}
-			for _, oid := range []ids.OID{12081, 12085, ExtensionClassID} {
+			for _, oid := range []ids.OID{12081, 12085, ids.ExtensionClassID} {
 				if oid != first {
 					sources[oid] = open(old, oid)
 				}
@@ -129,12 +129,12 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			}
 			assertAvailable(sources[12081], 12081, false)
 			assertAvailable(sources[12085], 12085, false)
-			if sources[ExtensionClassID].count() != 0 {
+			if sources[ids.ExtensionClassID].count() != 0 {
 				t.Error("old statement pg_extension must have no installed row")
 			}
-			for _, oid := range []ids.OID{12081, 12085, ExtensionClassID} {
+			for _, oid := range []ids.OID{12081, 12085, ids.ExtensionClassID} {
 				source := open(fresh, oid)
-				if oid != ExtensionClassID {
+				if oid != ids.ExtensionClassID {
 					assertAvailable(source, oid, true)
 					continue
 				}

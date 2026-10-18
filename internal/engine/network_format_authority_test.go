@@ -45,12 +45,12 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("missing original declaration", outer, err)
 			}
 			d := outer.builtin
-			if d.identity != (routineIdentity{tc.id, PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
+			if d.identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}
 			for _, dep := range binder.dependencies {
-				if dep.ref.Address.ClassID == ProcedureClassID {
+				if dep.ref.Address.ClassID == ids.ProcedureClassID {
 					found[dep.ref.Address.ObjectID] = true
 				}
 			}
@@ -65,7 +65,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			for _, mode := range []string{"missing", "foreign", "stale"} {
 				var checks []expressionDependency
 				for _, dep := range binder.dependencies {
-					if dep.ref.Address == (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: tc.id}) {
+					if dep.ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}) {
 						switch mode {
 						case "missing":
 							continue

@@ -11,7 +11,7 @@ import (
 )
 
 func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *conversionDescriptor {
-	return &conversionDescriptor{oid: oid, name: name, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: e.authorizationDomain.Principal(10), source: 6, destination: 8, handler: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 4375}, defaultConversion: def}
+	return &conversionDescriptor{oid: oid, name: name, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, owner: e.authorizationDomain.Principal(10), source: 6, destination: 8, handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, defaultConversion: def}
 }
 
 func conversionUnitName(parts ...string) parser.ObjectName {
@@ -70,7 +70,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("foreign principal admitted")
 	}
-	seed := *view.state.descriptors[ids.ObjectAddress{ClassID: ConversionClassID, ObjectID: 4519}].(*conversionDescriptor)
+	seed := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519}].(*conversionDescriptor)
 	seed.defaultConversion = false
 	if err := (conversionProvider{}).Validate(view, &seed); err == nil {
 		t.Fatal("pinned capability/default invariant changed")
@@ -85,7 +85,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.handler != d.handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
-	if original := view.state.descriptors[seed.Address()].(*conversionDescriptor); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != PGCatalogNamespaceOID {
+	if original := view.state.descriptors[seed.Address()].(*conversionDescriptor); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("seed mutation changed old snapshot")
 	}
 }
@@ -203,14 +203,14 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		t.Fatal("rename-to-self unique-name contract", err)
 	}
 	e.DiscardCatalogStage(stage)
-	procedure := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 4375}
+	procedure := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}
 	if actual := dependencyObject(before, procedure, nil); actual != "function utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
 		t.Fatal("actual conversion procedure signature presentation", actual)
 	}
-	if actual := dependencyObject(before, procedure, []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}); actual != "function pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
+	if actual := dependencyObject(before, procedure, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}); actual != "function pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
 		t.Fatal("actual conversion procedure qualified presentation", actual)
 	}
-	for _, address := range []ids.ObjectAddress{{ClassID: ConversionClassID, ObjectID: 4519}, {ClassID: ProcedureClassID, ObjectID: 4375}} {
+	for _, address := range []ids.ObjectAddress{{ClassID: ids.ConversionClassID, ObjectID: 4519}, {ClassID: ids.ProcedureClassID, ObjectID: 4375}} {
 		stage = e.BeginCatalogStage(before)
 		if err = stage.Remove(e.domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
 			t.Fatal("real provider pin removed", address, err)

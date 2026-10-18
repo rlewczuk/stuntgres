@@ -46,10 +46,10 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
 			}
-			address := e.state.names[ids.NameKey{ClassID: ParameterClassID, Name: name}]
+			address := e.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: name}]
 			d, ok := e.state.descriptors[address].(*parameterDescriptor)
 			mask := authorization.SetPrivilege | authorization.AlterSystemPrivilege
-			if !ok || d == nil || address.ClassID != ParameterClassID || d.revision == 0 || d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.revision == 0 || d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("parameter did not acquire real catalog authority")
 			}
 			if before.names[descriptorNameKey(d)] != (ids.ObjectAddress{}) || e.roles.revision != roles.revision+1 || !d.acl.Explicit || len(d.acl.Entries) != 2 {
@@ -95,7 +95,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
 	e := New()
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	d := &parameterDescriptor{address: ids.ObjectAddress{ClassID: ParameterClassID, ObjectID: 900003}, revision: 2, name: "lc_messages", owner: owner, acl: authorization.ACLValue{Explicit: true}}
+	d := &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, revision: 2, name: "lc_messages", owner: owner, acl: authorization.ACLValue{Explicit: true}}
 	candidate := cloneCatalog(e.state)
 	installParameterGrant(candidate, d)
 	if candidate.descriptors[d.address] != d || candidate.names[descriptorNameKey(d)] != d.address {
@@ -113,7 +113,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 	for _, builtin := range builtinTablespaces {
 		t.Run(builtin.name, func(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
-			address := ids.ObjectAddress{ClassID: TablespaceClassID, ObjectID: builtin.oid}
+			address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}
 			original, ok := e.state.descriptors[address].(*tablespaceDescriptor)
 			if !ok || original == nil || original.acl.Explicit || original.name != builtin.name || original.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("missing real builtin tablespace baseline")
@@ -157,7 +157,7 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
 	capture := func(catalog CatalogRead) *querySource {
 		t.Helper()
-		address := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: "pg_tablespace"}]
+		address := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_tablespace"}]
 		source := catalog.state.descriptors[address].(*relationDescriptor)
 		if len(source.columns) != 5 {
 			t.Fatal("wrong pg_tablespace column count", len(source.columns))

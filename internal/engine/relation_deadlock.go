@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -161,7 +162,7 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for transaction completion", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch())
 		} else {
 			kind := "relation"
-			if r.ref.Address.ClassID == TypeClassID {
+			if r.ref.Address.ClassID == ids.TypeClassID {
 				kind = "type"
 			}
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)

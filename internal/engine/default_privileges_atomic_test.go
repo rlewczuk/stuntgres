@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"sync"
 	"testing"
@@ -139,9 +140,9 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			table := defaultUnitTable(t, f, stage, "paused", f.owner)
 			entered, release := make(chan struct{}), make(chan struct{})
-			provider := f.e.providers[RelationClassID]
+			provider := f.e.providers[ids.RelationClassID]
 			var once sync.Once
-			f.e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { close(entered); <-release }) }}
+			f.e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { close(entered); <-release }) }}
 			type result struct {
 				p   *PreparedCatalogPublication
 				err error
@@ -155,7 +156,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			f.grant(t, "tables", "insert", nil)
 			close(release)
 			r := <-resultCh
-			f.e.providers[RelationClassID] = provider
+			f.e.providers[ids.RelationClassID] = provider
 			if r.err != nil {
 				t.Fatal(r.err)
 			}

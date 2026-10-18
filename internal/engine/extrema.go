@@ -74,7 +74,7 @@ func (b *expressionBinder) extremaArgumentTypeName(operand comparisonOperand) (s
 	if err != nil {
 		return "", err
 	}
-	d := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}].(*typeDescriptor)
+	d := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}].(*typeDescriptor)
 	return typeDiagnosticNameAt(auth.catalog, d, path), nil
 }
 

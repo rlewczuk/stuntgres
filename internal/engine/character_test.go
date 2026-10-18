@@ -80,7 +80,7 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.BPChar, sqltype.Text} {
 		found := false
 		for _, dependency := range b.dependencies {
-			if dependency.ref.Address.ClassID == TypeClassID && dependency.ref.Address.ObjectID == ids.OID(id) {
+			if dependency.ref.Address.ClassID == ids.TypeClassID && dependency.ref.Address.ObjectID == ids.OID(id) {
 				found = true
 			}
 		}

@@ -75,7 +75,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
-	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
 	if proc.uuidOssp != stockUUIDOssp || proc.signature != "" || proc.result != 2950 || proc.address == n.procedure.address {
 		t.Fatal(proc)
 	}
@@ -83,7 +83,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		func(x *installedUUIDOsspFunctionExpression) { x.Name = "gen_random_uuid" },
 		func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
 		func(x *installedUUIDOsspFunctionExpression) {
-			x.RoutineReference = view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+			x.RoutineReference = view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
 		},
 		func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
 		func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
@@ -221,7 +221,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	original := slices.Clone(binder.dependencies)
 	routines := 0
 	for _, dep := range original {
-		if dep.ref.Address.ClassID == ProcedureClassID {
+		if dep.ref.Address.ClassID == ids.ProcedureClassID {
 			routines++
 			if dep.ref != n.ref || dep.revision != captured.revision {
 				t.Fatal("invented helper edge or incorrect original manifest", dep)
@@ -295,8 +295,8 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("graft lost ancestry or mutated original")
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
-		ext.address:   {ClassID: ExtensionClassID, ObjectID: 900000},
-		n.ref.Address: {ClassID: ProcedureClassID, ObjectID: 900001},
+		ext.address:   {ClassID: ids.ExtensionClassID, ObjectID: 900000},
+		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
 	}
 	state := cloneCatalog(evaluation.catalog.state)
 	for address := range mapping {

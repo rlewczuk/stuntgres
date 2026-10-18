@@ -157,7 +157,7 @@ func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ids.Ob
 	if id == 0 {
 		return "-"
 	}
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 	descriptor, _ := definitionDescriptorAt(view, reader, address)
 	if d, ok := descriptor.(*relationDescriptor); ok {
 		text := regclassIdentifier(d.name)

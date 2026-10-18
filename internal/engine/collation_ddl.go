@@ -205,7 +205,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if d.rules != nil && d.provider != "i" {
 		return sqlError("42P17", "ICU rules cannot be specified unless locale provider is ICU")
 	}
-	key := ids.NameKey{ClassID: CollationClassID, Namespace: ns.Address, Name: name}
+	key := ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.Address, Name: name}
 	if old := stage.lookupName(key); old != (ids.ObjectAddress{}) {
 		message := fmt.Sprintf(`collation "%s" already exists`, name)
 		if d.encoding != -1 {

@@ -63,7 +63,7 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 	providers := make(map[ids.ObjectAddress]Descriptor)
 	var visit func(*sqltype.Descriptor)
 	visit = func(typ *sqltype.Descriptor) {
-		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		if _, visited := providers[address]; visited {
 			return
 		}

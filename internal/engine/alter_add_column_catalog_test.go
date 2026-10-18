@@ -86,7 +86,7 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	next := &relationDescriptor{columns: []ColumnDescriptor{{Name: "new", Usage: u}}, attributes: []int32{2}, attributeHighWater: 2}
 	original := &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{one}}}}
 	historical := []rowVersion{{row: 2, version: 2, born: 1, values: []sqltype.Value{one}}}
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	shape := catalogStorageChange{original: original, root: original.versions, relation: next, replacement: &relationStorage{}, fills: map[int32]sqltype.Value{2: seven}}
 	catalog := &catalogChanges{storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
 	roots := map[ids.ObjectAddress]transactionRoot{address: {storage: original, relation: old, versions: historical}}
@@ -151,7 +151,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil || integer != 7 {
 		t.Fatal("imported default changed", integer, err)
 	}
-	if err := destination.providers[RelationClassID].Validate(view, imported); err != nil {
+	if err := destination.providers[ids.RelationClassID].Validate(view, imported); err != nil {
 		t.Fatal("invalid imported definition/provider manifest", err)
 	}
 }

@@ -42,7 +42,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 		if active[id] {
 			return 0, fmt.Errorf("stuntgres: cyclic domain use graph")
 		}
-		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing domain use type")
 		}
@@ -126,7 +126,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 					columns = append(columns, i)
 				}
 			} else if stored {
-				d := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(found)}].(*typeDescriptor)
+				d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(found)}].(*typeDescriptor)
 				name := typeDiagnosticNameAt(view, d, path)
 				if blocker == nil {
 					blocker = sqlError("0A000", fmt.Sprintf("cannot alter type %q because column %q uses it", name, relation.name+"."+column.Name))

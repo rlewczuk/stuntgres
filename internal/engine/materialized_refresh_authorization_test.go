@@ -125,7 +125,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			}
 			captured, ok := c.Input.Regtype.(capturedRegtypeInput)
 			if !ok || captured.auth.state.CurrentUser != owner || captured.auth.state.SessionUser != caller || !captured.auth.materializedPopulation ||
-				!slices.Equal(captured.path, []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}) ||
+				!slices.Equal(captured.path, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
 				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
 				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {
 				t.Fatal("population did not recapture coherent restricted input", c.Input)

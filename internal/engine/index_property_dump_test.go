@@ -10,10 +10,10 @@ import (
 
 func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	view := New().CatalogRead()
-	parentAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 100010}
-	indexAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 100001}
-	consumer := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 100002}
-	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100010}
+	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100001}
+	consumer := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	parent := &relationDescriptor{address: parentAddress, namespace: namespace, relationKind: tableRelation}
 	index := &relationDescriptor{address: indexAddress, namespace: namespace, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress, ready: true, valid: true, live: true}}
 	view.state.descriptors[parentAddress] = parent

@@ -56,9 +56,9 @@ func domainAlterReplayOwnership(t *testing.T) {
 				t.Fatal("exact fresh-domain replay", err)
 			}
 			view := e.CatalogRead()
-			namespace := view.Lookup(ids.NameKey{ClassID: NamespaceClassID, Name: "owned"})[0]
+			namespace := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "owned"})[0]
 			ns := view.state.descriptors[namespace].(*namespaceDescriptor)
-			domain := view.state.descriptors[view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: namespace, Name: "d"})[0]].(*typeDescriptor)
+			domain := view.state.descriptors[view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: "d"})[0]].(*typeDescriptor)
 			role, ok := e.Roles().Lookup("captured_owner")
 			bootstrap, rootOK := e.Roles().Lookup("postgres")
 			if !ok || !rootOK || domain.owner != role.Ref || ns.owner != bootstrap.Ref || ns.acl.Explicit || !defaultDomainACL(domain) {

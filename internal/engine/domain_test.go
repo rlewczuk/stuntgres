@@ -46,7 +46,7 @@ func domainUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 }
 func domainUnitType(t *testing.T, view CatalogRead, name string) *typeDescriptor {
 	t.Helper()
-	addresses := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name})
+	addresses := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
 	if len(addresses) != 1 {
 		t.Fatal(name, addresses)
 	}
@@ -74,13 +74,13 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	chain := domainUnitType(t, current, "chain")
 	names := domainUnitType(t, current, "names")
 	numeric, _ := current.LookupType(sqltype.Numeric)
-	if a.Address().ClassID != TypeClassID || a.Namespace() != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}) || a.owner != op.RoleState().CurrentUser || a.Revision() == 0 || chain.Address() == a.Address() || chain.typ.DomainBase().Type != a.typ || chain.typ.BaseType() != numeric || chain.typ.Usage().BaseUsage().Typmod != 327686 || names.dimensions != 2 || names.typ.BaseType().ID() != sqltype.NameArray {
+	if a.Address().ClassID != ids.TypeClassID || a.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}) || a.owner != op.RoleState().CurrentUser || a.Revision() == 0 || chain.Address() == a.Address() || chain.typ.DomainBase().Type != a.typ || chain.typ.BaseType() != numeric || chain.typ.Usage().BaseUsage().Typmod != 327686 || names.dimensions != 2 || names.typ.BaseType().ID() != sqltype.NameArray {
 		t.Fatal(a, chain, names)
 	}
 	if a.typ.Usage().Typmod != -1 || chain.typ.Usage().Typmod != -1 || !defaultDomainACL(a) {
 		t.Fatal("logical usage/ACL", a)
 	}
-	if len(original.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.state.descriptors[a.Address()] != a {
+	if len(original.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.state.descriptors[a.Address()] != a {
 		t.Fatal("retained catalog mutated")
 	}
 	before := e.CatalogRead().state
@@ -286,7 +286,7 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Position != "49" {
 				t.Fatal("lost nested UNIQUE source position", err)
 			}
-			if e.CatalogRead().state != before || len(e.CatalogRead().Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "rejected"})) != 0 {
+			if e.CatalogRead().state != before || len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "rejected"})) != 0 {
 				t.Fatal("invalid domain AST changed catalog")
 			}
 		}

@@ -114,7 +114,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 		t.Fatal("stale candidate partially published namespace or children")
 	}
 	for _, name := range []string{"coll_cleanup_first", "coll_cleanup_late"} {
-		if len(current.Lookup(ids.NameKey{ClassID: CollationClassID, Namespace: ns.address, Name: name})) != 1 {
+		if len(current.Lookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.address, Name: name})) != 1 {
 			t.Fatal("cleanup lost owned child", name)
 		}
 	}

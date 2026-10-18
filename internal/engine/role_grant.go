@@ -82,7 +82,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if err := op.Context().Err(); err != nil {
 			return nil, err
 		}
-		addr := v.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Text}]
+		addr := v.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Text}]
 		if name.Text == "pg_temp" {
 			addr = temporaryNamespace(v)
 		}

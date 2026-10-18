@@ -28,10 +28,10 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	for _, tc := range []struct {
 		class ids.OID
 		name  string
-	}{{NamespaceClassID, "membership_classes"}, {RelationClassID, "class_table"}, {RelationClassID, "class_sequence"}, {RelationClassID, "class_view"}, {TypeClassID, "class_enum"}, {TypeClassID, "class_domain"}} {
+	}{{ids.NamespaceClassID, "membership_classes"}, {ids.RelationClassID, "class_table"}, {ids.RelationClassID, "class_sequence"}, {ids.RelationClassID, "class_view"}, {ids.TypeClassID, "class_enum"}, {ids.TypeClassID, "class_domain"}} {
 		key := ids.NameKey{ClassID: tc.class, Name: tc.name}
-		if tc.class != NamespaceClassID {
-			key.Namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		if tc.class != ids.NamespaceClassID {
+			key.Namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		}
 		addresses := e.CatalogRead().Lookup(key)
 		if len(addresses) != 1 {

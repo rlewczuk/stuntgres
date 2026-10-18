@@ -160,12 +160,12 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	}
 	var relations []ids.ObjectAddress
 	for a := range stage.removals {
-		if a.ClassID == RelationClassID {
+		if a.ClassID == ids.RelationClassID {
 			relations = append(relations, a)
 		}
 	}
 	for _, a := range children {
-		if a.ClassID == RelationClassID {
+		if a.ClassID == ids.RelationClassID {
 			relations = append(relations, a)
 		}
 	}

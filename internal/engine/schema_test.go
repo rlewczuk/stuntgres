@@ -18,7 +18,7 @@ import (
 func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	v := e.CatalogRead()
-	a := v.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]
+	a := v.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]
 	if a == (ids.ObjectAddress{}) {
 		t.Fatal("missing namespace", name)
 	}

@@ -42,7 +42,7 @@ func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *extensionDescri
 	t.Cleanup(done)
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	a := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
+	a := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
 	return e, op, e.state.descriptors[a].(*extensionDescriptor)
 }
 func TestExtensionProviderIdentity(t *testing.T) {
@@ -96,7 +96,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	key := ids.NameKey{ClassID: ProcedureClassID, Namespace: ext.targetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}
+	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.targetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}
 	text := view.state.names[key]
 	key.Signature = string(unaccentDictionarySignature)
 	dictionary := view.state.names[key]
@@ -122,7 +122,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	bad := *ext
 	bad.members = slices.Clone(ext.members)
 	bad.members[1] = bad.members[0]
-	if err := (extensionCatalogProvider{ExtensionClassID}).Validate(view, &bad); err == nil {
+	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, &bad); err == nil {
 		t.Fatal("duplicate members accepted")
 	}
 }
@@ -179,7 +179,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.descriptors[source.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+			ext := source.descriptors[source.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 			loose := e.BeginCatalogStage(e.CatalogRead())
 			var conflict Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
@@ -192,7 +192,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				catalogNS := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 				for _, i := range []int{2, 3} {
 					n := *source.descriptors[ext.members[i]].(*procedureDescriptor)
 					n.extension = ids.ObjectAddress{}
@@ -245,7 +245,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal("helper diagnostics", diagnostic)
 				}
 			}
-			if e.state != before || e.state.descriptors[conflict.Address()] != conflict || e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
+			if e.state != before || e.state.descriptors[conflict.Address()] != conflict || e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("partial failed installation")
 			}
 		})
@@ -267,7 +267,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			if e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
+			if e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("private installation leaked")
 			}
 			if reason == "competing" {
@@ -293,7 +293,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				e.state = cloneCatalog(e.state)
 				e.state.descriptors[currentDatabaseAddress] = &next
 			case "namespace":
-				a := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				next := *e.state.descriptors[a].(*namespaceDescriptor)
 				next.revision++
 				e.state = cloneCatalog(e.state)

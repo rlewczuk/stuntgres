@@ -242,7 +242,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	add := func(ref ids.ObjectRef, d *relationDescriptor) error {
 		address := ref.Address
 		address.SubID = 0
-		if address.ClassID != RelationClassID || d != nil && address == d.address {
+		if address.ClassID != ids.RelationClassID || d != nil && address == d.address {
 			return nil
 		}
 		if _, incumbent := stage.base.state.descriptors[address]; !incumbent {

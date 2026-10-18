@@ -20,7 +20,7 @@ func TestAlterRenamePrivileges(t *testing.T) {
 	owner, _ := e.Roles().Lookup("rename_owner")
 	schemaOwner, _ := e.Roles().Lookup("rename_schema_owner")
 	view := e.CatalogRead()
-	address := view.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s"}]
+	address := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"}]
 	ns := e.domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},

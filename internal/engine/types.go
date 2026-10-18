@@ -91,7 +91,7 @@ type typeDescriptor struct {
 }
 
 func (d *typeDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.ID())}
+	return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.ID())}
 }
 func (d *typeDescriptor) Revision() ids.DefinitionRevision {
 	if d.revision == 0 {
@@ -103,14 +103,14 @@ func (d *typeDescriptor) Namespace() ids.ObjectAddress {
 	if d.namespace != (ids.ObjectAddress{}) {
 		return d.namespace
 	}
-	return ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	return ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 }
 func (d *typeDescriptor) Name() string       { return d.typ.Name() }
 func (*typeDescriptor) Kind() ids.ObjectKind { return ids.TypeObject }
 
 type typeProvider struct{}
 
-func (typeProvider) ClassID() ids.OID { return TypeClassID }
+func (typeProvider) ClassID() ids.OID { return ids.TypeClassID }
 func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	t, ok := descriptor.(*typeDescriptor)
 	if !ok || t.typ == nil || t.typ.ID() == 0 {
@@ -187,7 +187,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		if !exists || actual != element {
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
-		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(element.ID())})
+		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
 		if !exists || owner.(*typeDescriptor).array != t.typ.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).owner != t.owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
@@ -202,7 +202,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 }
 
 func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	d, ok := r.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)})
+	d, ok := r.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 	if !ok {
 		return nil, false
 	}
@@ -217,7 +217,7 @@ func (r CatalogRead) LookupArray(element *sqltype.Descriptor) (*sqltype.Descript
 	if element == nil {
 		return nil, false
 	}
-	owner, ok := r.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(element.ID())})
+	owner, ok := r.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
 	if !ok || owner.(*typeDescriptor).typ != element {
 		return nil, false
 	}
@@ -239,7 +239,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
+		if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
 			return sqltype.Usage{}, err
 		}
 	}
@@ -358,7 +358,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	var found ids.ObjectAddress
 	for i := range path.count() {
-		found = auth.definitionLookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name})
+		found = auth.definitionLookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name})
 		if found != (ids.ObjectAddress{}) {
 			break
 		}
@@ -495,7 +495,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 
 // Existing row-bearing relations reserve their reciprocal type identity.
 func relationTypeNameOccupied(view CatalogRead, namespace ids.ObjectAddress, name string) bool {
-	for _, address := range view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}) {
+	for _, address := range view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) {
 		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
 			return true
 		}

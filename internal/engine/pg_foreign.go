@@ -23,14 +23,14 @@ func (e *Engine) initializeForeignCatalogSources() error {
 		name    string
 		columns []column
 	}{
-		{ForeignWrapperClassID, "pg_foreign_data_wrapper", []column{{"oid", sqltype.Oid, false}, {"fdwname", sqltype.Name, false}, {"fdwowner", sqltype.Oid, false}, {"fdwhandler", sqltype.Oid, false}, {"fdwvalidator", sqltype.Oid, false}, {"fdwacl", sqltype.ACLItemArray, true}, {"fdwoptions", 1009, true}}},
-		{ForeignServerClassID, "pg_foreign_server", []column{{"oid", sqltype.Oid, false}, {"srvname", sqltype.Name, false}, {"srvowner", sqltype.Oid, false}, {"srvfdw", sqltype.Oid, false}, {"srvtype", sqltype.Text, true}, {"srvversion", sqltype.Text, true}, {"srvacl", sqltype.ACLItemArray, true}, {"srvoptions", 1009, true}}},
-		{ForeignMappingClassID, "pg_user_mapping", []column{{"oid", sqltype.Oid, false}, {"umuser", sqltype.Oid, false}, {"umserver", sqltype.Oid, false}, {"umoptions", 1009, true}}},
-		{ForeignTableClassID, "pg_foreign_table", []column{{"ftrelid", sqltype.Oid, false}, {"ftserver", sqltype.Oid, false}, {"ftoptions", 1009, true}}},
+		{ids.ForeignWrapperClassID, "pg_foreign_data_wrapper", []column{{"oid", sqltype.Oid, false}, {"fdwname", sqltype.Name, false}, {"fdwowner", sqltype.Oid, false}, {"fdwhandler", sqltype.Oid, false}, {"fdwvalidator", sqltype.Oid, false}, {"fdwacl", sqltype.ACLItemArray, true}, {"fdwoptions", 1009, true}}},
+		{ids.ForeignServerClassID, "pg_foreign_server", []column{{"oid", sqltype.Oid, false}, {"srvname", sqltype.Name, false}, {"srvowner", sqltype.Oid, false}, {"srvfdw", sqltype.Oid, false}, {"srvtype", sqltype.Text, true}, {"srvversion", sqltype.Text, true}, {"srvacl", sqltype.ACLItemArray, true}, {"srvoptions", 1009, true}}},
+		{ids.ForeignMappingClassID, "pg_user_mapping", []column{{"oid", sqltype.Oid, false}, {"umuser", sqltype.Oid, false}, {"umserver", sqltype.Oid, false}, {"umoptions", 1009, true}}},
+		{ids.ForeignTableClassID, "pg_foreign_table", []column{{"ftrelid", sqltype.Oid, false}, {"ftserver", sqltype.Oid, false}, {"ftoptions", 1009, true}}},
 		{pgUserMappingsOID, "pg_user_mappings", []column{{"umid", sqltype.Oid, false}, {"srvid", sqltype.Oid, false}, {"srvname", sqltype.Name, false}, {"umuser", sqltype.Oid, false}, {"usename", sqltype.Name, true}, {"umoptions", 1009, true}}},
 	} {
-		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
-		if spec.oid == ForeignMappingClassID {
+		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		if spec.oid == ids.ForeignMappingClassID {
 			d.acl = authorization.ACLValue{}
 		}
 		d.virtualView = spec.oid == pgUserMappingsOID
@@ -66,10 +66,10 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 	var descriptors []Descriptor
 	for _, d := range auth.catalog.state.descriptors {
 		if foreign, ok := d.(*foreignDescriptor); ok {
-			if foreign.address.ClassID == source.address.ObjectID || source.address.ObjectID == pgUserMappingsOID && foreign.address.ClassID == ForeignMappingClassID {
+			if foreign.address.ClassID == source.address.ObjectID || source.address.ObjectID == pgUserMappingsOID && foreign.address.ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
 			}
-		} else if r, ok := d.(*relationDescriptor); ok && source.address.ObjectID == ForeignTableClassID && r.foreign != nil {
+		} else if r, ok := d.(*relationDescriptor); ok && source.address.ObjectID == ids.ForeignTableClassID && r.foreign != nil {
 			descriptors = append(descriptors, d)
 		}
 	}
@@ -104,7 +104,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				return nil, err
 			}
 			switch source.address.ObjectID {
-			case ForeignWrapperClassID:
+			case ids.ForeignWrapperClassID:
 				putString(1, d.name)
 				for i, value := range []uint32{uint32(d.owner.ID()), uint32(d.handler.ObjectID), uint32(d.validator.ObjectID)} {
 					if err = putOID(i+2, value); err != nil {
@@ -116,7 +116,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 					return nil, err
 				}
 				row[6], err = foreignOptionsValue(source.columns[6].Usage.Type, d.options)
-			case ForeignServerClassID:
+			case ids.ForeignServerClassID:
 				putString(1, d.name)
 				if err = putOID(2, uint32(d.owner.ID())); err != nil {
 					return nil, err
@@ -135,7 +135,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 					return nil, err
 				}
 				row[7], err = foreignOptionsValue(source.columns[7].Usage.Type, d.options)
-			case ForeignMappingClassID:
+			case ids.ForeignMappingClassID:
 				if err = putOID(1, uint32(d.mappedRole.ID())); err != nil {
 					return nil, err
 				}

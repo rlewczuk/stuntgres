@@ -25,14 +25,14 @@ func (*parameterDescriptor) Kind() ids.ObjectKind               { return ids.Par
 
 type parameterProvider struct{}
 
-func (parameterProvider) ClassID() ids.OID { return ParameterClassID }
+func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
 	if !ok || d == nil || v.owner == nil || v.state == nil || v.state.descriptors[d.address] != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
 	name, err := v.owner.canonicalGrantParameter(d.name)
-	if err != nil || name != d.name || d.address.ClassID != ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+	if err != nil || name != d.name || d.address.ClassID != ids.ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
 	return nil
@@ -60,7 +60,7 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	if address := v.catalog.state.names[ids.NameKey{ClassID: ParameterClassID, Name: key}]; address != (ids.ObjectAddress{}) {
+	if address := v.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: key}]; address != (ids.ObjectAddress{}) {
 		d, ok := v.catalog.state.descriptors[address].(*parameterDescriptor)
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: invalid parameter catalog identity")
@@ -75,7 +75,7 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	return &parameterDescriptor{address: ids.ObjectAddress{ClassID: ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
+	return &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
 }
 
 // installParameterGrant changes only the detached central catalog candidate.

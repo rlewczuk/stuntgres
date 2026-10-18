@@ -34,7 +34,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	definition.consumer = d.address
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = e.stageRowTypeLocked(stage, d)
@@ -69,12 +69,12 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(view.rowType)}
+	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(view.rowType)}
 	row, ok := catalog.state.descriptors[rowAddress].(*typeDescriptor)
 	if !ok || row.owningRelation != view.address || row.array == 0 {
 		t.Fatal("missing real associated rowtype", row)
 	}
-	arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}
+	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}
 	if catalog.state.descriptors[arrayAddress] == nil || e.state.descriptors[rowAddress] != nil || e.state.descriptors[arrayAddress] != nil || e.storage[view.address] != nil {
 		t.Fatal("type/storage publication escaped private stage")
 	}
@@ -184,7 +184,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
-	for _, bad := range []ids.ObjectRef{New().domain.Ref(ref.Epoch, ref.Address), e.domain.Ref(next.epoch+1, ref.Address), e.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
+	for _, bad := range []ids.ObjectRef{New().domain.Ref(ref.Epoch, ref.Address), e.domain.Ref(next.epoch+1, ref.Address), e.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
 		if storedViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}

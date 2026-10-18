@@ -36,7 +36,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						base.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor),
 						base.state.descriptors[roleTableRef(t, e, "u").Address].(*relationDescriptor),
 					}
-					providers := base.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "policy_domain"})
+					providers := base.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "policy_domain"})
 					if len(providers) != 1 {
 						t.Fatal(providers)
 					}

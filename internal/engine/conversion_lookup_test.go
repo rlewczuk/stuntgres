@@ -16,7 +16,7 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	earlier := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
@@ -88,7 +88,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	actor := auth.roles.LookupRef("pg_monitor")
 	auth.state.CurrentUser = actor
-	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 4375})
+	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
@@ -134,7 +134,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	private := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	private := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
@@ -168,11 +168,11 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace = 90001, catalog
 	stage := e.BeginCatalogStage(view)

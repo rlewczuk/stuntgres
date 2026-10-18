@@ -138,7 +138,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "database " + dependencyIdentifier(d.name)
 	}
 	if d, ok := catalog.state.descriptors[base].(*foreignDescriptor); ok {
-		if d.address.ClassID == ForeignMappingClassID {
+		if d.address.ClassID == ids.ForeignMappingClassID {
 			user := "public"
 			if d.mappedRole != (authorization.PrincipalRef{}) {
 				user = dependencyIdentifier(d.mappedName)
@@ -161,7 +161,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 			if n, ok := catalog.state.descriptors[namespace].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.state.names[ids.NameKey{ClassID: ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}]; ok {
+			if address, ok := catalog.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}]; ok {
 				visible = address == d.address
 				break
 			}
@@ -201,7 +201,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 			if n, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.state.names[ids.NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]; ok {
+			if address, ok := catalog.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}]; ok {
 				visible = address == d.address
 				break
 			}
@@ -222,7 +222,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
+				if a, ok := catalog.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}]; ok {
 					visible = a == d.Address()
 					break
 				}
@@ -241,7 +241,7 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.state.names[ids.NameKey{ClassID: ConversionClassID, Namespace: ns, Name: d.name}]; ok {
+				if a, ok := catalog.state.names[ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.name}]; ok {
 					visible = a == d.Address()
 					break
 				}

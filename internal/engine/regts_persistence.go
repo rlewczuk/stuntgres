@@ -45,7 +45,7 @@ func walkRegTSReferencesAt(view CatalogRead, reader definitionReader, value sqlt
 	if err != nil {
 		return err
 	}
-	address := ids.ObjectAddress{ClassID: TSDictionaryClassID, ObjectID: ids.OID(id)}
+	address := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}
 	descriptor, _ := definitionDescriptorAt(view, reader, address)
 	if _, ok := descriptor.(*tsDictionaryDescriptor); ok {
 		return record(address)
@@ -76,7 +76,7 @@ func remapRegTSDatum(value sqltype.Value, destination func(ids.ObjectAddress) id
 	if id == 0 {
 		return value, nil
 	}
-	address := ids.ObjectAddress{ClassID: TSDictionaryClassID, ObjectID: ids.OID(id)}
+	address := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}
 	target := destination(address)
 	if target == address {
 		return value, nil

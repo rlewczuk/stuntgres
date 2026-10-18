@@ -241,7 +241,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		a := candidate.names[ids.NameKey{ClassID: ExtensionClassID, Name: record.Name}]
+		a := candidate.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name}]
 		ext, ok := candidate.descriptors[a].(*extensionDescriptor)
 		if !ok || seen[a] || ext.version != record.Version {
 			return fmt.Errorf("stuntgres: invalid extension owner import target")
@@ -260,12 +260,12 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 			if !ok {
 				return fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
 			}
-			class := ProcedureClassID
+			class := ids.ProcedureClassID
 			if member.Kind == "dictionary" {
-				class = TSDictionaryClassID
+				class = ids.TSDictionaryClassID
 			}
 			if member.Kind == "type" {
-				class = TypeClassID
+				class = ids.TypeClassID
 			}
 			signature := member.Signature
 			if record.Name == "intarray" && member.Kind == "procedure" && member.Name == "bqarr_out" {
@@ -286,7 +286,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					n := *d
 					n.owner = owner.Ref
 					candidate.descriptors[a] = &n
-					arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.array)}
+					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}
 					array, ok := candidate.descriptors[arrayAddress].(*typeDescriptor)
 					if !ok || !array.typ.IsArray() || array.typ.Element() != d.typ {
 						return fmt.Errorf("stuntgres: invalid owned intarray array")

@@ -13,7 +13,7 @@ type operatorOutputKey struct {
 }
 
 func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
-	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}

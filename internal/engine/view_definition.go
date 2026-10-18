@@ -65,9 +65,9 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.state.descriptors[ref.Address].Revision()})
 			}
 		}
-		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(constant.id)}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.id)}
 		if constant.operator != 0 {
-			address.ClassID = OperatorClassID
+			address.ClassID = ids.OperatorClassID
 		}
 		if d, exists := auth.catalog.state.descriptors[address]; exists {
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: e.domain.Ref(auth.catalog.Epoch(), address), revision: d.Revision()})

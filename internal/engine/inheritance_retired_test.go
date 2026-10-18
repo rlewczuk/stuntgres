@@ -220,7 +220,7 @@ func TestInheritanceConstraintHistoryValidity(t *testing.T) {
 		t.Fatal("retirement silently validated or rebuilt invalid enforcement")
 	}
 	for _, dependency := range current.checkConstraints[0].dependencies {
-		if dependency.ref.Address.ClassID == RelationClassID && dependency.ref.Address.ObjectID == retiredUnitTable(t, e, "p").address.ObjectID && dependency.ref.Address.SubID == 1 {
+		if dependency.ref.Address.ClassID == ids.RelationClassID && dependency.ref.Address.ObjectID == retiredUnitTable(t, e, "p").address.ObjectID && dependency.ref.Address.SubID == 1 {
 			t.Fatal("retained history pinned the removed live source column")
 		}
 	}

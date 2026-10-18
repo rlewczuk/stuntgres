@@ -78,7 +78,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
 func representedSummaryTable(oid ids.OID) bool {
 	switch oid {
-	case pgTypeOID, 1213, 1249, 1262, 2600, pgAMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ParameterClassID:
+	case pgTypeOID, 1213, 1249, 1262, 2600, pgAMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID:
 		return true
 	}
 	return false
@@ -121,7 +121,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 			tablespace := sqltype.Null(source.columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.
 			// Represented shared catalogs belong to pg_global.
-			if builtinTable && (relation.address.ObjectID == 2396 || relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ParameterClassID) {
+			if builtinTable && (relation.address.ObjectID == 2396 || relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ids.ParameterClassID) {
 				tablespace = text(3, "pg_global")
 			}
 			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), tablespace, boolean(4, relation.hasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.rlsEnabled)})

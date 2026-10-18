@@ -28,7 +28,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if old == nil {
 			return nil
 		}
-		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.ID())}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}
 		if target, ok := mapping[address]; ok {
 			address = target
 		}
@@ -161,7 +161,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				c.dependencies = append([]expressionDependency(nil), c.dependencies...)
 				for j := range c.dependencies {
 					c.dependencies[j].ref = ref(c.dependencies[j].ref)
-					if c.dependencies[j].ref.Address.ClassID == ProcedureClassID {
+					if c.dependencies[j].ref.Address.ClassID == ids.ProcedureClassID {
 						provider, exists := view.Descriptor(c.dependencies[j].ref.Address)
 						if !exists {
 							return fmt.Errorf("stuntgres: missing reconstructed CHECK routine")
@@ -187,7 +187,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 						return err
 					}
 					definition.keys[i].collationRef = capability
-					if target, ok := mapping[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
 						definition.keys[i].collation = uint32(target.ObjectID)
 					}
 				}

@@ -38,8 +38,8 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
-			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
 			if carrier.Properties().Volatility != Stable || generationImmutable(carrier) {

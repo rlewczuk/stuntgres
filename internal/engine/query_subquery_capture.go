@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -55,7 +56,7 @@ func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDepend
 	dependencies := make([]expressionDependency, 0, len(b.dependencies))
 	for _, dependency := range b.dependencies {
 		address := dependency.ref.Address
-		if address.ClassID == TypeClassID && erased[sqltype.ID(address.ObjectID)] {
+		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
 			if _, retained := refs.addresses[address]; !retained {
 				continue
 			}

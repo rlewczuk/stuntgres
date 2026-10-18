@@ -44,7 +44,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: "t_a_key"}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: "t_a_key"}
 	if stage.lookupName(key) != (ids.ObjectAddress{}) || stage.removals[backing].ref.Address != backing || stage.touched[key] != backing {
 		t.Fatal("retirement did not vacate private name with original publication fences")
 	}

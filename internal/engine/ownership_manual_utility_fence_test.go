@@ -20,7 +20,7 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	t.Helper()
 	ownershipUnitExec(t, e, "CREATE SCHEMA ownership_fence_creation")
 	ownershipUnitExec(t, e, "CREATE TABLE ownership_fence_creation.owned_table(v INT)")
-	ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "ownership_fence_creation"}]
+	ns := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ownership_fence_creation"}]
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	namespace := *stage.base.state.descriptors[ns].(*namespaceDescriptor)
@@ -261,7 +261,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						if enum == nil {
 							t.Fatal("CREATE ENUM did not stage actual enum descriptor")
 						}
-						array = candidate.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(enum.array)}].(*typeDescriptor)
+						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.array)}].(*typeDescriptor)
 						members := enum.typ.EnumMembers()
 						wantTypeACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 							objectACLUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, authorization.UsagePrivilege, 0),

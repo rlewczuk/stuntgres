@@ -31,7 +31,7 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 		if !ok || !d.typ.IsEnum() {
 			continue
 		}
-		if address != d.Address() || address.ClassID != TypeClassID || address.ObjectID == 0 || sqltype.ID(address.ObjectID) != d.typ.ID() {
+		if address != d.Address() || address.ClassID != ids.TypeClassID || address.ObjectID == 0 || sqltype.ID(address.ObjectID) != d.typ.ID() {
 			return nil, fmt.Errorf("stuntgres: invalid enum owner identity")
 		}
 		count += d.typ.EnumMemberCount()

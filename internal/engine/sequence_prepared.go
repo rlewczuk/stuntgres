@@ -55,7 +55,7 @@ func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvi
 	if err != nil {
 		return sequenceEnvironment{}, err
 	}
-	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	result := sequenceEnvironment{namespaces: path, pendingTemp: pending, implicitCatalog: !slices.Contains(path, catalog), implicitTemp: key.temp != (ids.ObjectAddress{}) && !slices.Contains(path, key.temp)}
 	if auth.session != nil {
 		auth.session.sequencePath = sequencePathCache{valid: true, key: key, environment: result}

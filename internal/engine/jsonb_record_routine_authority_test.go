@@ -91,9 +91,9 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing original descriptor", captured, err)
 			}
-			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			d := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("released identity", captured)
 			}
 			if d.kind != functionRoutine || d.result != tc.result || d.strict != tc.strict || d.volatility != Stable || d.parallel != 's' || d.returnsSet != tc.set || d.variadic != 0 || d.defaults != 0 || d.providers&jsonRoutineProvider == 0 {
@@ -110,7 +110,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					if dependency.ref.Domain() != e.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
 						t.Fatal("original ref/epoch/revision", dependency)
 					}
-				} else if dependency.ref.Address.ClassID == ProcedureClassID {
+				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("implicit codec/helper EXECUTE edge", dependency)
 				}
 			}
@@ -389,7 +389,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 		t.Fatal("real constructor failure", err)
 	}
 	for _, dependency := range b.dependencies {
-		if dependency.ref.Address == (ids.ObjectAddress{ProcedureClassID, 3209, 0}) {
+		if dependency.ref.Address == (ids.ObjectAddress{ids.ProcedureClassID, 3209, 0}) {
 			t.Fatal("failed constructor captured outer routine", dependency)
 		}
 	}

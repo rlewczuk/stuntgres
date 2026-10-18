@@ -62,14 +62,14 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		query = "ALTER TABLE typed OF pair"
 	}
 	epoch := e.CatalogRead().Epoch()
-	original := e.providers[RelationClassID]
+	original := e.providers[ids.RelationClassID]
 	called := false
-	e.providers[RelationClassID] = alterDropProvider{original, func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		if called {
 			return
 		}
 		called = true
-		e.providers[RelationClassID] = original
+		e.providers[ids.RelationClassID] = original
 		if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		t.Fatal("stale typed state resurrected")
 	}
 	for _, name := range []string{"pair", "typed", "holder"} {
-		if _, ok := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: source.namespace, Name: name}]; ok {
+		if _, ok := view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: source.namespace, Name: name}]; ok {
 			t.Fatal("replacement resurrected old relation", name)
 		}
 	}
@@ -117,9 +117,9 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 				t.Fatal(err)
 			}
 			lockEmpty(t, e)
-			original := e.providers[RelationClassID]
+			original := e.providers[ids.RelationClassID]
 			called, granted := false, false
-			e.providers[RelationClassID] = alterDropProvider{original, func() {
+			e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				called = true
 				ref := e.domain.Ref(e.CatalogRead().Epoch(), source.address)
 				e.locks.mu.Lock()
@@ -130,7 +130,7 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 				}
 				e.locks.mu.Unlock()
 			}}
-			defer func() { e.providers[RelationClassID] = original }()
+			defer func() { e.providers[ids.RelationClassID] = original }()
 			roleExecute(t, e, op, query)
 			if !called || !granted {
 				t.Fatal("actual CREATE validation lacks retained source AccessShare grant", called, granted)
@@ -159,15 +159,15 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			childRef := roleTableRef(t, e, "child")
 			child := view.state.descriptors[childRef.Address].(*relationDescriptor)
 			rootStorage, childStorage := e.storage[root.address], e.storage[child.address]
-			original := e.providers[RelationClassID]
+			original := e.providers[ids.RelationClassID]
 			called := false
 			var after *catalogState
-			e.providers[RelationClassID] = alterDropProvider{original, func() {
+			e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				if called {
 					return
 				}
 				called = true
-				e.providers[RelationClassID] = original
+				e.providers[ids.RelationClassID] = original
 				creator, finish := roleOperation(t, e, "postgres")
 				defer finish()
 				roleExecute(t, e, creator, "CREATE TABLE holder(v "+rowName+")")
@@ -182,7 +182,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			if current.state != after || current.state.descriptors[source.address] != source || current.state.descriptors[root.address] != root || current.state.descriptors[child.address] != child || e.storage[root.address] != rootStorage || e.storage[child.address] != childStorage {
 				t.Fatal("rejected TYPE changed published graph or storage")
 			}
-			if root.ofType != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}) {
+			if root.ofType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}) {
 				t.Fatal("attachment changed")
 			}
 			for _, relation := range []*relationDescriptor{source, root, child} {
@@ -236,7 +236,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ids.Objec
 	roleExecute(t, e, admin, "CREATE USER typed_reader")
 	roleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
 	roleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
-	ns := e.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	ns := e.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ids.Objec
 	op, done := roleOperation(t, e, "typed_owner")
 	roleExecute(t, e, op, "CREATE TYPE pair AS (id integer)")
 	roleExecute(t, e, op, "CREATE TABLE typed OF pair")
-	address := e.CatalogRead().state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: "member"}]
+	address := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns.Address, Name: "member"}]
 	return e, op, done, address
 }
 
@@ -253,7 +253,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	defer done()
 	pair := roleTableRef(t, e, "pair")
 	source := e.CatalogRead().state.descriptors[pair.Address].(*relationDescriptor)
-	typedReviewTypeACL(t, e, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}, authorization.ACLValue{Explicit: true})
+	typedReviewTypeACL(t, e, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}, authorization.ACLValue{Explicit: true})
 	reader, finish := roleOperation(t, e, "typed_reader")
 	defer finish()
 	roleExecute(t, e, reader, "CREATE TABLE mine(id integer)")
@@ -303,15 +303,15 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	pair := roleTableRef(t, e, "pair")
 	table := roleTableRef(t, e, "typed")
 	oldSource, oldTable, oldStorage := before.state.descriptors[pair.Address], before.state.descriptors[table.Address], e.storage[table.Address]
-	original := e.providers[RelationClassID]
+	original := e.providers[ids.RelationClassID]
 	called := false
 	var after *catalogState
-	e.providers[RelationClassID] = alterDropProvider{original, func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		if called {
 			return
 		}
 		called = true
-		e.providers[RelationClassID] = original
+		e.providers[ids.RelationClassID] = original
 		typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
 		after = e.CatalogRead().state
 	}}

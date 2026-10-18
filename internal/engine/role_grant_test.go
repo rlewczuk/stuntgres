@@ -19,12 +19,12 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	reader := roleAttributeCreate(t, e, op, "grant_reader", true, parser.RoleOptions{}).Ref
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900001}
-	namespace := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "public"}]
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
+	namespace := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]
 	relation := &relationDescriptor{address: address, namespace: namespace, name: "grant_unit", owner: op.RoleState().CurrentUser, columns: []ColumnDescriptor{{Name: "a"}, {Name: "b"}}, index: map[string]int{"a": 0, "b": 1}, attributes: []int32{1, 3}, attributeHighWater: 3}
 	e.state = cloneCatalog(e.state)
 	e.state.descriptors[address] = relation
-	e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: relation.name}] = address
+	e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.name}] = address
 	return e, op, reader, address
 }
 func applyObjectGrantUnit(e *Engine, op *Operation, s *parser.ObjectGrant) error {
@@ -199,7 +199,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e, op, _, address := objectGrantUnitFixture(t)
 	parent := e.state.descriptors[address].(*relationDescriptor)
 	index := &relationDescriptor{
-		address:      ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900002},
+		address:      ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900002},
 		namespace:    parent.namespace,
 		name:         "grant_unit_b_idx",
 		owner:        parent.owner,

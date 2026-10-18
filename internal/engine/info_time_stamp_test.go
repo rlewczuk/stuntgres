@@ -9,7 +9,7 @@ import (
 
 func infoTimeStampCatalogType(t *testing.T, view CatalogRead) *typeDescriptor {
 	t.Helper()
-	key := ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}, Name: "time_stamp"}
+	key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}, Name: "time_stamp"}
 	addresses := view.Lookup(key)
 	if len(addresses) != 1 {
 		t.Fatal("selected domain identity", addresses)
@@ -32,7 +32,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	if err := (typeProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if err := (typeProvider{}).Validate(view, view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())}]); err != nil {
+	if err := (typeProvider{}).Validate(view, view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}]); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateACL(e.Roles(), d); err != nil {
@@ -68,15 +68,15 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	original := source.CatalogRead()
 	d := infoTimeStampCatalogType(t, original)
 	next := cloneCatalog(original.state)
-	baseAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Timestamptz)}
+	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Timestamptz)}
 	reboundBase := *next.descriptors[baseAddress].(*typeDescriptor)
 	reboundBase.typ = target.CatalogRead().state.descriptors[baseAddress].(*typeDescriptor).typ
 	next.descriptors[baseAddress] = &reboundBase
 	// Rendering must use the current captured namespace, not inventory spelling.
 	namespace := *next.descriptors[d.Namespace()].(*namespaceDescriptor)
-	delete(next.names, ids.NameKey{ClassID: NamespaceClassID, Name: namespace.name})
+	delete(next.names, ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name})
 	namespace.name = "renamed_info"
-	next.names[ids.NameKey{ClassID: NamespaceClassID, Name: namespace.name}] = namespace.address
+	next.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}] = namespace.address
 	next.descriptors[namespace.address] = &namespace
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
@@ -114,7 +114,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal("principal remap left invalid builtin authority", err)
 	}
 	invalid := cloneCatalog(original.state)
-	if _, err := reownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: TypeClassID, ObjectID: 60000}}, false); err == nil {
+	if _, err := reownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false); err == nil {
 		t.Fatal("builtin domain reminted")
 	}
 }

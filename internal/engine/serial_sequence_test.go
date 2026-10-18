@@ -29,16 +29,16 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view.state = cloneCatalog(view.state)
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &relationDescriptor{
-		address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		attributes: []int32{7, 9}, index: map[string]int{"ID": 0, "plain": 1}, attributeHighWater: 9,
 	}
 	owner := table.address
 	owner.SubID = 7
 	sequence := &relationDescriptor{
-		address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		relationKind: sequenceRelation, sequence: &sequenceOptions{owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
@@ -68,7 +68,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		{"different-column", func(f serialSequenceUnit) { f.sequence.sequence.owned.SubID = 9 }, nil},
 		{"compacted-slot-is-not-attribute", func(f serialSequenceUnit) { f.sequence.sequence.owned.SubID = 1 }, nil},
 		{"different-table", func(f serialSequenceUnit) { f.sequence.sequence.owned.ObjectID++ }, nil},
-		{"different-class", func(f serialSequenceUnit) { f.sequence.sequence.owned.ClassID = TypeClassID }, nil},
+		{"different-class", func(f serialSequenceUnit) { f.sequence.sequence.owned.ClassID = ids.TypeClassID }, nil},
 		{"whole-table-is-not-column", func(f serialSequenceUnit) { f.sequence.sequence.owned.SubID = 0 }, nil},
 		{"index-is-not-sequence", func(f serialSequenceUnit) { f.sequence.relationKind = indexRelation }, nil},
 		{"table-is-not-sequence", func(f serialSequenceUnit) { f.sequence.relationKind = tableRelation }, nil},

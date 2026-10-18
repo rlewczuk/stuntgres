@@ -22,7 +22,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 	identities := make(map[string]bool)
 	for _, fact := range builtinRoutineIdentities {
 		key := fact.name + "(" + string(fact.signature) + ")"
-		if fact.id == 0 || fact.namespace != PGCatalogNamespaceOID || fact.name == "" || identities[key] {
+		if fact.id == 0 || fact.namespace != ids.PGCatalogNamespaceOID || fact.name == "" || identities[key] {
 			t.Fatal("invalid/duplicate released identity", fact)
 		}
 		identities[key] = true
@@ -34,9 +34,9 @@ func TestRoutineReleaseInventory(t *testing.T) {
 				}
 			}
 		}
-		if p, exists := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: fact.id}]; exists {
+		if p, exists := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: fact.id}]; exists {
 			procedure, ok := p.(*procedureDescriptor)
-			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ProcedureClassID}).Validate(view, procedure) != nil {
+			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure) != nil {
 				t.Fatal("invalid genuine catalog declaration", p, fact)
 			}
 		}
@@ -53,7 +53,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 			t.Fatal("release witness", got, witness)
 		}
 	}
-	path := namespaceSelection{path: []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}}
+	path := namespaceSelection{path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 	for _, name := range []string{"abs", "lower"} {
 		if _, count := selectRoutine(view, path, name, nil); count != 2 {
 			t.Fatal("released overload ambiguity", name, count)
@@ -64,9 +64,9 @@ func TestRoutineReleaseInventory(t *testing.T) {
 func TestRoutinePathCandidateMasking(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace, second.signature = 90001, catalog, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
@@ -136,7 +136,7 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 		t.Fatal("overload-safe recursive dump", text, err)
 	}
 	var refs []ids.ObjectAddress
-	if err := walkRoutineReferences(view, original, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ProcedureClassID, ObjectID: 1397}}) {
+	if err := walkRoutineReferences(view, original, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ids.ProcedureClassID, ObjectID: 1397}}) {
 		t.Fatal("genuine builtin dependency or lookup-only isolation lost", refs, err)
 	}
 }

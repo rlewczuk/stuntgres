@@ -98,7 +98,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	state(t, err, "2BP01")
 	owner, _ := e.Roles().Lookup("schema_owner")
 	replacement := cloneCatalog(e.CatalogRead().state)
-	nsaddr := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	nsaddr := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	ns := *replacement.descriptors[nsaddr].(*namespaceDescriptor)
 	ns.owner = owner.Ref
 	replacement.descriptors[nsaddr] = &ns
@@ -128,8 +128,8 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			var winner CatalogRead
 			var winnerRef ids.ObjectRef
 			var loser ids.ObjectAddress
-			e.providers[RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.providers[RelationClassID],
+			e.providers[ids.RelationClassID] = &publicationConflictProvider{
+				CatalogProvider: e.providers[ids.RelationClassID],
 				publishWinner: func(d Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE "+tc.identifier+"(id INT NOT NULL)")

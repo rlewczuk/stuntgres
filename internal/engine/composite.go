@@ -39,7 +39,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
-	if stage.lookupName(ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
+	if stage.lookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
 	if len(s.Members) > 1600 {
@@ -77,7 +77,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return err
 		}

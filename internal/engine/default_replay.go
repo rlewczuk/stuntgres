@@ -43,7 +43,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 	walkBoundExpression(node, func(child BoundExpr) {
 		literal, ok := child.(literalExpression)
 		if ok && literal.regclassRef != (ids.ObjectRef{}) &&
-			literal.regclassRef.Address.ClassID == RelationClassID && literal.regclassRef.Address.SubID == 0 &&
+			literal.regclassRef.Address.ClassID == ids.RelationClassID && literal.regclassRef.Address.SubID == 0 &&
 			literal.ResultUsage().Type.ID() == sqltype.Regclass && !literal.value.IsNull() &&
 			slices.Contains(definition.dependencies, literal.regclassRef) {
 			captured = true

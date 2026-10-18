@@ -102,14 +102,14 @@ func physicalNotNullOriginValid(view CatalogRead, table *relationDescriptor, att
 	if cause == nil || cause.self != cause || cause.kind != physicalNotNullTypeCleanup && cause.kind != physicalNotNullImportCleanup && cause.kind != physicalNotNullImportFlag || cause.ref.Address != table.address || cause.ref.Address.SubID != 0 || cause.attribute != attribute || cause.removedNN == 0 || cause.usage.Type == nil || !storedReferenceEpochValid(view, table, cause.ref) {
 		return false
 	}
-	if cause.origin.Domain() == nil || cause.origin.Epoch == 0 || cause.origin.Address.ClassID != RelationClassID || cause.origin.Address.ObjectID == 0 || cause.origin.Address.SubID != 0 {
+	if cause.origin.Domain() == nil || cause.origin.Epoch == 0 || cause.origin.Address.ClassID != ids.RelationClassID || cause.origin.Address.ObjectID == 0 || cause.origin.Address.SubID != 0 {
 		return false
 	}
 	if cause.kind == physicalNotNullImportFlag {
 		if cause.primary != 0 || cause.index != (ids.ObjectAddress{}) {
 			return false
 		}
-	} else if cause.primary == 0 || cause.index.ClassID != RelationClassID || cause.index.ObjectID == 0 || cause.index.SubID != 0 {
+	} else if cause.primary == 0 || cause.index.ClassID != ids.RelationClassID || cause.index.ObjectID == 0 || cause.index.SubID != 0 {
 		return false
 	}
 	slot := table.indexForAttribute(attribute)

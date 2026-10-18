@@ -24,8 +24,8 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
-	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: session.token}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, owner: namespace.owner, onCommit: action, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: session.token}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, owner: namespace.owner, onCommit: action, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.address, namespace)
 	e.catalogChangeLocked(c, table.address, table)
@@ -62,7 +62,7 @@ func TestTemporaryTableProviderAction(t *testing.T) {
 		t.Fatal(err)
 	}
 	invalid := *table
-	invalid.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	invalid.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	c2 := cloneCatalogChanges(c)
 	e.catalogChangeLocked(c2, table.address, &invalid)
 	if err := (relationProvider{}).Validate(e.privateCatalogLocked(c2), &invalid); err == nil {
@@ -132,7 +132,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	foreign := *advanced.descriptors[table.namespace].(*namespaceDescriptor)
 	foreign.temporary = e.domain.Session(op.session.token.ID() + 1)
 	consumer := *table
-	consumer.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20002}
+	consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
 	advanced.descriptors[consumer.namespace] = &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token}
 	advanced.descriptors[table.namespace] = &foreign
 	if storedReferenceEpochValid(retained, &consumer, old) {
@@ -188,7 +188,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	if op.session.temporaryNamespace != (ids.ObjectAddress{}) || op.session.transactions.catalog != nil {
 		t.Fatal("stage namespace published before CREATE success")
 	}
-	auth.stagedTemporary = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	auth.stagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	if _, err := e.creationNamespace(auth, name); err == nil || temporaryNamespace(auth) != (ids.ObjectAddress{}) {
 		t.Fatal("persistent namespace impersonated owner TEMP")
 	}
@@ -201,7 +201,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.persistence = "temporary"
-	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20002}, namespace: table.namespace, name: "retained_sequence", revision: 1, sequencePlanStamp: 1, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
+	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, namespace: table.namespace, name: "retained_sequence", revision: 1, sequencePlanStamp: 1, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, sequence.address, sequence)
 	view := e.privateCatalogLocked(c)
@@ -211,7 +211,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("missing builtin regclass")
 	}
 	ref := e.domain.Ref(view.Epoch(), sequence.address)
-	typeRef := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+	typeRef := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
 	literal := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage(), regclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
 	next := cloneCatalog(view.state)
 	next.epoch++
@@ -228,7 +228,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("generic renderer forgave stale regclass")
 	}
 	persistent := *table
-	persistent.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	persistent.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	if _, err := (scalarRenderer{owner: &persistent}).sql(context.Background(), retained, literal); err == nil {
 		t.Fatal("persistent consumer gained stale TEMP authority")
 	}
@@ -356,7 +356,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if !ok {
 		t.Fatal("missing actual domain array")
 	}
-	arrayRef := e.domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())})
+	arrayRef := e.domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
 	if _, err := e.ReplaceCatalog(context.Background(), domainView); err != nil {
 		t.Fatal(err)
 	}

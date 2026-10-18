@@ -71,7 +71,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 	}
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
-	address := stage.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	address := stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
 	child := stage.descriptors[address].(*relationDescriptor)
 	keyAuth := auth
 	keyAuth.catalog = e.stageRead(stage)

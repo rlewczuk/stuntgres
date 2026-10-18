@@ -241,7 +241,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		}
 		return b.bindBuiltinOperator(raw, policy)
 	}
-	routine, _ := set.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
+	routine, _ := set.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
 	if routine == nil {
 		return nil, fmt.Errorf("stuntgres: missing operator implementation")
 	}

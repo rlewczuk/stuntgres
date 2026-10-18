@@ -12,7 +12,7 @@ import (
 func tableLikeTemporaryRelation(t *testing.T, e *Engine, namespace ids.ObjectAddress, name string) *relationDescriptor {
 	t.Helper()
 	view := e.CatalogRead()
-	addresses := view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name})
+	addresses := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	if len(addresses) != 1 {
 		t.Fatal(name, addresses)
 	}
@@ -86,7 +86,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 				t.Fatal("rejected/default cooking evaluated or published source state")
 			}
 			for _, name := range []string{"rejected", "rejected_id_seq"} {
-				if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name})) != 0 {
+				if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})) != 0 {
 					t.Fatal("failed candidate published", name)
 				}
 			}
@@ -102,7 +102,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				owner := sessionStart(t, e, nil)
 				sessionSQL(t, owner, "CREATE TEMP SEQUENCE marker")
 				prefix, sourceName := "", "public.src"
-				sourceNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+				sourceNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				if sourceTemporary {
 					prefix = "TEMP "
 					sourceName = "pg_temp.src"
@@ -122,7 +122,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				defer op.Done()
 				prefix = ""
 				persistence := "logged"
-				namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+				namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				if destinationTemporary {
 					prefix = "TEMP "
 					persistence = "temporary"
@@ -138,7 +138,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				fresh := stage.generators[identity.sequence]
 				want := *sourceSequence.sequence
 				want.persistence = persistence
-				want.owned = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}
+				want.owned = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}
 				if destination.namespace != namespace || sequence.namespace != namespace || sequence.owner != destination.owner || identity.sequence == sourceIdentity.sequence || sequence.Revision() == sourceSequence.Revision() || !reflect.DeepEqual(*sequence.sequence, want) || fresh == nil || fresh.called || fresh.last != 7 || identity.mode != sourceIdentity.mode || len(destination.defaults) != 0 {
 					t.Fatal("fresh identity destination ownership/persistence/config/state", destination, sequence, fresh)
 				}
@@ -222,7 +222,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
-	row := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}), scope: 1, frame: 1, slot: 0}
+	row := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}), scope: 1, frame: 1, slot: 0}
 	if _, err := (scalarRenderer{provenance: destination}).sql(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}
@@ -250,7 +250,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		candidate := e.BeginCatalogStage(stage.base)
 		consumer := *destination
 		if tc.permanent {
-			consumer.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		}
 		consumer.defaults = map[int32]columnDefault{1: {dependencies: []ids.ObjectRef{tc.ref}}}
 		if err := candidate.Create(&consumer); err != nil {

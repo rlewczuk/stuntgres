@@ -24,7 +24,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 }
 
 func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
+	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
 	ref := catalog.owner.domain.Ref(catalog.Epoch(), source.address)
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
 }
@@ -66,7 +66,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 			t.Fatal("invalid authority accepted", rows, err)
 		}
 	}
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
+	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
 	ref := f.e.domain.Ref(catalog.Epoch(), source.address)
 	stale := ref
 	stale.Epoch++
@@ -102,7 +102,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := cloneCatalog(f.e.state)
 	typ, _ := (CatalogRead{f.e, state}).LookupType(sqltype.Int4)
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20110}, namespace: f.schema, name: "dtp_unit", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}, attributes: []int32{1, 3, 4}, columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, columnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
+	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, namespace: f.schema, name: "dtp_unit", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}, attributes: []int32{1, 3, 4}, columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, columnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
 	state.descriptors[relation.address] = relation
 	catalog := CatalogRead{f.e, state}
 	auth := dtpUnitAuthority(t, f, catalog)

@@ -13,7 +13,7 @@ import (
 
 func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2616}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_opclass")
@@ -177,8 +177,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
-		parent := &relationDescriptor{address: ids.ObjectAddress{RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{NamespaceClassID, PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
-		index := &relationDescriptor{address: ids.ObjectAddress{RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
+		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
+		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
 		e.state.descriptors[parent.address], e.state.descriptors[index.address] = parent, index
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {

@@ -35,14 +35,14 @@ func intarrayUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor, *typeDe
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", ""))
-	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
 	return e, ext, e.state.descriptors[ext.members[0]].(*typeDescriptor)
 }
 
 func TestIntarrayProviderIdentity(t *testing.T) {
 	e, ext, base := intarrayUnitInstalled(t)
 	view := e.CatalogRead()
-	if err := (extensionCatalogProvider{ExtensionClassID}).Validate(view, ext); err != nil {
+	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	if ext.version != "1.5" || len(ext.members) != 3 || base.extension != ext.address || !base.typ.IsQueryInt() || base.owner != ext.owner {
@@ -52,11 +52,11 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	if !ok || array.Concrete() || array.Element() != base.typ || array.ID() == base.typ.ID() {
 		t.Fatal("lookup-only reciprocal array")
 	}
-	arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())}
+	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
 	if pgDependPinned(view, base.Address()) || pgDependPinned(view, arrayAddress) {
 		t.Fatal("installed base or automatic array classified as bootstrap-pinned")
 	}
-	if !pgDependPinned(view, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 1007}) {
+	if !pgDependPinned(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
 	for i, address := range ext.members {
@@ -72,7 +72,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			if err := (typeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
-		} else if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, member); err != nil {
+		} else if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -86,7 +86,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		if edge.referenced == ext.address && edge.deptype == 'e' {
 			members[edge.dependent] = true
 		}
-		if edge.dependent == (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
+		if edge.dependent == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
 			arrayInternal = true
 		}
 	}
@@ -165,7 +165,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		}
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)
-		namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		owner := op.RoleState().CurrentUser
 		for _, d := range []*typeDescriptor{
 			{typ: typ, namespace: namespace, owner: owner, revision: revision, array: array.ID()},
@@ -205,7 +205,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				state.descriptors[proc.address] = &proc
 			},
 			func(state *catalogState, _ *extensionDescriptor) {
-				address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.array)}
+				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}
 				array := *state.descriptors[address].(*typeDescriptor)
 				array.typ = sqltype.LookupArray(array.typ.ID(), array.Name(), text)
 				state.descriptors[address] = &array
@@ -216,18 +216,18 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 			bad.members = slices.Clone(ext.members)
 			candidate.descriptors[bad.address] = &bad
 			corrupt(candidate, &bad)
-			if err := (extensionCatalogProvider{ExtensionClassID}).Validate(CatalogRead{owner: e, state: candidate}, &bad); err == nil {
+			if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(CatalogRead{owner: e, state: candidate}, &bad); err == nil {
 				t.Fatal("invalid manifest accepted")
 			}
 			if !slices.Equal(original, ext.members) {
 				t.Fatal("negative validation mutated original manifest")
 			}
 		}
-		mapped := remapExtensionDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.members[1]: {ClassID: ProcedureClassID, ObjectID: 65000}}).(*extensionDescriptor)
+		mapped := remapExtensionDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.members[1]: {ClassID: ids.ProcedureClassID, ObjectID: 65000}}).(*extensionDescriptor)
 		if mapped.members[1] == ext.members[1] || !slices.Equal(original, ext.members) {
 			t.Fatal("remapping aliased source membership")
 		}
-		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
+		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal("original manifest damaged", err)
 		}
 	})
@@ -269,10 +269,10 @@ func TestIntarrayProviderControls(t *testing.T) {
 		op, close := extensionTemporaryOperation(t, e, "postgres")
 		namespace := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", namespace.name))
-		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
 		base := e.state.descriptors[ext.members[0]].(*typeDescriptor)
-		array := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.array)}
-		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
+		array := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}
+		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
 		addresses := append([]ids.ObjectAddress{ext.address, array}, ext.members...)
@@ -300,17 +300,17 @@ func TestIntarrayProviderControls(t *testing.T) {
 		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
 		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.name))
-		unaccent := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]]
+		unaccent := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]]
 		closeInstaller()
 		if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		ext := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		ext := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
 		imported := target.state.descriptors[ext.members[0]].(*typeDescriptor)
 		if imported.typ == base.typ || imported.typ.ID() == base.typ.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
 		}
-		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
+		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
 		if target.state.descriptors[namespace.address] != namespace || target.state.descriptors[unaccent.Address()] != unaccent {
@@ -337,7 +337,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		if target.state.descriptors[namespace.address] != namespace || target.state.descriptors[unaccent.Address()] != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
-		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
+		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal("persistent imported provider damaged by TEMP retirement", err)
 		}
 	})

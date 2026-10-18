@@ -11,7 +11,7 @@ import (
 )
 
 func TestEnumProvenanceSavepoints(t *testing.T) {
-	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 45000}
+	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
 	outer := newCatalogChanges()
 	outer.enumCreated = map[ids.ObjectAddress]bool{address: true}
 	outer.enumUnsafe = map[int64]bool{9: true}

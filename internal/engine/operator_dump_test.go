@@ -16,15 +16,15 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 		// in both kinds. Allocation order must not become link-establishment order.
 		d, c, a, b := oids[0], oids[1], oids[2], oids[3]
 		operators := []*operatorDescriptor{
-			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: d}, name: "#!#", function: 144, result: 16, negator: c},
-			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: c}, name: "#?#", function: 65, result: 16, commutator: b, negator: b},
-			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: a}, name: "#~#", function: 65, result: 16, commutator: b},
-			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: b}, name: "#@#", function: 65, result: 16, commutator: c, negator: c},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d}, name: "#!#", function: 144, result: 16, negator: c},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: c}, name: "#?#", function: 65, result: 16, commutator: b, negator: b},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, name: "#~#", function: 65, result: 16, commutator: b},
+			{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, name: "#@#", function: 65, result: 16, commutator: c, negator: c},
 		}
 		before := make([]operatorDescriptor, len(operators))
 		graph := make(map[dumpEventKey][]dumpEventKey)
 		for i, op := range operators {
-			op.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			op.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			op.revision = 1
 			op.left = 23
 			op.right = 23
@@ -91,11 +91,11 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	a, b := ids.OID(90001), ids.OID(90003)
 	operators := []*operatorDescriptor{
-		{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: a}, name: "#~#", commutator: b},
-		{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: b}, name: "#@#", commutator: a},
+		{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, name: "#~#", commutator: b},
+		{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, name: "#@#", commutator: a},
 	}
 	for _, op := range operators {
-		op.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		op.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		op.revision = 1
 		op.left = 23
 		op.right = 23

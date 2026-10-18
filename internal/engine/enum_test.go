@@ -40,7 +40,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || (diagnostic.Code != "23505" && diagnostic.Code != "42602") {
 			t.Fatal(err)
 		}
-		if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: mood.Namespace(), Name: "failed"})) != 0 {
+		if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: mood.Namespace(), Name: "failed"})) != 0 {
 			t.Fatal("failure leaked type")
 		}
 	}
@@ -118,7 +118,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.wrapped AS public.mood"))
 	wrapped := domainUnitType(t, e.CatalogRead(), "wrapped")
 	next := cloneCatalog(e.CatalogRead().state)
-	target := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 60000}
+	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 60000}
 	changed, err := reownDomainTypes(next, map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}, false)
 	if err != nil || !changed {
 		t.Fatal(err)

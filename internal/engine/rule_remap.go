@@ -274,7 +274,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == nil {
 				return nil
 			}
-			if d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.ID())}].(*typeDescriptor); ok {
+			if d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}].(*typeDescriptor); ok {
 				return d.typ
 			}
 			return old

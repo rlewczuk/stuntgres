@@ -169,7 +169,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 		for _, policy := range relation.policies {
 			for _, role := range policy.roles {
 				if !role.public && role.ref == ref {
-					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
+					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
 						return true
 					}
 				}
@@ -280,7 +280,7 @@ func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor
 
 func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
-		if a, ok := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
+		if a, ok := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.name}]; ok {
 			return a == relation.address
 		}
 	}
@@ -329,7 +329,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	}
 	if foreign, ok := d.(*foreignDescriptor); ok {
 		kind = foreignLabel(foreign.address.ClassID) + " "
-		if foreign.address.ClassID == ForeignMappingClassID {
+		if foreign.address.ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
 			mapped, _ := auth.roles.Descriptor(foreign.mappedRole)
 			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.state.descriptors[foreign.server].Name())
@@ -354,7 +354,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		}
 		if relation.relationKind == compositeRelation {
 			path, _ := auth.engine.referencePath(auth)
-			typ := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+			typ := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}

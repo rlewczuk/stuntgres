@@ -13,7 +13,7 @@ import (
 
 func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1247}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1247}
 	d, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing type source")
@@ -188,7 +188,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
 	root := cloneCatalog(catalog.state)
-	original := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23}].(*typeDescriptor)
+	original := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}].(*typeDescriptor)
 	changed := *original
 	changed.acl = authorization.ACLValue{Explicit: true}
 	changed.aclSyntheticDefault = false
@@ -267,7 +267,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	oldRows := pgTypeUnitBag(t, captured, source)
 	array := func(t *testing.T, view CatalogRead, d *typeDescriptor) *typeDescriptor {
 		t.Helper()
-		a, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.array)}].(*typeDescriptor)
+		a, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}].(*typeDescriptor)
 		if !ok || a.typ.Element() != d.typ {
 			t.Fatal("missing canonical domain array", d)
 		}

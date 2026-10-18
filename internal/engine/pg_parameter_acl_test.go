@@ -25,7 +25,7 @@ func pgParameterACLUnitFixture(t *testing.T) (*Engine, *Operation, authorization
 
 func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ParameterClassID}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ParameterClassID}
 	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_parameter_acl")
@@ -72,7 +72,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgParameterACLUnitSource(t, e, catalog)
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	if d.name != "pg_parameter_acl" || d.namespace != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 11}) || d.owner != owner || d.owner.ID() != 10 || d.relationKind != catalogRelation || d.virtualView || len(d.columns) != 3 || d.attributeHighWater != 3 || !d.hasIndexes {
+	if d.name != "pg_parameter_acl" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.owner != owner || d.owner.ID() != 10 || d.relationKind != catalogRelation || d.virtualView || len(d.columns) != 3 || d.attributeHighWater != 3 || !d.hasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	for i, name := range []string{"oid", "parname", "paracl"} {
@@ -98,8 +98,8 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10097}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10096}].(*typeDescriptor)
+	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097}].(*typeDescriptor)
+	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096}].(*typeDescriptor)
 	ownedArray, ok := catalog.LookupArray(row.typ)
 	if !ok || d.rowType != 10097 || row.array != 10096 || ownedArray != array.typ || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 		t.Fatal("row/array ownership", row, array)
@@ -107,7 +107,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
 		t.Fatal("discovery")
 	}
-	class := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
 	facts, err := e.pgClassRow(context.Background(), catalog, e.Roles(), class, d)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		t.Fatal("pg_global", space, err)
 	}
 	for _, oid := range []ids.OID{6244, 6245, 6246, 6247} {
-		if _, exists := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}]; exists {
+		if _, exists := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}]; exists {
 			t.Fatal("fabricated backing relation", oid)
 		}
 	}
@@ -157,9 +157,9 @@ func TestPGParameterACLCapture(t *testing.T) {
 			t.Fatal("canonical membership", name, err)
 		}
 		seen[name] = true
-		address := catalog.state.names[ids.NameKey{ClassID: ParameterClassID, Name: name}]
+		address := catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: name}]
 		id, err := row[0].OID()
-		if err != nil || id == 0 || ids.OID(id) != address.ObjectID || address.ClassID == RelationClassID {
+		if err != nil || id == 0 || ids.OID(id) != address.ObjectID || address.ClassID == ids.RelationClassID {
 			t.Fatal("actual entry identity", address, id, err)
 		}
 		want := map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 12288, 12288}}
@@ -175,7 +175,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if rows, err := e.capturePGParameterACL(context.Background(), catalog, New().Roles(), ref, d); err == nil || rows != nil {
 		t.Fatal("foreign roles accepted", err)
 	}
-	address := catalog.state.names[ids.NameKey{ClassID: ParameterClassID, Name: "lc_messages"}]
+	address := catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"}]
 	corrupt := *catalog.state.descriptors[address].(*parameterDescriptor)
 	corrupt.owner = authorization.PrincipalRef{}
 	broken := cloneCatalog(catalog.state)
@@ -197,7 +197,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, seed); err != nil {
 		t.Fatal(err)
 	}
-	emptyAddress := e.state.names[ids.NameKey{ClassID: ParameterClassID, Name: "pacl_unit.empty"}]
+	emptyAddress := e.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.empty"}]
 	seed.Revoke = true
 	seed.Privileges = []parser.GrantPrivilege{{All: true}}
 	seed.Grantees = []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "postgres"}}}
@@ -264,7 +264,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	}
 	before, roles := scope.commentCatalog, scope.commentRoles
 	_, ref := pgParameterACLUnitSource(t, e, before)
-	address := before.state.names[ids.NameKey{ClassID: ParameterClassID, Name: "pacl_unit.snapshot"}]
+	address := before.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.snapshot"}]
 	old := before.state.descriptors[address].(*parameterDescriptor)
 	request.Privileges = []parser.GrantPrivilege{{All: true}}
 	request.GrantOption = true

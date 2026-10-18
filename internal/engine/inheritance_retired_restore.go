@@ -81,7 +81,7 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 func constraintAttributeKeys(table *relationDescriptor, expression BoundExpr) []int32 {
 	var keys []int32
 	walkBoundExpression(expression, func(node BoundExpr) {
-		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == RelationClassID && column.origin.Address.ObjectID == table.address.ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
+		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.address.ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
 			keys = append(keys, column.origin.Address.SubID)
 		}
 	})

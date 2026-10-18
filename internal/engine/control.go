@@ -29,7 +29,7 @@ func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, 
 // Namespace ACL entry order and split entries do not affect reproducibility.
 // Principal/grantor references do: losing them would change DROP dependencies.
 func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
-	if d.address.ObjectID == PGToastNamespaceOID {
+	if d.address.ObjectID == ids.PGToastNamespaceOID {
 		return !d.acl.Explicit && len(d.acl.Entries) == 0
 	}
 	if !d.acl.Explicit {
@@ -180,8 +180,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, b := range []struct {
 		oid  ids.OID
 		name string
-	}{{PublicNamespaceOID, "public"}, {PGCatalogNamespaceOID, "pg_catalog"}, {PGToastNamespaceOID, "pg_toast"}, {13229, "information_schema"}} {
-		d, exists := e.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: b.oid}]
+	}{{ids.PublicNamespaceOID, "public"}, {ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {13229, "information_schema"}} {
+		d, exists := e.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: b.oid}]
 		if !exists {
 			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
 			continue
@@ -193,7 +193,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		baselineOwner := "postgres"
-		if b.oid == PublicNamespaceOID {
+		if b.oid == ids.PublicNamespaceOID {
 			baselineOwner = "pg_database_owner"
 		}
 		builtins = append(builtins, builtinSchema{original: b.name, name: ns.name, owner: role.Name, baselineOwner: baselineOwner})
@@ -238,7 +238,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			var temporary string
 			for suffix := 0; ; suffix++ {
 				candidate := fmt.Sprintf("stuntgres_restore_namespace_%d_%d", i, suffix)
-				if _, exists := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: candidate}]; !exists {
+				if _, exists := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: candidate}]; !exists {
 					temporary = candidate
 					break
 				}
@@ -286,7 +286,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				continue
 			case *procedureDescriptor:
 				if t.foreign != nil {
-					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
+					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
@@ -297,7 +297,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					continue
 				}
 				if t.builtin != nil {
-					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
+					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
@@ -308,7 +308,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					continue
 				}
 				if t.conversion.Name() != "" {
-					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
+					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
@@ -334,7 +334,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *extensionDescriptor:
-				if err := (extensionCatalogProvider{ExtensionClassID}).Validate(catalog, t); err != nil {
+				if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(catalog, t); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -385,7 +385,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-				} else if t.Namespace().ObjectID != PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.owningRelation == (ids.ObjectAddress{}) {
+				} else if t.Namespace().ObjectID != ids.PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.owningRelation == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize unsupported user type")
 				}
@@ -417,12 +417,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if valid && ns.comment != namespaceCommentBaseline(a.ObjectID) {
 					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
 				}
-				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID || a.ObjectID == PGToastNamespaceOID || a.ObjectID == 13229) &&
+				if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&
 					!bootstrapNamespaceDumpable(ns) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
 				}
-				if valid && a.ObjectID != PublicNamespaceOID && a.ObjectID != PGCatalogNamespaceOID && a.ObjectID != PGToastNamespaceOID && a.ObjectID != 13229 {
+				if valid && a.ObjectID != ids.PublicNamespaceOID && a.ObjectID != ids.PGCatalogNamespaceOID && a.ObjectID != ids.PGToastNamespaceOID && a.ObjectID != 13229 {
 					if ns.acl.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
@@ -799,7 +799,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		domainNodes[id] = d
 		viewDependencies[dumpEventKey{oid: id}] = nil
 		if d.typ.IsDomain() {
-			predecessor, err := dumpPredecessor(catalog, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.DomainBase().Type.ID())}, d.Address())
+			predecessor, err := dumpPredecessor(catalog, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.DomainBase().Type.ID())}, d.Address())
 			if err != nil {
 				return err
 			}
@@ -831,7 +831,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		id := d.address.ObjectID
 		viewDependencies[dumpEventKey{oid: id}] = nil
 		for _, dependency := range operatorDependencyAddresses(catalog, d) {
-			if dependency.ClassID == NamespaceClassID {
+			if dependency.ClassID == ids.NamespaceClassID {
 				continue
 			}
 			predecessor, err := dumpPredecessor(catalog, dependency, d.address)
@@ -848,7 +848,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	operatorDumpEvents(catalog, operators, viewDependencies)
 	for event, predecessors := range viewDependencies {
 		id := event.oid
-		relation, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}].(*relationDescriptor)
+		relation, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}].(*relationDescriptor)
 		if !ok {
 			continue
 		}
@@ -1096,7 +1096,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if err := setOwner("postgres"); err != nil {
 					return err
 				}
-				descriptor := originalCatalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+				descriptor := originalCatalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
 				var text string
 				switch event.phase {
 				case dumpRename:
@@ -1193,7 +1193,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if err := emit(index.sql); err != nil {
 				return err
 			}
-			original := originalCatalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+			original := originalCatalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
 			if original.sqlIndex != nil && original.sqlIndex.constraint != nil && original.sqlIndex.constraint.Primary {
 				parent := originalCatalog.state.descriptors[original.sqlIndex.parent].(*relationDescriptor)
 				for i := range parent.uniqueConstraints {
@@ -1216,7 +1216,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 			}
-			descriptor := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}]
+			descriptor := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}]
 			if constraintReplay.occupied[descriptor.Namespace()] == nil {
 				constraintReplay.occupied[descriptor.Namespace()] = make(map[string]bool)
 			}

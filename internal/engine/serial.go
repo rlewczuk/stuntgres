@@ -39,7 +39,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			options.persistence = "temporary"
 		}
 		name := ownedSequenceName(table.name, table.columns[slot].Name, func(name string) bool {
-			return name == table.name || len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name})) != 0
+			return name == table.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: name})) != 0
 		})
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
@@ -49,7 +49,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		if err != nil {
 			return err
 		}
-		address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 		options.owned = table.address
 		options.owned.SubID = table.attributes[slot]
 		sequence := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: revision, sequencePlanStamp: revision, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}

@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestCheckReviewDependencyCreationGrant(t *testing.T) {
@@ -70,7 +72,7 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	var once sync.Once
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() {
 		if gated.CompareAndSwap(false, true) {
 			close(entered)
 			<-release

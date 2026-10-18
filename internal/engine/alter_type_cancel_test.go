@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterTypeCancellationAndReplacement(t *testing.T) {
@@ -26,9 +28,9 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer cleanup()
-				provider := e.providers[RelationClassID]
-				e.providers[RelationClassID] = alterDropProvider{provider, func() {
-					e.providers[RelationClassID] = provider
+				provider := e.providers[ids.RelationClassID]
+				e.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+					e.providers[ids.RelationClassID] = provider
 					switch kind {
 					case "cancel":
 						cancel()

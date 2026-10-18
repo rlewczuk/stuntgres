@@ -13,7 +13,7 @@ import (
 // it must wait for that exact reciprocal owner, even after address remapping.
 func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids.OID, error) {
 	address.SubID = 0
-	if address.ClassID == ProcedureClassID {
+	if address.ClassID == ids.ProcedureClassID {
 		if _, builtin := routineByOID[address.ObjectID]; builtin {
 			return 0, nil
 		}
@@ -53,7 +53,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	}
 	if typ, ok := object.(*typeDescriptor); ok {
 		if typ.typ.IsArray() {
-			return dumpPredecessor(view, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.typ.Element().ID())}, consumer)
+			return dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.typ.Element().ID())}, consumer)
 		}
 		if typ.extension != (ids.ObjectAddress{}) {
 			return dumpPredecessor(view, typ.extension, consumer)

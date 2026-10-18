@@ -106,14 +106,14 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 			storage := e.storage[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.providers[RelationClassID]
+			provider := e.providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.providers[RelationClassID] = alterDropProvider{provider, func() {
-				e.providers[RelationClassID] = provider
+			e.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()

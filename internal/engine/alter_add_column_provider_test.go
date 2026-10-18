@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
@@ -19,9 +21,9 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	generator := e.sequences[seq.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := e.providers[RelationClassID]
+	original := e.providers[ids.RelationClassID]
 	calls := 0
-	e.providers[RelationClassID] = alterDropProvider{original, func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		calls++
 		if !e.mu.TryLock() {
 			t.Error("ADD called real provider under Engine.mu")
@@ -39,7 +41,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ADD b BIGINT DEFAULT nextval('s') CHECK(nextval('s')>0)"), 0, nil)
 	op.Done()
-	e.providers[RelationClassID] = original
+	e.providers[ids.RelationClassID] = original
 	if !errors.Is(err, context.Canceled) || calls != 1 || generator.last != 6 || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
 		t.Fatal("final provider veto published candidate or rewound effects", err, calls, generator.last)
 	}

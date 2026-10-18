@@ -11,8 +11,8 @@ import (
 func TestUserOperatorCatalogEstimatorVariants(t *testing.T) {
 	name := operatorUnitName("public", "join_estimator")
 	// Lookup-only inputs deliberately do not install procedures or providers.
-	four := routineIdentity{id: 90000, namespace: PublicNamespaceOID, name: "join_estimator", signature: "2281,26,2281,21"}
-	five := routineIdentity{id: 90001, namespace: PublicNamespaceOID, name: "join_estimator", signature: "2281,26,2281,21,2281"}
+	four := routineIdentity{id: 90000, namespace: ids.PublicNamespaceOID, name: "join_estimator", signature: "2281,26,2281,21"}
+	five := routineIdentity{id: 90001, namespace: ids.PublicNamespaceOID, name: "join_estimator", signature: "2281,26,2281,21,2281"}
 	for _, tc := range []struct {
 		name                 string
 		fourCount, fiveCount int
@@ -89,7 +89,7 @@ func TestUserOperatorCatalogEstimatorReleasedIdentity(t *testing.T) {
 		if err != nil || id != tc.want || releasedOperatorEstimatorResult(id) != 701 {
 			t.Fatal(id, err)
 		}
-		if _, callable := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; callable {
+		if _, callable := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; callable {
 			t.Fatal("estimator identity fabricated a callable declaration", id)
 		}
 	}

@@ -10,7 +10,7 @@ import (
 // Provider-only fixture: this does not enable CREATE TYPE in a TEMP schema.
 func typedControlsTemporary(e *Engine, tables ...*relationDescriptor) {
 	e.state = cloneCatalog(e.state)
-	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 21000}, name: "pg_temp_typed_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.domain.Session(99)}
+	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}, name: "pg_temp_typed_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.domain.Session(99)}
 	e.state.descriptors[namespace.address] = namespace
 	e.state.names[descriptorNameKey(namespace)] = namespace.address
 	for _, old := range tables {
@@ -19,9 +19,9 @@ func typedControlsTemporary(e *Engine, tables ...*relationDescriptor) {
 		table.namespace = namespace.address
 		e.state.descriptors[table.address] = &table
 		e.state.names[descriptorNameKey(&table)] = table.address
-		rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(table.rowType)}
+		rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}
 		row := e.state.descriptors[rowAddress].(*typeDescriptor)
-		for _, address := range []ids.ObjectAddress{rowAddress, {ClassID: TypeClassID, ObjectID: ids.OID(row.array)}} {
+		for _, address := range []ids.ObjectAddress{rowAddress, {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
 			oldType := e.state.descriptors[address].(*typeDescriptor)
 			typ := *oldType
 			delete(e.state.names, descriptorNameKey(oldType))

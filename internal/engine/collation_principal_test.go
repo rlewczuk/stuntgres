@@ -106,7 +106,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	assertOwner("C")
 	assertOwner("coll_bootstrap_capture")
 	for _, catalog := range []CatalogRead{beforeCatalog, e.CatalogRead()} {
-		d, _ := catalog.Descriptor(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 950})
+		d, _ := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950})
 		if d.(*collationDescriptor).owner != bootstrap {
 			t.Fatal("seed ownership mutated", d)
 		}

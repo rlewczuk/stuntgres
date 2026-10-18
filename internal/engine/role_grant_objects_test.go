@@ -17,11 +17,11 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
 			name := "public"
-			address := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			want := authorization.UsagePrivilege | authorization.CreatePrivilege
 			if kind == "type" {
 				name = "int4"
-				address = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
+				address = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 				want = authorization.UsagePrivilege
 			}
 			before, roles := e.state, e.roles
@@ -52,7 +52,7 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 
 func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 	e, op, reader, _ := objectGrantUnitFixture(t)
-	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
+	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 	original := e.state.descriptors[address].(*typeDescriptor)
 	if original.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || original.acl.Explicit {
 		t.Fatal("builtin type has no genuine bootstrap/default authority")

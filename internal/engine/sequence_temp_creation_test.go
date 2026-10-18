@@ -185,7 +185,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE USER creator")
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
-				ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "denied"}]
+				ns := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"}]
 				if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}

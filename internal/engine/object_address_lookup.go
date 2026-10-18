@@ -135,7 +135,7 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 		names = names[1:]
 	}
 	auth := scope.deparseAuth
-	if auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
+	if auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
 		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
@@ -368,7 +368,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			return ids.ObjectAddress{}, err
 		}
 		for i := range path.count() {
-			if path.at(i).ObjectID != PGCatalogNamespaceOID {
+			if path.at(i).ObjectID != ids.PGCatalogNamespaceOID {
 				continue
 			}
 			for j := range sqltype.IndexClassMetadataCount() {

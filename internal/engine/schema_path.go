@@ -125,7 +125,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 				continue
 			}
 		} else {
-			a = auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name})
+			a = auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 		}
 		_, ok := auth.definitionDescriptor(a)
 		if !ok {
@@ -189,7 +189,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress,
 		}
 		path = filtered
 	}
-	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	foundCatalog := false
 	for _, a := range path {
 		if a == catalog {
@@ -253,7 +253,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
 	}
 	n := name.Parts[0]
-	a := auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: n.Text})
+	a := auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n.Text})
 	if n.Text == "pg_temp" {
 		a = temporaryNamespace(auth)
 	}
@@ -296,7 +296,7 @@ func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKin
 		return false, err
 	}
 	for i := range path.count() {
-		if path.at(i).ObjectID == PGCatalogNamespaceOID {
+		if path.at(i).ObjectID == ids.PGCatalogNamespaceOID {
 			return true, nil
 		}
 	}
@@ -334,7 +334,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 			a = ns.address
 		} else {
 			var ok bool
-			a, ok = auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: n}]
+			a, ok = auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: n}]
 			if !ok {
 				return ids.ObjectRef{}, false, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
 			}
@@ -352,7 +352,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 		}
 		a = path[0]
 	}
-	if !system && a.ObjectID == PGCatalogNamespaceOID {
+	if !system && a.ObjectID == ids.PGCatalogNamespaceOID {
 		return ids.ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
 	}
 	return e.domain.Ref(auth.catalog.Epoch(), a), false, nil

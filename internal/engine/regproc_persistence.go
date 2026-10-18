@@ -54,7 +54,7 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 	if err != nil {
 		return err
 	}
-	address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(id)}
+	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(id)}
 	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}

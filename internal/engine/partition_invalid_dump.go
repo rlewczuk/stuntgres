@@ -120,7 +120,7 @@ func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEv
 func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, indexIndices map[ids.OID]int) map[ids.OID]partitionInvalidReplay {
 	groups := make(map[ids.ObjectAddress][]*relationDescriptor)
 	for oid := range indexIndices {
-		index := view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		if partitionIndexPreservedInvalid(view, index) {
 			groups[index.sqlIndex.parent] = append(groups[index.sqlIndex.parent], index)
 		}
@@ -156,7 +156,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 			for {
 				ordinal++
 				name := fmt.Sprintf("%s%d", partitionReplayStem, ordinal)
-				key := ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name}
+				key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: name}
 				if !reserved[key] {
 					reserved[key] = true
 					item.scratch = name
@@ -224,7 +224,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 			// Incomplete manual indexes must appear only after reattachment;
 			// otherwise ATTACH would generate unwanted backings for their gaps.
 			for indexOID := range indexIndices {
-				index := view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
+				index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
 				if index.sqlIndex.parent == table.address && !index.sqlIndex.valid && !partitionIndexPreservedInvalid(view, index) {
 					addDumpDependency(graph, dumpEventKey{oid: indexOID}, finish)
 				}

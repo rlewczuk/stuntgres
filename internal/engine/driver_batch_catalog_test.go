@@ -40,15 +40,15 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			e.mu.Lock()
 			private := e.privateCatalogLocked(changes)
 			e.mu.Unlock()
-			ns, ok := private.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "batch_schema"}]
+			ns, ok := private.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "batch_schema"}]
 			if !ok {
 				t.Fatal("pending namespace")
 			}
-			table, ok := private.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "t"}]
+			table, ok := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "t"}]
 			if !ok {
 				t.Fatal("pending table")
 			}
-			index, ok := private.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ix"}]
+			index, ok := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ix"}]
 			if !ok {
 				t.Fatal("pending index")
 			}
@@ -211,7 +211,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal("authentic pre-stage namespace creation rejected", err)
 	}
 	namespace := candidate.descriptors[ns.Address].(*namespaceDescriptor)
-	key := ids.NameKey{ClassID: NamespaceClassID, Name: namespace.name}
+	key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}
 	if original, exists := candidate.originals[ns.Address]; !exists || original != nil {
 		t.Fatal("namespace creation lost its committed absence fence")
 	}
@@ -310,10 +310,10 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 			defer retained.Rows.Close()
 			e.mu.Lock()
 			catalog := e.privateCatalogLocked(s.transactions.catalog)
-			ns := catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "bs"}]
-			table := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "u"}]
-			copyTable := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "c"}]
-			index := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "bi"}]
+			ns := catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}]
+			table := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "u"}]
+			copyTable := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "c"}]
+			index := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "bi"}]
 			unpublished := e.state == before && e.storage[table] == nil && e.storage[copyTable] == nil && e.indexRoots[index] == nil
 			e.mu.Unlock()
 			if !unpublished {
@@ -339,7 +339,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("composition rollback replaced primary error", end)
 				}
-				if e.state != before || e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "bs"}] != (ids.ObjectAddress{}) {
+				if e.state != before || e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}] != (ids.ObjectAddress{}) {
 					t.Fatal("failed composition published catalog prefix")
 				}
 			}

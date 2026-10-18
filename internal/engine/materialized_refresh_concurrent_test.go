@@ -122,7 +122,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDe
 		columns[i].OriginTable = uint32(oid)
 		columns[i].OriginAttribute = int16(i + 1)
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition, attributeHighWater: int32(len(attributes))}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition, attributeHighWater: int32(len(attributes))}
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = stage.Create(index)
 	e.mu.Unlock()
@@ -406,7 +406,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			defer cancel()
 			fault := errors.New("provider veto")
 			if phase == "provider" {
-				e.providers[RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[RelationClassID], e: e, t: t, check: func() error { return fault }}
+				e.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[ids.RelationClassID], e: e, t: t, check: func() error { return fault }}
 			}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {

@@ -22,7 +22,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	ns := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	ns := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	namespaceACL := invalid
 	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege
@@ -507,8 +507,8 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 				close(release)
 			}
 		}()
-		e.providers[RelationClassID] = &publicationConflictProvider{
-			CatalogProvider: e.providers[RelationClassID],
+		e.providers[ids.RelationClassID] = &publicationConflictProvider{
+			CatalogProvider: e.providers[ids.RelationClassID],
 			publishWinner: func(Descriptor) {
 				close(entered)
 				<-release
@@ -574,7 +574,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("catalog publication did not release lifecycle/authority locks")
 		}
-		if found := e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.session.TransactionState() != TxIdle {
+		if found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.session.TransactionState() != TxIdle {
 			t.Fatal("failed publication leaked table or transaction", found)
 		}
 		roleIdentity(t, e, op, "publisher")

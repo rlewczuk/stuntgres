@@ -86,8 +86,8 @@ func TestPreparedRebindAdmission(t *testing.T) {
 				createHeldEarly := func() {
 					sessionSQL(t, ddl, "CREATE TABLE a.t(v INT)")
 					e.mu.Lock()
-					ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "a"}]
-					address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "t"}]
+					ns := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "a"}]
+					address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "t"}]
 					early = e.domain.Ref(e.state.epoch, address)
 					e.mu.Unlock()
 					earlyHolder = transactionBegin(t, ddl)

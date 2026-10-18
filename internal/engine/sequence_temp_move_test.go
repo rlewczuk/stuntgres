@@ -136,7 +136,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 
 func NameAddressForTempMove(t *testing.T, e *Engine, namespace ids.ObjectAddress, name string) ids.ObjectAddress {
 	t.Helper()
-	a, ok := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	a, ok := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
 	if !ok {
 		t.Fatal("missing fixture relation", name)
 	}
@@ -183,7 +183,7 @@ func TestSequenceTemporaryMoveCreatePermissionPrecedence(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE USER mover")
 			sessionSQL(t, s, "CREATE SCHEMA denied")
-			ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "denied"}]
+			ns := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"}]
 			if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}

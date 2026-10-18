@@ -307,7 +307,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
 	var old *relationDescriptor
-	if address, exists := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}]; exists {
+	if address, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}]; exists {
 		if !view.Replace {
 			e.mu.Unlock()
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
@@ -430,7 +430,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.revision, d.view = revision, definition

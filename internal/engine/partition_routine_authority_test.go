@@ -48,7 +48,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	refs := slices.Clone(original.dependencies)
 	for _, id := range []ids.OID{1811, 1374, 141} {
 		if !slices.ContainsFunc(refs, func(ref ids.ObjectRef) bool {
-			return ref.Address == (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id})
+			return ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id})
 		}) {
 			t.Fatal("original outer/body reference missing", id)
 		}
@@ -117,7 +117,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	probe("empty", []ids.ObjectRef{})
 	for _, id := range []ids.OID{1811, 1374, 141} {
 		missing := slices.DeleteFunc(slices.Clone(refs), func(ref ids.ObjectRef) bool {
-			return ref.Address.ObjectID == id && ref.Address.ClassID == ProcedureClassID
+			return ref.Address.ObjectID == id && ref.Address.ClassID == ids.ProcedureClassID
 		})
 		probe(fmt.Sprintf("omitted_%d", id), missing)
 	}
@@ -160,7 +160,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	staleAuth := auth
 	state := *auth.catalog.state
 	state.descriptors = maps.Clone(state.descriptors)
-	address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 1811}
+	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.descriptors[address].(*procedureDescriptor)
 	declaration.revision++
 	state.descriptors[address] = &declaration

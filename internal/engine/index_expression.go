@@ -129,7 +129,7 @@ func (d *indexDefinition) requiresInsertionOutput() bool {
 	}
 	if d.predicate != nil {
 		for _, ref := range d.predicate.dependencies {
-			if ref.Address.ClassID == ProcedureClassID {
+			if ref.Address.ClassID == ids.ProcedureClassID {
 				return true
 			}
 		}
@@ -139,7 +139,7 @@ func (d *indexDefinition) requiresInsertionOutput() bool {
 			continue
 		}
 		for _, ref := range key.derived.dependencies {
-			if ref.Address.ClassID == ProcedureClassID {
+			if ref.Address.ClassID == ids.ProcedureClassID {
 				return true
 			}
 		}

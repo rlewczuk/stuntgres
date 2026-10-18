@@ -18,7 +18,7 @@ import (
 func regoperatorPreparedInstall(t *testing.T, e *Engine, namespace ids.ObjectAddress, oid, left, right ids.OID) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: "#=#", left: left, right: right, owner: e.authorizationDomain.Principal(10)}
+	d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: "#=#", left: left, right: right, owner: e.authorizationDomain.Principal(10)}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -160,8 +160,8 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	view := e.CatalogRead()
-	a := view.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "regop_a"}]
-	b := view.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "regop_b"}]
+	a := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_a"}]
+	b := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_b"}]
 	regoperatorPreparedInstall(t, e, a, 91000, 23, 23)
 	regoperatorPreparedInstall(t, e, b, 91001, 23, 23)
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT '#=#'::regoper AS r,'#=#(int4,int4)'::regoperator AS s")
@@ -198,7 +198,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	// The first literal can resolve while the later signature fails. Neither
 	// capture may be published from that unsuccessful binder attempt.
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	old := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: 91000}].(*operatorDescriptor)
+	old := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 91000}].(*operatorDescriptor)
 	changed := *old
 	changed.right = 20
 	changed.revision++
@@ -235,10 +235,10 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE regop_operand_a", "CREATE ROLE regop_operand_b", "CREATE SCHEMA regop_types AUTHORIZATION regop_operand_a", "CREATE DOMAIN regop_types.secret AS integer", "SET search_path TO public"} {
 				sessionSQL(t, s, q)
 			}
-			ns := e.CatalogRead().state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "regop_types"}]
-			address := e.CatalogRead().state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns, Name: "secret"}]
+			ns := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_types"}]
+			address := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"}]
 			typ := e.CatalogRead().state.descriptors[address].(*typeDescriptor)
-			regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, 92000, ids.OID(typ.typ.ID()), 23)
+			regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92000, ids.OID(typ.typ.ID()), 23)
 			sessionSQL(t, s, "SET ROLE regop_operand_a")
 			query := "SELECT '||/'::regoper AS first,'public.#=#(regop_types.secret,integer)'::regoperator AS second"
 			if change == "TypePath" {
@@ -249,7 +249,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			old := regoperatorPreparedSnapshot(d.regtypes.constants)
 			signature := slices.Clone(d.Results)
 			operands := old[1].operands
-			if len(operands) != 2 || operands[0].ref.Address != typ.Address() || operands[0].revision != typ.Revision() || operands[1].ref.Address != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23}) {
+			if len(operands) != 2 || operands[0].ref.Address != typ.Address() || operands[0].revision != typ.Revision() || operands[1].ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) {
 				t.Fatal("shared cell lacks exact ordered operand identity/revision manifest", operands)
 			}
 			if !regoperatorPreparedCellValid(t, e, s, d.regtypes) {
@@ -370,7 +370,7 @@ func TestRegOperatorPreparedOperandBoundaries(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	_, d := sequencePreparedDescription(t, e, s, "SELECT '-(NONE,int4)'::regoperator,'551'::regoperator,'||/'::regoper")
 	constants := d.regtypes.constants
-	if len(constants) != 3 || len(constants[0].operands) != 1 || constants[0].operands[0].ref.Address != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23}) || len(constants[1].operands) != 0 || len(constants[2].operands) != 0 {
+	if len(constants) != 3 || len(constants[0].operands) != 1 || constants[0].operands[0].ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].operands) != 0 || len(constants[2].operands) != 0 {
 		t.Fatal("NONE, numeric, or name-only input invented operand identities", constants)
 	}
 }

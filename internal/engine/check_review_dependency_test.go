@@ -28,7 +28,7 @@ func checkReviewDependencyStage(t *testing.T, e *Engine) *CatalogStage {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE newly_dependent(a INT CONSTRAINT c CHECK(nextval('s')>0))").(*parser.CreateTable), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE newly_dependent(a INT CONSTRAINT c CHECK(nextval('s')>0))").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 	transactionRows(t, a, "SELECT a FROM sentinel", 7)
 	read := e.CatalogRead()
 	present := func(name string) bool {
-		return len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name})) != 0
+		return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})) != 0
 	}
 	if present("s") != present("s_guard") {
 		t.Fatal("sequence list partially published")
@@ -112,7 +112,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 		sessionSQL(t, a, "INSERT INTO newly_dependent VALUES(1)")
 		transactionRows(t, a, "SELECT a FROM newly_dependent", 1)
 	} else {
-		if refs := e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "newly_dependent"}); len(refs) != 0 {
+		if refs := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "newly_dependent"}); len(refs) != 0 {
 			t.Fatal("failed CREATE partially published", refs)
 		}
 	}
@@ -191,7 +191,7 @@ func TestCheckReviewDependencyRestrictComplete(t *testing.T) {
 				t.Fatal("CASCADE retained CHECK dependents")
 			}
 			for _, name := range []string{"s", "v"} {
-				if refs := read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}); len(refs) != 0 {
+				if refs := read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name}); len(refs) != 0 {
 					t.Fatal("CASCADE retained dependent/provider", name)
 				}
 			}

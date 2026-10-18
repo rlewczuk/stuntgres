@@ -66,7 +66,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		if err != nil {
 			return nil, err
 		}
-		c.Index = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		clone := *index
 		clone.address = c.Index
 		clone.revision, err = e.revisionLocked()

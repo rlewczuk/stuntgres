@@ -11,7 +11,7 @@ import (
 
 func pgRolesUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12007}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12007}
 	d, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_roles")
@@ -83,12 +83,12 @@ func TestPGRolesDescriptor(t *testing.T) {
 	if d.rowType != 12002 {
 		t.Fatal("existing row identity not reused")
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12002}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12001}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002}].(*typeDescriptor)
+	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001}].(*typeDescriptor)
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12001 || row.typ.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
-	views := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12000}].(*relationDescriptor)
+	views := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000}].(*relationDescriptor)
 	if views.name != "pg_views" || views.rowType != 12030 || d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}
@@ -136,8 +136,8 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.name = name
 		view.relationKind = viewRelation
 		view.virtualView = false
@@ -204,7 +204,7 @@ func TestPGRolesCancellation(t *testing.T) {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
-	unknown.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20020}
+	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
 	e.state.descriptors[unknown.address] = &unknown
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

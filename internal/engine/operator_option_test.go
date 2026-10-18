@@ -182,7 +182,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23})
+	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -411,9 +411,9 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	key := func(symbol string) ids.NameKey {
-		return ids.NameKey{ClassID: OperatorClassID, Namespace: public, Name: symbol, Signature: "23,23"}
+		return ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: symbol, Signature: "23,23"}
 	}
 	definition := operatorUnitDefinition("#=#", "int4eq")
 	definition.Options = append(definition.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#!#)")...)

@@ -202,8 +202,8 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
 		}
 		e.mu.Lock()
-		namespace := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: record.Schema}]
-		address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: record.Name}]
+		namespace := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema}]
+		address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name}]
 		d, ok := e.state.descriptors[address].(*relationDescriptor)
 		valid := ok && d.relationKind == materializedViewRelation && !d.populated && !seen[address]
 		e.mu.Unlock()

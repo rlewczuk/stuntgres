@@ -256,7 +256,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	// the central publication-conflict contract.
 	if len(c.extensionAuthority) != 0 {
 		for key, original := range c.names {
-			if key.ClassID == ExtensionClassID && original == (ids.ObjectAddress{}) && e.state.names[key] != original {
+			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.state.names[key] != original {
 				return extensionNameConflict(key.Name)
 			}
 		}

@@ -18,7 +18,7 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION concurrent_provider FROM pg_catalog.pg_unicode_fast`)
 	sessionSQL(t, owner, `CREATE ROLE concurrent_provider_role`)
 	view := e.CatalogRead()
-	address := view.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "concurrent_provider"}]
+	address := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "concurrent_provider"}]
 	descriptor := view.state.descriptors[address].(*collationDescriptor)
 	e.mu.Lock()
 	beforeRoles := e.roles

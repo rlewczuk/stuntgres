@@ -13,7 +13,7 @@ import (
 
 func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2606}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_constraint")
@@ -22,7 +22,7 @@ func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.O
 }
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[string][]sqltype.Value {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2606}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.state.descriptors[address].(*relationDescriptor)
 	ref := e.domain.Ref(view.Epoch(), address)
 	got, err := capturePGConstraint(context.Background(), view, ref, source)
@@ -46,7 +46,7 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 
 func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
 	t.Helper()
-	domain := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	domain := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}].(*typeDescriptor)
 	if len(row) != 28 || len(domain.domainChecks) != 1 {
 		t.Fatal("missing real bootstrap domain CHECK", row)
 	}
@@ -90,7 +90,7 @@ func pgConstraintUnitTableStage(t *testing.T, e *Engine, op *Operation, q string
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -127,8 +127,8 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10003}].(*typeDescriptor)
-	array := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10002}].(*typeDescriptor)
+	row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10003}].(*typeDescriptor)
+	array := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10002}].(*typeDescriptor)
 	if row.owningRelation != source.address || array.owningRelation != source.address || row.array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}

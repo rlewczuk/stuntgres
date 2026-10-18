@@ -219,8 +219,8 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 		sessionSQL(t, peer, "CREATE TEMP SEQUENCE peer_s OWNED BY peer_child.id")
 		catalog := e.CatalogRead()
-		own := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: s.temporaryNamespace, Name: "own_s"}]
-		foreign := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_s"}]
+		own := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.temporaryNamespace, Name: "own_s"}]
+		foreign := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_s"}]
 		original := e.sequences[foreign]
 		scope := truncateRestartUnitStage(t, e, s, "p")
 		if scope.catalog.generators[own] == nil || scope.catalog.generators[foreign] != nil || len(scope.truncateSequences) != 1 {

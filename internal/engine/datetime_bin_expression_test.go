@@ -144,7 +144,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
-	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []BoundExpr

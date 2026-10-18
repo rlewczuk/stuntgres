@@ -60,10 +60,10 @@ func TestAlterDropColumnRevisionFrontierFailures(t *testing.T){
  for _,q:=range []string{"ALTER TABLE t DROP missing","ALTER TABLE t DROP ctid"}{if _,err:=testExecute(e,context.Background(),statement(t,q),nil);err==nil{t.Fatal("failure accepted",q)};unchanged()}
  run(t,e,"ALTER TABLE t DROP IF EXISTS missing");unchanged()
  ctx,cancel:=context.WithCancel(context.Background());defer cancel()
- provider:=e.providers[RelationClassID]
- e.providers[RelationClassID]=alterDropProvider{e.providers[RelationClassID],cancel}
+ provider:=e.providers[ids.RelationClassID]
+ e.providers[ids.RelationClassID]=alterDropProvider{e.providers[ids.RelationClassID],cancel}
  if _,err:=testExecute(e,ctx,statement(t,"ALTER TABLE t DROP b"),nil);!errors.Is(err,context.Canceled){t.Fatal(err)};unchanged()
- e.providers[RelationClassID]=provider
+ e.providers[ids.RelationClassID]=provider
  candidate:=*old.(*relationDescriptor);candidate.revision+=100
  stage:=e.BeginCatalogStage(e.CatalogRead());defer e.DiscardCatalogStage(stage)
  if err:=stage.Replace(&candidate);err!=nil{t.Fatal(err)}

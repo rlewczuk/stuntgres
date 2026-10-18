@@ -24,10 +24,10 @@ func indexClausesTypes() map[sqltype.ID]*sqltype.Descriptor {
 func indexClausesFixture(t *testing.T) (*relationDescriptor, *relationDescriptor, *catalogState, map[sqltype.ID]*sqltype.Descriptor) {
 	t.Helper()
 	types := indexClausesTypes()
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20, 30}, attributeHighWater: 30, columns: []ColumnDescriptor{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20, 30}, attributeHighWater: 30, columns: []ColumnDescriptor{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	def := &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: c}, {attribute: 20, class: c, desc: true, nullsFirst: true}}, include: []int32{30}, ready: true, valid: true, live: true}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "cover", revision: 1, relationKind: indexRelation, sqlIndex: def, columns: append([]ColumnDescriptor(nil), parent.columns...), attributes: []int32{1, 2, 3}, attributeHighWater: 3, index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "cover", revision: 1, relationKind: indexRelation, sqlIndex: def, columns: append([]ColumnDescriptor(nil), parent.columns...), attributes: []int32{1, 2, 3}, attributeHighWater: 3, index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	catalog := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{parent.address: parent, index.address: index}}
 	if err := validateIndexDefinition(CatalogRead{state: catalog}, index); err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestIndexClausesEvolution(t *testing.T) {
 		t.Fatal("included DROP retained dependency", removed, err)
 	}
 	moved := *parent
-	moved.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 23000}
+	moved.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 23000}
 	movedIndex, err := evolveIndex(index, parent, &moved, nil)
 	if err != nil || movedIndex.sqlIndex != index.sqlIndex {
 		t.Fatal("schema move reconstructed options", err)
@@ -468,7 +468,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, owner: parent.owner, name: name, revision: 1, relationKind: indexRelation, sqlIndex: definition, columns: columns, attributes: attributes, attributeHighWater: int32(len(columns)), index: labels}
+				index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, owner: parent.owner, name: name, revision: 1, relationKind: indexRelation, sqlIndex: definition, columns: columns, attributes: attributes, attributeHighWater: int32(len(columns)), index: labels}
 				if err := setup.Create(index); err != nil {
 					t.Fatal(err)
 				}
@@ -601,7 +601,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				}
 				dependent := false
 				for _, dependency := range key.derived.dependencies {
-					if dependency.Address == (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.domain && dependency.Epoch == view.Epoch() {
+					if dependency.Address == (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.domain && dependency.Epoch == view.Epoch() {
 						dependent = true
 					}
 				}

@@ -203,7 +203,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				if outcome == "cancel" && ctx.Err() != context.Canceled {
 					t.Fatal(err)
 				}
-				if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "clone"})) != 0 {
+				if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "clone"})) != 0 {
 					t.Fatal("partial clone published")
 				}
 			}

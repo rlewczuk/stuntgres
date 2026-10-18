@@ -130,7 +130,7 @@ func definitionTypeAt(view CatalogRead, reader definitionReader, id sqltype.ID) 
 	if reader == nil {
 		return view.LookupType(id)
 	}
-	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)})
+	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 	typ, ok := descriptor.(*typeDescriptor)
 	if !exists || !ok {
 		return nil, false
@@ -145,7 +145,7 @@ func definitionArrayAt(view CatalogRead, reader definitionReader, element *sqlty
 	if reader == nil {
 		return view.LookupArray(element)
 	}
-	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(element.ID())})
+	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
 	typ, ok := descriptor.(*typeDescriptor)
 	if !exists || !ok || typ.typ != element {
 		return nil, false

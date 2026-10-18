@@ -29,7 +29,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
 		if len(name.Parts) == 2 {
-			_, exists := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+			_, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text}]
 			if name.Parts[0].Text == "pg_temp" {
 				exists = temporaryNamespace(auth) != (ids.ObjectAddress{})
 			}

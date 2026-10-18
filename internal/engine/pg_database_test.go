@@ -14,7 +14,7 @@ import (
 
 func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1262}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}
 	source, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_database")
@@ -58,8 +58,8 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 1248}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10052}].(*typeDescriptor)
+	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248}].(*typeDescriptor)
+	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052}].(*typeDescriptor)
 	ownedRow, ok := catalog.LookupType(1248)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 	if d.rowType != 1248 || !ok || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10052 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
@@ -140,7 +140,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	private := cloneCatalog(catalog.state)
 	for address := range private.descriptors {
-		if address.ClassID == RelationClassID {
+		if address.ClassID == ids.RelationClassID {
 			delete(private.descriptors, address)
 		}
 	}

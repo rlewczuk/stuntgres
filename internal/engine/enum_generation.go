@@ -50,7 +50,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if shape.fills != nil {
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
-				target, _ := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(value.Type().ID())}].(*typeDescriptor)
+				target, _ := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())}].(*typeDescriptor)
 				if target != nil && target.typ != value.Type() {
 					v, err := reownDomainDatum(value, target.typ, nil, nil, nil)
 					if err != nil {

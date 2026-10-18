@@ -21,8 +21,8 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				f.leaf.membership = nil
 				f.child.sqlIndex.partitionParent = ids.ObjectAddress{}
 			}
-			reserved := ids.NameKey{ClassID: RelationClassID, Namespace: f.root.namespace, Name: partitionReplayStem + "1"}
-			f.view.state.names[reserved] = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 46700}
+			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.namespace, Name: partitionReplayStem + "1"}
+			f.view.state.names[reserved] = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700}
 			r, c, pi, ci := f.root.address.ObjectID, f.leaf.address.ObjectID, f.parent.address.ObjectID, f.child.address.ObjectID
 			graph := map[dumpEventKey][]dumpEventKey{{oid: r}: nil, {oid: c}: nil, {oid: pi}: {{oid: r}}, {oid: ci}: {{oid: c}}}
 			if !empty {
@@ -108,8 +108,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 		t.Fatal("local origin must be explicit only for this captured replay")
 	}
 	r, c, pi, ci, li := f.root.address.ObjectID, f.leaf.address.ObjectID, f.parent.address.ObjectID, f.child.address.ObjectID, local.address.ObjectID
-	regclass := f.view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}].(*typeDescriptor).typ
-	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, owner: f.leaf.owner, name: "unit_local_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"ref": 0}}
+	regclass := f.view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}].(*typeDescriptor).typ
+	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, owner: f.leaf.owner, name: "unit_local_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
 	consumer.defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.domain.Ref(f.view.Epoch(), local.address)}}}
 	f.view.state.descriptors[consumer.address] = consumer

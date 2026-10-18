@@ -29,21 +29,21 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	roleExecute(t, e, installer, "CREATE TEMP TABLE ext_peer_keep(id INT)")
 	roleExecute(t, e, installer, "INSERT INTO ext_peer_keep VALUES(77)")
 	peerNamespace := e.state.descriptors[installer.session.temporaryNamespace]
-	peerTable := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_peer_keep"}]
+	peerTable := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_peer_keep"}]
 	peerDescriptor, peerStore := e.state.descriptors[peerTable], e.storage[peerTable]
 	store := e.storage[survivor.address]
 	retained, retainedEnds := store.versions, store.ends
-	index := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"}]
+	index := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"}]
 	root := e.indexRoots[index]
 	held := roleExecute(t, e, installer, "SELECT txt FROM public.ext_survivor")
 	defer held.Rows.Close()
-	provider := e.providers[RelationClassID]
+	provider := e.providers[ids.RelationClassID]
 	entered, release, joined := make(chan error, 1), make(chan struct{}), make(chan struct{})
 	var fired atomic.Bool
 	var unblock sync.Once
 	resume := func() { unblock.Do(func() { close(release) }) }
 	t.Cleanup(resume)
-	e.providers[RelationClassID] = alterDropProvider{provider, func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 		if !fired.CompareAndSwap(false, true) {
 			return
 		}
@@ -118,7 +118,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		t.Error("actual owner close worker did not join within5s")
 		return
 	}
-	e.providers[RelationClassID] = provider
+	e.providers[ids.RelationClassID] = provider
 	endCtx, cancelEnd := context.WithTimeout(context.Background(), 5*time.Second)
 	endErr := owner.session.WaitEnd(endCtx)
 	cancelEnd()
@@ -134,7 +134,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		t.Fatal("stale retirement lost surviving storage/index or failed pruning")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_stale_late"} {
-		if e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: name}] != (ids.ObjectAddress{}) {
+		if e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: name}] != (ids.ObjectAddress{}) {
 			t.Fatal("late closure retained", name)
 		}
 	}
@@ -172,7 +172,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		t.Fatal("peer TEMP row changed", peerID, peerErr, peerValueErr, closeErr)
 	}
 	if mixed {
-		collated := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "ext_collation_survivor"}]].(*relationDescriptor)
+		collated := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "ext_collation_survivor"}]].(*relationDescriptor)
 		if len(collated.columns) != 1 || collated.columns[0].Name != "id" || len(e.storage[collated.address].versions) != 1 {
 			t.Fatal("mixed collation consumer not projected")
 		}
@@ -187,11 +187,11 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	roleExecute(t, e, installer, "CREATE TEMP TABLE ext_max_peer(id INT)")
 	roleExecute(t, e, installer, "INSERT INTO ext_max_peer VALUES(77)")
 	peerNamespace := e.state.descriptors[installer.session.temporaryNamespace]
-	peerTable := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_max_peer"}]
+	peerTable := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_max_peer"}]
 	peerDescriptor, peerStore := e.state.descriptors[peerTable], e.storage[peerTable]
 	store := e.storage[survivor.address]
 	retained, ends := store.versions, store.ends
-	index := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"}]
+	index := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"}]
 	root := e.indexRoots[index]
 	maximum := *survivor
 	maximum.revision = ids.DefinitionRevision(^uint64(0))
@@ -225,7 +225,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 		t.Fatal("terminal mixed cleanup changed storage, index, old rows or peer TEMP")
 	}
 	for _, name := range []string{"ext_view", "ext_chain"} {
-		if e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: name}] != (ids.ObjectAddress{}) {
+		if e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: name}] != (ids.ObjectAddress{}) {
 			t.Fatal("saturated view closure retained", name)
 		}
 	}
@@ -299,7 +299,7 @@ func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	roleExecute(t, e, owner, "CREATE TEMP TABLE ext_structural_seed(id INT)")
 	namespace := e.state.descriptors[ownerSession.temporaryNamespace].Name()
 	roleExecute(t, e, installer, "CREATE EXTENSION unaccent SCHEMA "+namespace)
-	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 	survivor := extensionTemporaryConsumerUnits(t, e, installer, ext)
 	if mixed {
 		roleExecute(t, e, owner, `CREATE COLLATION pg_temp.ext_structural FROM pg_catalog."C"`)

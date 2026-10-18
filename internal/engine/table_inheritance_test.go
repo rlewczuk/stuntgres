@@ -10,7 +10,7 @@ import (
 )
 
 func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string) *relationDescriptor {
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
 	for i, name := range names {
 		d.index[name] = i
 		d.attributes = append(d.attributes, int32(i+1))
@@ -23,7 +23,7 @@ func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRea
 	state := cloneCatalog(e.CatalogRead().state)
 	for _, d := range relations {
 		state.descriptors[d.address] = d
-		state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+		state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	}
 	return CatalogRead{owner: e, state: state}
 }

@@ -145,7 +145,7 @@ func TestAlterNullabilityProviderReplacement(t *testing.T) {
 				transactionBegin(t, s)
 			}
 			fired := false
-			e.providers[RelationClassID] = alterDropProvider{CatalogProvider: e.providers[RelationClassID], callback: func() {
+			e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: e.providers[ids.RelationClassID], callback: func() {
 				if fired {
 					return
 				}

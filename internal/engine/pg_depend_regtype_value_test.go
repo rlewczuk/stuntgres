@@ -22,14 +22,14 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(domain.ID())}
+	provider := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.ID())}
 	catalog.state.descriptors[provider] = &typeDescriptor{typ: domain}
 	row, err := sqltype.Composite(48102, "row_provider", "public.row_provider", 0, []sqltype.CompositeMember{{Attribute: 1, Name: "id", Usage: integer.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.ID())}
-	relationAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(row.ID())}
+	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.ID())}
+	relationAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(row.ID())}
 	catalog.state.descriptors[rowAddress] = &typeDescriptor{typ: row, owningRelation: relationAddress}
 	catalog.state.descriptors[relationAddress] = &relationDescriptor{address: relationAddress, rowType: row.ID()}
 	value := func(id ids.OID) sqltype.Value {
@@ -40,7 +40,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		}
 		return v
 	}
-	pinned := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(integer.ID())}
+	pinned := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(integer.ID())}
 	cases := []struct {
 		name    string
 		value   sqltype.Value
@@ -112,7 +112,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	payloadAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(payloadType.ID())}
+	payloadAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(payloadType.ID())}
 	catalog.state.descriptors[payloadAddress] = &typeDescriptor{typ: payloadType}
 	literal := literalExpression{expressionInfo: expressionInfo{usage: payloadType.Usage()}, value: payload}
 	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}

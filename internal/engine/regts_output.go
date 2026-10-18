@@ -20,7 +20,7 @@ func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias 
 	if alias != sqltype.Regdictionary {
 		return strconv.FormatUint(uint64(id), 10)
 	}
-	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TSDictionaryClassID, ObjectID: ids.OID(id)}].(*tsDictionaryDescriptor)
+	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}].(*tsDictionaryDescriptor)
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -30,7 +30,7 @@ func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias 
 			if namespace, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
 				continue
 			}
-			address := view.state.names[ids.NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]
+			address := view.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}]
 			if address != (ids.ObjectAddress{}) {
 				visible = address == d.address
 				break

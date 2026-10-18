@@ -54,7 +54,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 			namespace := path.at(at)
 			definition.path[at] = namespace
 			if definition.target == (ids.ObjectAddress{}) {
-				definition.target = pending.auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
+				definition.target = pending.auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
 			}
 		}
 	}
@@ -116,7 +116,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			target := definition.target
 			if target == (ids.ObjectAddress{}) {
 				for _, namespace := range definition.path {
-					target = base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
+					target = base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
 					if target != (ids.ObjectAddress{}) {
 						break
 					}

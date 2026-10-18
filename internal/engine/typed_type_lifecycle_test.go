@@ -84,10 +84,10 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	if err := validateTypedAttachment(view, imported); err != nil {
 		t.Fatal(err)
 	}
-	if imported.ofType.ClassID != TypeClassID || imported.rowType == sqltype.ID(imported.ofType.ObjectID) || !reflect.DeepEqual(imported.attributes, []int32{1, 7}) {
+	if imported.ofType.ClassID != ids.TypeClassID || imported.rowType == sqltype.ID(imported.ofType.ObjectID) || !reflect.DeepEqual(imported.attributes, []int32{1, 7}) {
 		t.Fatal("attachment/own-row identity lost", imported)
 	}
-	row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
+	row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
 	if row.owningRelation != imported.address || row.typ.CompositeMember(1).Attribute != 7 || row.typ.CompositeMember(1).Name != "note" {
 		t.Fatal("imported own-row codec lost reciprocity", row)
 	}

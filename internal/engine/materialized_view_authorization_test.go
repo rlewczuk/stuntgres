@@ -30,7 +30,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := *d
-	base.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: baseOID}
+	base.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: baseOID}
 	base.name, base.relationKind, base.view = "unit_base", tableRelation, nil
 	base.acl = authorization.ACLValue{Explicit: true}
 	if err := stage.Create(&base); err != nil {

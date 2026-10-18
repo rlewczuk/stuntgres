@@ -599,7 +599,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if !ok {
 				t.Fatal("binding input authority", id)
 			}
-			descriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)})
+			descriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 			if !ok {
 				t.Fatal("binding input owner")
 			}
@@ -674,7 +674,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if actual != want || provider.ResultUsage() != want || provider.input != input {
 				t.Fatal("complete exact Usage/provider authority", actual, want, provider)
 			}
-			descriptor, ok = catalog.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(actual.Type.ID())})
+			descriptor, ok = catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(actual.Type.ID())})
 			if !ok {
 				t.Fatal("actual result owner")
 			}

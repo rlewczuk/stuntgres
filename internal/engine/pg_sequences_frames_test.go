@@ -17,7 +17,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 			}
 			t.Run(boundary+"/"+invalid, func(t *testing.T) {
 				e := New()
-				d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}].(*relationDescriptor)
+				d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048}].(*relationDescriptor)
 				provider := &pgSequencesSource{}
 				leaf := &querySource{pgSequences: provider}
 				child := &sourceNode{querySchema: d.columns, occurrence: 0}
@@ -72,7 +72,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 // offsets; a frame guard must not become a blanket pushdown prohibition.
 func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 	e := New()
-	d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}].(*relationDescriptor)
+	d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048}].(*relationDescriptor)
 	for _, boundary := range []string{"derived", "stored_project", "stored_input"} {
 		t.Run(boundary, func(t *testing.T) {
 			provider := &pgSequencesSource{}

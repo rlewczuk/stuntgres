@@ -32,7 +32,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		switch d.address.ObjectID {
 		case pgLocksOID:
 			return e.capturePGLocksLocked(ctx, ref, d)
-		case ForeignWrapperClassID, ForeignServerClassID, ForeignMappingClassID, ForeignTableClassID, pgUserMappingsOID:
+		case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgUserMappingsOID:
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
 				e.mu.Unlock()
@@ -98,13 +98,13 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		}
 		var catalog CatalogRead
 		switch d.address.ObjectID {
-		case 2609, 3079, ParameterClassID:
+		case 2609, 3079, ids.ParameterClassID:
 			catalog = scope.commentCatalog
 		default:
 			catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
 		var roles authorization.Read
-		if d.address.ObjectID == ParameterClassID {
+		if d.address.ObjectID == ids.ParameterClassID {
 			roles = scope.commentRoles
 		} else {
 			roles = e.roleRead(catalog, scope.deparseAuth.roleRecord)

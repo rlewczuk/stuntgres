@@ -184,7 +184,7 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	lockAwait(t, waiting, context.Canceled)
 	e.mu.Lock()
 	read := CatalogRead{owner: e, state: e.state}
-	leaked := len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "public"}], Name: "i"})) != 0 || len(e.sequences) != 1
+	leaked := len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}], Name: "i"})) != 0 || len(e.sequences) != 1
 	e.mu.Unlock()
 	if leaked {
 		t.Fatal("canceled provider admission published staged identity")
@@ -262,8 +262,8 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	candidate.name = "candidate_only"
 	candidate.sequencePlanStamp++
 	stage.descriptors[address] = &candidate
-	stage.names[ids.NameKey{ClassID: RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
-	stage.names[ids.NameKey{ClassID: NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
+	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
+	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

@@ -25,7 +25,7 @@ func catalogStageChanges(s *CatalogStage) ChangeSet {
 		return a.SubID < b.SubID
 	})
 	for _, a := range changes.Definitions {
-		if a.ClassID == NamespaceClassID {
+		if a.ClassID == ids.NamespaceClassID {
 			changes.Namespaces = append(changes.Namespaces, a)
 		}
 	}

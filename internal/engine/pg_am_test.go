@@ -13,7 +13,7 @@ import (
 
 func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2601}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2601}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_am")
@@ -85,8 +85,8 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 			t.Fatal("PUBLIC SELECT", d.acl)
 		}
-		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10015}].(*typeDescriptor)
-		array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10014}].(*typeDescriptor)
+		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10015}].(*typeDescriptor)
+		array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014}].(*typeDescriptor)
 		ownedRow, rowOK := catalog.LookupType(10015)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10014 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.owner || array.owner != d.owner {

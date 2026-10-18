@@ -158,7 +158,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
 	base := e.CatalogRead()
-	destination := base.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "other"}]
+	destination := base.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "other"}]
 	stage := e.BeginCatalogStage(base)
 	// The same genuine group construction used by SET SCHEMA moves the table,
 	// backing index and synchronized row/array types, without reminting storage.

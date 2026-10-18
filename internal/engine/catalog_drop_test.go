@@ -18,8 +18,8 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	base := e.CatalogRead()
 	a := roleTableRef(t, e, "a")
 	b := roleTableRef(t, e, "b")
-	row := base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.state.descriptors[a.Address].(*relationDescriptor).rowType)}].(*typeDescriptor)
-	array := base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+	row := base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.state.descriptors[a.Address].(*relationDescriptor).rowType)}].(*typeDescriptor)
+	array := base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 	retained := run(t, e, "SELECT * FROM a")
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Remove(a); err != nil {
@@ -93,7 +93,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	run(t, e, "CREATE TABLE a(id INT)")
 	base := e.CatalogRead()
 	ref := roleTableRef(t, e, "a")
-	for _, bad := range []ids.ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
+	for _, bad := range []ids.ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
 		s := e.BeginCatalogStage(base)
 		if err := s.Remove(bad); err == nil {
 			t.Fatal("invalid ref accepted", bad)
@@ -292,7 +292,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base = e.CatalogRead()
-	for _, address := range []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, {ClassID: TypeClassID, ObjectID: 23}, custom.address} {
+	for _, address := range []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.TypeClassID, ObjectID: 23}, custom.address} {
 		stage = e.BeginCatalogStage(base)
 		if err = stage.Remove(e.domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)

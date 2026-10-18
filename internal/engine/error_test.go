@@ -57,8 +57,8 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	e := New()
 	var loser ids.ObjectAddress
 	var winnerView CatalogRead
-	e.providers[RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.providers[RelationClassID],
+	e.providers[ids.RelationClassID] = &publicationConflictProvider{
+		CatalogProvider: e.providers[ids.RelationClassID],
 		publishWinner: func(d Descriptor) {
 			loser = d.Address()
 			// Validation runs outside the engine lock. Publish a competing real
@@ -87,7 +87,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if _, ok := after.Descriptor(loser); ok || e.storage[loser] != nil {
 		t.Fatal("losing Execute installed its descriptor or storage")
 	}
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "conflict_rows"}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "conflict_rows"}
 	refs := after.Lookup(key)
 	if len(refs) != 1 || refs[0] == loser {
 		t.Fatalf("winning name binding = %#v", refs)

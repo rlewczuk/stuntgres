@@ -32,7 +32,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 	if collation != nil && len(original.collations) != 0 {
 		definition.collations = make(map[viewLiteralPath]uint32, len(original.collations))
 		for path, id := range original.collations {
-			if target, ok := mapping[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}]; ok {
+			if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}]; ok {
 				id = uint32(target.ObjectID)
 			}
 			definition.collations[path] = id
@@ -91,7 +91,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 	definition.dependencies = append([]expressionDependency(nil), original.dependencies...)
 	for i := range definition.dependencies {
 		definition.dependencies[i].ref = ref(definition.dependencies[i].ref)
-		if definition.dependencies[i].ref.Address.ClassID == ProcedureClassID {
+		if definition.dependencies[i].ref.Address.ClassID == ids.ProcedureClassID {
 			procedure, ok := view.state.descriptors[definition.dependencies[i].ref.Address].(*procedureDescriptor)
 			if !ok {
 				return nil, ErrCatalogReplaced

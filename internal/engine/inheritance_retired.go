@@ -378,7 +378,7 @@ func releaseRetiredTypeConstraints(old *relationDescriptor, actions []parser.Alt
 		}
 		touches := false
 		for _, dependency := range fact.dependencies {
-			if dependency.ref.Address.ClassID == RelationClassID && dependency.ref.Address.ObjectID == old.address.ObjectID && affected(dependency.ref.Address.SubID) {
+			if dependency.ref.Address.ClassID == ids.RelationClassID && dependency.ref.Address.ObjectID == old.address.ObjectID && affected(dependency.ref.Address.SubID) {
 				touches = true
 				break
 			}

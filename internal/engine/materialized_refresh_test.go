@@ -219,7 +219,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("materialized provider rejected")
-			e.providers[RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[RelationClassID], e: e, t: t, check: func() error {
+			e.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[ids.RelationClassID], e: e, t: t, check: func() error {
 				switch phase {
 				case "reject":
 					return sentinel

@@ -19,7 +19,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 	var address ids.ObjectAddress
 	if kind == "schema" {
 		if len(name.Parts) == 1 {
-			address = v.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+			address = v.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text}]
 			if name.Parts[0].Text == "pg_temp" {
 				address = temporaryNamespace(v)
 			}
@@ -33,7 +33,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			return ids.ObjectRef{}, err
 		}
 		for i := range path.count() {
-			found := v.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+			found := v.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) == 1 {
 				address = found[0]
 				break

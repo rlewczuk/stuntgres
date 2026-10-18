@@ -86,10 +86,10 @@ func TestDomainCheckIndexSnapshotAliasRecursive(t *testing.T) {
 				t.Fatal(err)
 			}
 			snapshot := &indexSnapshot{mapping: map[ids.ObjectAddress]ids.ObjectAddress{
-				{ClassID: ProcedureClassID, ObjectID: 41000}:    {ClassID: ProcedureClassID, ObjectID: 42000},
-				{ClassID: TSDictionaryClassID, ObjectID: 41000}: {ClassID: TSDictionaryClassID, ObjectID: 43000},
-				{ClassID: RelationClassID, ObjectID: 41000}:     {ClassID: RelationClassID, ObjectID: 44000},
-				{ClassID: TypeClassID, ObjectID: 1397}:          {ClassID: TypeClassID, ObjectID: 45005},
+				{ClassID: ids.ProcedureClassID, ObjectID: 41000}:    {ClassID: ids.ProcedureClassID, ObjectID: 42000},
+				{ClassID: ids.TSDictionaryClassID, ObjectID: 41000}: {ClassID: ids.TSDictionaryClassID, ObjectID: 43000},
+				{ClassID: ids.RelationClassID, ObjectID: 41000}:     {ClassID: ids.RelationClassID, ObjectID: 44000},
+				{ClassID: ids.TypeClassID, ObjectID: 1397}:          {ClassID: ids.TypeClassID, ObjectID: 45005},
 			}}
 			mapped, err := snapshot.datum(original, toComposite, nil, nil)
 			if err != nil {

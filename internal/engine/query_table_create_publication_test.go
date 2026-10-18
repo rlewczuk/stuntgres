@@ -18,7 +18,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 		columns[i] = ColumnDescriptor{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.mu.Lock()
-	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
+	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
 	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
 	if err == nil {
 		err = stage.Create(d)
@@ -33,7 +33,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
 	types := make(map[ids.ObjectAddress]Descriptor)
 	for address, descriptor := range e.CatalogRead().state.descriptors {
-		if address.ClassID == TypeClassID {
+		if address.ClassID == ids.TypeClassID {
 			types[address] = descriptor
 		}
 	}
@@ -59,7 +59,7 @@ func queryCreateAssertAbsent(t *testing.T, e *Engine, d *relationDescriptor) {
 	if _, ok := view.Descriptor(d.address); ok || e.storage[d.address] != nil {
 		t.Fatal("partial descriptor/storage publication")
 	}
-	for _, class := range []ids.OID{RelationClassID, TypeClassID} {
+	for _, class := range []ids.OID{ids.RelationClassID, ids.TypeClassID} {
 		if len(view.Lookup(ids.NameKey{ClassID: class, Namespace: d.namespace, Name: d.name})) != 0 {
 			t.Fatal("partial name/type publication", class)
 		}
@@ -174,7 +174,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("definition provider veto")
 			if phase == "provider" {
-				e.providers[RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[RelationClassID], e: e, t: t, check: func() error { return sentinel }}
+				e.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
 				stage.initialTables[d.address].versions[0].values = nil

@@ -161,7 +161,7 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 	}
 	if !value.IsNull() && target.ContainsRegclass() {
 		value, err = remapRegclassDatum(value, func(id ids.OID) ids.OID {
-			return snapshot.destination(ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}).ObjectID
+			return snapshot.destination(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
 			return sqltype.Value{}, err
@@ -175,7 +175,7 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 	}
 	if !value.IsNull() && target.ContainsRegproc() {
 		value, err = remapRoutineDatum(value, func(id ids.OID) ids.OID {
-			return snapshot.destination(ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}).ObjectID
+			return snapshot.destination(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
 			return sqltype.Value{}, err
@@ -183,7 +183,7 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 	}
 	if !value.IsNull() && target.ContainsOperatorAlias() {
 		value, err = remapOperatorDatum(value, func(id ids.OID) ids.OID {
-			return snapshot.destination(ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}).ObjectID
+			return snapshot.destination(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
 			return sqltype.Value{}, err

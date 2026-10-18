@@ -17,7 +17,7 @@ func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.Objec
 	}
 	object := name.Parts[len(name.Parts)-1].Text
 	for i := range path.count() {
-		address := auth.catalog.state.names[ids.NameKey{ClassID: ConversionClassID, Namespace: path.at(i), Name: object}]
+		address := auth.catalog.state.names[ids.NameKey{ClassID: ids.ConversionClassID, Namespace: path.at(i), Name: object}]
 		if d, ok := auth.catalog.state.descriptors[address].(*conversionDescriptor); ok {
 			return d, nil
 		}
@@ -92,7 +92,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 		return err
 	}
 	object := s.Name.Parts[len(s.Name.Parts)-1].Text
-	key := ids.NameKey{ClassID: ConversionClassID, Namespace: namespace.Address, Name: object}
+	key := ids.NameKey{ClassID: ids.ConversionClassID, Namespace: namespace.Address, Name: object}
 	if stage.lookupName(key) != (ids.ObjectAddress{}) {
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists`, object))
 	}

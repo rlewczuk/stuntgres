@@ -22,13 +22,13 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20}, attributeHighWater: 20, columns: []ColumnDescriptor{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, index: map[string]int{"k": 0, "active": 1}}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20}, attributeHighWater: 20, columns: []ColumnDescriptor{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, index: map[string]int{"k": 0, "active": 1}}
 	ref := e.domain.Ref(e.state.epoch, parent.address)
 	ref.Address.SubID = 20
 	column := columnExpression{expressionInfo: expressionInfo{usage: boolean.Usage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 1, origin: ref}
 	predicate := &indexPredicate{definition: column, execution: column, attributes: parent.attributes, dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "pi", revision: 1, relationKind: indexRelation, columns: []ColumnDescriptor{parent.columns[0]}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: parent.address, method: btreeMethod, ready: true, valid: true, live: true, keys: []indexKey{{attribute: 10, class: class}}, predicate: predicate}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "pi", revision: 1, relationKind: indexRelation, columns: []ColumnDescriptor{parent.columns[0]}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: parent.address, method: btreeMethod, ready: true, valid: true, live: true, keys: []indexKey{{attribute: 10, class: class}}, predicate: predicate}}
 	store := &relationStorage{}
 	for i, k := range []int64{10, 20, 30, 0, 10} {
 		value, _ := sqltype.Integer(integer, k)

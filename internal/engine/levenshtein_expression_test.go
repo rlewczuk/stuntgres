@@ -42,7 +42,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	nonmember := *n.procedure
-	nonmember.address = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 999999}
+	nonmember.address = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := cloneCatalog(e.state)
 	foreignState.descriptors[nonmember.address] = &nonmember
 	if err := stockFuzzystrmatch.validateProcedure(CatalogRead{owner: e, state: foreignState}, &nonmember); err == nil {
@@ -154,9 +154,9 @@ func TestLevenshteinRemap(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	call := levenshteinUnitExpression(t, e)
 	before := e.CatalogRead()
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.members {
-		mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001 + i)}
+		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
@@ -168,7 +168,7 @@ func TestLevenshteinRemap(t *testing.T) {
 		next.descriptors[destination] = descriptor
 		next.names[descriptorNameKey(descriptor)] = destination
 	}
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900010}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
 	next.descriptors[address] = consumer
 	next.epoch++

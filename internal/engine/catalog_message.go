@@ -130,7 +130,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			// Its committed absence/name fences already belong to c.
 			if current.descriptors[ns] == nil {
 				original, created := c.originals[ns]
-				key := ids.NameKey{ClassID: NamespaceClassID, Name: d.Name()}
+				key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}
 				_, named := c.names[key]
 				if created && original == nil && c.descriptors[ns] == d && named && current.names[key] == (ids.ObjectAddress{}) {
 					return nil
@@ -227,7 +227,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		c.indexFences = append(c.indexFences, f)
 	}
 	for a := range s.removals {
-		if a.ClassID == NamespaceClassID {
+		if a.ClassID == ids.NamespaceClassID {
 			f := catalogNamespaceFence{namespace: a, members: map[ids.ObjectAddress]Descriptor{}}
 			for address, d := range e.state.descriptors {
 				if d.Namespace() == a {

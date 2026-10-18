@@ -89,7 +89,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, creationError(err, s.Name)
 	}
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if stage.lookupName(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			scope.op.existingRelationNotice(key.Name)
@@ -97,7 +97,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
-	server, err := findForeign(auth.catalog, ForeignServerClassID, s.Server.Text)
+	server, err := findForeign(auth.catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		return nil, nil, err
 	}

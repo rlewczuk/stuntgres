@@ -46,7 +46,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, err
 	}
-	d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(oid)}].(*procedureDescriptor)
+	d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)}].(*procedureDescriptor)
 	if !ok {
 		identity, found := routineIdentityByOID(auth.catalog, ids.OID(oid))
 		e.mu.Unlock()

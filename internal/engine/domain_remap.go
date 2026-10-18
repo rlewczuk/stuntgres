@@ -44,7 +44,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			}
 			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
 			associated := d.array
-			if to, ok := mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(associated)}]; ok {
+			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
 			}
 			if target != address || namespace != d.Namespace() || extension != d.extension || associated != d.array || declaration != d.typ.SQLName() {
@@ -74,7 +74,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			}
 			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
 			associated := d.array
-			if destination, ok := mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(associated)}]; ok {
+			if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(destination.ObjectID)
 			}
 			if target != address || namespace != d.Namespace() || declaration != d.typ.SQLName() || associated != d.array {
@@ -108,7 +108,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				owner = to
 			}
 			associated := d.array
-			if to, ok := mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(associated)}]; ok {
+			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
 			}
 			ns := next.descriptors[d.namespace]
@@ -119,7 +119,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			rebuild := importing || identity != address || namespace != d.namespace || owner != d.owningRelation || associated != d.array || declaration != d.typ.SQLName() || d.typ.CompositeLen() != len(relation.columns)
 			var members []sqltype.CompositeMember
 			for i, c := range relation.columns {
-				child := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}
+				child := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}
 				if err := visit(child); err != nil {
 					return err
 				}
@@ -139,7 +139,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				if rebuild && members == nil {
 					members = compositeMembers(relation)
 					for j := range i {
-						members[j].Usage.Type = next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(members[j].Usage.Type.ID())}].(*typeDescriptor).typ
+						members[j].Usage.Type = next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(members[j].Usage.Type.ID())}].(*typeDescriptor).typ
 						if collation != nil {
 							mapped, err := collation(members[j].Usage.Collation)
 							if err != nil {
@@ -182,7 +182,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				relation = to
 			}
 			associated := d.array
-			if to, ok := mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(associated)}]; ok {
+			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
 			}
 			if target != address || namespace != d.Namespace() || relation != d.owningRelation || associated != d.array {
@@ -204,7 +204,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		if d.typ.IsArray() {
 			base = d.typ.Element().Usage()
 		}
-		baseAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.Type.ID())}
+		baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}
 		if err := visit(baseAddress); err != nil {
 			return err
 		}
@@ -241,7 +241,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			previous = d.typ.Element()
 		}
 		associated := d.array
-		if destination, ok := mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(associated)}]; ok {
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 			associated = sqltype.ID(destination.ObjectID)
 		}
 		if collationChanged || base.Type != previous || target != address || namespace != d.Namespace() || d.typ.IsDomain() && declaration != d.typ.SQLName() || associated != d.array {
@@ -362,7 +362,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	collation := remappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.ID())}].(*typeDescriptor); ok {
+		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}].(*typeDescriptor); ok {
 			return d.typ
 		}
 		return nil
@@ -372,7 +372,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		if !ok {
 			continue
 		}
-		if destination, ok := mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}]; ok {
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}]; ok {
 			copy := *d
 			copy.rowType = sqltype.ID(destination.ObjectID)
 			next.descriptors[address] = &copy
@@ -433,7 +433,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegclass() {
 					remapped, er := remapRegclassDatum(rebound, func(id ids.OID) ids.OID {
-						if target, ok := mapping[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}]; ok {
+						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}]; ok {
 							return target.ObjectID
 						}
 						return id
@@ -459,7 +459,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegproc() {
 					remapped, er := remapRoutineDatum(rebound, func(id ids.OID) ids.OID {
-						if target, ok := mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
 							return target.ObjectID
 						}
 						return id
@@ -472,7 +472,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsOperatorAlias() {
 					remapped, er := remapOperatorDatum(rebound, func(id ids.OID) ids.OID {
-						if target, ok := mapping[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}]; ok {
+						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}]; ok {
 							return target.ObjectID
 						}
 						return id

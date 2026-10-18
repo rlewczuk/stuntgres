@@ -91,7 +91,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	var extension *extensionDescriptor
 	switch s.Action {
 	case "depends", "no_depends":
-		address, exists := auth.catalog.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: s.Target.Text}]
+		address, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text}]
 		if !exists {
 			return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Target.Text)))
 		}
@@ -325,7 +325,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	// Cascaded view identities receive the same AX admission as explicit targets.
 	cascade := make([]ids.ObjectRef, 0, len(stage.removals))
 	for address, removal := range stage.removals {
-		if address.ClassID != RelationClassID {
+		if address.ClassID != ids.RelationClassID {
 			continue
 		}
 		if !seen[address] {

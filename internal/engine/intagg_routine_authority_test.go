@@ -116,7 +116,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if dep.ref != ref || dep.revision != captured.revision {
 						t.Fatal("original ref/revision mismatch")
 					}
-				} else if dep.ref.Address.ClassID == ProcedureClassID {
+				} else if dep.ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("invented core/helper dependency", dep)
 				}
 			}
@@ -259,9 +259,9 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					// Transfer the actual selected ref before descriptor retagging; no old OID
 					// can resolve in this relocated catalog.
-					mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ExtensionClassID, 900000, 0}}
+					mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ids.ExtensionClassID, 900000, 0}}
 					for i, a := range ext.members {
-						mapping[a] = ids.ObjectAddress{ProcedureClassID, ids.OID(900001 + i), 0}
+						mapping[a] = ids.ObjectAddress{ids.ProcedureClassID, ids.OID(900001 + i), 0}
 					}
 					state := cloneCatalog(evaluation.catalog.state)
 					for a := range mapping {
@@ -395,7 +395,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := imported.importExtensionOwners(context.Background(), importOp, []extensionOwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
-	installed := imported.state.descriptors[imported.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	installed := imported.state.descriptors[imported.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
 	if err := stockIntagg.validate(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}

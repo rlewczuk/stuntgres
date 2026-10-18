@@ -15,7 +15,7 @@ import (
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
 func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, index: map[string]int{}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, index: map[string]int{}}
 	if len(parents) != 0 {
 		table.inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 	}
@@ -123,7 +123,7 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	}
 	var got []pgDependEdge
 	for _, edge := range edges {
-		if edge.dependent == leaf.address && edge.referenced.ClassID == RelationClassID {
+		if edge.dependent == leaf.address && edge.referenced.ClassID == ids.RelationClassID {
 			got = append(got, edge)
 		}
 	}

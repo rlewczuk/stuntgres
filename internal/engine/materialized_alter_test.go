@@ -20,7 +20,7 @@ func materializedAlterIndex(t *testing.T, e *Engine, op *Operation, d *relationD
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.name+"(i)")
-	return e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: "unit_mv_i"}]].(*relationDescriptor)
+	return e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "unit_mv_i"}]].(*relationDescriptor)
 }
 func TestMaterializedAlterIdentity(t *testing.T) {
 	e := New()
@@ -36,7 +36,7 @@ func TestMaterializedAlterIdentity(t *testing.T) {
 	if next == d || next.name != "saved" || d.name != "unit_mv" || next.rowType != rowType || next.view.rule != rule || next.view != d.view || e.storage[d.address] != store || !reflect.DeepEqual(next.attributes, d.attributes) {
 		t.Fatal("metadata publication reminted or mutated captured identity")
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(rowType)}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowType)}].(*typeDescriptor)
 	if row.Name() != "saved" || row.owningRelation != d.address {
 		t.Fatal("row type rename not synchronized")
 	}
@@ -50,8 +50,8 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	root := e.indexRoots[index.address]
 	store := e.storage[d.address]
 	actor := roleAttributeCreate(t, e, op, "mv_next", true, parser.RoleOptions{})
-	oldRow := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
-	oldArray := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(oldRow.array)}].(*typeDescriptor)
+	oldRow := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+	oldArray := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(oldRow.array)}].(*typeDescriptor)
 	rowACL, arrayACL := oldRow.acl, oldArray.acl
 	rowACL.Entries = slices.Clone(rowACL.Entries)
 	arrayACL.Entries = slices.Clone(arrayACL.Entries)
@@ -61,8 +61,8 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	}
 	next := e.state.descriptors[d.address].(*relationDescriptor)
 	attached := e.state.descriptors[index.address].(*relationDescriptor)
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 	if next.owner != actor.Ref || attached.owner != actor.Ref || row.owner != actor.Ref || array.owner != actor.Ref || d.owner == actor.Ref || index.owner == actor.Ref || attached.sqlIndex != index.sqlIndex || e.indexRoots[index.address] != root || e.storage[d.address] != store {
 		t.Fatal("owner group not coherent or roots rebuilt")
 	}
@@ -103,7 +103,7 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 	if e.state.descriptors[d.address] != next {
 		t.Fatal("duplicate edge replaced descriptor")
 	}
-	for _, addresses := range [][]ids.ObjectAddress{{{ClassID: ProcedureClassID, ObjectID: ext.members[0].ObjectID}}, {ext.address, ext.address}, {{ClassID: ExtensionClassID, ObjectID: ext.address.ObjectID, SubID: 1}}, {{ClassID: ExtensionClassID, ObjectID: 999999}}} {
+	for _, addresses := range [][]ids.ObjectAddress{{{ClassID: ids.ProcedureClassID, ObjectID: ext.members[0].ObjectID}}, {ext.address, ext.address}, {{ClassID: ids.ExtensionClassID, ObjectID: ext.address.ObjectID, SubID: 1}}, {{ClassID: ids.ExtensionClassID, ObjectID: 999999}}} {
 		bad := *next
 		bad.autoExtensions = addresses
 		if err := (relationProvider{}).Validate(e.CatalogRead(), &bad); err == nil {
@@ -227,13 +227,13 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	e, op, ext := extensionUnitInstalled(t)
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW union_mv AS SELECT unaccent('Hôtel'::text) AS s")
-	d := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ext.targetNamespace, Name: "union_mv"}]].(*relationDescriptor)
+	d := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.targetNamespace, Name: "union_mv"}]].(*relationDescriptor)
 	if err := materializedAlterUnit(t, e, op, d, "depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "CREATE VIEW union_child AS SELECT s FROM union_mv")
-	child := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: "union_child"}]
-	member := e.state.names[ids.NameKey{ClassID: ProcedureClassID, Namespace: ext.targetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}]
+	child := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "union_child"}]
+	member := e.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.targetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}]
 	survivor := refreshUnitRelation(t, e)
 	store := e.storage[survivor.address]
 	before := e.state
@@ -399,7 +399,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	roleExecute(t, target, targetOp, "CREATE TEMP TABLE remap_retained(i INT)")
 	roleExecute(t, target, targetOp, "INSERT INTO remap_retained VALUES(99)")
 	temporary := target.state.descriptors[targetOp.session.temporaryNamespace]
-	retained := target.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: temporary.Address(), Name: "remap_retained"}]
+	retained := target.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: temporary.Address(), Name: "remap_retained"}]
 	retainedStore := target.storage[retained]
 	if temporary.Address().ObjectID != ext.address.ObjectID {
 		t.Fatal("fixture did not create a genuine cross-class retained TEMP collision")
@@ -407,9 +407,9 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	importedExt := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
-	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)
-	importedIndex := target.state.descriptors[target.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: index.name}]].(*relationDescriptor)
+	importedExt := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)
+	importedIndex := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: index.name}]].(*relationDescriptor)
 	root := target.indexRoots[importedIndex.address]
 	if importedExt.address == ext.address || !reflect.DeepEqual(imported.autoExtensions, []ids.ObjectAddress{importedExt.address}) || importedIndex.sqlIndex.parent != imported.address || root == nil || len(root.entries) != 3 || len(target.storage[imported.address].versions) != 3 {
 		t.Fatal("genuine displaced import lost provider/x/index/rows")

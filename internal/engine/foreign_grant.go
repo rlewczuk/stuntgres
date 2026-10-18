@@ -62,9 +62,9 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 	if err != nil {
 		return Result{}, err
 	}
-	class := ForeignServerClassID
+	class := ids.ForeignServerClassID
 	if s.Kind == "foreign-data wrapper" {
-		class = ForeignWrapperClassID
+		class = ids.ForeignWrapperClassID
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	for _, name := range s.Relations {

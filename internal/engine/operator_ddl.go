@@ -86,7 +86,7 @@ func (e *Engine) checkOperatorArgumentUsage(auth AuthorizationView, id ids.OID) 
 	if id == 0 {
 		return nil
 	}
-	return auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}))
+	return auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
 }
 
 func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
@@ -127,7 +127,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	if err != nil {
 		return nil, err
 	}
-	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, left: left, right: right, name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, left: left, right: right, name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	for i := range path.count() {
 		key.namespace = path.at(i)
 		a := auth.catalog.state.names[descriptorNameKey(&key)]
@@ -223,7 +223,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		return 0, err
 	}
 	result := releasedOperatorEstimatorResult(identity.id)
-	if d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: identity.id}].(*procedureDescriptor); ok {
+	if d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.id}].(*procedureDescriptor); ok {
 		if d.routineKind != functionRoutine {
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
@@ -496,7 +496,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	}
 	view := e.stageRead(stage)
 	var peer *operatorDescriptor
-	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, name: symbol, left: left, right: right}
+	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, name: symbol, left: left, right: right}
 	for i := range path.count() {
 		key.namespace = path.at(i)
 		if found, ok := view.state.descriptors[view.state.names[descriptorNameKey(&key)]].(*operatorDescriptor); ok {
@@ -531,7 +531,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		if err != nil {
 			return nil, err
 		}
-		peer = &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}, namespace: ns.Address, revision: rev, name: symbol, left: left, right: right, owner: auth.state.CurrentUser}
+		peer = &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, namespace: ns.Address, revision: rev, name: symbol, left: left, right: right, owner: auth.state.CurrentUser}
 		if err = stage.Create(peer); err != nil {
 			return nil, err
 		}
@@ -586,7 +586,7 @@ func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *operato
 		attribute = "negator"
 	}
 	if link != 0 && link != d.address.ObjectID {
-		third, ok := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: link}].(*operatorDescriptor)
+		third, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: link}].(*operatorDescriptor)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing reciprocal operator")
 		}
@@ -675,11 +675,11 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err != nil {
 		return err
 	}
-	if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: routine.result})); err != nil {
+	if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: routine.result})); err != nil {
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
-	next := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, namespace: ns.Address, name: symbol, left: l, right: r, owner: auth.state.CurrentUser, result: routine.result, function: routine.address.ObjectID}
+	next := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, namespace: ns.Address, name: symbol, left: l, right: r, owner: auth.state.CurrentUser, result: routine.result, function: routine.address.ObjectID}
 	// DefineOperator resolves surviving estimators before OperatorCreate checks
 	// the name, parameter combinations, and only then duplicate/shell ownership.
 	comm, neg, err := e.collectOperatorOptions(auth, &next, s.Options, false)
@@ -706,7 +706,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 		if err != nil {
 			return err
 		}
-		next.address = ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}
+		next.address = ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}
 	}
 	next.revision, err = e.revisionLocked()
 	if err != nil {

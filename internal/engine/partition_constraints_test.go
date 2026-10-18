@@ -44,7 +44,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	index.sqlIndex.unique = true
 	index.sqlIndex.valid = false
 	leaf := *root
-	leaf.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20002}
+	leaf.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	leaf.name = "unit_leaf"
 	leaf.partition = nil
 	leaf.relationKind = tableRelation
@@ -66,7 +66,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	}
 	mapped.valid = true
 	child := *index
-	child.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20003}
+	child.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}
 	child.name = "unit_child"
 	child.sqlIndex = mapped
 	child.columns = slices.Clone(index.columns)
@@ -151,7 +151,7 @@ func TestPartitionConstraintsAttachmentAdmission(t *testing.T) {
 				f.view.state.descriptors[other.address] = &other
 				code = "55000"
 			case "other_parent":
-				f.child.sqlIndex.partitionParent = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20004}
+				f.child.sqlIndex.partitionParent = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}
 				code = "55000"
 			}
 			err := partitionIndexAttachCheck(op, f.view, f.parent, f.child)
@@ -413,7 +413,7 @@ func partitionConstraintBackings(f partitionConstraintUnit) {
 func TestPartitionConstraintsDropClosure(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	partitionConstraintBackings(f)
-	local := uniqueConstraint{OID: 30004, Name: "independent_leaf", Index: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 30005}, IsLocal: true}
+	local := uniqueConstraint{OID: 30004, Name: "independent_leaf", Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 30005}, IsLocal: true}
 	f.leaf.uniqueConstraints = append(f.leaf.uniqueConstraints, local)
 	independent := *f.child
 	definition := *f.child.sqlIndex

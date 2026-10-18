@@ -38,7 +38,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		address := ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(oid)}
+		address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(oid)}
 		d, ok := view.state.descriptors[address].(*operatorDescriptor)
 		if !ok || d.name != fields[2] || d.namespace.ObjectID != 11 || d.left != ids.OID(left) || d.right != ids.OID(right) || expected[ids.OID(oid)] {
 			t.Fatalf("operator identity %v differs from independent inventory", fields)
@@ -56,7 +56,7 @@ func TestRegOperatorInventory(t *testing.T) {
 	}
 	actual := 0
 	for a := range view.state.descriptors {
-		if a.ClassID == OperatorClassID {
+		if a.ClassID == ids.OperatorClassID {
 			actual++
 			if !expected[a.ObjectID] {
 				t.Fatal("extra operator", a)
@@ -74,8 +74,8 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg Op", "earlier", "later", `Reg" Op`} {
-		ns := *view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
-		ns.address = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ids.OID(90000 + i)}
+		ns := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.name = name
 		namespaces[i] = ns.address
 		if err := stage.Create(&ns); err != nil {
@@ -86,7 +86,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		ns          int
 		left, right ids.OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right, owner: e.authorizationDomain.Principal(10)}
+		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right, owner: e.authorizationDomain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -94,7 +94,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
 	groups := collectOperatorGroups(view)
-	path := []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: 11}}
+	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: 11}}
 	for alias, want := range map[sqltype.ID]string{sqltype.Regoper: `"Reg Op".#=#`, sqltype.Regoperator: `"Reg Op".#=#(integer,integer)`} {
 		if got := operatorSpelling(view, path, groups, 91000, alias); got != want {
 			t.Fatal(got, want)
@@ -188,15 +188,15 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 				if _, err := sqltype.Array(61000, "_forged", domain.typ); err == nil {
 					t.Fatal("recursive operator array admitted")
 				}
-				mapping[domain.Address()] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(60001 + i)}
-				mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(domain.array)}] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(60003 + i)}
+				mapping[domain.Address()] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
+				mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.array)}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60003 + i)}
 			}
 			if changed, err := reownDomainTypes(next, mapping, false); err != nil || !changed {
 				t.Fatal("domain reownership", changed, err)
 			}
 			for i, original := range []*typeDescriptor{direct, chain} {
 				domain := next.descriptors[original.Address()].(*typeDescriptor)
-				array := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(original.array)}].(*typeDescriptor)
+				array := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.array)}].(*typeDescriptor)
 				if !domain.typ.Concrete() || domain.typ.ID() != sqltype.ID(60001+i) || array.typ.Concrete() || array.typ.Element() != domain.typ || array.typ.ID() != sqltype.ID(60003+i) || domain.array != array.typ.ID() {
 					t.Fatal("reownership changed companion admission", domain, array)
 				}

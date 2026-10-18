@@ -97,7 +97,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	selection := namespaceSelection{path: r.path}
 	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
 	if len(parts) == 2 {
-		namespace := r.types.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
+		namespace := r.types.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			namespace = r.types.temporary
 		}

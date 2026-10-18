@@ -45,7 +45,7 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []regty
 			cell.types = true
 		}
 		for _, reference := range constant.references {
-			cell.collations = cell.collations || reference.address.ClassID == CollationClassID
+			cell.collations = cell.collations || reference.address.ClassID == ids.CollationClassID
 		}
 	}
 	var err error
@@ -94,7 +94,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 			if d == nil || d.Name() != reference.name || d.Namespace() != reference.namespace {
 				return false, nil
 			}
-			if reference.address.ClassID == CollationClassID {
+			if reference.address.ClassID == ids.CollationClassID {
 				ns := auth.catalog.state.descriptors[reference.namespace]
 				if ns == nil || ns.Name() != reference.namespaceName {
 					return false, nil
@@ -246,12 +246,12 @@ func (b *expressionBinder) recordRegObjectConstant(value sqltype.Value, pos pars
 func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant) error {
 	view := b.bindingCatalog()
 	return walkCatalogAliasDependencies(view, constant.value, func(address ids.ObjectAddress) error {
-		if address.ClassID == TypeClassID {
+		if address.ClassID == ids.TypeClassID {
 			return nil
 		}
 		d := view.state.descriptors[address]
 		reference := regObjectReference{address: address, name: d.Name(), namespace: d.Namespace()}
-		if address.ClassID == CollationClassID {
+		if address.ClassID == ids.CollationClassID {
 			reference.namespaceName = view.state.descriptors[d.Namespace()].Name()
 		}
 		constant.references = append(constant.references, reference)

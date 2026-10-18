@@ -79,7 +79,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				}
 			}
 			for _, dependency := range d.view.dependencies {
-				if dependency.ref.Address.ClassID == RelationClassID {
+				if dependency.ref.Address.ClassID == ids.RelationClassID {
 					child, err := storedViewUseReference(catalog, d, dependency.ref)
 					if err != nil {
 						return err
@@ -215,7 +215,7 @@ func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
 	var refs []ids.ObjectRef
 	seen := make(map[ids.ObjectRef]bool)
 	add := func(ref ids.ObjectRef) {
-		if ref.Address.ClassID != RelationClassID {
+		if ref.Address.ClassID != ids.RelationClassID {
 			return
 		}
 		ref.Address.SubID = 0

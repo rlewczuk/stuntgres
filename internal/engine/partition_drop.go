@@ -95,14 +95,14 @@ func partitionDependsOn(relation *relationDescriptor, target ids.ObjectAddress) 
 		return false
 	}
 	for _, key := range relation.partition.keys {
-		if target.ClassID == TypeClassID && ids.OID(key.usage.Type.ID()) == target.ObjectID {
+		if target.ClassID == ids.TypeClassID && ids.OID(key.usage.Type.ID()) == target.ObjectID {
 			return true
 		}
-		if target.ClassID == CollationClassID && target.SubID == 0 && target.ObjectID != 0 &&
+		if target.ClassID == ids.CollationClassID && target.SubID == 0 && target.ObjectID != 0 &&
 			(ids.OID(key.usage.Collation.ID) == target.ObjectID || ids.OID(key.collation) == target.ObjectID) {
 			return true
 		}
-		if key.attribute != 0 && target.ClassID == RelationClassID && target.ObjectID == relation.address.ObjectID && target.SubID == key.attribute {
+		if key.attribute != 0 && target.ClassID == ids.RelationClassID && target.ObjectID == relation.address.ObjectID && target.SubID == key.attribute {
 			return true
 		}
 		if key.derived != nil {

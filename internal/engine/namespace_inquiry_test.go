@@ -32,7 +32,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			var carried *namespaceDescriptor
 			if prior {
 				scope.catalog = newCatalogChanges()
-				carried = &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 999999}, name: "private_carried", owner: e.authorizationDomain.Principal(10), revision: 1}
+				carried = &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, name: "private_carried", owner: e.authorizationDomain.Principal(10), revision: 1}
 				e.catalogChangeLocked(scope.catalog, carried.address, carried)
 			}
 			auth, path, err := scope.schemaInquiryPathLocked(e)

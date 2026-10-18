@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
@@ -42,15 +44,15 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					if explicit {
 						tx = transactionBegin(t, s)
 					}
-					original := e.providers[RelationClassID]
+					original := e.providers[ids.RelationClassID]
 					calls := 0
 					entered := make(chan struct{})
-					e.providers[RelationClassID] = alterDropProvider{original, func() {
+					e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						calls++
 						if calls != at {
 							return
 						}
-						e.providers[RelationClassID] = original
+						e.providers[ids.RelationClassID] = original
 						close(entered)
 						var err error
 						if restore {

@@ -81,7 +81,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 					return nil, err
 				}
 			}
-			if d.address.ClassID == ForeignMappingClassID {
+			if d.address.ClassID == ids.ForeignMappingClassID {
 				n.name = foreignMappingName(n.server, n.mappedRole)
 				delete(state.names, descriptorNameKey(d))
 				state.names[descriptorNameKey(&n)] = n.address

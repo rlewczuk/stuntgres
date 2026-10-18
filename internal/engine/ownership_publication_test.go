@@ -15,7 +15,7 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDesc
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
 	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_guard", revision: 1, owner: owner, acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, name: "ownership_guard", revision: 1, owner: owner, acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	if err := setup.Create(ns); err != nil {
 		t.Fatal(err)
@@ -231,7 +231,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	address := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_fenced"}]
+	address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"}]
 	stage := e.ownershipStage(auth, op)
 	if err = stageOwnership(stage, auth.catalog.state.descriptors[address], target); err != nil {
 		t.Fatal(err)

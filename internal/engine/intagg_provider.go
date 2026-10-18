@@ -34,7 +34,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		if err != nil {
 			return err
 		}
-		address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
 		if i == 0 {
@@ -72,7 +72,7 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 	var seen [len(intaggMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		if err := validateOwnedAggregate(v, proc); err != nil {

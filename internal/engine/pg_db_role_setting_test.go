@@ -16,7 +16,7 @@ import (
 
 func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2964}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2964}
 	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_db_role_setting")
@@ -40,7 +40,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgDBRoleSettingUnitSource(t, e, catalog)
 	owner := e.Roles().LookupRef("postgres")
-	if d.name != "pg_db_role_setting" || d.namespace != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 11}) || d.relationKind != catalogRelation || d.virtualView || d.attributeHighWater != 3 || len(d.columns) != 3 || d.owner != owner || !d.hasIndexes {
+	if d.name != "pg_db_role_setting" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.relationKind != catalogRelation || d.virtualView || d.attributeHighWater != 3 || len(d.columns) != 3 || d.owner != owner || !d.hasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}
@@ -72,8 +72,8 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10054}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10053}].(*typeDescriptor)
+	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10054}].(*typeDescriptor)
+	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053}].(*typeDescriptor)
 	ownedRow, ok := catalog.LookupType(10054)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 	if d.rowType != 10054 || !ok || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10053 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
@@ -82,7 +82,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
 		t.Fatal("table discovery")
 	}
-	class := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
 	facts, err := e.pgClassRow(context.Background(), catalog, e.Roles(), class, d)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		t.Fatal("pg_global", space, err)
 	}
 	for _, oid := range []ids.OID{2965, 2966, 2967} {
-		if _, exists := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}]; exists {
+		if _, exists := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}]; exists {
 			t.Fatal("fabricated backing relation", oid)
 		}
 	}

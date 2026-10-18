@@ -23,7 +23,7 @@ func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, sig
 	selected, count := selectRoutine(view, namespaceSelection{path: path}, procedure.name, signature)
 	name := regclassIdentifier(procedure.name)
 	if qualified || count != 1 || selected.id != id {
-		namespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: procedure.namespace}]
+		namespace := view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: procedure.namespace}]
 		name = regclassIdentifier(namespace.Name()) + "." + name
 	}
 	if !signatureQualified {

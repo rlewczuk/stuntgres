@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -162,7 +163,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 			if dependency.Domain() != target.domain || dependency.Epoch != target.CatalogRead().Epoch() {
 				t.Fatal("replacement retained source dependency authority", dependency)
 			}
-			if dependency.Address.ClassID == RelationClassID && dependency.Address.ObjectID == index.sqlIndex.parent.ObjectID {
+			if dependency.Address.ClassID == ids.RelationClassID && dependency.Address.ObjectID == index.sqlIndex.parent.ObjectID {
 				parentDependency = true
 			}
 		}

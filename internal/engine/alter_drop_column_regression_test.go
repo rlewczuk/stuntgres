@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"sync/atomic"
@@ -24,7 +25,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			var first, unblock sync.Once
 			t.Cleanup(func() { unblock.Do(func() { close(release) }) })
-			e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
+			e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
 			dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
 			select {
 			case <-entered:
@@ -108,7 +109,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	var unblock sync.Once
 	t.Cleanup(func() { unblock.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() {
 		if !gated.CompareAndSwap(false, true) {
 			return
 		}
@@ -129,7 +130,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	lockAwait(t, queued, ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
 	lockAwait(t, dropping, ErrCatalogReplaced)
-	e.providers[RelationClassID] = relationProvider{}
+	e.providers[ids.RelationClassID] = relationProvider{}
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
 	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {

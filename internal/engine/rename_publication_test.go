@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterRenamePublication(t *testing.T) {
@@ -20,10 +22,10 @@ func TestAlterRenamePublication(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
-			provider := e.providers[RelationClassID]
-			e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			provider := e.providers[ids.RelationClassID]
+			e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 				once.Do(func() {
-					e.providers[RelationClassID] = provider
+					e.providers[ids.RelationClassID] = provider
 					switch kind {
 					case "collision":
 						run(t, e, "CREATE TABLE winner(a INT)")

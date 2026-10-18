@@ -26,7 +26,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	u := testUsage(e, sqltype.Int4)
-	old := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, owner: auth.state.CurrentUser, columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, attributes: []int32{1}, attributeHighWater: 3, index: map[string]int{"a": 0}}
+	old := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "t", revision: 1, owner: auth.state.CurrentUser, columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, attributes: []int32{1}, attributeHighWater: 3, index: map[string]int{"a": 0}}
 	return e, scope, auth, old
 }
 

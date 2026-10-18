@@ -18,7 +18,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ""))
-	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 }
 
 func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFunctionExpression {
@@ -52,7 +52,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		}
 		delete(expected, key)
 		addresses[address] = true
-		if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, member); err != nil {
+		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -96,7 +96,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal("invalid procedure admitted", bad)
 		}
 	}
-	for _, members := range [][]ids.ObjectAddress{nil, {proc.address, proc.address}, {{ClassID: TypeClassID, ObjectID: proc.address.ObjectID}}} {
+	for _, members := range [][]ids.ObjectAddress{nil, {proc.address, proc.address}, {{ClassID: ids.TypeClassID, ObjectID: proc.address.ObjectID}}} {
 		bad := *ext
 		bad.members = members
 		if err := stockFuzzystrmatch.validate(view, &bad); err == nil {
@@ -165,7 +165,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		defer closeOwner()
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.name))
-		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 		if err := stockFuzzystrmatch.validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
@@ -304,7 +304,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 	mapped, err := remapBoundExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == ext.members[0] {
 			ref.Address = imported.members[0]

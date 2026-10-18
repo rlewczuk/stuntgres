@@ -58,7 +58,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		auth.recaptureCatalog(auth.catalog)
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}
 	_, baseExists := stage.base.state.names[key]
 	_, stagedExists := stage.names[key]
 	if baseExists || stagedExists {
@@ -87,7 +87,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	input.EnumMemberSafe = b.enumMemberSafe
 	for _, column := range b.createColumns {
-		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
+		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
 		if b.createOfType == nil {
 			if err := auth.CanUse(ref); err != nil {
 				return err
@@ -224,7 +224,7 @@ func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, own
 			index[column.Name] = i
 		}
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: revision, owner: owner, columns: columns, index: index, attributes: make([]int32, len(columns))}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: revision, owner: owner, columns: columns, index: index, attributes: make([]int32, len(columns))}
 	d.attributeHighWater = int32(len(columns))
 	for i := range columns {
 		d.attributes[i] = int32(i + 1)
@@ -382,7 +382,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return nil
 	}
 	lookup := func(name string) (*namespaceDescriptor, error) {
-		a, ok := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]
+		a, ok := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name))
 		}
@@ -471,7 +471,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		if err = schemaReserved(name); err != nil {
 			return nil, err
 		}
-		if _, ok := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]; ok {
+		if _, ok := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]; ok {
 			if s.IfNotExists {
 				schemaNotice(op, "42P06", fmt.Sprintf(`schema "%s" already exists, skipping`, name))
 				return nil, nil
@@ -486,7 +486,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		if err != nil {
 			return nil, err
 		}
-		ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: name, revision: rev, owner: owner}
+		ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: name, revision: rev, owner: owner}
 		ns.acl = stage.creationACL(owner, ids.ObjectAddress{}, authorization.DefaultSchemas)
 		if err = stage.Create(ns); err != nil {
 			return nil, err
@@ -516,7 +516,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 		next := *old
 		if s.NewName != "" {
-			if _, ok := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: s.NewName}]; ok {
+			if _, ok := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.NewName}]; ok {
 				return nil, sqlError("42P06", fmt.Sprintf(`schema "%s" already exists`, s.NewName))
 			}
 			if err = own(old); err != nil {

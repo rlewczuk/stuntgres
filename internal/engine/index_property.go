@@ -259,7 +259,7 @@ func (e indexPropertyExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing index property catalog snapshot")
 		}
-		relation, ok := c.liveScope().commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}].(*relationDescriptor)
+		relation, ok := c.liveScope().commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}].(*relationDescriptor)
 		if !ok || relation.sqlIndex == nil {
 			return sqltype.Null(e.usage.Type), nil
 		}

@@ -488,12 +488,12 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 			m.mu.Unlock()
 			return nil, nil
 		}
-	} else if ref.Address.ClassID == TypeClassID {
+	} else if ref.Address.ClassID == ids.TypeClassID {
 		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
-	} else if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
+	} else if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}

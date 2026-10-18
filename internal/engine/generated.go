@@ -791,7 +791,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*relationDescriptor)
-			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
+			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != ids.RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
 			if provider.Kind() == ids.ProcedureObject {
@@ -802,7 +802,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 				if !ok || ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid generation procedure")
 				}
-				if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, procedure); err != nil {
+				if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure); err != nil {
 					return err
 				}
 			}

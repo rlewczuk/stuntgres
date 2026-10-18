@@ -100,7 +100,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	var ref ids.ObjectRef
 	switch s.Kind {
 	case parser.CommentSchema:
-		a, ok := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: s.Name.Parts[0].Text}]
+		a, ok := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text}]
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}

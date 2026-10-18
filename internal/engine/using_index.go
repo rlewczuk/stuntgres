@@ -44,7 +44,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 				return nil, allocateErr
 			}
 			clone := *index
-			clone.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+			clone.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 			clone.revision = revision
 			clone.columns = slices.Clone(index.columns)
 			for i, attribute := range attributes {

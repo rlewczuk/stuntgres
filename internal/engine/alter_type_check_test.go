@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 			t.Fatal("stale usage/origin/provider", c.Name, err)
 		}
 		for _, dep := range c.dependencies {
-			if dep.ref.Address.ClassID == RelationClassID && dep.ref.Address.ObjectID == ref.Address.ObjectID && dep.ref.Address.SubID == old.attributes[0] {
+			if dep.ref.Address.ClassID == ids.RelationClassID && dep.ref.Address.ObjectID == ref.Address.ObjectID && dep.ref.Address.SubID == old.attributes[0] {
 				t.Fatal("retained dropped slot", dep)
 			}
 		}

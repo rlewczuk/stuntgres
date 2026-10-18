@@ -110,7 +110,7 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 				}
 			}
 			// Namespace rights isolate view ownership, not inherited schema ACLs.
-			nsAddress := e.CatalogRead().Lookup(ids.NameKey{ClassID: NamespaceClassID, Name: "s"})[0]
+			nsAddress := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0]
 			ns := e.domain.Ref(e.state.epoch, nsAddress)
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
@@ -178,9 +178,9 @@ func TestViewReplaceAtomicCancellation(t *testing.T) {
 			before := e.CatalogRead().state
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			original := e.providers[RelationClassID]
+			original := e.providers[ids.RelationClassID]
 			var once sync.Once
-			e.providers[RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.providers[RelationClassID] = original; cancel() }) }}
+			e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.providers[ids.RelationClassID] = original; cancel() }) }}
 			_, err := testExecute(e, ctx, statement(t, q), nil)
 			if !errors.Is(err, context.Canceled) || e.CatalogRead().state != before {
 				t.Fatal(err, "partial publication")

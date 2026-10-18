@@ -74,7 +74,7 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		r.add(n.ref.Address)
 	case literalExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
-			r.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
+			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 		r.add(n.regclassRef.Address)
 		if r.err == nil {
@@ -97,14 +97,14 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		}
 	case rowExpression:
 		if typ := n.ResultUsage().Type; typ != nil && typ.ID() != 0 {
-			r.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
+			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case coercionExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
-			r.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
+			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case collationExpression:
-		r.add(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
+		r.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
 	case columnExpression:
 		r.add(n.origin.Address)
 	case tableOIDExpression:

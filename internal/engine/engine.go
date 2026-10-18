@@ -202,12 +202,12 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
 		return nil, err
 	}
-	for _, class := range []ids.OID{ForeignWrapperClassID, ForeignServerClassID, ForeignMappingClassID} {
+	for _, class := range []ids.OID{ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID} {
 		if err := e.RegisterCatalogProvider(foreignCatalogProvider{class}); err != nil {
 			return nil, err
 		}
 	}
-	for _, class := range []ids.OID{ExtensionClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
+	for _, class := range []ids.OID{ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
 		if err := e.RegisterCatalogProvider(extensionCatalogProvider{class}); err != nil {
 			return nil, err
 		}
@@ -252,13 +252,13 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
-	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PGToastNamespaceOID, "pg_toast"}, {PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
+	}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if ns.oid == PublicNamespaceOID {
+		if ns.oid == ids.PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
-		if ns.oid != PGToastNamespaceOID {
+		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
+		if ns.oid != ids.PGToastNamespaceOID {
 			d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
@@ -266,7 +266,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		}
 		d.comment = namespaceCommentBaseline(ns.oid)
 		e.state.descriptors[d.address] = d
-		e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
+		e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}] = d.address
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
@@ -274,7 +274,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			d.revision = 1
 		}
 		if typ.NamespaceName() == "information_schema" {
-			d.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+			d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
@@ -293,7 +293,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d := new(conversionDescriptor)
 		*d = builtinConversions[i]
 		d.owner = e.authorizationDomain.Principal(10)
-		d.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.revision = 1
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
@@ -331,16 +331,16 @@ func (e *Engine) allocateOIDLocked() (ids.OID, error) {
 		} else {
 			e.nextOID++
 		}
-		if n == NamespaceClassID || n == RelationClassID || n == PGCatalogNamespaceOID || n == PublicNamespaceOID {
+		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
 			continue
 		}
-		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: n}]; ok {
+		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}]; ok {
 			continue
 		}
-		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; ok {
+		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}]; ok {
 			continue
 		}
-		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: n}]; ok {
+		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}]; ok {
 			continue
 		}
 		usedRule := false
@@ -699,7 +699,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *typeDescriptor
 				if source.relationKind == compositeRelation {
-					typeRef := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)})
+					typeRef := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
@@ -950,7 +950,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	var a ids.ObjectAddress
 	var ok bool
 	if utility && len(name.Parts) == 2 {
-		ns := auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
+		ns := auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = temporaryNamespace(auth)
 		}
@@ -968,7 +968,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		return ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		a = auth.definitionLookup(ids.NameKey{ClassID: RelationClassID, Namespace: path.at(i), Name: relname})
+		a = auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: path.at(i), Name: relname})
 		ok = a != (ids.ObjectAddress{})
 		if ok {
 			break
@@ -1025,7 +1025,7 @@ func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw 
 		} else {
 			source = literalTypeName(value)
 			if literal, ok := raw.(parser.TypedLiteralExpr); ok {
-				found := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
+				found := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
 				if len(found) == 1 {
 					if typ, ok := view.LookupType(sqltype.ID(found[0].ObjectID)); ok {
 						source = typ.DiagnosticName()

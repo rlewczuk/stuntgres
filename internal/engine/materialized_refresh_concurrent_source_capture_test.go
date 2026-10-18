@@ -165,7 +165,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	stage.querySources = scope.materializedSources
 	stage.materializedSourceView = snapshot
-	provider := stage.base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(outer.rowType)}]
+	provider := stage.base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.rowType)}]
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}

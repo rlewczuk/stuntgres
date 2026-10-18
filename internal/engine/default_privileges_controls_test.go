@@ -117,7 +117,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		imported := target.e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "default_schema"}]
+		imported := target.e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "default_schema"}]
 		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: authorization.DefaultTables}] == nil || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: authorization.DefaultTables}] != nil {
 			t.Fatal("namespace collision did not remap imported policy identity")
 		}
@@ -181,7 +181,7 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 	// Pristine dependent hardwired TYPE baselines must not make ordinary table
 	// dump/restore fail, nor require a broadened generic TypeObject fallback.
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
-	f.schema = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	f.schema = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	f.owner = f.e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	table := defaultUnitTable(t, f, stage, "pristine", f.owner)
 	if err = defaultUnitPublish(t, f.e, stage); err != nil {

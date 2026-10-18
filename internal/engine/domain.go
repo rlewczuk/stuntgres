@@ -54,14 +54,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if replacement, ok := stage.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor); ok {
+	if replacement, ok := stage.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor); ok {
 		base.Type = replacement.typ
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)
 	if err != nil {
 		return err
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 	stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 	if err = auth.CanUse(ref); err != nil {
 		return err
@@ -118,7 +118,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 		}
 		var found []ids.ObjectAddress
 		for i := range path.count() {
-			found = auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+			found = auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) != 0 {
 				break
 			}
@@ -150,7 +150,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 
 func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
 	if d.typ.IsArray() {
-		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
+		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
 		if ok {
 			return typeDiagnosticNameAt(catalog, element.(*typeDescriptor), path) + "[]"
 		}
@@ -160,7 +160,7 @@ func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.Obj
 		return name
 	}
 	for _, ns := range path {
-		if address, ok := catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+		if address, ok := catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
 			if address == d.Address() {
 				return name
 			}

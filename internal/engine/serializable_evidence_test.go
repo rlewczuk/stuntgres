@@ -13,8 +13,8 @@ import (
 func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}
-	d := &relationDescriptor{address: address, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
+	d := &relationDescriptor{address: address, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	catalog := cloneCatalog(e.state)
 	original := catalog.descriptors[ref.Address].(*relationDescriptor)
 	copy := *original
-	copy.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	copy.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	catalog.descriptors[ref.Address] = &copy
 	e.state = catalog
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
@@ -223,7 +223,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	sessionSQL(t, session, "CREATE TEMP SEQUENCE temporary_s")
 	sessionSQL(t, session, "CREATE TEMP TABLE eligibility(v INT)")
 	view := e.CatalogRead()
-	matches := view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: session.temporaryNamespace, Name: "eligibility"})
+	matches := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: session.temporaryNamespace, Name: "eligibility"})
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}

@@ -43,7 +43,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			}
 		}
 		for _, fact := range tables {
-			d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: fact.oid}].(*relationDescriptor)
+			d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid}].(*relationDescriptor)
 			if !ok || d.name != fact.name || d.relationKind != catalogRelation {
 				t.Fatal("represented table identity", fact, d)
 			}
@@ -64,7 +64,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		// Ordinary descriptors must not acquire compatibility facts merely
 		// because their implementation/source kind resembles a table.
-		ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200555}, name: "unindexed", relationKind: tableRelation, owner: e.authorizationDomain.Principal(10)}
+		ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, name: "unindexed", relationKind: tableRelation, owner: e.authorizationDomain.Principal(10)}
 		project(ordinary, false)
 	}
 	check()

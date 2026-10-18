@@ -90,7 +90,7 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 				fact.notNull = i < 14
 			case 2964:
 				fact.notNull = i < 2
-			case ParameterClassID:
+			case ids.ParameterClassID:
 				fact.notNull = i < 2
 			case 3456:
 				fact.notNull = i < 7

@@ -21,7 +21,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 	var tables []*relationDescriptor
 	reserved := make(map[ids.ObjectAddress]map[string]bool)
 	for key := range view.state.names {
-		if key.ClassID != RelationClassID {
+		if key.ClassID != ids.RelationClassID {
 			continue
 		}
 		if reserved[key.Namespace] == nil {

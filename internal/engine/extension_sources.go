@@ -12,7 +12,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if source.address.ObjectID == ExtensionClassID {
+	if source.address.ObjectID == ids.ExtensionClassID {
 		ids := [8]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Bool, sqltype.Text, 1028, 1009}
 		if len(source.columns) != len(ids) {
 			return nil, fmt.Errorf("stuntgres: invalid extension source shape")

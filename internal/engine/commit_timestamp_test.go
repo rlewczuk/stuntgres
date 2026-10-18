@@ -79,7 +79,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if e.visibility[d].xid != 0 || e.visibility[d].assignedXID == 0 {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384}
 	if publicationNeedsXID(map[ids.ObjectAddress][]rowVersion{address: nil}, map[ids.ObjectAddress]*privateDeletionRoot{address: {}}, newCatalogChanges(), nil) {
 		t.Fatal("empty reserved publication containers fabricated assignment")
 	}
@@ -138,7 +138,7 @@ func TestCommitTimePublication(t *testing.T) {
 					if route == "catalog" {
 						stage.initialTx = ref
 					}
-					d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
+					d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}
@@ -328,7 +328,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if n.arg != nil {
 			column := columnExpression{
 				expressionInfo: b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, ExprProperties{RowDependent: true}),
-				origin:         ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}},
+				origin:         ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
 			withColumn := n
 			withColumn.arg = column

@@ -44,7 +44,7 @@ func (r capturedRegObjectInput) ResolveRegnamespace(ctx context.Context, input s
 		return 0, sqlError("42602", "invalid name syntax")
 	}
 	name := parts.Parts[0].Text
-	address := r.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name})
+	address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 	if _, exists := r.auth.definitionNamespace(address); !exists {
 		return 0, sqlError("3F000", `schema "`+name+`" does not exist`)
 	}
@@ -87,7 +87,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 	}
 	path := namespaceSelection{path: r.path}
 	if len(parts) == 2 {
-		namespace := r.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
+		namespace := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			namespace = r.temporary
 		}
@@ -107,7 +107,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		path = namespaceSelection{qualified: namespace}
 	}
 	for i := range path.count() {
-		address := r.auth.definitionLookup(ids.NameKey{ClassID: CollationClassID, Namespace: path.at(i), Name: parts[len(parts)-1].Text})
+		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.at(i), Name: parts[len(parts)-1].Text})
 		descriptor, _ := r.auth.definitionDescriptor(address)
 		if d, exists := descriptor.(*collationDescriptor); exists {
 			one := [1]collationCandidate{{address, d.encoding}}

@@ -129,7 +129,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		if n.usage.Type.ContainsRegclass() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRegclassDatum(n.value, func(id ids.OID) ids.OID {
-				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}}).Address.ObjectID
+				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -147,7 +147,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		if n.usage.Type.ContainsRegproc() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRoutineDatum(n.value, func(id ids.OID) ids.OID {
-				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}}).Address.ObjectID
+				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -156,7 +156,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		if n.usage.Type.ContainsOperatorAlias() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapOperatorDatum(n.value, func(id ids.OID) ids.OID {
-				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}}).Address.ObjectID
+				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -714,7 +714,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			schema[i].Usage.Collation = capability
 		}
 		if schema[i].OriginTable != 0 {
-			origin := ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(schema[i].OriginTable)}})
+			origin := ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(schema[i].OriginTable)}})
 			schema[i].OriginTable = uint32(origin.Address.ObjectID)
 		}
 	}

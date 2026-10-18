@@ -187,7 +187,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(advisoryExpression)
-		column := columnExpression{expressionInfo: expressionInfo{usage: node.args[0].ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 999, SubID: 1}}}
+		column := columnExpression{expressionInfo: expressionInfo{usage: node.args[0].ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
 		node.args = []BoundExpr{node.args[0], column}
 		node.properties.RowDependent = true
 		visits := 0

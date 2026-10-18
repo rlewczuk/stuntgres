@@ -99,10 +99,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	} {
 		sessionSQL(t, s, q)
 	}
-	ns := e.CatalogRead().state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "routine_types"}]
-	address := e.CatalogRead().state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns, Name: "secret"}]
+	ns := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "routine_types"}]
+	address := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"}]
 	typ := e.CatalogRead().state.descriptors[address].(*typeDescriptor)
-	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, 92001, ids.OID(typ.typ.ID()), 23)
+	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.typ.ID()), 23)
 	sessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
 	if d.regtypes == nil || len(d.regtypes.constants) != 3 {
@@ -122,7 +122,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if procedureErr != nil || operatorErr != nil || typeErr != nil || procedure != 1397 || operatorID != 92001 || typeID != 23 {
 		t.Fatal("fresh mixed members lost actual identities", procedure, operatorID, typeID, procedureErr, operatorErr, typeErr)
 	}
-	int4 := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23}]
+	int4 := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}]
 	want := []expressionDependency{
 		{ref: e.domain.Ref(e.CatalogRead().Epoch(), typ.Address()), revision: typ.Revision()},
 		{ref: e.domain.Ref(e.CatalogRead().Epoch(), int4.Address()), revision: int4.Revision()},

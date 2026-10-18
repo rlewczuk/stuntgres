@@ -105,7 +105,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 	}
 	path := r.path
 	if len(parts) == 2 {
-		ns := r.types.auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		ns := r.types.auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text}]
 		if parts[0].Text == "pg_temp" {
 			ns = r.types.temporary
 		}

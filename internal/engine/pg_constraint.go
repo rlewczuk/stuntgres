@@ -82,7 +82,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if id == 0 || table.address.ClassID != RelationClassID || table.address.ObjectID == 0 {
+			if id == 0 || table.address.ClassID != ids.RelationClassID || table.address.ObjectID == 0 {
 				return nil, fmt.Errorf("stuntgres: invalid constraint owner identity")
 			}
 			row := values[at*28 : (at+1)*28 : (at+1)*28]
@@ -306,7 +306,7 @@ func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value
 			return
 		}
 		column, ok := node.(columnExpression)
-		if !ok || column.origin.Address.ClassID != RelationClassID || column.origin.Address.ObjectID != table.address.ObjectID {
+		if !ok || column.origin.Address.ClassID != ids.RelationClassID || column.origin.Address.ObjectID != table.address.ObjectID {
 			return
 		}
 		attribute := column.origin.Address.SubID
@@ -354,9 +354,9 @@ func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID
 			*operand = 3500
 		}
 	}
-	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	signature := strconv.FormatUint(uint64(left), 10) + "," + strconv.FormatUint(uint64(right), 10)
-	address, ok := catalog.state.names[ids.NameKey{ClassID: OperatorClassID, Namespace: namespace, Name: name, Signature: signature}]
+	address, ok := catalog.state.names[ids.NameKey{ClassID: ids.OperatorClassID, Namespace: namespace, Name: name, Signature: signature}]
 	if !ok || address.ObjectID == 0 {
 		return 0, fmt.Errorf("stuntgres: missing constraint operator identity")
 	}

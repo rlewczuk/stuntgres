@@ -87,7 +87,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	key := ids.NameKey{ClassID: ExtensionClassID, Name: s.Name.Text}
+	key := ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}
 	if auth.catalog.state.names[key] != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
@@ -136,7 +136,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	var namespace ids.ObjectAddress
 	if schema != nil {
-		namespace = auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: schema.Text}]
+		namespace = auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text}]
 		if namespace == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, schema.Text))
 		}
@@ -178,7 +178,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, version: version, targetNamespace: namespace, owner: actor.Ref}
+	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, version: version, targetNamespace: namespace, owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
@@ -193,7 +193,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 
 func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.members = make([]ids.ObjectAddress, 6)
-	for i, class := range [6]ids.OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
+	for i, class := range [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			return err

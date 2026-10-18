@@ -124,7 +124,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			}
 			namespace := table.namespace
 			used := func(name string) bool {
-				return len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
+				return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
 			}
 			name := ownedSequenceName(table.name, table.columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
@@ -166,7 +166,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	if err != nil {
 		return err
 	}
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 	options.owned = table.address
 	options.owned.SubID = table.attributes[slot]
 	options.identity = true

@@ -10,7 +10,7 @@ import (
 )
 
 func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
-	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 21000}
+	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}
 	if e.state.descriptors[ns] == nil {
 		e.state = cloneCatalog(e.state)
 		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.domain.Session(99)}

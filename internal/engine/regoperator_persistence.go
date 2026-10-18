@@ -44,7 +44,7 @@ func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value s
 	if err != nil {
 		return err
 	}
-	address := ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(id)}
+	address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)}
 	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
@@ -57,7 +57,7 @@ func operatorLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	d, known := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(id)}].(*operatorDescriptor)
+	d, known := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)}].(*operatorDescriptor)
 	if !known || d.seeded() {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}

@@ -18,7 +18,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	targetArray, _ := sqltype.Array(45003, "_mood", targetMood)
 	fixtureView := func(e *Engine, enum, array *sqltype.Descriptor) CatalogRead {
 		base := e.CatalogRead()
-		namespace := base.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "public"}]
+		namespace := base.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]
 		stage := e.BeginCatalogStage(base)
 		for _, d := range []*typeDescriptor{{typ: enum, namespace: namespace, revision: 1, array: array.ID()}, {typ: array, namespace: namespace, revision: 1}} {
 			if err := stage.Create(d); err != nil {

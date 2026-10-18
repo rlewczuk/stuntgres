@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
@@ -21,9 +23,9 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 				ctx,cancel := context.WithCancel(context.Background()); defer cancel()
 				reset := make(chan error,1)
 				var once sync.Once
-				provider := e.providers[RelationClassID]
-				e.providers[RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
-					e.providers[RelationClassID] = provider
+				provider := e.providers[ids.RelationClassID]
+				e.providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
+					e.providers[ids.RelationClassID] = provider
 					if replacement {
 						go func(){ reset <- e.Reset(context.Background()) }()
 						deadline := time.Now().Add(5*time.Second)

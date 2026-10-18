@@ -17,7 +17,7 @@ func checkReview2SchemaAbsent(t *testing.T, e *Engine) {
 	t.Helper()
 	read := e.CatalogRead()
 	for _, d := range read.state.descriptors {
-		if d.Address().ClassID == NamespaceClassID && d.Name() == "checked" {
+		if d.Address().ClassID == ids.NamespaceClassID && d.Name() == "checked" {
 			t.Fatal("failed inline CREATE published its schema")
 		}
 		if r, ok := d.(*relationDescriptor); ok && (r.name == "earlier" || r.name == "t") {

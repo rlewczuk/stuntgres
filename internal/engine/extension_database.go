@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var currentDatabaseAddress = ids.ObjectAddress{ClassID: DatabaseClassID, ObjectID: 16383}
+var currentDatabaseAddress = ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 16383}
 
 type databaseDescriptor struct {
 	address  ids.ObjectAddress
@@ -27,7 +27,7 @@ func (*databaseDescriptor) Kind() ids.ObjectKind               { return ids.Data
 
 type databaseProvider struct{}
 
-func (databaseProvider) ClassID() ids.OID { return DatabaseClassID }
+func (databaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
 func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
 	db, ok := d.(*databaseDescriptor)
 	if !ok || db.address != currentDatabaseAddress || db.revision == 0 || v.state.names[descriptorNameKey(d)] != db.address || db.Namespace() != (ids.ObjectAddress{}) {

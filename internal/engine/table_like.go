@@ -161,7 +161,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					options.persistence = "logged"
 					read := e.stageRead(stage)
 					name := ownedSequenceName(destination.name, destination.columns[in.targetSlot(slot)].Name, func(n string) bool {
-						return n == destination.name || len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: destination.namespace, Name: n})) != 0
+						return n == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: n})) != 0
 					})
 					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.mode, options, nil); err != nil {
 						return err
@@ -185,7 +185,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					// identities may be copied unchanged only into its same physical
 					// TEMP lifetime, not certified through an unpublished destination.
 					for _, dependency := range old.dependencies {
-						if dependency.Address.ClassID != ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
+						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
 							continue
 						}
 						sourceNamespace := auth.catalog.state.descriptors[in.source.namespace].(*namespaceDescriptor)

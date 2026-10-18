@@ -53,7 +53,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 // Translation remains keyed by the source pointer and points at that final codec.
 func refreshScalarImportDestinations(next *catalogState) {
 	for source := range next.scalarImports {
-		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.ID())}].(*typeDescriptor); ok {
+		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.ID())}].(*typeDescriptor); ok {
 			next.scalarImports[source] = d.typ
 		}
 	}

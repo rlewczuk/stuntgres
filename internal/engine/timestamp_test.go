@@ -233,7 +233,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(v TIMESTAMP(3))")
 	view := e.CatalogRead()
-	matches := view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "t"})
+	matches := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "t"})
 	if len(matches) != 1 {
 		t.Fatal(matches)
 	}

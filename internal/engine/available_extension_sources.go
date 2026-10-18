@@ -36,7 +36,7 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]registe
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		address := catalog.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: name}]
+		address := catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}]
 		installed, _ := catalog.state.descriptors[address].(*extensionDescriptor)
 		row, err := projectAvailableExtension(name, registration, installed, source)
 		if err != nil {

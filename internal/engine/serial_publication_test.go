@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func serialPublicationQuery(alter bool) string {
@@ -32,7 +34,7 @@ func TestSerialDefaultUnpublishedProviderHold(t *testing.T) {
 			unblock := func() { once.Do(func() { close(release) }) }
 			t.Cleanup(unblock)
 			var gated atomic.Bool
-			e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() {
+			e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() {
 				if gated.CompareAndSwap(false, true) {
 					close(entered)
 					<-release

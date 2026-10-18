@@ -13,7 +13,7 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", ""))
-	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
 }
 
 func TestIntaggProviderManifest(t *testing.T) {
@@ -37,7 +37,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("member identity", proc)
 		}
 		addresses[address] = true
-		if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, proc); err != nil {
+		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*procedureDescriptor){
@@ -93,7 +93,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			op, done := roleOperation(t, other, "postgres")
 			defer done()
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
-			installed := other.state.descriptors[other.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: name}]].(*extensionDescriptor)
+			installed := other.state.descriptors[other.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}]].(*extensionDescriptor)
 			var member *procedureDescriptor
 			for _, address := range installed.members {
 				if proc, ok := other.state.descriptors[address].(*procedureDescriptor); ok {

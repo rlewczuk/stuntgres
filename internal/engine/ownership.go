@@ -55,9 +55,9 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		return t.address.ClassID != ForeignMappingClassID || t.mappedRole != (authorization.PrincipalRef{})
+		return t.address.ClassID != ids.ForeignMappingClassID || t.mappedRole != (authorization.PrincipalRef{})
 	case *namespaceDescriptor:
-		return t.temporary == (SessionToken{}) && t.address.ObjectID != PGCatalogNamespaceOID && t.address.ObjectID != PGToastNamespaceOID && t.address.ObjectID != 13229
+		return t.temporary == (SessionToken{}) && t.address.ObjectID != ids.PGCatalogNamespaceOID && t.address.ObjectID != ids.PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
 		return t.relationKind != catalogRelation && t.relationKind != indexRelation && t.relationKind != compositeRelation && (t.sequence == nil || t.sequence.owned == (ids.ObjectAddress{}))
 	case *typeDescriptor:
@@ -150,7 +150,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			return err
 		}
 		if old.array != 0 {
-			array, ok := stage.base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.array)}].(*typeDescriptor)
+			array, ok := stage.base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.array)}].(*typeDescriptor)
 			if !ok || !array.typ.IsArray() || array.typ.Element().ID() != old.typ.ID() {
 				return CatalogConflict{}
 			}
@@ -335,7 +335,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	}
 	var old *typeDescriptor
 	for i := range path.count() {
-		a := auth.catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text}]
+		a := auth.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text}]
 		if a != (ids.ObjectAddress{}) {
 			old = auth.catalog.state.descriptors[a].(*typeDescriptor)
 			break
@@ -350,7 +350,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		return fail(sqlError("42809", display+" is not a domain"))
 	}
 	if old.typ.IsArray() {
-		element := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.typ.Element().ID())}].(*typeDescriptor)
+		element := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.typ.Element().ID())}].(*typeDescriptor)
 		elementName := typeDiagnosticNameAt(auth.catalog, element, diagnosticPath)
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + display, Hint: "You can alter type " + elementName + ", which will alter the array type as well."})
 	}

@@ -167,7 +167,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		destination = ns.Address
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if raw.IfNotExists && destination != (ids.ObjectAddress{}) && auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: destination, Name: name}] != (ids.ObjectAddress{}) {
+	if raw.IfNotExists && destination != (ids.ObjectAddress{}) && auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination, Name: name}] != (ids.ObjectAddress{}) {
 		e.mu.Unlock()
 		return nil
 	}
@@ -192,7 +192,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 						self = true
 						break
 					}
-					if auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}] != (ids.ObjectAddress{}) {
+					if auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}] != (ids.ObjectAddress{}) {
 						break
 					}
 				}

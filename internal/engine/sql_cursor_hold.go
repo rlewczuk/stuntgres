@@ -100,9 +100,9 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err == nil {
 		for _, dependency := range c.routineDependencies {
 			switch dependency.ref.Address.ClassID {
-			case ProcedureClassID, TypeClassID:
+			case ids.ProcedureClassID, ids.TypeClassID:
 				// These are the original callable and typed binding lifetimes.
-			case RelationClassID:
+			case ids.RelationClassID:
 				original, _ := c.routineAuth.catalog.state.descriptors[dependency.ref.Address].(*relationDescriptor)
 				if original == nil || original.view == nil {
 					// Base source shape/storage is fenced by the existing query

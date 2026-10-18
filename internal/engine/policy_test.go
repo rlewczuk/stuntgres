@@ -232,10 +232,10 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 		name, setup, condition string
 		class                  ids.OID
 	}{
-		{"helper", "CREATE VIEW dependent_view AS SELECT id FROM helper", "EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)", RelationClassID},
-		{"policy_integer", "CREATE DOMAIN policy_integer AS INTEGER", "id::policy_integer>0", TypeClassID},
-		{"policy_collation", `CREATE COLLATION policy_collation FROM "C"`, "'a' COLLATE policy_collation='a'", CollationClassID},
-		{"policy_sequence", "CREATE SEQUENCE policy_sequence", "nextval('policy_sequence')>0", RelationClassID},
+		{"helper", "CREATE VIEW dependent_view AS SELECT id FROM helper", "EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)", ids.RelationClassID},
+		{"policy_integer", "CREATE DOMAIN policy_integer AS INTEGER", "id::policy_integer>0", ids.TypeClassID},
+		{"policy_collation", `CREATE COLLATION policy_collation FROM "C"`, "'a' COLLATE policy_collation='a'", ids.CollationClassID},
+		{"policy_sequence", "CREATE SEQUENCE policy_sequence", "nextval('policy_sequence')>0", ids.RelationClassID},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, op, done, owner := policyUnitFixture(t)

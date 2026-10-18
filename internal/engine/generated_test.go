@@ -26,7 +26,7 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 			break
 		}
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 25000}, namespace: namespace, name: "g", revision: 1, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"a": 0, "b": 1}}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, namespace: namespace, name: "g", revision: 1, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"a": 0, "b": 1}}
 	return e, view, d
 }
 
@@ -180,7 +180,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	}
 	candidate := cloneCatalog(view.state)
 	candidate.descriptors[d.address] = d
-	candidate.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	candidate.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	read := CatalogRead{owner: e, state: candidate}
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)

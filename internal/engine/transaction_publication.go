@@ -255,7 +255,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ids.Ob
 					delete(nextSequences, a)
 					delete(nextStorage, a)
 				}
-				if a.ClassID == NamespaceClassID && current.descriptors[a] != d {
+				if a.ClassID == ids.NamespaceClassID && current.descriptors[a] != d {
 					detached := *nextCatalog
 					nextCatalog = &detached
 				}
@@ -268,7 +268,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ids.Ob
 				}
 			}
 			for a, d := range c.descriptors {
-				if a.ClassID == NamespaceClassID && current.descriptors[a] != d {
+				if a.ClassID == ids.NamespaceClassID && current.descriptors[a] != d {
 					if err := nextCatalog.advanceNamespaceGeneration(); err != nil {
 						return err
 					}

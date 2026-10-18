@@ -83,7 +83,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 			e.DiscardCatalogStage(stage)
 			return fail(ErrCatalogReplaced)
 		}
-		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}]; exists {
+		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}]; exists {
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}

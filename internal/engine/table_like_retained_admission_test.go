@@ -148,7 +148,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if allocationErr != nil {
 						t.Fatal(allocationErr)
 					}
-					replacement.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+					replacement.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 					replacement.revision = 1
 					change := e.BeginCatalogStage(e.CatalogRead())
 					if err := change.Create(&replacement); err != nil {

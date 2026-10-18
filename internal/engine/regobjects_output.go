@@ -17,7 +17,7 @@ func regObjectSpelling(view CatalogRead, path []ids.ObjectAddress, class, id ids
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	name := regclassIdentifier(d.Name())
-	if class == NamespaceClassID || visibleCollation(view, path, d) {
+	if class == ids.NamespaceClassID || visibleCollation(view, path, d) {
 		return name
 	}
 	return regclassIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + name
@@ -27,19 +27,19 @@ func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {
 	if s == nil || s.commentCatalog.state == nil {
 		return "", fmt.Errorf("stuntgres: missing regcollation output snapshot")
 	}
-	return regObjectSpelling(s.commentCatalog, s.collationPath, CollationClassID, ids.OID(id)), nil
+	return regObjectSpelling(s.commentCatalog, s.collationPath, ids.CollationClassID, ids.OID(id)), nil
 }
 func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
 	if s == nil || s.commentCatalog.state == nil {
 		return "", fmt.Errorf("stuntgres: missing regnamespace output snapshot")
 	}
-	return regObjectSpelling(s.commentCatalog, nil, NamespaceClassID, ids.OID(id)), nil
+	return regObjectSpelling(s.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 func (r *finalRows) FormatRegcollation(id uint32) (string, error) {
-	return r.regObjectText(CollationClassID, id)
+	return r.regObjectText(ids.CollationClassID, id)
 }
 func (r *finalRows) FormatRegnamespace(id uint32) (string, error) {
-	return r.regObjectText(NamespaceClassID, id)
+	return r.regObjectText(ids.NamespaceClassID, id)
 }
 func (r *finalRows) regObjectText(class ids.OID, id uint32) (string, error) {
 	text, exists := r.regobjectOutput[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}]

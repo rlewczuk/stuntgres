@@ -133,7 +133,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	}
 	var attributes []ids.ObjectRef
 	for _, dependency := range dependencies {
-		if dependency.Address.ClassID == RelationClassID {
+		if dependency.Address.ClassID == ids.RelationClassID {
 			attributes = append(attributes, dependency)
 		}
 	}

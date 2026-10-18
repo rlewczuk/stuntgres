@@ -52,7 +52,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	sessionSQL(t, s, "CREATE TEMP TABLE namespace_table(i INT)")
 	table := s.temporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
-	object := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: table, Name: "namespace_table"}]].(*relationDescriptor)
+	object := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: table, Name: "namespace_table"}]].(*relationDescriptor)
 	actor := e.Roles().LookupRef("namespace_actor")
 	if object.owner != actor || object.owner.ID() == 10 {
 		t.Fatal("namespace owner replaced object actor", object.owner)
@@ -161,7 +161,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	table := s.temporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
 	sessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
-	address := e.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: table, Name: "namespace_collation"}]
+	address := e.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: table, Name: "namespace_collation"}]
 	s.RequestEnd(CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TEMP VIEW owned_temp AS SELECT 1 AS v")
 	namespace := op.session.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
-	address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "owned_temp"}]
+	address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"}]
 	view, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok || view.owner != e.Roles().LookupRef("namespace_view_creator") || view.namespace != namespace || view.relationKind != viewRelation || view.view == nil {
 		t.Fatal("physical creator did not own staged TEMP view", view)

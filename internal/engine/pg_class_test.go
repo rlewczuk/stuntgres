@@ -11,7 +11,7 @@ import (
 
 func pgClassUnitSource(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
-	return e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	return e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
 }
 
 func TestPgClassProjection(t *testing.T) {
@@ -28,7 +28,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200001}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "projection", owner: e.authorizationDomain.Principal(10), rowType: 200002, ofType: ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 200003}, attributeHighWater: 2, hasIndexes: true, hasSubclasses: true, rlsEnabled: true, rlsForced: true, checkConstraints: make([]checkConstraint, 2)}
+	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "projection", owner: e.authorizationDomain.Principal(10), rowType: 200002, ofType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, attributeHighWater: 2, hasIndexes: true, hasSubclasses: true, rlsEnabled: true, rlsForced: true, checkConstraints: make([]checkConstraint, 2)}
 	row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
@@ -38,7 +38,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("value carrier", i, value)
 		}
 	}
-	for i, want := range map[int]uint32{0: 200001, 2: uint32(PublicNamespaceOID), 3: 200002, 4: 200003, 5: 10, 6: 2, 7: 0, 8: 0, 13: 0, 28: 0} {
+	for i, want := range map[int]uint32{0: 200001, 2: uint32(ids.PublicNamespaceOID), 3: 200002, 4: 200003, 5: 10, 6: 2, 7: 0, 8: 0, 13: 0, 28: 0} {
 		got, err := row[i].OID()
 		if err != nil || got != want {
 			t.Fatal("OID", i, got, want, err)
@@ -74,7 +74,7 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	for _, oid := range []ids.OID{1213, 1262, 2396} {
-		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, d)
 		if err != nil {
 			t.Fatal(err)
@@ -99,13 +99,13 @@ func TestPgClassKinds(t *testing.T) {
 		}
 	}
 	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
-		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		before := d.virtualView
 		if got := pgClassKind(catalog, d); got != "v" || d.virtualView != before {
 			t.Fatal("classification changed dispatch", oid, got)
 		}
 	}
-	parentAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200010}
+	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200010}
 	state := cloneCatalog(catalog.state)
 	state.descriptors[parentAddress] = &relationDescriptor{address: parentAddress, partition: &partitionDefinition{}}
 	index := &relationDescriptor{relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress}}

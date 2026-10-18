@@ -12,7 +12,7 @@ import (
 const tablePrivilegesOID ids.OID = 16200
 
 func (e *Engine) initializeTablePrivileges() error {
-	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 	d := e.catalogSourceDescriptor(tablePrivilegesOID, namespace, "table_privileges", 8)
 	d.virtualView = true
 	for i, name := range []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"} {

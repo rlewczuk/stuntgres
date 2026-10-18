@@ -269,7 +269,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		}
 		visible := false
 		for _, schema := range path {
-			found := auth.catalog.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: schema, Name: view.name})
+			found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.name})
 			if len(found) != 0 {
 				visible = len(found) == 1 && found[0] == view.address
 				break

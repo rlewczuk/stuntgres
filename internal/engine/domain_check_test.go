@@ -25,7 +25,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if len(d.domainChecks) != 2 || d.domainChecks[0].Name != "a_first" || d.domainChecks[0].ordinal != 1 || d.domainChecks[1].Name != "z_last" || d.domainChecks[1].ordinal != 0 || !d.typ.HasDomainChecks() {
 		t.Fatal("lost own order/identity", d.domainChecks)
 	}
-	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.Name()})) != 0 {
+	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.Name()})) != 0 {
 		t.Fatal("published into immutable prior root")
 	}
 	if err := validateDefinitionOIDs(view); err != nil {

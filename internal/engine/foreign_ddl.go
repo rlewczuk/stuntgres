@@ -21,22 +21,22 @@ type foreignValidation struct {
 func foreignClass(kind string) ids.OID {
 	switch kind {
 	case "wrapper":
-		return ForeignWrapperClassID
+		return ids.ForeignWrapperClassID
 	case "server":
-		return ForeignServerClassID
+		return ids.ForeignServerClassID
 	case "mapping":
-		return ForeignMappingClassID
+		return ids.ForeignMappingClassID
 	default:
-		return RelationClassID
+		return ids.RelationClassID
 	}
 }
 func foreignLabel(class ids.OID) string {
 	switch class {
-	case ForeignWrapperClassID:
+	case ids.ForeignWrapperClassID:
 		return "foreign-data wrapper"
-	case ForeignServerClassID:
+	case ids.ForeignServerClassID:
 		return "server"
-	case ForeignMappingClassID:
+	case ids.ForeignMappingClassID:
 		return "user mapping"
 	default:
 		return "foreign table"
@@ -214,7 +214,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			return nil, nil, err
 		}
-		server, err = findForeign(auth.catalog, ForeignServerClassID, s.Server.Text)
+		server, err = findForeign(auth.catalog, ids.ForeignServerClassID, s.Server.Text)
 		if err != nil {
 			if s.Action == "drop" && s.IfExists {
 				schemaNotice(op, "00000", fmt.Sprintf(`server "%s" does not exist, skipping`, s.Server.Text))
@@ -241,7 +241,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			d, er := findForeign(auth.catalog, class, n.Parts[0].Text)
 			if er != nil {
-				if class == ForeignMappingClassID {
+				if class == ids.ForeignMappingClassID {
 					message := foreignMappingDiagnostic(auth, role, server, false)
 					if s.IfExists {
 						schemaNotice(op, "00000", message+", skipping")
@@ -255,7 +255,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 				}
 				return nil, nil, er
 			}
-			if class != ForeignMappingClassID {
+			if class != ids.ForeignMappingClassID {
 				if er = auth.Check(AccessRequirement{Object: foreignRef(auth, d), OwnerOnly: true}); er != nil {
 					return nil, nil, er
 				}
@@ -270,7 +270,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	old, _ = findForeign(auth.catalog, class, name)
 	if s.Action == "create" && old != nil {
 		message := fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), name)
-		if class == ForeignMappingClassID {
+		if class == ids.ForeignMappingClassID {
 			message = foreignMappingDiagnostic(auth, role, server, true)
 		}
 		if s.IfNotExists {
@@ -280,7 +280,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		return nil, nil, sqlError("42710", message)
 	}
 	if s.Action == "alter" && old == nil {
-		if class == ForeignMappingClassID {
+		if class == ids.ForeignMappingClassID {
 			return nil, nil, sqlError("42704", foreignMappingDiagnostic(auth, role, server, false))
 		}
 		_, err = findForeign(auth.catalog, class, name)
@@ -288,7 +288,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	}
 	var next foreignDescriptor
 	if old != nil {
-		if class != ForeignMappingClassID && s.Owner == nil {
+		if class != ids.ForeignMappingClassID && s.Owner == nil {
 			if err = auth.Check(AccessRequirement{Object: foreignRef(auth, old), OwnerOnly: true}); err != nil {
 				return nil, nil, err
 			}
@@ -306,7 +306,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		return nil, nil, err
 	}
 	switch class {
-	case ForeignWrapperClassID:
+	case ids.ForeignWrapperClassID:
 		if s.HandlerSet {
 			p, er := e.foreignProcedureLocked(auth, s.Handler, foreignHandlerSignature)
 			if er != nil {
@@ -330,9 +330,9 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 		}
 		wrapper = &next
-	case ForeignServerClassID:
+	case ids.ForeignServerClassID:
 		if old == nil {
-			wrapper, err = findForeign(auth.catalog, ForeignWrapperClassID, s.Server.Text)
+			wrapper, err = findForeign(auth.catalog, ids.ForeignWrapperClassID, s.Server.Text)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -347,7 +347,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if s.VersionSet {
 			next.version = s.Version
 		}
-	case ForeignMappingClassID:
+	case ids.ForeignMappingClassID:
 		next.server = server.address
 		next.mappedRole = role
 		next.owner = role
@@ -403,7 +403,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	if err != nil {
 		return nil, nil, err
 	}
-	if s.Action == "alter" && class == ForeignWrapperClassID {
+	if s.Action == "alter" && class == ids.ForeignWrapperClassID {
 		if s.HandlerSet {
 			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper handler can change behavior of existing foreign tables"})
 		}
@@ -415,7 +415,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 }
 
 func foreignCatalogClass(class ids.OID) bool {
-	return class == ForeignWrapperClassID || class == ForeignServerClassID || class == ForeignMappingClassID
+	return class == ids.ForeignWrapperClassID || class == ids.ForeignServerClassID || class == ids.ForeignMappingClassID
 }
 func foreignDependencyAddresses(d *foreignDescriptor) [4]ids.ObjectAddress {
 	return [4]ids.ObjectAddress{d.wrapper, d.server, d.handler, d.validator}
@@ -456,7 +456,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *foreignDescript
 	if err != nil {
 		return err
 	}
-	if object.address.ClassID == ForeignWrapperClassID {
+	if object.address.ClassID == ids.ForeignWrapperClassID {
 		failure := func(hint string) error {
 			d := sqlError("42501", fmt.Sprintf(`permission denied to change owner of foreign-data wrapper "%s"`, object.name)).(*sqlstate.Error)
 			d.Hint = hint

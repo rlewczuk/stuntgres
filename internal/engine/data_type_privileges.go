@@ -14,7 +14,7 @@ import (
 const dataTypePrivilegesOID ids.OID = 16201
 
 func (e *Engine) initializeDataTypePrivileges() error {
-	d := e.catalogSourceDescriptor(dataTypePrivilegesOID, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}, "data_type_privileges", 5)
+	d := e.catalogSourceDescriptor(dataTypePrivilegesOID, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}, "data_type_privileges", 5)
 	d.virtualView = true
 	for i, name := range []string{"object_catalog", "object_schema", "object_name", "object_type", "dtd_identifier"} {
 		id := sqltype.Name
@@ -88,7 +88,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			objectType := "TABLE"
 			if kind == "c" {
 				objectType = "USER-DEFINED TYPE"
-				typ, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+				typ, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
 				if !ok || !typ.typ.IsComposite() || typ.owningRelation != d.address {
 					return nil, fmt.Errorf("stuntgres: invalid composite privilege identity")
 				}
@@ -148,7 +148,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			// Genuine seeded domains retain PUBLIC USAGE by stable namespace
 			// identity even after a schema rename. Display names are not authority;
 			// this exception never extends to ownerless user objects.
-			seeded := d.typ.IsBuiltin() && d.Namespace() == (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229})
+			seeded := d.typ.IsBuiltin() && d.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229})
 			if !seeded {
 				allowed, err := visible(d.Address(), d.owner, authorization.UsagePrivilege)
 				if err != nil {

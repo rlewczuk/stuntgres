@@ -11,7 +11,7 @@ import (
 // Seed identity/provider/pins survive SQL metadata ALTER. Reconstruct metadata
 // before user FROM definitions, using collision-free intermediate names for swaps.
 func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
-	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
+	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}]
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
 	}
@@ -40,7 +40,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 			if occupied == nil {
 				occupied = make(map[string]bool)
 				for _, d := range view.state.descriptors {
-					if d.Address().ClassID == CollationClassID {
+					if d.Address().ClassID == ids.CollationClassID {
 						occupied[d.Name()] = true
 					}
 				}
@@ -71,7 +71,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 		}
 		ns := view.state.descriptors[change.d.Namespace()]
 		from := initialSchema + "." + quoteIdentifier(change.temporary)
-		if change.d.Namespace().ObjectID != PGCatalogNamespaceOID {
+		if change.d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 			statements = append(statements, "ALTER COLLATION "+from+" SET SCHEMA "+quoteIdentifier(ns.Name())+";\n")
 			from = quoteIdentifier(ns.Name()) + "." + quoteIdentifier(change.temporary)
 		}

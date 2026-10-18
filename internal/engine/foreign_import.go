@@ -11,7 +11,7 @@ import (
 
 func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
-		key := ids.NameKey{ClassID: ForeignMappingClassID, Name: foreignMappingName(server.address, role)}
+		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: foreignMappingName(server.address, role)}
 		if d, ok := auth.catalog.state.descriptors[auth.catalog.state.names[key]].(*foreignDescriptor); ok {
 			return d, nil
 		}
@@ -40,7 +40,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	server, err := findForeign(auth.catalog, ForeignServerClassID, s.Server.Text)
+	server, err := findForeign(auth.catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

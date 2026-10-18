@@ -257,7 +257,7 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *re
 	if relation.rowType == 0 {
 		return nil, nil
 	}
-	descriptor, _ := reader.descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)})
+	descriptor, _ := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 	row, ok := descriptor.(*typeDescriptor)
 	if !ok {
 		return nil, nil
@@ -268,7 +268,7 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *re
 		return descriptor
 	}, func(namespace ids.ObjectAddress, name string) string {
 		return chooseAssociatedArrayName(name, func(candidate string) bool {
-			return reader.lookup(ids.NameKey{ClassID: TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
+			return reader.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 		})
 	}, func(descriptor Descriptor) error {
 		reader.appendDescriptor(descriptor)

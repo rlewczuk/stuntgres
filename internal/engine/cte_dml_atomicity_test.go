@@ -221,7 +221,7 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			}
 			var created ids.ObjectAddress
 			for address, descriptor := range scope.catalog.descriptors {
-				if address.ClassID == RelationClassID && descriptor.Name() == "copied" {
+				if address.ClassID == ids.RelationClassID && descriptor.Name() == "copied" {
 					created = address
 				}
 			}

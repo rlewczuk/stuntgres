@@ -118,7 +118,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	}
 	// A reader lacking the exact selected input generation cannot borrow it.
 	state := cloneCatalog(view.state)
-	delete(state.descriptors, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
+	delete(state.descriptors, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 	if _, err := bindForeignKeyComparison(CatalogRead{e, state}, child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}
@@ -202,7 +202,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	if ordinaryErr != nil || trustedErr != nil || pathErr != nil {
 		t.Fatal(ordinaryErr, trustedErr, pathErr)
 	}
-	alpha := ordinary.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "fk_namespace_alpha"}]
+	alpha := ordinary.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "fk_namespace_alpha"}]
 	if ordinary.state.CurrentUser == ordinary.state.Authenticated || trusted.state.CurrentUser != ordinary.state.Authenticated || trusted.namespaceUser != ordinary.state.CurrentUser || !slices.Contains(path, alpha) || trusted.sessionRoleState != ordinary.sessionRoleState {
 		t.Fatal("permission elevation replaced semantic namespace principal", ordinary.state, trusted.state, trusted.namespaceUser, path)
 	}

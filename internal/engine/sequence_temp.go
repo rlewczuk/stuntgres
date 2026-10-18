@@ -92,8 +92,8 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	owner := e.authorizationDomain.Principal(10)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), revision: rev, owner: owner, temporary: auth.session.token}
-	toast := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), revision: toastRevision, owner: owner, temporary: auth.session.token, temporaryToast: true}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), revision: rev, owner: owner, temporary: auth.session.token}
+	toast := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), revision: toastRevision, owner: owner, temporary: auth.session.token, temporaryToast: true}
 	if c.originals == nil {
 		c.originals = make(map[ids.ObjectAddress]Descriptor)
 		c.descriptors = make(map[ids.ObjectAddress]Descriptor)

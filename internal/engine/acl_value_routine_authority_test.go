@@ -77,13 +77,13 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing selected original declaration", captured, err)
 			}
-			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
-			identity := routineIdentity{tc.oid, PGCatalogNamespaceOID, tc.name, procedureSignature(tc.signature)}
+			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.signature)}
 			if declaration.identity != identity || declaration.kind != functionRoutine || declaration.result != tc.result || !declaration.strict || declaration.volatility != tc.volatility || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.defaults != 0 || declaration.variadic != 0 || declaration.providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.state.descriptors[address] != captured {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.state.descriptors[address] != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -97,7 +97,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					}
 				} else {
 					missing = append(missing, dependency)
-					if dependency.ref.Address.ClassID == ProcedureClassID {
+					if dependency.ref.Address.ClassID == ids.ProcedureClassID {
 						t.Fatal("implicit constructor/codec/helper EXECUTE edge", dependency)
 					}
 				}

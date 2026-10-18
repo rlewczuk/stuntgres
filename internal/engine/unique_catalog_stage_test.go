@@ -77,7 +77,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				t.Fatal(err)
 			}
 			private := e.stageRead(stage)
-			if _, ok := private.state.descriptors[oldRef.Address]; ok || private.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: old.name}] != next.address {
+			if _, ok := private.state.descriptors[oldRef.Address]; ok || private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: old.name}] != next.address {
 				t.Fatal("private overlay retained incumbent")
 			}
 			if mode == "duplicate" || mode == "duplicate_address" {

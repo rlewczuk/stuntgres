@@ -26,7 +26,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			if source.relationKind != compositeRelation {
 				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.name))
 			} else {
-				typ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}].(*typeDescriptor)
+				typ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}].(*typeDescriptor)
 			}
 		}
 	}
@@ -114,7 +114,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			continue
 		}
 		usage := sourceMutation.next.columns[slot].Usage
-		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}

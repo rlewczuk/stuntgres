@@ -118,7 +118,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: parent.namespace, name: "summary_pending", revision: 1, owner: parent.owner, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: address, live: true}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: parent.namespace, name: "summary_pending", revision: 1, owner: parent.owner, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: address, live: true}}
 	if err := stage.Create(index); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
+	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 	if source.rowType != sqltype.ID(12035) || len(source.columns) != 8 {
 		t.Fatal("pg_tables rowtype/schema", source.rowType, source.columns)
 	}
@@ -185,7 +185,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12007, "pg_roles", false},
 		{12008, "pg_group", false},
 	} {
-		relation, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: expected.oid}].(*relationDescriptor)
+		relation, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid}].(*relationDescriptor)
 		if !ok || relation.name != expected.name || relation.relationKind != catalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
@@ -236,7 +236,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 			t.Fatal(err)
 		}
 		catalog := e.CatalogRead()
-		source := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
+		source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 		e.mu.Lock()
 		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
@@ -274,7 +274,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	address := roleTableRef(t, e, "summary_owned").Address
 	previous := base.state.descriptors[address].(*relationDescriptor)
 	capture := func(catalog CatalogRead) []sqltype.Value {
-		source := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
+		source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 		e.mu.Lock()
 		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()

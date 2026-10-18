@@ -56,7 +56,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if err != nil {
 			return err
 		}
-		address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: member.volatility, strict: member.strict, crypto: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
@@ -81,7 +81,7 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 			return invalid()
 		}
 		member, admitted := pgcryptoLookup(proc.name, proc.signature)
-		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
+		if !admitted || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		// Extension membership fixes provider semantics, not independently

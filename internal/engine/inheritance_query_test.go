@@ -18,8 +18,8 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	d := inheritanceLifecycleTable(e, 20003, "d", l.address, r.address, p.address)
 	own := e.domain.Session(1)
 	peer := e.domain.Session(2)
-	ownNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20004}
-	peerNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20005}
+	ownNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20004}
+	peerNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}
 	o := inheritanceLifecycleTable(e, 20006, "own", p.address)
 	o.namespace = ownNamespace
 	f := inheritanceLifecycleTable(e, 20007, "foreign", p.address)

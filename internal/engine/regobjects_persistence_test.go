@@ -12,7 +12,7 @@ import (
 func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	r := capturedRegObjectInput{auth: AuthorizationView{catalog: view}, path: []ids.ObjectAddress{catalog}}
 	if id, err := r.ResolveRegnamespace(context.Background(), " PG_CATALOG "); err != nil || id != 11 {
 		t.Fatal("namespace catalog lookup", id, err)
@@ -37,8 +37,8 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	if got, err := rows.FormatRegnamespace(950); err != nil || got != "950" {
 		t.Fatal("namespace output collision", got, err)
 	}
-	fallback := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 80000}
-	exact := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 80001}
+	fallback := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 80000}
+	exact := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 80001}
 	if got := selectCollation([]collationCandidate{{fallback, -1}, {exact, 6}}, 6); got != exact {
 		t.Fatal("exact encoding preference", got)
 	}
@@ -54,7 +54,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		typ   sqltype.ID
 		oid   uint32
 		class ids.OID
-	}{{sqltype.Regcollation, 950, CollationClassID}, {sqltype.Regnamespace, 11, NamespaceClassID}} {
+	}{{sqltype.Regcollation, 950, ids.CollationClassID}, {sqltype.Regnamespace, 11, ids.NamespaceClassID}} {
 		typ, _ := view.LookupType(fact.typ)
 		value, err := sqltype.RegObjectValue(typ, fact.oid)
 		if err != nil {
@@ -123,7 +123,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		if err := walkCatalogAliasReferences(view, unknown, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 			t.Fatal("unknown OID acquired dependency", references, err)
 		}
-		wrongClass := TypeClassID
+		wrongClass := ids.TypeClassID
 		unchanged, err := remapCatalogAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 			if address.ClassID == wrongClass {
 				address.ObjectID++
@@ -144,7 +144,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 963})
+	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 963})
 	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
 	if err := validateCollationProvider(view, ref); err == nil {
 		t.Fatal("fixture's unsupported comparison provider became executable")

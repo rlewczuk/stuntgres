@@ -21,7 +21,7 @@ func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ids.Obje
 	sessionSQL(t, admin, "CREATE SCHEMA protected")
 	actor, _ := e.Roles().Lookup("rename_transition_owner")
 	view := e.CatalogRead()
-	address := view.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "protected"}]
+	address := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "protected"}]
 	ns := e.domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.state.descriptors[address].(*namespaceDescriptor).owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
@@ -61,7 +61,7 @@ func TestAlterRenameAuthorityWaitTransition(t *testing.T) {
 	if roleTableRef(t, e, "protected.t") != ref || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.nextRevision != frontier {
 		t.Fatal("grant-time denial changed source or frontier")
 	}
-	if _, exists := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "renamed"}]; exists {
+	if _, exists := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "renamed"}]; exists {
 		t.Fatal("grant-time denial published destination")
 	}
 	result := sessionSQL(t, owner, "SELECT * FROM protected.t")
@@ -80,9 +80,9 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	oldNamespace := e.state.descriptors[ns.Address]
 	acl.Entries[0].Privileges = authorization.UsagePrivilege
 	var once sync.Once
-	provider := e.providers[RelationClassID]
+	provider := e.providers[ids.RelationClassID]
 	var frontier ids.DefinitionRevision
-	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+	e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 		once.Do(func() {
 			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
@@ -102,7 +102,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	if e.state.descriptors[ns.Address] == oldNamespace || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.nextRevision != frontier || roleTableRef(t, e, "protected.t") != ref {
 		t.Fatal("namespace change not retained or failed rename published effects")
 	}
-	if _, exists := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "renamed"}]; exists {
+	if _, exists := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "renamed"}]; exists {
 		t.Fatal("validation denial published destination")
 	}
 	lockEmpty(t, e)

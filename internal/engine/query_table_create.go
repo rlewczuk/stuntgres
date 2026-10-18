@@ -25,7 +25,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		return nil, nil, false, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
 	if _, exists := auth.catalog.state.names[key]; exists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
@@ -101,7 +101,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 			dependencyType = dependencyType.Element()
 		}
 		if dependencyType.IsUserDefined() {
-			address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
 			if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}

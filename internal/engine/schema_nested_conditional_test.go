@@ -70,7 +70,7 @@ func TestSchemaNestedConditionalTables(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
 		schemaFail(t, e, op, "CREATE SCHEMA ncl CREATE TABLE t(id INT) CREATE TABLE IF NOT EXISTS t(id unknown_type) CREATE TABLE bad(id INT,id TEXT)", "42701")
-		if _, ok := e.CatalogRead().state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "ncl"}]; ok {
+		if _, ok := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ncl"}]; ok {
 			t.Fatal("late failure published schema")
 		}
 	})

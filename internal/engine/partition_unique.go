@@ -322,7 +322,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	addition := strings.Join(labels, "_")
 	used := constraintNames(view, child.namespace, child)
 	for key := range view.state.names {
-		if key.ClassID == RelationClassID && key.Namespace == child.namespace {
+		if key.ClassID == ids.RelationClassID && key.Namespace == child.namespace {
 			used[key.Name] = true
 		}
 	}
@@ -345,7 +345,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	if err != nil {
 		return nil, err
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: child.namespace, name: name, revision: revision, owner: child.owner, relationKind: indexRelation, sqlIndex: mapped, columns: slices.Clone(parentIndex.columns), attributes: slices.Clone(parentIndex.attributes), attributeHighWater: parentIndex.attributeHighWater, index: make(map[string]int, len(parentIndex.columns))}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: child.namespace, name: name, revision: revision, owner: child.owner, relationKind: indexRelation, sqlIndex: mapped, columns: slices.Clone(parentIndex.columns), attributes: slices.Clone(parentIndex.attributes), attributeHighWater: parentIndex.attributeHighWater, index: make(map[string]int, len(parentIndex.columns))}
 	for i := range index.columns {
 		index.columns[i].OriginTable = uint32(oid)
 		index.columns[i].OriginAttribute = int16(i + 1)

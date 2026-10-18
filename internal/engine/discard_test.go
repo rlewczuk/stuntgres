@@ -43,7 +43,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 		t.Run(map[parser.DiscardCategory]string{parser.DiscardPlans: "plans", parser.DiscardSequences: "sequences", parser.DiscardAll: "all"}[category], func(t *testing.T) {
 			e := New()
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90001}
+			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
 			memory := &sequenceMemory{valid: true, value: 7}
 			a.sequences, b.sequences = make(map[ids.ObjectAddress]*sequenceMemory), make(map[ids.ObjectAddress]*sequenceMemory)
 			a.sequences[address], b.sequences[address] = memory, &sequenceMemory{valid: true, value: 8}
@@ -91,7 +91,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		for _, before := range []bool{false, true} {
 			t.Run(map[bool]string{true: "cancel-before", false: "cancel-after"}[before], func(t *testing.T) {
 				s := sessionStart(t, New(), nil)
-				address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90001}
+				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
 				s.sequences = make(map[ids.ObjectAddress]*sequenceMemory)
 				s.sequences[address] = &sequenceMemory{valid: true, value: 7}
 				ctx, cancel := context.WithCancel(context.Background())

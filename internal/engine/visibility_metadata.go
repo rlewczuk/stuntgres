@@ -31,7 +31,7 @@ type conversionDescriptor struct {
 }
 
 func (d *collationDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: CollationClassID, ObjectID: d.oid}
+	return ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: d.oid}
 }
 func (d *collationDescriptor) Revision() ids.DefinitionRevision {
 	if d.revision == 0 {
@@ -43,12 +43,12 @@ func (d *collationDescriptor) Namespace() ids.ObjectAddress {
 	if d.namespace != (ids.ObjectAddress{}) {
 		return d.namespace
 	}
-	return ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	return ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 }
 func (d *collationDescriptor) Name() string       { return d.name }
 func (*collationDescriptor) Kind() ids.ObjectKind { return ids.CollationObject }
 func (d *conversionDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: ConversionClassID, ObjectID: d.oid}
+	return ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: d.oid}
 }
 func (d *conversionDescriptor) Revision() ids.DefinitionRevision { return d.revision }
 func (d *conversionDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
@@ -82,8 +82,8 @@ func (d *collationDescriptor) usage() (sqltype.CollationRef, error) {
 type collationProvider struct{}
 type conversionProvider struct{}
 
-func (collationProvider) ClassID() ids.OID  { return CollationClassID }
-func (conversionProvider) ClassID() ids.OID { return ConversionClassID }
+func (collationProvider) ClassID() ids.OID  { return ids.CollationClassID }
+func (conversionProvider) ClassID() ids.OID { return ids.ConversionClassID }
 func (collationProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*collationDescriptor)
 	if !ok || d == nil {
@@ -192,7 +192,7 @@ type collationCandidate struct {
 // avoiding an index copy, catalog scan or allocation during row evaluation.
 func visibleCollation(view CatalogRead, path []ids.ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
-		a := view.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: namespace, Name: d.Name()}]
+		a := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: namespace, Name: d.Name()}]
 		candidate, ok := view.state.descriptors[a].(*collationDescriptor)
 		if !ok {
 			continue

@@ -43,14 +43,14 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing actual bound declaration", captured, err)
 			}
-			identity := routineIdentity{tc.oid, PGCatalogNamespaceOID, tc.name, "3802,4072,3802,16"}
+			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, "3802,4072,3802,16"}
 			d := captured.builtin
 			if d.identity != identity || d.kind != functionRoutine || uint32(d.result) != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet != tc.set || d.defaults != 2 || d.variadic != 0 || d.providers != jsonRoutineProvider {
 				t.Fatal("released full-IN declaration", d)
 			}
-			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			view := e.CatalogRead()
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || uint32(captured.result) != tc.result || captured.revision == 0 || view.state.descriptors[address] != captured {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || uint32(captured.result) != tc.result || captured.revision == 0 || view.state.descriptors[address] != captured {
 				t.Fatal("declaration is not engine-owned", captured)
 			}
 			var args []BoundExpr

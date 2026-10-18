@@ -61,11 +61,11 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 }
 
 func indexUnitOperator(id ids.OID, namespace ids.ObjectAddress, name string) *operatorDescriptor {
-	return &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}, namespace: namespace, name: name, revision: 1, left: 23, right: 23}
+	return &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, namespace: namespace, name: name, revision: 1, left: 23, right: 23}
 }
 
 func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
-	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}
 	first := indexUnitOperator(90001, namespace, "#~#")
 	other := indexUnitOperator(90002, namespace, "#?#")
 	base := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.address: first, other.address: other}, names: map[ids.NameKey]ids.ObjectAddress{descriptorNameKey(first): first.address, descriptorNameKey(other): other.address}}
@@ -128,7 +128,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	first := indexUnitOperator(90001, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "#~#")
+	first := indexUnitOperator(90001, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "#~#")
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 		base = current
 	}
 	// A nonoperator stage must retain the exact membership root too.
-	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "unrelated", revision: 1}
+	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "unrelated", revision: 1}
 	stage = e.BeginCatalogStage(base)
 	if err := stage.Create(namespace); err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
-	d := indexUnitOperator(90001, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "#~#")
+	d := indexUnitOperator(90001, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "#~#")
 	d.owner, d.result, d.function = e.authorizationDomain.Principal(10), 23, 177
 	stage := e.BeginCatalogStage(before)
 	if err := stage.Create(d); err != nil {
@@ -190,7 +190,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	assertOperatorIndex(t, before.state)
 	// Real publication of a namespace move, not just editor-helper assertions.
 	moved := *d
-	moved.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	moved.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	moved.revision++
 	stage = e.BeginCatalogStage(published)
 	if err := stage.Replace(&moved); err != nil {
@@ -265,7 +265,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	if source.state.operatorNames != target.state.operatorNames || source.state.operatorNames != seededOperatorNames {
 		t.Fatal("seed address index not shared")
 	}
-	address := ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: 96}
+	address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 96}
 	left := source.state.descriptors[address].(*operatorDescriptor)
 	right := target.state.descriptors[address].(*operatorDescriptor)
 	if left == right || left.owner == right.owner {
@@ -289,7 +289,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	source, target := New(), New()
 	owner := source.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}, name: "imported_operators", revision: 1, owner: owner}
+	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, name: "imported_operators", revision: 1, owner: owner}
 	operator := indexUnitOperator(90001, namespace.address, "#~#")
 	operator.owner = owner
 	stage := source.BeginCatalogStage(source.CatalogRead())

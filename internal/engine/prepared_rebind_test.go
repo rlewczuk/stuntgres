@@ -54,7 +54,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 	}
 	relations := 0
 	for _, dependency := range cell.dependencies {
-		if dependency.ref.Address.ClassID == RelationClassID {
+		if dependency.ref.Address.ClassID == ids.RelationClassID {
 			relations++
 			if dependency.ref != source {
 				t.Fatal("wrong dependency identity", dependency)
@@ -151,7 +151,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		if description.analysis == nil || len(description.analysis.sources) != 1 || qualified.analysis == nil || len(qualified.analysis.sources) != 1 {
 			t.Fatal("missing initial prepared namespace identities")
 		}
-		bound := engine.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: late.Address, Name: "t"})[0]
+		bound := engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: late.Address, Name: "t"})[0]
 		for _, source := range description.analysis.sources {
 			if source.ref.Address != bound {
 				t.Fatal("inaccessible early schema participated in initial resolution")
@@ -167,7 +167,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 			t.Fatal(err)
 		}
 		result.Rows.Close()
-		bound = engine.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: early.Address, Name: "t"})[0]
+		bound = engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: early.Address, Name: "t"})[0]
 		if description.analysis == initial {
 			t.Fatal("schema-USAGE invalidation did not publish a new identity cell")
 		}

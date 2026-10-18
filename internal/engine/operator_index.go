@@ -15,10 +15,10 @@ type operatorNameIndex struct {
 
 var seededOperatorNames = func() *operatorNameIndex {
 	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
-	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		key := operatorNameKey{namespace, row.name}
-		index.buckets[key] = append(index.buckets[key], ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: row.oid})
+		index.buckets[key] = append(index.buckets[key], ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})
 	}
 	return index
 }()

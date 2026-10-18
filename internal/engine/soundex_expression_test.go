@@ -92,8 +92,8 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			e, ext := daitchUnitInstalled(t)
 			call := soundexUnitExpression(t, e, name)
 			before := e.CatalogRead()
-			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
-			for i, address := range ext.members { mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001+i)} }
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+			for i, address := range ext.members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
 			next := cloneCatalog(before.state)
 			for address := range mapping {
 				delete(next.names, descriptorNameKey(before.state.descriptors[address]))
@@ -104,7 +104,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.descriptors[destination] = descriptor
 				next.names[descriptorNameKey(descriptor)] = destination
 			}
-			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900020}
+			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
 			consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
 			next.descriptors[address] = consumer
 			next.epoch++

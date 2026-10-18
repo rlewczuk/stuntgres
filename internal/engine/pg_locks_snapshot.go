@@ -251,10 +251,10 @@ func pgResourceRecord(resource lockResource, owner pgLockOwner, mode relationLoc
 	case ordinaryResource:
 		r.object = uint32(resource.Address.ObjectID)
 		switch resource.Address.ClassID {
-		case RelationClassID:
+		case ids.RelationClassID:
 			r.kind = pgRelationLock
-		case TypeClassID:
-			r.kind, r.class = pgObjectLock, uint32(TypeClassID)
+		case ids.TypeClassID:
+			r.kind, r.class = pgObjectLock, uint32(ids.TypeClassID)
 		default:
 			return pgLockRecord{}, fmt.Errorf("stuntgres: unknown lock object class")
 		}

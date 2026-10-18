@@ -28,7 +28,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					return nil, err
 				}
 				if key.collation != 0 {
-					if target, ok := mapping[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
 						key.collation = uint32(target.ObjectID)
 					}
 				}
@@ -86,7 +86,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 				}
 				if !typesOnly && value.Type().ContainsRegclass() {
 					value, err = remapRegclassDatum(value, func(id ids.OID) ids.OID {
-						if address, ok := mapping[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}]; ok {
+						if address, ok := mapping[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
 						return id
@@ -108,7 +108,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 				}
 				if !typesOnly && value.Type().ContainsRegproc() {
 					value, err = remapRoutineDatum(value, func(id ids.OID) ids.OID {
-						if address, ok := mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+						if address, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
 						return id
@@ -119,7 +119,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 				}
 				if !typesOnly && value.Type().ContainsOperatorAlias() {
 					value, err = remapOperatorDatum(value, func(id ids.OID) ids.OID {
-						if address, ok := mapping[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}]; ok {
+						if address, ok := mapping[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
 						return id

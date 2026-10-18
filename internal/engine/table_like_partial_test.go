@@ -98,9 +98,9 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if index.sqlIndex.keys[0].attribute != 3 || !reflect.DeepEqual(index.sqlIndex.include, []int32{2}) || !slices.Contains(predicate.dependencies, external) {
 				t.Fatal("key/include/external identity lost", index.sqlIndex)
 			}
-			booleanType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
-			regclassType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-			regtypeType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
+			booleanType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
+			regclassType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+			regtypeType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
 			if !slices.Equal(predicate.dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.dependencies)
 			}
@@ -305,7 +305,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: source.namespace, name: "private_partial", revision: revision, owner: source.owner, columns: columns, attributes: attributes, attributeHighWater: int32(len(attributes)), index: lookup, relationKind: indexRelation, sqlIndex: definition}
+						index = &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: source.namespace, name: "private_partial", revision: revision, owner: source.owner, columns: columns, attributes: attributes, attributeHighWater: int32(len(attributes)), index: lookup, relationKind: indexRelation, sqlIndex: definition}
 						err = stage.Create(index)
 					}
 				}

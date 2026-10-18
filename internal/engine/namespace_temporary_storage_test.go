@@ -32,10 +32,10 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 	namespace := owner.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
 	lookup := func(namespace ids.ObjectAddress, name string) *relationDescriptor {
-		address := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+		address := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
 		return catalog.state.descriptors[address].(*relationDescriptor)
 	}
-	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "storage_parent")
+	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }
 
 func namespaceCapturedAuthorization(t *testing.T, s *Session) AuthorizationView {

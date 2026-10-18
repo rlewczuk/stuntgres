@@ -58,7 +58,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 	if err := extensionUnitExecute(t, e, installer, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.name)); err != nil {
 		t.Fatal(err)
 	}
-	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 	return e, owner, installer, ext, closeOwner
 }
 func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *extensionDescriptor) *relationDescriptor {
@@ -73,7 +73,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext
 	} {
 		roleExecute(t, e, op, q)
 	}
-	return e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ext_survivor"}]].(*relationDescriptor)
+	return e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_survivor"}]].(*relationDescriptor)
 }
 func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) (*CatalogStage, *temporarySessionIndexes) {
 	t.Helper()
@@ -143,14 +143,14 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.state != before {
 			t.Fatal("own staged helper failure did not preserve full authority", err)
 		}
-		if _, exists := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]; exists {
+		if _, exists := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]; exists {
 			t.Fatal("failed helper install leaked extension")
 		}
 	})
 	survivor := extensionTemporaryConsumerUnits(t, e, installer, ext)
 	store := e.storage[survivor.address]
 	oldRows, oldEnds := store.versions, store.ends
-	index := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"}]
+	index := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"}]
 	oldIndex := e.indexRoots[index]
 	base := e.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
@@ -177,7 +177,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {
-		if _, exists := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: name}]; exists {
+		if _, exists := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: name}]; exists {
 			t.Fatal("view closure incomplete", name)
 		}
 	}
@@ -408,7 +408,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 			if err := scope.Finish(nil); err == nil {
 				t.Fatal("changed actual TEMP installation authority passed Finish")
 			}
-			if target.state != before || target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
+			if target.state != before || target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("TEMP role/ACL fence published partial installation")
 			}
 		})
@@ -428,7 +428,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if err := extensionUnitExecute(t, target, caller, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace)); err != nil {
 			t.Fatal(err)
 		}
-		installed := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+		installed := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 		grant.Revoke = true
 		if err := extensionUnitExecute(t, target, admin, grant); err != nil {
 			t.Fatal(err)
@@ -457,8 +457,8 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	namespaceName := e.state.descriptors[ext.targetNamespace].Name()
 	roleExecute(t, e, owner, "CREATE TEMP TABLE ext_retained_local(v TEXT DEFAULT "+namespaceName+".unaccent('Hôtel'::text),CHECK("+namespaceName+".unaccent(v)=v))")
 	roleExecute(t, e, owner, "CREATE TEMP VIEW ext_retained_view AS SELECT "+namespaceName+".unaccent('Hôtel'::text) AS v")
-	localAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ext.targetNamespace, Name: "ext_retained_local"}]
-	viewAddress := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ext.targetNamespace, Name: "ext_retained_view"}]
+	localAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.targetNamespace, Name: "ext_retained_local"}]
+	viewAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.targetNamespace, Name: "ext_retained_view"}]
 	local := e.state.descriptors[localAddress].(*relationDescriptor)
 	retainedView := e.state.descriptors[viewAddress].(*relationDescriptor)
 	var procedureRef ids.ObjectRef
@@ -477,7 +477,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	source.nextOID = ext.members[1].ObjectID
 	source.mu.Unlock()
 	roleExecute(t, source, sourceOp, "CREATE SCHEMA ext_imported")
-	collision := source.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "ext_imported"}]
+	collision := source.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ext_imported"}]
 	if collision.ObjectID != ext.members[1].ObjectID {
 		t.Fatal("setup did not create genuine cross-class identity collision")
 	}
@@ -558,7 +558,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	imported := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "ext_imported"}]
+	imported := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ext_imported"}]
 	if imported.ObjectID == collision.ObjectID || e.state.descriptors[imported] == nil {
 		t.Fatal("imported namespace was not reminted around exact TEMP provider identity")
 	}

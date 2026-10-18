@@ -29,7 +29,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: intarrayTypeContext}
 	}
 	ext.members = make([]ids.ObjectAddress, 3)
-	for i, class := range [3]ids.OID{TypeClassID, ProcedureClassID, ProcedureClassID} {
+	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			return err
@@ -88,14 +88,14 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 	if p != stockIntarray || ext.name != "intarray" || ext.version != p.version || len(ext.members) != 3 {
 		return invalid()
 	}
-	if ext.members[0].ClassID != TypeClassID || ext.members[1].ClassID != ProcedureClassID || ext.members[2].ClassID != ProcedureClassID {
+	if ext.members[0].ClassID != ids.TypeClassID || ext.members[1].ClassID != ids.ProcedureClassID || ext.members[2].ClassID != ids.ProcedureClassID {
 		return invalid()
 	}
 	base, ok := v.state.descriptors[ext.members[0]].(*typeDescriptor)
 	if !ok || base.typ == nil || base.Address() != ext.members[0] || !base.typ.IsQueryInt() || base.Name() != "query_int" || base.extension != ext.address || base.Namespace() != ext.targetNamespace || base.revision == 0 || base.array == 0 {
 		return invalid()
 	}
-	array, ok := v.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.array)}].(*typeDescriptor)
+	array, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}].(*typeDescriptor)
 	if !ok || array.typ == nil || !array.typ.IsArray() || array.typ.Concrete() || array.typ.Element() != base.typ || array.Namespace() != base.Namespace() || array.owner != base.owner || array.extension != (ids.ObjectAddress{}) {
 		return invalid()
 	}

@@ -217,7 +217,7 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	}
 	seen := map[int32]bool{}
 	for _, d := range b.dependencies {
-		if d.ref.Address.ClassID == RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
+		if d.ref.Address.ClassID == ids.RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
 			seen[d.ref.Address.SubID] = true
 		}
 	}
@@ -346,7 +346,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 			if d.ref.Domain() != e.domain || d.revision == 0 {
 				t.Fatal(d)
 			}
-			if d.ref.Address.ClassID == RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
+			if d.ref.Address.ClassID == ids.RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
 				seen[d.ref.Address.SubID] = true
 			}
 		}

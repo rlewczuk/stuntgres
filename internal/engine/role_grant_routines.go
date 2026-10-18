@@ -91,7 +91,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		}
 		return ids.ObjectRef{}, diagnostic
 	}
-	address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: selected.id}
+	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.id}
 	p, ok := v.catalog.state.descriptors[address].(*procedureDescriptor)
 	if !ok {
 		// Lookup-only inventory cannot manufacture an owning ACL descriptor or
@@ -111,7 +111,7 @@ func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
 		if i != 0 {
 			display.WriteString(", ")
 		}
-		typ := v.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
+		typ := v.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}].(*typeDescriptor)
 		if typ.typ.IsUserDefined() {
 			display.WriteString(typeDiagnosticNameAt(v.catalog, typ, path))
 		} else {

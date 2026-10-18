@@ -135,9 +135,9 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	name := parts[len(parts)-1].Text
 	path := namespaceSelection{path: r.path}
 	if raw.System {
-		path = namespaceSelection{qualified: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}
+		path = namespaceSelection{qualified: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}
 	} else if len(parts) == 2 {
-		ns := r.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
+		ns := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
@@ -158,7 +158,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	}
 	var typ *sqltype.Descriptor
 	for i := range path.count() {
-		if address := r.auth.definitionLookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name}); address != (ids.ObjectAddress{}) {
+		if address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name}); address != (ids.ObjectAddress{}) {
 			typ, _ = r.auth.definitionType(sqltype.ID(address.ObjectID))
 			break
 		}
@@ -227,7 +227,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		}
 	}
 	if r.resolved != nil {
-		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		d, _ := r.auth.definitionDescriptor(address)
 		ref := r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), address)
 		*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.Revision()})

@@ -30,16 +30,16 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						roleExecute(t, e, reader, "BEGIN")
 						defer roleExecute(t, e, reader, "ROLLBACK")
 					}
-					original := e.providers[RelationClassID]
-					defer func() { e.providers[RelationClassID] = original }()
+					original := e.providers[ids.RelationClassID]
+					defer func() { e.providers[ids.RelationClassID] = original }()
 					called := false
 					var winner *catalogState
-					e.providers[RelationClassID] = alterDropProvider{original, func() {
+					e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						if called {
 							return
 						}
 						called = true
-						e.providers[RelationClassID] = original
+						e.providers[ids.RelationClassID] = original
 						typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 						winner = e.CatalogRead().state
 					}}
@@ -121,7 +121,7 @@ func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func
 	}
 	backing := roleTableRef(t, e, "pair")
 	sourceRelation := e.CatalogRead().state.descriptors[backing.Address].(*relationDescriptor)
-	source := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sourceRelation.rowType)}].(*typeDescriptor)
+	source := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceRelation.rowType)}].(*typeDescriptor)
 	reader, done := roleOperation(t, e, "typed_reader")
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, source.Address(), grant)

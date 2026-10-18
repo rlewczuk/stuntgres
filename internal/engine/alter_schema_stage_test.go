@@ -37,15 +37,15 @@ func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *relationDescriptor
 func TestAlterSchemaWholeCandidate(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
-	destination := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+	source := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
+	destination := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"}]
 	addresses := []ids.ObjectAddress{}
 	for _, name := range []string{"t", "q1", "q2"} {
 		addresses = append(addresses, NameAddressForTempMove(t, e, source, name))
 	}
 	calls := 0
-	provider := e.providers[RelationClassID]
-	e.providers[RelationClassID] = alterSchemaCandidateProvider{CatalogProvider: provider, inspect: func(v CatalogRead) {
+	provider := e.providers[ids.RelationClassID]
+	e.providers[ids.RelationClassID] = alterSchemaCandidateProvider{CatalogProvider: provider, inspect: func(v CatalogRead) {
 		calls++
 		for _, address := range addresses {
 			d, ok := v.Descriptor(address)
@@ -58,7 +58,7 @@ func TestAlterSchemaWholeCandidate(t *testing.T) {
 		}
 	}}
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s2")
-	e.providers[RelationClassID] = provider
+	e.providers[ids.RelationClassID] = provider
 	if calls == 0 {
 		t.Fatal("candidate was not validated")
 	}
@@ -75,7 +75,7 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			source := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
 			name := "q2"
 			if field == "table_revision" {
 				name = "t"
@@ -153,7 +153,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			source := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
 			address := NameAddressForTempMove(t, e, source, "q2")
 			ref := e.domain.Ref(e.state.epoch, address)
 			tx := transactionBegin(t, a)
@@ -183,7 +183,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 				if moved.name != "grant_q2" || moved.sequence != next.sequence || moved.sequencePlanStamp <= next.sequencePlanStamp {
 					t.Fatal("stale dependency definition", moved)
 				}
-				destination := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+				destination := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"}]
 				if NameAddressForTempMove(t, e, destination, "grant_q2") != address {
 					t.Fatal("dependency identity changed")
 				}

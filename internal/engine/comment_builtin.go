@@ -9,11 +9,11 @@ import (
 // Only descriptors already represented by the native catalog are seeded.
 func namespaceCommentBaseline(oid ids.OID) string {
 	switch oid {
-	case PGCatalogNamespaceOID:
+	case ids.PGCatalogNamespaceOID:
 		return "system catalog schema"
-	case PGToastNamespaceOID:
+	case ids.PGToastNamespaceOID:
 		return "reserved schema for TOAST tables"
-	case PublicNamespaceOID:
+	case ids.PublicNamespaceOID:
 		return "standard public schema"
 	}
 	return ""

@@ -174,7 +174,7 @@ func (n accessInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			if failure != nil {
 				return sqltype.Value{}, failure
 			}
-			d, _ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}].(*relationDescriptor)
+			d, _ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}].(*relationDescriptor)
 		} else {
 			text, failure := values[0].Text()
 			if failure != nil {

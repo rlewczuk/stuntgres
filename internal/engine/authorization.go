@@ -250,7 +250,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	case *databaseDescriptor:
 		return d.owner, d.acl, nil
 	case *foreignDescriptor:
-		if d.address.ClassID == ForeignMappingClassID {
+		if d.address.ClassID == ids.ForeignMappingClassID {
 			return d.mappedRole, authorization.ACLValue{}, nil
 		}
 		return d.owner, d.acl, nil
@@ -483,7 +483,7 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	kind := "table"
 	if t, ok := d.(*typeDescriptor); ok {
-		if t.Namespace().ObjectID == PGCatalogNamespaceOID && !t.typ.IsUserDefined() {
+		if t.Namespace().ObjectID == ids.PGCatalogNamespaceOID && !t.typ.IsUserDefined() {
 			return sqlError("42501", "permission denied for type "+t.typ.DiagnosticName())
 		}
 		path, _ := v.engine.referencePath(v)
@@ -528,7 +528,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		if t.address.ClassID == ForeignMappingClassID {
+		if t.address.ClassID == ids.ForeignMappingClassID {
 			if t.mappedRole == (authorization.PrincipalRef{}) {
 				return nil
 			}
@@ -571,7 +571,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		if t.address.ClassID == ForeignMappingClassID {
+		if t.address.ClassID == ids.ForeignMappingClassID {
 			if t.mappedRole == (authorization.PrincipalRef{}) {
 				return nil
 			}

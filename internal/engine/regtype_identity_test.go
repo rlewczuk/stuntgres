@@ -30,19 +30,19 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 	if count != 621 {
 		t.Fatal("initialized inventory", count)
 	}
-	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 	if d, ok := view.Descriptor(ns); !ok || d.Name() != "information_schema" {
 		t.Fatal("initialized namespace", d, ok)
 	}
 	for _, name := range []string{"pg_type", "pg_class", "pg_index", "pg_sequence", "pg_attribute"} {
-		address := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name}]
+		address := view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: name}]
 		relation, exists := view.state.descriptors[address].(*relationDescriptor)
 		if name == "pg_index" && !exists {
 			t.Fatal("missing represented pg_index projection")
 		}
 		if !exists {
 			// Lookup-only identities do not create executable projections.
-			types := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})
+			types := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: name})
 			if len(types) != 1 {
 				t.Fatal("lookup-only row identity", name)
 			}
@@ -52,7 +52,7 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 			}
 			continue
 		}
-		row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+		row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 		if row.owningRelation != address || row.Name() != relation.Name() || row.typ.Concrete() {
 			t.Fatal("projection row authority", name)
 		}
@@ -81,7 +81,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	}
 	literal := literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}, value: values}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
-		{ClassID: RelationClassID, ObjectID: 23}: {ClassID: RelationClassID, ObjectID: 99},
+		{ClassID: ids.RelationClassID, ObjectID: 23}: {ClassID: ids.RelationClassID, ObjectID: 99},
 	}
 	transform := func(ref ids.ObjectRef) ids.ObjectRef {
 		if target, ok := mapping[ref.Address]; ok {
@@ -97,7 +97,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	if err != nil || id != 23 {
 		t.Fatal("relation ID used as type identity", id, err)
 	}
-	mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23}] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 42}
+	mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 42}
 	changed, err := remapBoundExpression(literal, transform, nil)
 	if err != nil {
 		t.Fatal(err)

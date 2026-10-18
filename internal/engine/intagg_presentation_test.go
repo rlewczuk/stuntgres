@@ -65,9 +65,9 @@ func intaggUnitRecipes(t *testing.T) {
 			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("unused frozen capture accepted")
 			}
-			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 910000}}
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 910000}}
 			for i, address := range ext.members {
-				mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(910001 + i)}
+				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(910001 + i)}
 			}
 			state := cloneCatalog(e.state)
 			for address := range mapping {

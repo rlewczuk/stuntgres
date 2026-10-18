@@ -14,7 +14,7 @@ import (
 
 func pgGroupUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12008}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12008}
 	d, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_group")
@@ -109,8 +109,8 @@ func TestPGGroupDescriptor(t *testing.T) {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12012}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12011}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012}].(*typeDescriptor)
+	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12011}].(*typeDescriptor)
 	if d.rowType != 12012 || row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12011 || row.owner != d.owner || array.owner != d.owner || row.typ.Concrete() {
 		t.Fatal("existing row/array ownership links")
 	}
@@ -235,8 +235,8 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.name, view.relationKind, view.virtualView = name, viewRelation, false
 		attrs := slices.Clone(d.attributes)
 		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}

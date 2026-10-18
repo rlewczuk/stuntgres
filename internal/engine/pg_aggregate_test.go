@@ -11,14 +11,14 @@ import (
 func TestPGAggregateCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
 	source := catalog.state.descriptors[address].(*relationDescriptor)
 	ref := e.domain.Ref(catalog.Epoch(), address)
 	if source.rowType != 10027 || source.virtualView || !source.hasIndexes || len(source.columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10027}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10026}].(*typeDescriptor)
+	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027}].(*typeDescriptor)
+	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026}].(*typeDescriptor)
 	if row.owningRelation != address || array.owningRelation != address || row.array != 10026 || array.typ.Element() != row.typ || row.owner != source.owner || array.owner != source.owner {
 		t.Fatal("aggregate row/array ownership")
 	}
@@ -116,7 +116,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	seen := make(map[ids.OID]bool)
 	for _, d := range builtinAggregateDefinitions {
 		identity, ok := routineByOID[d.function]
-		if !ok || seen[d.function] || identity.namespace != PGCatalogNamespaceOID {
+		if !ok || seen[d.function] || identity.namespace != ids.PGCatalogNamespaceOID {
 			t.Fatal("unowned/duplicate aggregate signature", d.function)
 		}
 		seen[d.function] = true
@@ -136,7 +136,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	// NULL/empty/text-zero seeds are distinct states, including typed NULL capture.
 	e := New()
 	catalog := e.CatalogRead()
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}].(*relationDescriptor)
+	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}].(*relationDescriptor)
 	ref := e.domain.Ref(catalog.Epoch(), source.address)
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {

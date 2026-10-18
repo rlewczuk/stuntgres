@@ -167,7 +167,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.builtin != nil {
 			declared := d.builtin
-			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.signature != declared.identity.signature || d.routineKind != declared.kind || d.result != declared.result || d.strict != declared.strict || d.volatility != declared.volatility || d.provider != nil || d.queryCodec != nil || d.crypto != nil || d.fuzzy != nil || d.intagg != nil || d.conversion.Name() != "" || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.foreign != nil {
+			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.signature != declared.identity.signature || d.routineKind != declared.kind || d.result != declared.result || d.strict != declared.strict || d.volatility != declared.volatility || d.provider != nil || d.queryCodec != nil || d.crypto != nil || d.fuzzy != nil || d.intagg != nil || d.conversion.Name() != "" || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.foreign != nil {
 				return invalid()
 			}
 			break
@@ -218,7 +218,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.name)
-			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
+			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
 				return invalid()
 			}
 			break
@@ -341,7 +341,7 @@ func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) 
 
 func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name string, signature procedureSignature) *procedureDescriptor {
 	for i := range path.count() {
-		address := catalog.state.names[ids.NameKey{ClassID: ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)}]
+		address := catalog.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)}]
 		if address != (ids.ObjectAddress{}) {
 			procedure, _ := catalog.state.descriptors[address].(*procedureDescriptor)
 			return procedure
@@ -355,7 +355,7 @@ func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error
 	if p != stockUnaccent || len(d.members) != 6 {
 		return invalid()
 	}
-	classes := [6]ids.OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID}
+	classes := [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID}
 	for i, member := range d.members {
 		if member.ClassID != classes[i] {
 			return invalid()

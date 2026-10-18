@@ -7,7 +7,7 @@ func collationDisplayName(view CatalogRead, id uint32, path []ids.ObjectAddress)
 	if view.state == nil {
 		return pgIdentifier(collationName(view, id))
 	}
-	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
+	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
 	if !ok {
 		return ""
 	}
@@ -15,7 +15,7 @@ func collationDisplayName(view CatalogRead, id uint32, path []ids.ObjectAddress)
 		return pgIdentifier(d.name)
 	}
 	for _, ns := range path {
-		if a, ok := view.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
+		if a, ok := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}]; ok {
 			if a == d.Address() {
 				return pgIdentifier(d.name)
 			}

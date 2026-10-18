@@ -46,7 +46,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			}
 			for _, c := range before.checkConstraints {
 				if !slices.ContainsFunc(after.checkConstraints, func(next checkConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.dependencies, func(dependency expressionDependency) bool {
-					return dependency.ref.Address == ids.ObjectAddress{ClassID: RelationClassID, ObjectID: before.address.ObjectID, SubID: attribute}
+					return dependency.ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.address.ObjectID, SubID: attribute}
 				}) {
 					event.retiredChecks = append(event.retiredChecks, c)
 				}

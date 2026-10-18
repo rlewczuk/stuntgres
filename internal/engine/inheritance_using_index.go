@@ -11,7 +11,7 @@ import (
 // Eligibility is captured once from the actual ordered provider input. TYPE
 // reminting remains the existing stage owner's separate metadata effect.
 func captureUsingIndexDefinition(reader definitionReader, parent *relationDescriptor, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
-	address := reader.lookup(ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: raw.Index.Text})
+	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.Index.Text})
 	descriptor, _ := reader.descriptor(address)
 	if descriptor == nil {
 		return usingIndexAttachment{}, expressionError("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
@@ -98,7 +98,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 	if name != index.name {
 		prepared.notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.name, name)}
 	}
-	destination := reader.lookup(ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name})
+	destination := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name})
 	if destination != (ids.ObjectAddress{}) && destination != index.address {
 		prepared.err = sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		return prepared, nil

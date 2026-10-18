@@ -217,7 +217,7 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 	key := address
 	key.SubID = 0
 	d := catalog.state.descriptors[key]
-	if address.ClassID == RelationClassID && address.SubID != 0 {
+	if address.ClassID == ids.RelationClassID && address.SubID != 0 {
 		// AttrNumber is signed int16. Narrow only after choosing the column
 		// path, so wrapped zero never becomes a whole-object ACL request.
 		subid := int32(int16(address.SubID))

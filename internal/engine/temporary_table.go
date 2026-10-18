@@ -67,7 +67,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if _, exists := auth.catalog.state.names[key]; exists {
 		e.mu.Unlock()
 		if s.IfNotExists {

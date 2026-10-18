@@ -51,7 +51,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 				t.Fatal("derived layout lost", definition)
 			}
 			for _, ref := range key.dependencies {
-				if ref.Address.ClassID == RelationClassID && ref.Address.ObjectID != destination.address.ObjectID {
+				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID != destination.address.ObjectID {
 					t.Fatal("derived source row dependency", ref)
 				}
 			}
@@ -103,7 +103,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	}
 	candidate := cloneCatalog(auth.catalog.state)
 	for _, name := range []string{"invalid_source", "dropping_source"} {
-		ref := ids.ObjectRef{Address: candidate.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]}
+		ref := ids.ObjectRef{Address: candidate.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name}]}
 		original := candidate.descriptors[ref.Address].(*relationDescriptor)
 		copy := *original
 		definition := *original.sqlIndex
@@ -118,7 +118,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	auth.recaptureCatalog(auth.catalog)
 	stage := e.BeginCatalogStage(auth.catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

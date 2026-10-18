@@ -32,8 +32,8 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		base := auth.catalog.state.descriptors[auth.catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: f.schema, Name: name}]].(*typeDescriptor)
-		array := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.array)}].(*typeDescriptor)
+		base := auth.catalog.state.descriptors[auth.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}]].(*typeDescriptor)
+		array := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}].(*typeDescriptor)
 		if !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
 			t.Fatal("associated enum array consumed selected TYPES ACL", array.acl)
 		}
@@ -155,7 +155,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if err := staleActor.CanUse(ref); err == nil {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20111}, namespace: f.schema, name: "temp_acl_denied", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, namespace: f.schema, name: "temp_acl_denied", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}}
 	state.descriptors[table.address] = table
 	tableRef := f.e.domain.Ref(state.epoch, table.address)
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")

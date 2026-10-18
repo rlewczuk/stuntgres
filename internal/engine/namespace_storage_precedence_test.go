@@ -104,14 +104,14 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 	catalog := e.CatalogRead()
 	namespace := owner.temporaryNamespace
 	name := catalog.state.descriptors[namespace].(*namespaceDescriptor).name
-	base := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "storage_acl_source"}]
+	base := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "storage_acl_source"}]
 	store := e.storage[base]
 	root, ends := store.versions, store.ends
 	sessionSQL(t, owner, "REVOKE SELECT ON storage_acl_source FROM storage_view_creator")
 	denied := namespaceCapturedAuthorization(t, peer)
 	collect := func(auth AuthorizationView, viewName, code, message string) {
 		t.Helper()
-		address := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: viewName}]
+		address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName}]
 		relation := auth.catalog.state.descriptors[address].(*relationDescriptor)
 		leaf := queryLeaf{ref: e.domain.Ref(auth.catalog.Epoch(), address), relation: relation}
 		before, sequence, oid, revision := e.state, e.commitSeq, e.nextOID, e.nextRevision

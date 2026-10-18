@@ -54,12 +54,12 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal("missing selected declaration", outer, err)
 			}
 			declaration := outer.builtin
-			wantIdentity := routineIdentity{test.id, PGCatalogNamespaceOID, test.name, "27,27"}
+			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, "27,27"}
 			if declaration.identity != wantIdentity || declaration.result != 16 || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
-			address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.state.descriptors[address] != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
+			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
+			if auth.catalog.state.descriptors[address] != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.body) != 0 {
@@ -68,7 +68,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			wantRef := e.domain.Ref(auth.catalog.Epoch(), address)
 			procedures := 0
 			for _, dependency := range binder.dependencies {
-				if dependency.ref.Address.ClassID != ProcedureClassID {
+				if dependency.ref.Address.ClassID != ids.ProcedureClassID {
 					continue
 				}
 				procedures++

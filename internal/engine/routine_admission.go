@@ -195,7 +195,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 	if err != nil || auth.engine == nil {
 		return err
 	}
-	if ref.Address.ClassID != ProcedureClassID || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 {
+	if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid callable routine reference")
 	}
 	for _, dependency := range dependencies {

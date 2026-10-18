@@ -236,7 +236,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		var ref ids.ObjectRef
-		if a, ok := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]; ok {
+		if a, ok := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]; ok {
 			ref = e.domain.Ref(e.state.epoch, a)
 		} else {
 			ref = roleTableRef(t, e, name)

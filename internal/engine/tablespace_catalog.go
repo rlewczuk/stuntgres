@@ -29,7 +29,7 @@ func (*tablespaceDescriptor) Kind() ids.ObjectKind               { return ids.Ta
 
 type tablespaceProvider struct{}
 
-func (tablespaceProvider) ClassID() ids.OID { return TablespaceClassID }
+func (tablespaceProvider) ClassID() ids.OID { return ids.TablespaceClassID }
 func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*tablespaceDescriptor)
 	if !ok || d == nil || v.state == nil || v.state.descriptors[d.address] != d {
@@ -39,7 +39,7 @@ func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	for _, builtin := range builtinTablespaces {
 		valid = valid || d.address.ObjectID == builtin.oid && d.name == builtin.name
 	}
-	if !valid || d.address.ClassID != TablespaceClassID || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+	if !valid || d.address.ClassID != ids.TablespaceClassID || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
 		return fmt.Errorf("stuntgres: invalid tablespace descriptor")
 	}
 	return nil
@@ -48,14 +48,14 @@ func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range builtinTablespaces {
-		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
+		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
 		e.state.descriptors[d.address] = d
 		e.state.names[descriptorNameKey(d)] = d.address
 	}
 }
 
 func resolveGrantTablespace(v AuthorizationView, name string) (ids.ObjectRef, error) {
-	address := v.catalog.state.names[ids.NameKey{ClassID: TablespaceClassID, Name: name}]
+	address := v.catalog.state.names[ids.NameKey{ClassID: ids.TablespaceClassID, Name: name}]
 	if address == (ids.ObjectAddress{}) {
 		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
 	}

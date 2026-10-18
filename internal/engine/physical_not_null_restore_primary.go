@@ -14,11 +14,11 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 		return nil
 	}
 	after := e.CatalogRead()
-	namespace := after.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: raw.Table.Parts[0].Text}]
+	namespace := after.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: raw.Table.Parts[0].Text}]
 	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
-	key := ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: raw.Name.Text}
+	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Name.Text}
 	address := after.state.names[key]
 	if before.state.names[key] != (ids.ObjectAddress{}) || before.state.descriptors[address] != nil {
 		return nil
@@ -27,7 +27,7 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 	if !ok || index.sqlIndex == nil || index.sqlIndex.constraint != nil {
 		return nil
 	}
-	parent := after.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text}]
+	parent := after.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text}]
 	ref := created[parent]
 	if index.sqlIndex.parent != parent || ref.Address != parent || ref.Domain() != e.domain || ref.Epoch != after.Epoch() {
 		return nil

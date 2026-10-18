@@ -73,7 +73,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("retained row-expression copy", err)
 			}
 			local := func(attribute int32) ids.ObjectRef {
-				return e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute})
+				return e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute})
 			}
 			assertTree := func(node BoundExpr) {
 				t.Helper()
@@ -259,7 +259,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	// An old external TEMP constant never borrows the mapper's fresh local-row
 	// epoch, even when a permanent copied consumer would otherwise be valid.
 	permanent := *destination
-	permanent.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	permanent.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	if storedReferenceEpochValid(e.stageRead(stage), &permanent, oldRef) {
 		t.Fatal("permanent consumer gained stale TEMP external authority")
 	}

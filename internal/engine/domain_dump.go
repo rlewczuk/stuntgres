@@ -27,11 +27,11 @@ func newDomainReplayNames() *domainReplayNames {
 		arrays: make(map[sqltype.ID]sqltype.ID), elements: make(map[sqltype.ID]sqltype.ID),
 	}
 	for _, typ := range sqltype.Builtins() {
-		namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		if typ.NamespaceName() == "information_schema" {
 			namespace.ObjectID = 13229
 		}
-		key := ids.NameKey{ClassID: TypeClassID, Namespace: namespace, Name: typ.Name()}
+		key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: typ.Name()}
 		r.occupied[key], r.names[typ.ID()] = typ.ID(), key
 		r.arrays[typ.ID()] = typ.AssociatedArray()
 		if typ.IsArray() {
@@ -121,7 +121,7 @@ func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqlty
 	if !u.Type.IsUserDefined() && !(u.Type.IsDomain() && u.Type.Concrete()) {
 		return u.Declaration()
 	}
-	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())})
+	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
 	if !ok || descriptor.(*typeDescriptor).typ != u.Type || !u.Valid() {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
@@ -142,7 +142,7 @@ func catalogColumnDeclaration(view CatalogRead, column ColumnDescriptor) (string
 	if column.DeclaredDimensions > 0 {
 		return declaration + strings.Repeat("[]", int(column.DeclaredDimensions)-1), nil
 	}
-	descriptor, ok := view.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
+	descriptor, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing array declaration identity")
 	}

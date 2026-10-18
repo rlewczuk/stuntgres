@@ -49,7 +49,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		if err != nil {
 			return err
 		}
-		address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: Immutable, strict: true, fuzzy: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
@@ -70,7 +70,7 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		found := false

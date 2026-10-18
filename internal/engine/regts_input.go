@@ -68,7 +68,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 	}
 	selection := namespaceSelection{path: r.path}
 	if len(parts) == 2 {
-		ns := r.auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		ns := r.auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text}]
 		if parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
@@ -84,7 +84,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 	}
 	for i := range selection.count() {
 		ns := selection.at(i)
-		address := r.auth.catalog.state.names[ids.NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text}]
+		address := r.auth.catalog.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text}]
 		if d, ok := r.auth.catalog.state.descriptors[address].(*tsDictionaryDescriptor); ok {
 			if r.resolved != nil {
 				ref := r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), d.address)

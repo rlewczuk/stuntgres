@@ -52,7 +52,7 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"spcname", sqltype.Name}, {"spcowner", sqltype.Oid}, {"spcacl", sqltype.ACLItemArray}, {"spcoptions", sqltype.ID(1009)}}},
-		{ParameterClassID, "pg_parameter_acl", []struct {
+		{ids.ParameterClassID, "pg_parameter_acl", []struct {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"parname", sqltype.Text}, {"paracl", sqltype.ACLItemArray}}},
@@ -251,9 +251,9 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
-		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		d.hasIndexes = representedCatalogHasIndexes(spec.oid)
-		if spec.oid == 1213 || spec.oid == ParameterClassID {
+		if spec.oid == 1213 || spec.oid == ids.ParameterClassID {
 			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 			d.acl.Entries[0].Grantor = d.owner
 		}
@@ -300,7 +300,7 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
-			if spec.oid == ParameterClassID {
+			if spec.oid == ids.ParameterClassID {
 				d.columns[i].Nullable = i == 2
 				if column.typ == sqltype.Text {
 					d.columns[i].Usage.Collation.ID = 950
@@ -318,10 +318,10 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == pgAMOID || spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 {
 				d.columns[i].Nullable = false
 			}
-			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
+			if spec.oid == ids.ProcedureClassID || spec.oid == ids.TSTemplateClassID {
 				d.columns[i].Nullable = false
 			}
-			if spec.oid == TSDictionaryClassID {
+			if spec.oid == ids.TSDictionaryClassID {
 				d.columns[i].Nullable = i == 5
 			}
 			if spec.oid == 2609 || spec.oid == 2396 {
@@ -373,22 +373,22 @@ func (e *Engine) initializeCatalogSources() error {
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *relationDescriptor {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	initializeCatalogAttributes(d)
-	if address, ok := e.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
+	if address, ok := e.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
 		row := e.state.descriptors[address].(*typeDescriptor)
 		row.owningRelation, row.owner = d.address, d.owner
 		d.rowType = row.typ.ID()
 		if row.array != 0 {
-			array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+			array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 			array.owningRelation, array.owner = d.address, d.owner
 		}
 	}
 	e.state.descriptors[d.address] = d
-	e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
@@ -398,7 +398,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	if source.address.ObjectID == pgAttributeOID {
 		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
 	}
-	if source.address.ObjectID == ParameterClassID {
+	if source.address.ObjectID == ids.ParameterClassID {
 		return e.capturePGParameterACL(ctx, catalog, roles, ref, source)
 	}
 	if source.address.ObjectID == 2964 {

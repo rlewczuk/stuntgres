@@ -204,13 +204,13 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	_, call := intaggUnitAggregate(t, e)
 	enum := intaggUnitEnum(t, e, "{2,2,NULL}")
 	before := e.CatalogRead()
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.members {
-		mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001 + i)}
+		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	aggregate := before.state.descriptors[ext.members[0]].(*procedureDescriptor)
 	for i, helper := range aggregate.aggregate.helpers {
-		mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900003 + i)}
+		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
 	next := cloneCatalog(before.state)
 	for address := range before.state.descriptors {

@@ -133,7 +133,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		used[name] = true
 	}
 	for key := range view.state.names {
-		if key.ClassID == RelationClassID && key.Namespace == d.namespace {
+		if key.ClassID == ids.RelationClassID && key.Namespace == d.namespace {
 			used[key.Name] = true
 		}
 	}
@@ -158,7 +158,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		// An existing backing relation wins over a same-named local NN/CHECK
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
 		if c.Primary || altering {
-			key := ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
+			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: c.Name}
 			if stage.lookupName(key) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
@@ -167,7 +167,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, c.Name, d.name))
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
-		key := ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
+		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: c.Name}
 		if stage.lookupName(key) != (ids.ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
@@ -186,7 +186,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		if err != nil {
 			return err
 		}
-		c.Index = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		revision, err := e.revisionLocked()
 		if err != nil {
 			return err

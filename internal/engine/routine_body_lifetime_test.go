@@ -42,7 +42,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	}
 	var missing []expressionDependency
 	for _, dependency := range original {
-		if dependency.ref.Address != (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 1374}) {
+		if dependency.ref.Address != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1374}) {
 			missing = append(missing, dependency)
 		}
 	}
@@ -171,7 +171,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		// Each original body ref must independently remain necessary; equal
 		// builtin addresses in either engine cannot repair a missing manifest.
 		for _, id := range []ids.OID{1811, 1374, 141} {
-			address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
+			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 			probe := evaluation
 			probe.routineReferences = []ids.ObjectRef{}
 			probe.routineChecks = nil
@@ -320,7 +320,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				t.Fatal("original body admission", err)
 			}
 			for _, id := range test.calls {
-				address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
+				address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 				var missing []expressionDependency
 				for _, dependency := range binder.dependencies {
 					if dependency.ref.Address != address {

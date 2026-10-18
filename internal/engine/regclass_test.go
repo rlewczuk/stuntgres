@@ -50,7 +50,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	var err error
 	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
 	var deps []ids.ObjectRef
-	if _, err = (scalarRenderer{dependencies: &deps}).sql(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}) || deps[1].Address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}) {
+	if _, err = (scalarRenderer{dependencies: &deps}).sql(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}) || deps[1].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}) {
 		t.Fatal(deps, err)
 	}
 	array, err := sqltype.OwnedArrayValue(arrayTyp, []sqltype.ArrayDimension{{Length: 1, Lower: 1}}, []sqltype.Value{value})
@@ -63,12 +63,12 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, dep := range deps {
-		if dep.Address.ClassID == RelationClassID {
+		if dep.Address.ClassID == ids.RelationClassID {
 			t.Fatal("opaque array acquired DROP dependency", dep)
 		}
 	}
 	var replay []ids.ObjectAddress
-	if err = regclassReplayReferences(view, opaque, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || !reflect.DeepEqual(replay, []ids.ObjectAddress{{ClassID: RelationClassID, ObjectID: 1259}}) {
+	if err = regclassReplayReferences(view, opaque, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || !reflect.DeepEqual(replay, []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 1259}}) {
 		t.Fatal(replay, err)
 	}
 	sentinel := errors.New("replay sentinel")
@@ -240,7 +240,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 				t.Fatal("opaque BOOL default changed eligibility")
 			}
 			for _, dependency := range definition.dependencies {
-				if dependency.Address.ClassID == RelationClassID {
+				if dependency.Address.ClassID == ids.RelationClassID {
 					t.Fatal("opaque payload gained DROP dependency", dependency)
 				}
 			}

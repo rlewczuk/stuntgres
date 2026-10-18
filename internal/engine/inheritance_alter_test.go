@@ -197,7 +197,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	foreign := New()
 	definition := c.generations[2]
-	definition.dependencies = []ids.ObjectRef{foreign.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
+	definition.dependencies = []ids.ObjectRef{foreign.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
 	invalid := *c
 	invalid.generations = map[int32]columnGeneration{2: definition}
 	if err := validateGenerationProviders(view, &invalid); err == nil {

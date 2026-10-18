@@ -234,7 +234,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	stored := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
 	stored.Property = ExprProperties{RowDependent: true}
 	for i := range 2 {
-		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
+		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
 		stored.Args[i+2] = columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: i, origin: origin}
 	}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, stored)

@@ -359,7 +359,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			err = auth.CheckCreate(ns)
 			if err == nil {
 				s.viewCreationNamespace = ns
-				address := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
+				address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
 				if address != (ids.ObjectAddress{}) {
 					ref = e.domain.Ref(auth.catalog.Epoch(), address)
 				}
@@ -612,7 +612,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			auth.catalog = e.privateCatalogLocked(s.viewChanges)
 			auth.recaptureCatalog(auth.catalog)
 		}
-		if auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
+		if auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
 			return ErrCatalogReplaced
 		}
 		if err := auth.CheckCreate(ns); err != nil {

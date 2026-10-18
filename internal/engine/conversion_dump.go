@@ -50,7 +50,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 	}
 	occupiedSchemas := make(map[string]bool)
 	for key := range view.state.names {
-		if key.ClassID == NamespaceClassID {
+		if key.ClassID == ids.NamespaceClassID {
 			occupiedSchemas[key.Name] = true
 		}
 	}
@@ -96,7 +96,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 // All moving/renamed seeds first receive intermediate names, avoiding swaps and
 // collisions with both canonical seed names and current user-object names.
 func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
-	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
+	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}]
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")
 	}
@@ -124,7 +124,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 			return nil, err
 		}
 		change := delta{d: d, fixed: fixed.name, owner: owner.Name}
-		if d.name != fixed.name || d.Namespace().ObjectID != PGCatalogNamespaceOID {
+		if d.name != fixed.name || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 			if occupied == nil {
 				occupied = make(map[string]bool)
 				for _, descriptor := range view.state.descriptors {
@@ -158,7 +158,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 			continue
 		}
 		from := initial + "." + quoteIdentifier(change.temporary)
-		if change.d.Namespace().ObjectID != PGCatalogNamespaceOID {
+		if change.d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 			namespace := quoteIdentifier(view.state.descriptors[change.d.Namespace()].Name())
 			statements = append(statements, "ALTER CONVERSION "+from+" SET SCHEMA "+namespace+";\n")
 			from = namespace + "." + quoteIdentifier(change.temporary)

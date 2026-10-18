@@ -24,7 +24,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	event := view.state.descriptors[eventRef.Address].(*relationDescriptor)
 	var provider ids.ObjectAddress
 	for address, descriptor := range view.state.descriptors {
-		if address.ClassID == TypeClassID && descriptor.Name() == "rule_domain" {
+		if address.ClassID == ids.TypeClassID && descriptor.Name() == "rule_domain" {
 			provider = address
 			break
 		}

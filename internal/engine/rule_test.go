@@ -22,7 +22,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 		t.Fatal("INT4 unavailable")
 	}
 	makeRelation := func(id ids.OID, name string) *relationDescriptor {
-		return &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, index: map[string]int{"id": 0, "v": 1}, attributes: []int32{1, 2}, attributeHighWater: 2, relationKind: tableRelation}
+		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, index: map[string]int{"id": 0, "v": 1}, attributes: []int32{1, 2}, attributeHighWater: 2, relationKind: tableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := cloneCatalog(e.state)
@@ -466,7 +466,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []ids.ObjectAddress{ref.Address, {ClassID: RelationClassID, ObjectID: sink.address.ObjectID, SubID: 1}, {ClassID: RelationClassID, ObjectID: sink.address.ObjectID, SubID: 2}} {
+	for _, want := range []ids.ObjectAddress{ref.Address, {ClassID: ids.RelationClassID, ObjectID: sink.address.ObjectID, SubID: 1}, {ClassID: ids.RelationClassID, ObjectID: sink.address.ObjectID, SubID: 2}} {
 		if !slices.Contains(refs, want) {
 			t.Fatalf("missing dependency %v in %v", want, refs)
 		}

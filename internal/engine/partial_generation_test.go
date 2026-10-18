@@ -59,7 +59,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			next := cloneCatalog(oldCatalog)
 			next.epoch++
 			next.descriptors[index.address] = &index
-			typeAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(current.ID())}
+			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
 			typeDefinition := *next.descriptors[typeAddress].(*typeDescriptor)
 			typeDefinition.typ = current
 			next.descriptors[typeAddress] = &typeDefinition
@@ -85,7 +85,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			// A nonempty relation mapping and newer epoch must not change
 			// references in the typesOnly pass.
-			mapping := map[ids.ObjectAddress]ids.ObjectAddress{f.parent.address: {ClassID: RelationClassID, ObjectID: 30000}}
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{f.parent.address: {ClassID: ids.RelationClassID, ObjectID: 30000}}
 			if err := f.e.reownCatalogExpressions(next, mapping, true); err != nil {
 				t.Fatal(err)
 			}

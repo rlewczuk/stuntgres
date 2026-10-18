@@ -46,7 +46,7 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 		t.Fatal("foreign manager authorized", err)
 	}
 	contaminated := key
-	contaminated.ObjectRef = ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1}}
+	contaminated.ObjectRef = ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1}}
 	if _, err := advisoryUnitAcquire(t, a, ra, contaminated, advisoryExclusive, true); err == nil || errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("fabricated catalog identity accepted for advisory", err)
 	}

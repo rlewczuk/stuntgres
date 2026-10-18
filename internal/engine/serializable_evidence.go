@@ -12,7 +12,7 @@ func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogC
 		return false
 	}
 	ns, ok := e.privateCatalogLocked(catalog).state.descriptors[d.namespace].(*namespaceDescriptor)
-	return ok && ns.temporary == (SessionToken{}) && d.namespace.ObjectID != PGCatalogNamespaceOID && e.storage[ref.Address] != nil
+	return ok && ns.temporary == (SessionToken{}) && d.namespace.ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {

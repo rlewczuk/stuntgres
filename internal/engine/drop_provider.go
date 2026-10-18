@@ -304,7 +304,7 @@ func (p *dropProvider) rewindNotices(position int) {
 
 func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 	var targets []ids.ObjectAddress
-	if slices.ContainsFunc(roots, func(address ids.ObjectAddress) bool { return address.ClassID == ExtensionClassID }) {
+	if slices.ContainsFunc(roots, func(address ids.ObjectAddress) bool { return address.ClassID == ids.ExtensionClassID }) {
 		// Extension retirement retains its existing complete expression fence.
 		targets = slices.Clone(roots)
 	} else {
@@ -316,9 +316,9 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 				continue
 			}
 			switch address.ClassID {
-			case ForeignWrapperClassID, ForeignServerClassID:
+			case ids.ForeignWrapperClassID, ids.ForeignServerClassID:
 				targets = append(targets, address)
-			case ProcedureClassID:
+			case ids.ProcedureClassID:
 				if procedure, ok := p.retirementDescriptor(address).(*procedureDescriptor); ok && procedure.foreign != nil {
 					targets = append(targets, address)
 				}
@@ -683,7 +683,7 @@ func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name str
 		return associatedArrayName(p.stage, namespace, name)
 	}
 	return chooseAssociatedArrayName(name, func(candidate string) bool {
-		return p.prepared.lookup(ids.NameKey{ClassID: TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
+		return p.prepared.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }
 

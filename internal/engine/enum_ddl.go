@@ -59,7 +59,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		return nil, ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}

@@ -432,10 +432,10 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 						usingIndexUnitExecute(t, e, sessionStart(t, e, nil), &parser.CreateRole{Name: parser.Identifier{Text: "changed_authority"}, DefaultLogin: true})
 					}
 				}
-				provider := e.providers[RelationClassID]
+				provider := e.providers[ids.RelationClassID]
 				if phase == "validation" {
 					var once sync.Once
-					e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.providers[RelationClassID] = provider; mutate() }) }}
+					e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.providers[ids.RelationClassID] = provider; mutate() }) }}
 				}
 				op, err := s.Acquire(ctx)
 				if err != nil {

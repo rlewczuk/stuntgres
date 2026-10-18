@@ -34,7 +34,7 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "uuid-ossp"}]
+	address := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"}]
 	return e, e.state.descriptors[address].(*extensionDescriptor)
 }
 
@@ -49,7 +49,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
 		t.Fatal(proc)
 	}
-	if err := e.providers[ProcedureClassID].Validate(view, proc); err != nil {
+	if err := e.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := collectPGDepend(context.Background(), view)
@@ -91,7 +91,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad := *proc
 		mutate(&bad)
 		view.state.descriptors[address] = &bad
-		failure := e.providers[ProcedureClassID].Validate(view, &bad)
+		failure := e.providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.validate(view, ext)
 		view.state.descriptors[address] = proc
 		if failure == nil || manifest == nil {
@@ -130,16 +130,16 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad.uuidOssp = stockUUIDOssp
 		intaggView.state.descriptors[address] = &bad
 		manifestFailure := stockIntagg.validate(intaggView, intaggExt)
-		admissionFailure := intaggEngine.providers[ProcedureClassID].Validate(intaggView, &bad)
+		admissionFailure := intaggEngine.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.state.descriptors[address] = original
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
 		}
 	}
-	builtin := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+	builtin := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
 	mixed := *builtin
 	mixed.uuidOssp = stockUUIDOssp
-	if err := e.providers[ProcedureClassID].Validate(view, &mixed); err == nil {
+	if err := e.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
 }
