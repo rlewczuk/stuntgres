@@ -12,11 +12,6 @@ import (
 	"time"
 )
 
-type TxID uint64
-type CommandID uint64
-type CommitSeq uint64
-type RowID uint64
-type VersionID uint64
 type TxState uint8
 
 const (
@@ -42,17 +37,6 @@ type TxOptions struct {
 	Deferrable    bool
 	DeferrableSet bool
 }
-
-type TxRef struct {
-	domain     *Domain
-	session    SessionToken
-	id         TxID
-	epoch      CatalogEpoch
-	attachment TxOwner
-	diagnostic uint32
-}
-
-func (r TxRef) ID() TxID { return r.id }
 
 type EndResult struct{ Committed bool }
 

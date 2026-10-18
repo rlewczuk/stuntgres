@@ -7,13 +7,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 )
 
-const (
-	ForeignWrapperClassID OID = 2328
-	ForeignServerClassID  OID = 1417
-	ForeignMappingClassID OID = 1418
-	ForeignTableClassID   OID = 3118
-)
-
 // SQL/MED global objects are ordinary immutable catalog descriptors. Mapping
 // names encode exact server/role identities, never role membership or SQL text.
 type foreignDescriptor struct {

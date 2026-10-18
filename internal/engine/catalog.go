@@ -13,18 +13,6 @@ import (
 	"unicode/utf8"
 )
 
-type OID uint32
-type CatalogEpoch uint64
-type DefinitionRevision uint64
-type ObjectAddress struct {
-	ClassID  OID
-	ObjectID OID
-	SubID    int32
-}
-
-// Domain has nonzero size so distinct live engines have distinct tokens.
-type Domain struct{ identity byte }
-
 // domainOf returns the engine's domain, or nil for a nil engine, so a
 // provenance comparison against a possibly-nil engine keeps its meaning.
 func domainOf(e *Engine) *Domain {
@@ -32,12 +20,6 @@ func domainOf(e *Engine) *Domain {
 		return nil
 	}
 	return e.domain
-}
-
-type ObjectRef struct {
-	owner   *Domain
-	Epoch   CatalogEpoch
-	Address ObjectAddress
 }
 
 // One immutable physical head per logical row, plus immutable end markers.
@@ -54,41 +36,6 @@ type relationStorage struct {
 	// It does not share TRUNCATE's current-root/birth-filter semantics.
 	materializedLineage *materializedLineage
 }
-
-const (
-	NamespaceClassID      OID = 2615
-	RelationClassID       OID = 1259
-	TypeClassID           OID = 1247
-	CollationClassID      OID = 3456
-	ConversionClassID     OID = 2607
-	PolicyClassID         OID = 3256
-	ParameterClassID      OID = 6243
-	TablespaceClassID     OID = 1213
-	PGCatalogNamespaceOID OID = 11
-	PGToastNamespaceOID   OID = 99
-	PublicNamespaceOID    OID = 2200
-)
-
-type ObjectKind uint8
-
-const (
-	NamespaceObject ObjectKind = iota + 1
-	RelationObject
-	TypeObject
-	CollationObject
-	ConversionObject
-	ExtensionObject
-	ProcedureObject
-	TSTemplateObject
-	TSDictionaryObject
-	DatabaseObject
-	OperatorObject
-	ForeignWrapperObject
-	ForeignServerObject
-	ForeignMappingObject
-	ParameterObject
-	TablespaceObject
-)
 
 type Descriptor interface {
 	Address() ObjectAddress
@@ -187,12 +134,6 @@ type notNullConstraint struct {
 	partitionLocal bool // Explicit NN declaration merged with an inherited definition.
 }
 
-type NameKey struct {
-	ClassID   OID
-	Namespace ObjectAddress
-	Name      string
-	Signature string
-}
 type catalogState struct {
 	epoch               CatalogEpoch
 	namespaceGeneration uint64

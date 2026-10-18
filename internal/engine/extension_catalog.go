@@ -8,14 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const (
-	ProcedureClassID    OID = 1255
-	ExtensionClassID    OID = 3079
-	TSTemplateClassID   OID = 3764
-	TSDictionaryClassID OID = 3600
-	DatabaseClassID     OID = 1262
-)
-
 // Signatures are declared identities, not runtime overload admission. Promoting
 // regdictionary's scalar codec does not enable the two-argument unaccent overload.
 type procedureSignature string

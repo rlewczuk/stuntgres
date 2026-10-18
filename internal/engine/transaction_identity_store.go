@@ -5,14 +5,6 @@ import (
 	"fmt"
 )
 
-type transactionIdentityState uint32
-
-const (
-	transactionInProgress transactionIdentityState = iota
-	transactionCommitted
-	transactionAborted
-)
-
 type transactionIdentityRecord struct {
 	state  transactionIdentityState
 	ticket *relationTicket

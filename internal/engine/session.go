@@ -12,15 +12,6 @@ import (
 	"time"
 )
 
-type SessionID uint64
-type SessionToken struct {
-	domain  *Domain
-	id      SessionID
-	private SessionOwner
-}
-
-func (t SessionToken) ID() SessionID { return t.id }
-
 type EndReason uint8
 
 const (

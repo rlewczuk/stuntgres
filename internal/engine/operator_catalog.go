@@ -8,8 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const OperatorClassID OID = 2617
-
 type operatorDescriptor struct {
 	address, namespace                                       ObjectAddress
 	revision                                                 DefinitionRevision
