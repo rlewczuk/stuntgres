@@ -16,7 +16,7 @@ import (
 
 // domainOf returns the engine's domain, or nil for a nil engine, so a
 // provenance comparison against a possibly-nil engine keeps its meaning.
-func domainOf(e *Engine) *Domain {
+func domainOf(e *Engine) *ids.Domain {
 	if e == nil {
 		return nil
 	}

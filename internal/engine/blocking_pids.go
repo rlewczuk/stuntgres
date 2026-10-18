@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -157,7 +158,7 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return sqltype.OwnedArrayValue(n.usage.Type, dimensions, elements)
 }
 
-func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, domain *Domain) ([]sqltype.Value, error) {
+func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {
 	if !prepared && (token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0) {
 		return values, nil
 	}

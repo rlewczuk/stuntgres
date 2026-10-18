@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Tests forge stale or foreign identities by changing one component of a
 // valid value; these helpers rebuild the value through its constructor.
 
@@ -16,7 +18,7 @@ func withSessionID(token SessionToken, id SessionID) SessionToken {
 	return token.Domain().Session(id)
 }
 
-func withSessionDomain(token SessionToken, domain *Domain) SessionToken {
+func withSessionDomain(token SessionToken, domain *ids.Domain) SessionToken {
 	if private := token.Private(); private != nil {
 		return domain.PrivateSession(private)
 	}

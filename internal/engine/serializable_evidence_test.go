@@ -97,7 +97,7 @@ func TestSerializableEvidenceRejectsForeignStaleAndInvalidBeforeMutation(t *test
 		s := *scope
 		switch kind {
 		case "foreign":
-			bad = (&Domain{}).Ref(bad.Epoch, bad.Address)
+			bad = (&ids.Domain{}).Ref(bad.Epoch, bad.Address)
 		case "stale":
 			bad.Epoch++
 		case "subobject":

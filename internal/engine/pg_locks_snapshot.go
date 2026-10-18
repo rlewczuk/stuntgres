@@ -49,7 +49,7 @@ type pgLockRecord struct {
 	waitstart     time.Time
 }
 
-func publicLockOwner(domain *Domain, ref TxRef, prepared bool) (pgLockOwner, bool, error) {
+func publicLockOwner(domain *ids.Domain, ref TxRef, prepared bool) (pgLockOwner, bool, error) {
 	token := ref.Session()
 	if ref.Domain() != domain || token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0 {
 		return pgLockOwner{}, false, nil

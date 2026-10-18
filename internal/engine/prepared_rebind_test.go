@@ -71,7 +71,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 	}
 	foreign := *cell
-	foreign.domain = &Domain{}
+	foreign.domain = &ids.Domain{}
 	if preparedRebindValid(t, e, s, &foreign) {
 		t.Fatal("foreign owner was accepted")
 	}

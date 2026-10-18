@@ -150,7 +150,7 @@ type relationEntry struct {
 }
 type relationLockManager struct {
 	mu           sync.Mutex
-	domain       *Domain // Owning engine's identity domain; provenance checks only.
+	domain       *ids.Domain // Owning engine's identity domain; provenance checks only.
 	epoch        ids.CatalogEpoch
 	owners       map[TxRef]*relationTicket
 	sessions     map[SessionToken]*relationTicket
@@ -161,7 +161,7 @@ type relationLockManager struct {
 	multiHistory map[uint32][]multiMember
 }
 
-func newRelationLockManager(domain *Domain) *relationLockManager {
+func newRelationLockManager(domain *ids.Domain) *relationLockManager {
 	return &relationLockManager{domain: domain, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
 func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
