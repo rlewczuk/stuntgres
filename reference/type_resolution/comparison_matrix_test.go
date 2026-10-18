@@ -62,15 +62,28 @@ func comparisonSQLString(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
+// Capture the actual catalog CHAR values once per bound query without changing
+// scalar-subquery cardinality or multiplying the finite source rows.
+const comparisonFiniteCharSource = "(SELECT (SELECT attgenerated FROM pg_attribute WHERE attrelid='comparison_values'::regclass AND attnum=1) AS low,(SELECT relkind FROM pg_class WHERE oid='comparison_values'::regclass) AS high) comparison_char_source"
+
 func comparisonFiniteValue(index int, alias string, peer int) string {
+	return comparisonFiniteValueFrom(index, alias, peer, "")
+}
+
+func comparisonFiniteValueFrom(index int, alias string, peer int, charSource string) string {
 	typ := comparisonConcrete[index]
 	if typ.element >= 0 {
-		return "(CASE WHEN " + alias + ".id=0 THEN NULL ELSE ARRAY[" + comparisonFiniteValue(typ.element, alias, -1) + "] END)"
+		return "(CASE WHEN " + alias + ".id=0 THEN NULL ELSE ARRAY[" + comparisonFiniteValueFrom(typ.element, alias, -1, charSource) + "] END)"
 	}
 	var expr string
 	switch typ.name {
 	case "char":
-		expr = "(CASE WHEN " + alias + ".id=1 THEN (SELECT attgenerated FROM pg_attribute WHERE attrelid='comparison_values'::regclass AND attnum=1) ELSE (SELECT relkind FROM pg_class WHERE oid='comparison_values'::regclass) END)"
+		low := "(SELECT attgenerated FROM pg_attribute WHERE attrelid='comparison_values'::regclass AND attnum=1)"
+		high := "(SELECT relkind FROM pg_class WHERE oid='comparison_values'::regclass)"
+		if charSource != "" {
+			low, high = charSource+".low", charSource+".high"
+		}
+		expr = "(CASE WHEN " + alias + ".id=1 THEN " + low + " ELSE " + high + " END)"
 	case "pg_node_tree":
 		expr = "(SELECT conbin FROM pg_constraint WHERE conname='comparison_sample_check')"
 	case "void":
@@ -84,9 +97,16 @@ func comparisonFiniteValue(index int, alias string, peer int) string {
 	if peer >= 0 && comparisonConcrete[peer].name == "pg_node_tree" && comparisonStringType(typ.name) {
 		if typ.name == "char" {
 			expr = "(SELECT attgenerated FROM pg_attribute WHERE attrelid='comparison_values'::regclass AND attnum=1)"
+			if charSource != "" {
+				expr = charSource + ".low"
+			}
 		} else {
 			expr = "(SELECT c" + strconv.Itoa(index) + " FROM comparison_values WHERE id=1)"
 		}
+	} else if typ.name != "char" && typ.name != "pg_node_tree" && typ.name != "void" && typ.name != "bpchar" && typ.name != "bit" {
+		// Ordinary columns already contain NULL at id0. Keep CASE for
+		// modifier-sensitive BPCHAR/BIT and NULL-gated special sources.
+		return expr
 	}
 	return "(CASE WHEN " + alias + ".id=0 THEN NULL ELSE " + expr + " END)"
 }

@@ -109,7 +109,11 @@ func comparisonBetween(t *testing.T, family string) {
 			for _, lower := range lowers {
 				t.Run(comparisonConcrete[lower].name, func(t *testing.T) {
 					comparisonFiniteScenario(t, left, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-						projection := comparisonProjection{from: " FROM comparison_values x CROSS JOIN comparison_values l CROSS JOIN comparison_values h ORDER BY x.id,l.id,h.id"}
+						from := " FROM comparison_values x CROSS JOIN comparison_values l CROSS JOIN comparison_values h"
+						order := " ORDER BY x.id,l.id,h.id"
+						plainFrom := from + order
+						boundFrom := from + " CROSS JOIN " + comparisonFiniteCharSource + order
+						projection := comparisonProjection{from: plainFrom}
 						for upper := range comparisonConcrete {
 							if !comparisonOrderingPair(left, upper) {
 								continue
@@ -120,9 +124,14 @@ func comparisonBetween(t *testing.T, family string) {
 							if comparisonConcrete[upper].name == "pg_node_tree" {
 								xp = upper
 							}
-							x := comparisonFiniteValue(left, "x", xp)
-							l := comparisonFiniteValue(lower, "l", lp)
-							h := comparisonFiniteValue(upper, "h", hp)
+							boundChar := family == "Strings" && (typ.name == "char" || comparisonConcrete[lower].name == "char" || comparisonConcrete[upper].name == "char")
+							charSource := ""
+							if boundChar {
+								charSource = "comparison_char_source"
+							}
+							x := comparisonFiniteValueFrom(left, "x", xp, charSource)
+							l := comparisonFiniteValueFrom(lower, "l", lp, charSource)
+							h := comparisonFiniteValueFrom(upper, "h", hp, charSource)
 							if message := comparisonDemand(left, 3); message != "" {
 								comparisonExceptionalBetween(t, p, b, x, l, h, message)
 								continue
@@ -154,6 +163,14 @@ func comparisonBetween(t *testing.T, family string) {
 											values = append(values, want)
 										}
 									}
+								}
+								// add may flush mid-triple. Reset only for a new batch;
+								// later ordinary forms must retain any earlier binding.
+								if len(projection.names) == 0 {
+									projection.from = plainFrom
+								}
+								if boundChar {
+									projection.from = boundFrom
 								}
 								projection.add(t, p, b, x+" "+spelling+" "+l+" AND "+h, values)
 							}
@@ -255,7 +272,7 @@ func TestReferenceComparisonNullTruth(t *testing.T) {
 					if typ.name == "bool" {
 						comparisonCheckpointRoutes(t, p, b, fixture.Select(q, []string{"v"}, []string{"BOOL"}, [][]any{{truth[0][i]}, {truth[1][i]}, {truth[2][i]}}))
 					} else {
-						comparisonCheckpointAnalysis(t, p, b, q, fixture.Diagnostic{Code: "42804", Message: "argument of " + form + " must be type boolean, not type " + typ.diagnostic, Position: comparisonCheckpointPosition(q, "CASE")})
+						comparisonCheckpointAnalysis(t, p, b, q, fixture.Diagnostic{Code: "42804", Message: "argument of " + form + " must be type boolean, not type " + typ.diagnostic, Position: comparisonCheckpointPosition(q, strings.TrimPrefix(value, "("))})
 					}
 				}
 			})

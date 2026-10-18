@@ -26,6 +26,9 @@ make check RUN='^TestReferenceComparisonMatrixNumeric$' REFERENCE=1
 make check RUN='^TestReferenceComparisonMatrixNumeric$'
 make check RUN='^TestReferenceComparisonBetweenNumeric$' REFERENCE=1
 make check RUN='^TestReferenceComparisonBetweenNumeric$'
+make check RUN='^TestReferenceComparisonPredicateErrorsNumeric$' REFERENCE=1
+make check RUN='^TestReferenceComparisonPredicateErrorsNumeric$'
+make check RUN='^TestReferenceComparisonPredicateErrorsNumeric$' RACE=1
 ```
 
 Use the corresponding exact suffix for every shard; do not substitute a
@@ -35,7 +38,7 @@ representative family. Other bounded selectors cover the remaining contracts:
 make check RUN='^TestReferenceComparison(CoreConversions|UnknownParameters|CompositeDemand|RowEligibility|RecordImageBoundary|StructuralConstruction|PredicateSyntax)$' REFERENCE=1
 make check RUN='^TestReferenceComparison(Boundaries|Structural|DistinctParameters|DomainArrayRoutes|CycleRecordArray)$' REFERENCE=1
 make check RUN='^TestReferenceComparison(NestedCapabilities|CatalogConversions|NodeTreeLeaf|RecordUnknownFormals|DiagnosticVisibility|CompositeSortConsumer|DeferredRecord)$' REFERENCE=1
-make check RUN='^TestReferenceComparison(Distinct|NullTruth|NullOnlyRoutes|PredicateErrors)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(Distinct|NullTruth|NullOnlyRoutes)$' REFERENCE=1
 make check RUN='^TestReferenceComparison(Consumers|ConsumerReductions|BatchSelection)$' REFERENCE=1
 make check RUN='^TestReferenceComparison(PreparedLifecycle|StoredControls|StoredConstructor(Lifecycle|Replay|Dependencies)?|AnyarrayCatalog|InstalledQueryInt)$' REFERENCE=1
 make check RUN='^TestReferenceComparison(PreparedLifecycle|StoredConstructor(Lifecycle|Replay|Dependencies))$' RACE=1
@@ -56,6 +59,325 @@ predicates, composite/row semantics, stored member coercions after outer-type
 drop, held current data, node-tree leaves, canonical diagnostics and VARCHAR
 window peer equality. The sessions owner documents launch/teardown; the ledger
 records evidence provenance.
+
+#### Test-performance repair: finite values and CHAR source capture
+
+Change note: this is a nonfunctional repair to the comparison tests and their
+local SQL builders, not a production parser, coercion, catalog or PostgreSQL
+algorithm optimization. Package-wide attribution covered all 220 native-executable
+definitions (223 inventoried; three require the reference tag), rather than
+assuming the new matrix was the only offender.
+
+Two measured mechanisms accounted for the primary costs:
+
+- `comparisonFiniteValue` wrapped even ordinary stored columns in redundant
+  `CASE WHEN id=0 THEN NULL ELSE column END`. The fixture already stores NULL at
+  id0. Repeating those CASE trees in exhaustive SQL drove parser stack growth,
+  CASE binding and allocation/GC, especially in `PredicateErrors`. The builder
+  now returns ordinary columns directly. `NullTruth` locates the actual operand
+  with `strings.TrimPrefix(value, "(")` for diagnostic positions; it no longer
+  assumes every operand starts with CASE.
+- After that repair alone, `BetweenStrings` improved only 0.9%, insufficient
+  evidence beyond noise. Its real CHAR operands repeatedly opened scalar
+  `pg_attribute`/`pg_class` queries across projections, BETWEEN endpoints and
+  27 rows. Profiles attributed this to `captureCatalogSource`,
+  `openQueryProjectStage` and `pgAttributeRow`, not fixture setup. The final
+  repair captures those same catalog values in a singleton derived FROM source
+  for each Strings projection needing scalar CHAR.
+
+`comparisonFiniteValue` remains the unbound entry into the single implementation
+`comparisonFiniteValueFrom`. Outer NULL gating is retained for arrays (a NULL
+array is not `ARRAY[NULL]`), CHAR, `pg_node_tree`, VOID, and node-peer fixed-id1
+strings. BPCHAR and BIT retain CASE too: their declared default typmods (5 and 1)
+are not interchangeable with CASE's unknown-NULL modifier -1; recursive BPCHAR
+leaves retain this exception. The actual conbin source, `pg_sleep(0)`, ordinary
+node-peer id1 source and analysis/demand queries are not replaced or cached.
+
+`comparisonFiniteCharSource` still selects `attgenerated` for the real id column
+and `relkind` for the real table, yielding CHAR `""`/`"r"`. Its scalar subqueries
+remain inside a singleton SELECT, preserving scalar zero/multiple-row behavior
+without multiplying the 27 assignments. Only `comparisonBetween`'s Strings
+triples containing scalar CHAR bind to `comparison_char_source.low/high`;
+CHAR paired with a node tree still uses low for both non-NULL ids. There is no
+literal substitution, Go prefetch, cross-query cache or production change.
+The native derived stage retains execution-private source rows; PostgreSQL may
+flatten the SQL, so no PostgreSQL evaluation-count guarantee is asserted.
+
+The projection limit remains **32 expressions**. Before **each form** is added,
+an empty batch resets to the plain FROM; a bound-CHAR form adds the singleton
+source. Later ordinary forms keep that batch's source. Automatic flush can split
+a six-form triple: the following empty batch must acquire its own source before
+its next bound expression. Final partial flush uses its accumulated source;
+ordinary-only batches have no extra join. Each direct/held execution owns its
+own source; nothing survives a query, backend or scenario boundary.
+
+No behavioral workload was sampled: 87 types, 7,569 ordered pairs, 52,983
+pair/spelling cells (2,524 admitted / 50,459 denied), 658,503 classified triples,
+and 4,103 admitted triples remain. The 4,100 ordinary triples exercise six forms
+and all 27 assignments (664,200 expression/assignment outcomes); the three
+exceptional triples retain 486 assignments, with 198 strict-NULL successes and
+288 Execute-demand errors. All nine pair assignments, WHERE/empty metadata,
+populated/all-NULL/empty analysis failures, successful Prepare versus demanded
+Execute failures, SQLSTATE/English diagnostics/positions, raw rows/arguments and
+applicable structural/consumer/parameter/lifecycle routes remain independently
+asserted. Successful checkpoints still run direct once and execute the **same
+held statement twice**; analysis denials run direct at execute stage and genuinely
+fail Prepare at prepare stage. Fresh case/engine ownership, serialized before/after
+resets, 30-second scenario / 15-second reset bounds and closed/joined resources
+are unchanged.
+Regtype's existing reciprocal narrowing and replay batching, all 40 mixed
+creator/order cases, checkpoints, failed late Restore atomicity, second Restore,
+fresh defaults and actual emitted replay are untouched.
+
+##### Predicate-error family and window ownership remedy
+
+After synchronization to base `b1a556f009976c2175c5e3e4427a47ed50d6eace`,
+the original monolithic PredicateErrors native race failed in the CHAR scenario:
+the expected 42883 was replaced by a context deadline. The definition reported
+1106.66s; the external 900-second command deadline also expired. That harness
+initially killed only the make parent; descendant draining completed at 1141s.
+These are failures, not a passing bounded run. The harness correction is temporary;
+no repository runner or deadline changes are part of this repair.
+
+`comparisonPredicateErrors(t, family)` replaces that definition with the same
+eight left-family shards as Matrix/Between. For every left identity, it visits
+all 87 rights in original order in fixed half-open eight-right windows:
+`[0,8)`, `[8,16)`, ..., `[72,80)`, `[80,87)`. Each named window subtest calls
+`comparisonPredicateErrorsWindow(t,left,start,end)` and owns the actual
+`comparisonFiniteScenario`: fresh context, driver/engine, table/setup and
+recorders. Its synchronous return completes pool closure, schema reset under
+the existing 15-second cleanup context and cancellation before the next window.
+The unchanged 30-second scenario includes before-reset/setup and both selected
+backends, not just SQL execution. No context is renewed on a shared engine.
+
+Family sharding bounds selectable definitions; windows bound actual scenario
+ownership. Neither is a speedup claim. The complete union still executes every
+ordered pair, both DISTINCT forms, all six BETWEEN forms, both incompatible
+endpoint positions and populated/all-NULL/empty analysis cases with unchanged
+SQL, released diagnostics/positions and direct/failed-Prepare routes. Even
+admitted/no-work rights remain in the windows. The universal bound creates
+**957 scenarios (87 × 11), versus 87 previously**, increasing setup/reset work.
+At most 336 query texts / 672 analysis-route attempts occur in an eight-right
+window, plus setup; the final seven-right window has maxima 294 / 588.
+
+The historical measurements below remain matched **d61-base source-repair**
+evidence, not measurements of this b1-base ownership remedy. On the b1 base,
+three uncached same-host `GOMAXPROCS=2` compiled-binary samples compared the
+original whole definition with the complete final eight-shard union:
+
+| Aggregate denial workload | Before median [min–max], seconds | After median [min–max], seconds |
+|---|---:|---:|
+| Native | 281.141 [280.869–304.602] | 199.657 [182.765–226.373] |
+| Native + pinned 18.6 | 319.810 [308.439–358.098] | 229.183 [227.360–238.307] |
+
+That is a 29.0% / 28.3% aggregate median reduction despite the additional
+setup/reset work, not a comparison of one shard with the old whole definition.
+One same-base whole-package native run was 659.306 → 355.544s; it is not a
+three-sample package benchmark. These observations use the same production
+sources, with only the original test builders/orchestration restored by a
+temporary compiler overlay for the baseline. Build/startup and host-contention
+caveats below still apply; this is not a claim about production SQL performance.
+
+A temporary actual-helper probe timed all 957 windows including subtest cleanup.
+Slowest native/combined windows were CHAR `[72,80)` at 0.647 / 0.672s.
+CHAR `[0,8)`, `[8,16)`, `[80,87)` were respectively
+0.447/0.345/0.586s native and 0.501/0.402/0.622s combined. These are non-race
+observations, not wall-clock assertions or replacements for selected race proof.
+All 30-second scenario and 15-second reset bounds remain unchanged.
+The baseline selector is the historical `^TestReferenceComparisonPredicateErrors$`;
+the final aggregate selector is
+`^TestReferenceComparisonPredicateErrors(Numeric|Strings|Temporal|Identifiers|BinaryNetwork|NegativeSpace|Ranges|Arrays)$`.
+Selected correctness/race, quickcheck and postmerge finalcheck remain separate
+required gates; aggregate measurements do not stand in for those commands.
+
+##### Matched observations, not a production performance claim
+
+Before/after used base `d61c345b81d73af8e4511609a51ecf41953e6641`,
+Go 1.27.1 linux/amd64 on the same 32-logical-CPU AMD host, `GOMAXPROCS=2`,
+otherwise default Go runtime settings, warm compiler/image caches, and one fresh
+process with `-test.count=1` per sample. A temporary Go overlay restored only the
+two old helper files for baseline builds; production and runner sources were
+identical. Root checks did not overlap, but the shared host had external
+contention. The following are three-sample **wall-second medians [min–max]**
+from compiled test binaries, excluding generation/compilation:
+
+| `TestReferenceComparison` suffix | Native before | Native after | Native + pinned 18.6 before | Native + pinned 18.6 after |
+|---|---:|---:|---:|---:|
+| PredicateErrors | 127.678 [127.669–127.914] | 97.871 [92.879–128.055] | 166.423 [156.919–180.722] | 118.388 [118.120–130.681] |
+| BetweenStrings | 30.850 [30.810–30.893] | 2.743 [2.532–3.153] | 93.316 [86.984–93.645] | 35.737 [35.647–39.082] |
+| MatrixArrays | 24.603 [24.184–26.122] | 18.246 [17.045–18.522] | 32.623 [30.740–50.559] | 23.462 [22.815–35.227] |
+| Consumers | 15.848 [15.790–16.794] | 13.694 [13.599–15.967] | 132.795 [127.868–169.521] | 126.440 [120.967–126.579] |
+| BetweenNumeric | 4.715 [4.695–4.717] | 3.109 [2.932–3.654] | 63.299 [60.067–63.334] | 12.692 [12.490–13.105] |
+| BetweenIdentifiers | 11.529 [11.510–11.549] | 7.666 [7.138–8.502] | 46.026 [43.866–46.550] | 29.398 [29.115–30.028] |
+
+Native median reductions are respectively 23.3%, 91.1%, 25.8%, 13.6%, 34.1%
+and 33.5%; overlapping ranges (notably PredicateErrors/Consumers) expose host
+noise rather than a promise about every invocation. A suspected BetweenArrays
+regression in noninterleaved samples was noise: seven interleaved pairs yielded
+before 2.704–2.850s versus after 2.584–2.629s. Already-fast callers are correctness
+coverage, not evidence of a useful speedup.
+
+Selected native race medians [ranges] were PredicateErrors
+789.784 [768.013–860.071] → 573.207 [558.126–611.752]s and BetweenStrings
+120.391 [117.158–121.331] → 13.591 [12.448–13.649]s.
+DistinctParameters was 6.511 [6.339–12.912] → 6.300 [6.237–7.420]s:
+no meaningful improvement claim. Race instrumentation is a separate workload,
+not a multiplier to apply to normal execution.
+
+Matched sampled allocation-space profiles corroborated the mechanisms:
+PredicateErrors total 150.95 → 114.00 GiB, parser `Parse` flat 84.66 → 55.33 GiB,
+`bindCase` cumulative 14.48 → 6.21 GiB; BetweenStrings total 24,981.89 MiB →
+approximately 4.62 GiB, `pgAttributeRow` 19,555.48 MiB → approximately 0.79 GiB.
+Cumulative costs overlap. These are sampled whole-workload allocated bytes,
+**not B/op or live heap**. Sampled CPU seconds were 152.13 → 110.80 and
+35.45 → 3.83 respectively; profiled runs are not the unprofiled timing samples.
+
+One matched compiled whole-package native run per version was 297.298 →
+190.779s, not three package samples. The earlier quickcheck measurement
+(type_resolution 340.444s, total wall 381.15s) used an older base/default
+parallelism and is not a matched speedup. `make check` additionally regenerates
+parser/Unicode data and compiles; warm caches do not eliminate those phases.
+Real mode includes **both native and PostgreSQL**, container startup/configuration,
+serial resets and teardown; a baseline no-match startup was 1.453s, not an exact
+subtractable constant. Process user/sys measurements omit PostgreSQL server CPU.
+Neither the combined-mode table nor the native repair establishes a PostgreSQL
+algorithm or overall production-performance improvement.
+
+##### Exact affected-helper proof and public smoke
+
+The changed finite-value helper has **28 top-level callers**: eight Matrix,
+eight Between, eight PredicateErrors, Consumers, Distinct, DistinctParameters
+and NullTruth. Use these **25 exact bounded selector groups**, not one
+representative shard or a whole-package selector:
+
+```text
+^TestReferenceComparisonMatrixNumeric$
+^TestReferenceComparisonMatrixStrings$
+^TestReferenceComparisonMatrixTemporal$
+^TestReferenceComparisonMatrixIdentifiers$
+^TestReferenceComparisonMatrixBinaryNetwork$
+^TestReferenceComparisonMatrixNegativeSpace$
+^TestReferenceComparisonMatrixRanges$
+^TestReferenceComparisonMatrixArrays$
+^TestReferenceComparisonBetweenNumeric$
+^TestReferenceComparisonBetweenStrings$
+^TestReferenceComparisonBetweenIdentifiers$
+^TestReferenceComparisonBetweenArrays$
+^TestReferenceComparisonBetween(Temporal|BinaryNetwork|NegativeSpace|Ranges)$
+^TestReferenceComparisonConsumers$
+^TestReferenceComparisonDistinct$
+^TestReferenceComparisonDistinctParameters$
+^TestReferenceComparisonNullTruth$
+^TestReferenceComparisonPredicateErrorsNumeric$
+^TestReferenceComparisonPredicateErrorsStrings$
+^TestReferenceComparisonPredicateErrorsTemporal$
+^TestReferenceComparisonPredicateErrorsIdentifiers$
+^TestReferenceComparisonPredicateErrorsBinaryNetwork$
+^TestReferenceComparisonPredicateErrorsNegativeSpace$
+^TestReferenceComparisonPredicateErrorsRanges$
+^TestReferenceComparisonPredicateErrorsArrays$
+```
+
+For **each** selector set `S` to that exact line and run, oracle first:
+
+```sh
+GOMAXPROCS=2 make check RUN="$S" REFERENCE=1
+GOMAXPROCS=2 make check RUN="$S"
+```
+
+After all 25 selector pairs, run each of the eight denial shards in native race
+mode, plus the two retained mutable/lifecycle/capture callers (ten commands):
+
+```sh
+for F in Numeric Strings Temporal Identifiers BinaryNetwork NegativeSpace Ranges Arrays; do
+    GOMAXPROCS=2 make check RUN="^TestReferenceComparisonPredicateErrors${F}$" RACE=1
+done
+GOMAXPROCS=2 make check RUN='^TestReferenceComparisonDistinctParameters$' RACE=1
+GOMAXPROCS=2 make check RUN='^TestReferenceComparisonBetweenStrings$' RACE=1
+```
+
+The obsolete unsharded definition has no compatibility alias. Apply an external
+900-second deadline to each invocation. Real mode uses the fixture's pinned
+18.6 image and UTF8/C policy; Docker failures must remain visible. These commands
+are the required final proof recipe, **not a claim that final selected make
+checks, quickcheck, review or post-integration finalcheck have passed**.
+
+The expanded actual-helper smoke and complete denial-window smoke were rerun
+together on the b1 base: pinned-18.6 first (266.894s), then native (190.359s),
+both passing. Temporary bridges and the timing probe were removed. Earlier
+source-only smoke observations were 36.478s / 2.781s on the older base and are
+not substituted for this fresh execution. The combined smoke exercised the
+actual finite helpers through `fixture.RunStep`/checkpoint routes: nine INT4
+pairs, 27 triples, independent analysis and leaf-demand failures, NULL-array
+versus array-of-NULL, BPCHAR/BIT and node-peer exceptions, raw CHAR `""`/`"r"`
+with CHAR metadata, bound CHAR NULL/low/high and node-peer rows, all six forms
+over 27 independent SQL-three-valued outcomes, WHERE/empty BOOL metadata, and
+the actual full `comparisonBetween(t, "Strings")` to cross mixed 32-column
+boundaries. Expected truth uses separate endpoint comparisons and SQL3VL:
+false dominates NULL in AND, true dominates NULL in OR, NOT preserves NULL.
+It is not an assertion that any-NULL always means NULL.
+
+To reproduce the helper-specific smoke, use a temporary untagged
+`reference/type_resolution/performance_public_smoke_test.go` in
+`package reference_test`, importing `testing` and `stuntgres/reference/fixture`,
+with `TestReferenceTypeResolutionPerformancePublicSmoke(t *testing.T)`.
+Inside it, find type indices by `comparisonConcrete[i].name`, create scenarios
+with `comparisonFiniteScenario`, and send actual helper-generated SQL through
+`comparisonCheckpointRoutes(t,p,b,fixture.Select(...))`. In the CHAR scenario
+use `comparisonFiniteValueFrom(charIndex,"x",-1,"comparison_char_source")` and
+`" FROM comparison_values x CROSS JOIN "+comparisonFiniteCharSource`:
+
+- Project source low/high: expect one `("", "r")` row, CHAR/CHAR.
+- Project `x.id`, bound `IS NULL`, bound `= source.low`, bound `= source.high`,
+  ordered by id: expect `(0,true,NULL,NULL)`, `(1,false,true,false)`,
+  `(2,false,false,true)`, with INT4/BOOL/BOOL/BOOL metadata.
+- With node-tree peer expect `(0,true,NULL)`, `(1,false,true)`, `(2,false,true)`
+  for id/IS NULL/equality to low. Do not replace the node's real conbin source.
+- Cross x/l/h with the same singleton source, build each of
+  `comparisonBetweenForms` using actual bound helpers, and independently assert
+  all 27 rows, true-only WHERE rows and empty BOOL metadata. Include
+  x=1/lo=2/hi=0: ordinary BETWEEN is false, not NULL.
+- Retain the unbound INT4 pair/triple, analysis, leaf-demand and special-source
+  controls listed above; finish with
+  `t.Run("ActualBetweenStrings", func(t *testing.T) { comparisonBetween(t,"Strings") })`
+  rather than copying the batching algorithm.
+
+Add `TestReferenceTypeResolutionPredicateErrorsWindowSmoke(t *testing.T)` in
+the same temporary bridge. Loop the literal eight family labels in synchronous
+family-named subtests, calling actual `comparisonPredicateErrors(t, family)`:
+this must execute the complete family union, not a sampled or copied SQL loop.
+Find CHAR by its independent inventory name, require its presence, and add
+`CHAR_right_00_08`, `CHAR_right_08_16`, `CHAR_right_80_87` subtests calling actual
+`comparisonPredicateErrorsWindow` with `[0,8)`, `[8,16)`, `[80,87)`.
+The helper retains independently released 42883 diagnostics, casts hints, rune
+positions, endpoint priority and execute/failed-Prepare stages for all three
+data shapes; inspect representative recorder observations as well as outcomes.
+Each focused CHAR call owns actual setup/cleanup, not a parent-owned fixture.
+
+The helpers live in `_test.go` and require `testing.T`; an ordinary `go run`
+client cannot import them. This bridge is actual public SQL exercised by a
+temporary test client, not the standalone command smoke described above.
+From repository root, with external 900-second deadlines:
+
+```sh
+go test -c -tags reference -o /tmp/type-resolution-public-smoke.test ./reference/type_resolution
+(cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPerformancePublicSmoke$' -test.count=1 -test.timeout=0 -reference=true)
+(cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPerformancePublicSmoke$' -test.count=1 -test.timeout=0 -reference=false)
+(cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPredicateErrorsWindowSmoke$' -test.count=1 -test.timeout=0 -reference=true)
+(cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPredicateErrorsWindowSmoke$' -test.count=1 -test.timeout=0 -reference=false)
+```
+
+For separate boundary measurements use
+`-test.run '^TestReferenceTypeResolutionPredicateErrorsWindowSmoke$/^CHAR_right_(00_08|08_16|80_87)$'`
+in each mode; measure through subtest completion so cleanup is included. A
+separate `go test -c -race -tags reference` binary may use the same focused
+selector with `-reference=false`. Record actual per-window observations, not a
+shard total divided by its window count; do not rerun the failed old race.
+
+Expect exit 0 only after independently specified rows, raw/metadata, diagnostic
+stages and same-held reuse assertions pass. Remove the temporary bridge and
+binary before final gates. Keep the normal full quickcheck (900 seconds) and
+post-integration finalcheck (1800 seconds) separate from these selected proofs.
 
 ### Regcollation and regnamespace
 
