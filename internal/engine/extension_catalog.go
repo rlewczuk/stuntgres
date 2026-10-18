@@ -121,7 +121,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	var ext ids.ObjectAddress
 	switch d := d.(type) {
 	case *extensionDescriptor:
-		implementation, registered := v.owner.Extensions[d.Name()]
+		implementation, registered := v.Owner().Extensions[d.Name()]
 		if !registered || d.Version != implementation.Control().Version || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
 		}

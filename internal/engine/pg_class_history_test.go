@@ -9,7 +9,7 @@ import (
 )
 
 func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
-	state := cloneCatalog(e.CatalogRead().state)
+	state := cloneCatalog(e.CatalogRead().State())
 	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	state.setDescriptor(parent.Address(), parent)
 	state.bindName(descriptorNameKey(parent), parent.Address())
@@ -97,9 +97,9 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	catalog, parent := pgClassHistoryCatalog(e)
 	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
-	catalog.state.setDescriptor(child.Address(), child)
+	catalog.State().setDescriptor(child.Address(), child)
 	history := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-	catalog.state.setDescriptor(history.Address(), history)
+	catalog.State().setDescriptor(history.Address(), history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), catalog); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if !got.HasSubclasses || got == parent || parent.HasSubclasses || !history.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := e.catalog.read(cloneCatalog(catalog.state))
+	base := e.catalog.read(cloneCatalog(catalog.State()))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -120,8 +120,8 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := normalizeReplacementSubclassHistory(canceled, catalog); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := e.catalog.read(cloneCatalog(catalog.state))
-	missing.state.removeDescriptor(parent.Address())
+	missing := e.catalog.read(cloneCatalog(catalog.State()))
+	missing.State().removeDescriptor(parent.Address())
 	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")
 	}

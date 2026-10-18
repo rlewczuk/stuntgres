@@ -274,7 +274,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if captured.names[0] != "x" || captured.attributes[0] != first.Attribute || captured.attributes[1] != second.Attribute {
 		t.Fatal("capture borrowed mutable labels or lost stable attributes", captured)
 	}
-	b.expected = &StatementDescription{catalogOwner: view.owner, catalogEpoch: view.Epoch(), composites: b.composites}
+	b.expected = &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.composites}
 	b.composites = nil
 	current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), []sqltype.CompositeMember{first, second, {Attribute: 99, Name: "extra", Usage: first.Usage}})
 	if err != nil {
@@ -420,7 +420,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				return expression
 			}
 			raw.Args[0] = oldSpelling(raw.Args[0])
-			expected := &StatementDescription{catalogOwner: view.owner, catalogEpoch: view.Epoch(), composites: first.composites}
+			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.composites}
 			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
 			node, err := next.bind(raw, expressionPolicy{context: projectionContext})
 			if err != nil || next.jsonbRecordBase {

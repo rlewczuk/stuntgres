@@ -28,19 +28,19 @@ func TestViewReplaceSelectedTargetOwnershipPrecedence(t *testing.T) {
 				original := e.CatalogRead().Get(ref.Address)
 				stmt := statement(t, "CREATE OR REPLACE VIEW chosen.v AS SELECT id FROM chosen.t")
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
-				before := e.CatalogRead().state
+				before := e.CatalogRead().State()
 				if prepared {
 					if _, err := e.Describe(op, stmt); err != nil {
 						t.Fatal("effect-free Prepare", err)
 					}
-					if e.CatalogRead().state != before {
+					if e.CatalogRead().State() != before {
 						t.Fatal("Prepare published")
 					}
 					lockEmpty(t, e)
 				}
 				_, err := e.Execute(op, stmt, 0, nil)
 				viewReplaceError(t, err, sqlstate.Error{Code: "42501", Message: "must be owner of " + kind + " v"})
-				if e.CatalogRead().state != before || e.CatalogRead().Get(ref.Address) != original {
+				if e.CatalogRead().State() != before || e.CatalogRead().Get(ref.Address) != original {
 					t.Fatal("nonowner failure changed target identity or catalog")
 				}
 				lockEmpty(t, e)
@@ -53,7 +53,7 @@ func TestViewReplaceSelectedTargetOwnershipPrecedence(t *testing.T) {
 				}
 				_, err = e.Execute(op, stmt, 0, nil)
 				viewReplaceError(t, err, sqlstate.Error{Code: "42809", Message: `"v" is not a view`})
-				if e.CatalogRead().state != before || e.CatalogRead().Get(ref.Address) != original {
+				if e.CatalogRead().State() != before || e.CatalogRead().Get(ref.Address) != original {
 					t.Fatal("owner wrong-kind failure changed target")
 				}
 				lockEmpty(t, e)

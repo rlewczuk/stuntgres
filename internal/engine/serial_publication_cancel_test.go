@@ -53,7 +53,7 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 					case <-time.After(5*time.Second):
 						t.Fatal("canceled definition did not release replacement admission")
 					}
-					if e.catalog.state.epoch==before.epoch { t.Fatal("released replacement did not fence the old definition epoch") }
+					if e.catalog.state.Epoch()==before.Epoch() { t.Fatal("released replacement did not fence the old definition epoch") }
 				}
 				if !replacement && e.catalog.state != before { t.Fatal("canceled default publication changed catalog") }
 				lockEmpty(t,e)

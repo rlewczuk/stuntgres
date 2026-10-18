@@ -12,8 +12,8 @@ func catalogReadFixture() (*catalogState, *namespaceDescriptor, *relationDescrip
 	rel := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, ObjectNamespace: ns.Address(), ObjectName: "t", ObjectRevision: 1}
 	s := &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
 	for _, d := range []Descriptor{ns, rel} {
-		s.descriptors[d.Address()] = d
-		s.names[descriptorNameKey(d)] = d.Address()
+		s.setDescriptor(d.Address(), d)
+		s.bindName(descriptorNameKey(d), d.Address())
 	}
 	return s, ns, rel
 }

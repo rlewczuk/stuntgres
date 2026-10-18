@@ -142,7 +142,7 @@ func (e commentInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) 
 	if err := admitInquiryBody(c, e); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
+	if c.liveScope() == nil || c.liveScope().commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
 	oid, err := values[0].OID()
@@ -177,7 +177,7 @@ func (e commentInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) 
 		if e.kind == sharedDescription {
 			if name == "pg_authid" {
 				r := scope.commentRoles
-				role, _ := r.Find(scope.commentCatalog.owner.Principals.Principal(uint64(oid)))
+				role, _ := r.Find(scope.commentCatalog.Owner().Principals.Principal(uint64(oid)))
 				text = role.Comment
 			}
 		} else {

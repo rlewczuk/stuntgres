@@ -34,7 +34,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
-	return e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 }
 func ruleUnitInt(d *relationDescriptor, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
@@ -514,7 +514,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10
-	next := cloneCatalog(auth.catalog.state)
+	next := cloneCatalog(auth.catalog.State())
 	next.setDescriptor(newSrc.Address(), &newSrc)
 	next.setDescriptor(newSink.Address(), &newSink)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{src.Address(): newSrc.Address(), sink.Address(): newSink.Address()}
@@ -526,7 +526,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 			old.Address = a
 		}
 		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
-		old.Epoch = next.epoch
+		old.Epoch = next.Epoch()
 		return old
 	}
 	mapped, err := remapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)

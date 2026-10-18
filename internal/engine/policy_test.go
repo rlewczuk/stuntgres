@@ -88,7 +88,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 				sql = redump
 			}
 			original := expression.presentation
-			next := cloneCatalog(e.CatalogRead().state)
+			next := cloneCatalog(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
 			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
@@ -157,7 +157,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}
-	if e.CatalogRead().state != base.state || len(d.Policies) != 0 {
+	if e.CatalogRead().State() != base.State() || len(d.Policies) != 0 {
 		t.Fatal("canceled publication changed immutable roots")
 	}
 }
@@ -253,11 +253,11 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			base := e.CatalogRead()
-			state := cloneCatalog(base.state)
+			state := cloneCatalog(base.State())
 			attached := *owner
 			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 			state.setDescriptor(owner.Address(), &attached)
-			base.state = state
+			base = base.WithState(state)
 			var target ids.ObjectAddress
 			for address, descriptor := range state.Descriptors() {
 				if address.ClassID == tc.class && descriptor.Name() == tc.name {

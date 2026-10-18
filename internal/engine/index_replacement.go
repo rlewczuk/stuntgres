@@ -23,7 +23,7 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogSt
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
 	if err == nil {
-		next.aclItemImport = nil
+		next.SetACLItemImport(nil)
 	}
 	return prepared, err
 }
@@ -32,7 +32,7 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogSt
 // its internal lifetime and row identities. Allocator frontiers advance only
 // after comparison, root construction and cancellation have all succeeded.
 func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (map[ids.ObjectAddress]*logicalIndexRoot, uint64, uint64, error) {
-	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
+	retained := newCatalogState(0)
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
 		if temporary && namespace.Temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {

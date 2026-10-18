@@ -72,7 +72,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, ref := pgDatabaseUnitSource(t, e, catalog)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
+	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	rows := pgDatabaseUnitCapture(t, e, catalog)
 	row := rows.anonymous[0]
 	for i, value := range row {
@@ -102,7 +102,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		t.Fatal("absent database ACL baseline", row[17], database.ACL)
 	}
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
@@ -138,7 +138,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			t.Fatal("invalid source width", width, got, err)
 		}
 	}
-	private := cloneCatalog(catalog.state)
+	private := cloneCatalog(catalog.State())
 	for address := range private.Descriptors() {
 		if address.ClassID == ids.RelationClassID {
 			private.removeDescriptor(address)
@@ -204,7 +204,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(old, 10, false)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) || e.CatalogRead().state != base.state {
+	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != base.State() {
 		t.Fatal("canceled publication changed base", err)
 	}
 	publication, err := e.ValidateCatalogStage(context.Background(), stage)

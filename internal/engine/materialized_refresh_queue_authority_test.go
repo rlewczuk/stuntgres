@@ -25,7 +25,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			}
 			oldStorage := e.storage[d.Address()]
-			originalEpoch := e.catalog.state.epoch
+			originalEpoch := e.catalog.state.Epoch()
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
@@ -49,7 +49,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			defer func() {
 				cancel()
 				e.mu.Lock()
-				e.catalog.state.epoch = originalEpoch
+				e.catalog.state.SetEpoch(originalEpoch)
 				e.mu.Unlock()
 				e.endLockOwner(holder.transactions.ticket)
 				if !joined {
@@ -65,8 +65,8 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			// is pending. These are package fixtures, not added SQL ALTER capabilities.
 			e.mu.Lock()
 			nextState := *e.catalog.state
-			nextState.descriptors = maps.Clone(e.catalog.state.descriptors)
-			nextState.names = maps.Clone(e.catalog.state.names)
+			nextState.cloneDescriptors()
+			nextState.cloneNames()
 			next := *d
 			next.ObjectRevision++
 			expectedAddress := d.Address()
@@ -102,7 +102,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				delete(e.storage, d.Address())
 				e.storage[next.Address()] = expectedStorage
 			case "epoch":
-				nextState.epoch++
+				nextState.SetEpoch(nextState.Epoch() + 1)
 			}
 			nextState.setDescriptor(expectedAddress, &next)
 			e.catalog.state = &nextState
@@ -127,7 +127,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.
 			e.mu.Lock()
-			e.catalog.state.epoch = originalEpoch
+			e.catalog.state.SetEpoch(originalEpoch)
 			e.mu.Unlock()
 			scope.Finish(err)
 			transactionEnd(t, holder, tx, false)

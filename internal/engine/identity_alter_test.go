@@ -122,7 +122,7 @@ func TestIdentityModeConflictCandidateUnchanged(t *testing.T) {
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(err)
 	}
-	if next != old || old.Identities[1] != identity || len(stage.descriptors) != 0 || len(stage.generators) != 0 || e.catalog.state != base.state {
+	if next != old || old.Identities[1] != identity || len(stage.descriptors) != 0 || len(stage.generators) != 0 || e.catalog.state != base.State() {
 		t.Fatal("mode conflict changed candidate or published metadata")
 	}
 }

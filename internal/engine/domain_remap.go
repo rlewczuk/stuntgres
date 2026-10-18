@@ -424,8 +424,8 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 				rebound := value
 				changed := target != value.Type()
 				var err error
-				if changed || next.aclItemImport != nil && value.Type().ContainsACLItem() {
-					rebound, err = reownDomainDatum(value, target, collation, next.scalarImports, next.aclItemImport)
+				if changed || next.ACLItemImport() != nil && value.Type().ContainsACLItem() {
+					rebound, err = reownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
 					if err != nil {
 						return err
 					}

@@ -299,7 +299,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()
-	if after.state == before.state || after.Epoch() <= before.Epoch() || after.Get(parent.Address()) != parent || after.Get(index.Address()) != index || index.SQLIndex.Predicate != predicate || e.storage[parent.Address()] != store || e.indexRoots[index.Address()] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
+	if after.State() == before.State() || after.Epoch() <= before.Epoch() || after.Get(parent.Address()) != parent || after.Get(index.Address()) != index || index.SQLIndex.Predicate != predicate || e.storage[parent.Address()] != store || e.indexRoots[index.Address()] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
 		t.Fatal("replacement changed actual retained catalog/index/store/vector roots")
 	}
 	for _, tree := range []struct {

@@ -167,7 +167,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.Address()] != d || stage.base.Get(d.Address()) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
-	if stage.base.Epoch() != e.catalog.state.epoch {
+	if stage.base.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	// A demanded producer can enroll reads even when every row is filtered out.

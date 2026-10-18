@@ -101,7 +101,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	candidate := cloneCatalog(auth.catalog.state)
+	candidate := cloneCatalog(auth.catalog.State())
 	for _, name := range []string{"invalid_source", "dropping_source"} {
 		ref := ids.ObjectRef{Address: candidate.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})}
 		original := candidate.MustRelation(ref.Address)

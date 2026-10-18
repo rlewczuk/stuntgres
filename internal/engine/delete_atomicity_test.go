@@ -307,7 +307,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				frontier = e.commitSeq
 			case "stale_epoch":
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.epoch++
+				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			}
 			op := transactionOperation(t, a)
 			_, err := e.Commit(op, ref)

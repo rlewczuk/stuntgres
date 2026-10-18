@@ -117,7 +117,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 		}
 	}
 	// A reader lacking the exact selected input generation cannot borrow it.
-	state := cloneCatalog(view.state)
+	state := cloneCatalog(view.State())
 	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 	if _, err := bindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
@@ -157,7 +157,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != trial.code {
 			t.Fatal(trial.sql, err)
 		}
-		if e.CatalogRead().state != view.state || e.storage[parentRef.Address] != parentStore || e.storage[childRef.Address] != childStore || e.indexRoots[f.Index] != root {
+		if e.CatalogRead().State() != view.State() || e.storage[parentRef.Address] != parentStore || e.storage[childRef.Address] != childStore || e.indexRoots[f.Index] != root {
 			t.Fatal("failed TYPE published metadata/storage/index authority", trial.sql)
 		}
 		if !reflect.DeepEqual(parentStore.versions, parentRows) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) || !reflect.DeepEqual(child.ForeignKeys[0], f) {
@@ -222,7 +222,7 @@ func TestForeignKeyCreateOutcomeIdentity(t *testing.T) {
 		t.Fatal("creator did not return its exact minted reference", created, ref)
 	}
 	skipped := sessionSQL(t, s, "CREATE TABLE IF NOT EXISTS outcome(pid INT REFERENCES missing_schema.missing_parent)").created
-	if skipped != (ids.ObjectRef{}) || e.CatalogRead().state != view.state {
+	if skipped != (ids.ObjectRef{}) || e.CatalogRead().State() != view.State() {
 		t.Fatal("no-op masqueraded as a successful creation", skipped)
 	}
 	if len(view.MustRelation(ref.Address).ForeignKeys) != 0 {

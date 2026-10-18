@@ -174,7 +174,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		return "", err
 	}
 	if u.Collation.ID != 0 {
-		r.recordStoredCollation(view, view.owner.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
+		r.recordStoredCollation(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
 	}
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
@@ -182,7 +182,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, view.owner.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
+	r.recordStoredType(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.Usage {
@@ -456,7 +456,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
-				r.record(view.owner.Domain.Ref(view.Epoch(), address))
+				r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 			}
 		}
 		if err := r.recordCatalogAliasDependencies(view, n.value); err != nil {
@@ -490,7 +490,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		}
 		aclOutput := r.aclOutput
 		if r.validation {
-			aclOutput = aclItemValidationOutput{owner: view.owner}
+			aclOutput = aclItemValidationOutput{owner: view.Owner()}
 		} else if aclOutput == nil {
 			aclOutput = aclItemContextFormatter(ctx)
 		}

@@ -80,10 +80,10 @@ func intaggUnitRecipes(t *testing.T) {
 				state.setDescriptor(destination, d)
 				state.bindName(descriptorNameKey(d), destination)
 			}
-			state.epoch++
+			state.SetEpoch(state.Epoch() + 1)
 			view := e.catalog.read(state)
 			mapRef := func(old ids.ObjectRef) ids.ObjectRef {
-				old.Epoch = state.epoch
+				old.Epoch = state.Epoch()
 				if destination, ok := mapping[old.Address]; ok {
 					old.Address = destination
 				}

@@ -14,7 +14,7 @@ import (
 )
 
 func commitTimeUnitRef(e *Engine, id ids.TxID) ids.TxRef {
-	return e.catalog.Domain.Tx(ids.SessionToken{}, id, e.catalog.state.epoch, nil, 0)
+	return e.catalog.Domain.Tx(ids.SessionToken{}, id, e.catalog.state.Epoch(), nil, 0)
 }
 
 func TestCommitTimeAssignment(t *testing.T) {
@@ -148,7 +148,7 @@ func TestCommitTimePublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					if route == "rows" {
-						if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: old.epoch}); err != nil {
+						if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: old.Epoch()}); err != nil {
 							t.Fatal(err)
 						}
 						old = e.catalog.state
@@ -197,7 +197,7 @@ func TestCommitTimePublication(t *testing.T) {
 				before := time.Now().UTC().Truncate(time.Microsecond)
 				go func() {
 					if route == "catalog" {
-						_, failure := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: old.epoch})
+						_, failure := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: old.Epoch()})
 						done <- failure
 					} else {
 						done <- e.publishRowsPrepared(op, ref, writes, nil, nil, nil, nil, nil)

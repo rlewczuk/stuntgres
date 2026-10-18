@@ -92,8 +92,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 		t.Fatal(err)
 	}
 	source := []sqltype.Value{base, oldOID}
-	next := cloneCatalog(view.state)
-	next.epoch++
+	next := cloneCatalog(view.State())
+	next.SetEpoch(next.Epoch() + 1)
 	next.setDescriptor(d.Address(), d)
 	next.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	// Retain a real TEMP namespace and row vector in the target generation.
@@ -187,8 +187,8 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			switch change {
 			case "Catalog":
 				f.target.catalog.state = cloneCatalog(f.target.catalog.state)
-				f.target.catalog.state.epoch++
-				f.target.catalog.state.namespaceGeneration++
+				f.target.catalog.state.SetEpoch(f.target.catalog.state.Epoch() + 1)
+				f.target.catalog.state.SetNamespaceGeneration(f.target.catalog.state.NamespaceGeneration() + 1)
 			case "Roles":
 				roles := *f.target.roles
 				roles.revision++
@@ -200,7 +200,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				copy.ObjectName = "concurrent_temp"
 				next.setDescriptor(copy.Address(), &copy)
 				f.target.storage[copy.Address()] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
-				next.epoch++
+				next.SetEpoch(next.Epoch() + 1)
 				f.target.catalog.state = next
 			case "CommitFrontier":
 				f.target.commitSeq++

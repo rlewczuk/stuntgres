@@ -602,7 +602,7 @@ type PreparedCatalogPublication struct {
 
 func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 	s := &CatalogStage{owner: e, base: base, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress), touched: make(map[ids.NameKey]ids.ObjectAddress)}
-	if base.owner != e.catalog.owner() || base.state == nil {
+	if base.Owner() != e.catalog.owner() || base.State() == nil {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	return s
@@ -997,7 +997,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	if len(s.descriptors) != 0 {
 		view = e.stageRead(s)
 	}
-	if view.state != nil {
+	if view.State() != nil {
 		if err := validateDefinitionOIDs(view); err != nil {
 			return nil, err
 		}
@@ -1060,7 +1060,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			return ChangeSet{}, err
 		}
 		currentStorage := e.storage
-		if p.epoch != current.epoch || token.Epoch != current.epoch {
+		if p.epoch != current.Epoch() || token.Epoch != current.Epoch() {
 			e.mu.Unlock()
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
@@ -1169,7 +1169,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			observed := removal.descriptor
 			d := current.Get(a)
-			if removal.ref.Domain() != e.catalog.Domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
+			if removal.ref.Domain() != e.catalog.Domain || removal.ref.Epoch != current.Epoch() || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1238,8 +1238,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		e.mu.Unlock()
 		next := cloneCatalog(current)
-		next.defaultACLs = overlayDefaultACLs(current.defaultACLs, s.defaultACLs)
-		operators := operatorIndexEdit{index: current.operatorNames}
+		next.OverlayDefaultACLs(current, s.defaultACLs)
+		operators := operatorIndexEdit{index: current.OperatorNames()}
 		storage := make(map[ids.ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
 		for a, v := range currentStorage {
 			storage[a] = v
@@ -1248,7 +1248,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			d := removal.descriptor
 			operators.replace(current.Get(a), s.descriptors[a])
 			next.removeDescriptor(a)
-			delete(next.dumpPriorities, a)
+			next.RemoveDumpPriority(a)
 			next.unbindName(descriptorNameKey(d))
 			delete(storage, a)
 		}
@@ -1277,7 +1277,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for k, a := range s.names {
 			next.bindName(k, a)
 		}
-		next.operatorNames = operators.index
+		next.SetOperatorNames(operators.index)
 		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
 			return ChangeSet{}, err
 		}
@@ -1490,7 +1490,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles, catalog: e.catalog.read(e.catalog.state), roles: e.roleRead(e.catalog.read(e.catalog.state), e.roles), state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
+			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1615,7 +1615,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			e.locks.Fence(installed)
 		}
 	}()
-	if replacement.state == nil || replacement.owner == nil || source == nil || replacement.owner != source.catalog.owner() {
+	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != source.catalog.owner() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid replacement catalog")
 	}
 	if err := ctx.Err(); err != nil {
@@ -1680,7 +1680,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.indexRoots, frontier)
 		return err
 	}
-	if replacement.owner == e.catalog.owner() {
+	if replacement.Owner() == e.catalog.owner() {
 		e.replacementMu.Lock()
 		defer e.replacementMu.Unlock()
 		e.mu.Lock()
@@ -1694,10 +1694,10 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 			return ChangeSet{}, err
 		}
-		if replacement.Epoch() != e.catalog.state.epoch {
+		if replacement.Epoch() != e.catalog.state.Epoch() {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		next = cloneCatalog(replacement.state)
+		next = cloneCatalog(replacement.State())
 		if err := copyRows(e); err != nil {
 			return ChangeSet{}, err
 		}
@@ -1724,7 +1724,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 				}
 			}
 		}
-		if e.catalog.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
+		if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 		}
 		var imported uint64
@@ -1760,7 +1760,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		e.nextRow, e.nextVersion = nextRow, nextVersion
 		e.indexRoots = roots
 		e.commitSeq++
-		next.epoch = e.catalog.state.epoch + 1
+		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
 		e.storage = storage
 		e.exclusionPending = nil
@@ -1770,11 +1770,11 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		e.catalog.nextRevision = nextRevision
 		e.fenceSerializableLocked()
 		e.retireCommitTimestampsLocked()
-		installed = next.epoch
+		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
 	source.mu.Lock()
-	if replacement.Epoch() != source.catalog.state.epoch {
+	if replacement.Epoch() != source.catalog.state.Epoch() {
 		source.mu.Unlock()
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
@@ -1805,7 +1805,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
-	if e.catalog.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
+	if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 	}
 	if imported > ^uint64(0)-e.nextRow {
@@ -1817,9 +1817,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if e.commitSeq == ids.CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 	}
-	replacement.state.aclItemImport = e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets)
-	defer func() { replacement.state.aclItemImport = nil }()
-	next, err = e.remapPreparedCatalog(replacement.state, sourceRoles, targetRoles, source.importTargets)
+	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
+	defer func() { replacement.State().SetACLItemImport(nil) }()
+	next, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.importTargets)
 	if err != nil {
 		return ChangeSet{}, err
 	}
@@ -1849,7 +1849,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		return ChangeSet{}, err
 	}
 	e.foreignNamespaces = foreignNamespaces
-	installed = next.epoch
+	installed = next.Epoch()
 	return ChangeSet{Replacement: true}, nil
 }
 
@@ -1868,7 +1868,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	e.nextRow, e.nextVersion = prepared.nextRow, prepared.nextVersion
 	e.indexRoots = prepared.roots
 	e.commitSeq++
-	next.epoch = e.catalog.state.epoch + 1
+	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
 	e.storage = storage
 	e.exclusionPending = nil

@@ -27,7 +27,7 @@ func TestCommentPublicationFailures(t *testing.T) {
 		t.Fatal("invalid comment attribute published")
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("invalid provider mutation")
 	}
 	original := e.catalog.nextRevision
@@ -76,7 +76,7 @@ func TestCommentRestoreRetainsLiveSharedMetadata(t *testing.T) {
 	if err := <-done; err == nil {
 		t.Fatal("restore adopted same-name replacement owner")
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("conflicted restore published private comments")
 	}
 }

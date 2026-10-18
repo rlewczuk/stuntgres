@@ -47,7 +47,7 @@ func (s *catalogStore) owner() *catalogOwner { return &s.catalogOwner }
 
 // read returns a view of state owned by this store.
 func (s *catalogStore) read(state *catalogState) CatalogRead {
-	return CatalogRead{owner: s.owner(), state: state}
+	return newCatalogRead(s.owner(), state)
 }
 
 // registerProviderLocked adds a provider before the builtin catalog is
@@ -138,13 +138,13 @@ func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {
 // and provenance checks without reacquiring synchronization when called from
 // catalog mutation preflight.
 func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectRef) error {
-	if s.Domain == nil || view.owner != s.owner() || view.state == nil {
+	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	if ref.Domain() == nil || ref.Domain() != s.Domain {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
-	if view.state.epoch != s.state.epoch || ref.Epoch != s.state.epoch {
+	if view.State().Epoch() != s.state.Epoch() || ref.Epoch != s.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	d, ok := view.Find(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -166,10 +166,10 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 // validateCatalogViewLocked checks that view belongs to this store and its
 // current epoch.
 func (s *catalogStore) validateCatalogViewLocked(view CatalogRead) error {
-	if s.Domain == nil || view.owner != s.owner() || view.state == nil {
+	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if view.Epoch() != s.state.epoch {
+	if view.Epoch() != s.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

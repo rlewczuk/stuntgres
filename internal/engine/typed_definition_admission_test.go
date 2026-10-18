@@ -35,7 +35,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 		t.Run(map[bool]string{false: "persistent", true: "temporary"}[temporary], func(t *testing.T) {
 			e, _, _ := typedUnitCatalog(t, false)
 			run(t, e, "CREATE SEQUENCE q")
-			before := e.CatalogRead().state
+			before := e.CatalogRead().State()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			reset := make(chan error, 1)
@@ -62,7 +62,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 					}
 					runtime.Gosched()
 				}
-				if e.CatalogRead().state != before {
+				if e.CatalogRead().State() != before {
 					cancel()
 					t.Fatal("queued replacement changed unpublished typed definition")
 				}
@@ -84,7 +84,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 			case <-time.After(3 * time.Second):
 				t.Fatal("cancellation did not release genuine provider reservation")
 			}
-			if e.CatalogRead().Epoch() == before.epoch {
+			if e.CatalogRead().Epoch() == before.Epoch() {
 				t.Fatal("released replacement did not win catalog epoch")
 			}
 			for _, descriptor := range e.CatalogRead().Descriptors() {

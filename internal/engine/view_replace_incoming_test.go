@@ -36,7 +36,7 @@ func TestViewReplaceCurrentVisibilityCaptureDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		if got := scope.visibilityCatalog.state != nil; got != captured {
+		if got := scope.visibilityCatalog.State() != nil; got != captured {
 			t.Fatalf("%s visibility capture=%v want %v", query, got, captured)
 		}
 		if !captured && (scope.visibilityRelationPath != nil || scope.visibilityOtherPath != nil) {
@@ -88,21 +88,21 @@ func TestDropViewIndexWrongKindAtomicity(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE t(id INT)", "INSERT INTO t VALUES(7)", "CREATE INDEX ix ON t(id)", "CREATE VIEW v AS SELECT id FROM t"} {
 					roleExecute(t, e, op, q)
 				}
-				before := e.CatalogRead().state
+				before := e.CatalogRead().State()
 				refs := []ids.ObjectRef{roleTableRef(t, e, "t"), roleTableRef(t, e, "ix"), roleTableRef(t, e, "v")}
 				stmt := statement(t, query)
 				if prepared {
 					if _, err := e.Describe(op, stmt); err != nil {
 						t.Fatal(err)
 					}
-					if e.CatalogRead().state != before {
+					if e.CatalogRead().State() != before {
 						t.Fatal("Prepare published")
 					}
 					lockEmpty(t, e)
 				}
 				_, err := e.Execute(op, stmt, 0, nil)
 				viewReplaceError(t, err, sqlstate.Error{Code: "42809", Message: `"ix" is not a view`, Hint: "Use DROP INDEX to remove an index."})
-				if e.CatalogRead().state != before {
+				if e.CatalogRead().State() != before {
 					t.Fatal("wrong-kind DROP partially published")
 				}
 				for _, ref := range refs {

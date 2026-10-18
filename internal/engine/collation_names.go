@@ -4,7 +4,7 @@ import "stuntgres/internal/engine/ids"
 
 // Presentation uses the same namespace-first identity lookup as binding.
 func collationDisplayName(view CatalogRead, id uint32, path []ids.ObjectAddress) string {
-	if view.state == nil {
+	if view.State() == nil {
 		return pgIdentifier(collationName(view, id))
 	}
 	d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})

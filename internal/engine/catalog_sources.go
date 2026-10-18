@@ -455,7 +455,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return capturePGConstraint(ctx, catalog, ref, source)
 	}
 	if source.Address().ObjectID == 2224 {
-		return capturePGSequence(ctx, catalog.state, nil, ref, source)
+		return capturePGSequence(ctx, catalog.State(), nil, ref, source)
 	}
 	if source.Address().ObjectID == 2609 {
 		return capturePGDescription(ctx, catalog, ref, source)

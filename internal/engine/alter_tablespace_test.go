@@ -83,13 +83,13 @@ func TestAlterTablespacePreparation(t *testing.T) {
 
 func TestAlterTablespaceNoop(t *testing.T) {
 	e, candidateScope, auth, old := alterAddUnitScope(t)
-	before, roles, store, revision, epoch := e.catalog.state, e.roles, e.storage[old.Address()], old.Revision(), e.catalog.state.epoch
+	before, roles, store, revision, epoch := e.catalog.state, e.roles, e.storage[old.Address()], old.Revision(), e.catalog.state.Epoch()
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
 	e.mu.Lock()
 	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address()), actions)
 	e.mu.Unlock()
 	work, destination := prepared.actions, prepared.destination
-	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles != roles || e.storage[old.Address()] != store || old.Revision() != revision || e.catalog.state.epoch != epoch {
+	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles != roles || e.storage[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
 		t.Fatal("default preparation changed authority/storage", work, err)
 	}
 	if err := validateAlterTablespaceMove(destination); err != nil {
@@ -209,14 +209,14 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		}
 	}
 	assertRootOrigin(rootCapture)
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("root capture prematurely published")
 	}
 	holder.Finish(nil)
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(state.types[0], rootCapture) || e.CatalogRead().state != before.state {
+	if !reflect.DeepEqual(state.types[0], rootCapture) || e.CatalogRead().State() != before.State() {
 		t.Fatal("sole stage replaced capture or published before Finish")
 	}
 	assertRootOrigin(state.types[0])

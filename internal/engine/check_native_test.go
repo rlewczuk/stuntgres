@@ -63,7 +63,7 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 			t.Fatal("bad Restore succeeded")
 		}
 		after := e.CatalogRead()
-		if after.state != before.state || after.Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
+		if after.State() != before.State() || after.Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
 			t.Fatal("failed Restore replaced destination")
 		}
 		if err := e.ValidateObjectRef(after, ref); err != nil {

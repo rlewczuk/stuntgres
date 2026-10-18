@@ -43,7 +43,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.epoch}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			index = e.catalog.state.MustRelation(indexAddress)

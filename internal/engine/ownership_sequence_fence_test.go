@@ -132,7 +132,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.ACL.Entries...)}
 				retainedOptions := *old.Sequence
-				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.epoch
+				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.Epoch()
 				originalCatalog := e.catalog.state
 				// A real nontransactional draw must survive rollback without another
 				// draw, cache reset, generator replacement or currval change.
@@ -188,7 +188,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.epoch != epoch {
+					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
 						t.Fatal("DB-only replacement changed role/session/epoch authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
@@ -255,7 +255,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("veto installed sequence owner/ACL or retained row prefix")
 					}
 				}
-				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.epoch != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(currentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(currentDatabaseAddress) != committed {
+				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(currentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(currentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
 				if e.sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {

@@ -130,11 +130,11 @@ func TestCheckReviewDependencyDeletionBetweenValidationAndPublication(t *testing
 		t.Fatal(err)
 	}
 	sessionSQL(t, a, "DROP SEQUENCE s CASCADE")
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err == nil {
 		t.Fatal("CREATE published a validated CHECK after its provider was removed")
 	}
-	if e.CatalogRead().state != before {
+	if e.CatalogRead().State() != before {
 		t.Fatal("failed publication changed committed catalog")
 	}
 	checkReviewDependencyValid(t, e)
@@ -162,7 +162,7 @@ func TestCheckReviewDependencyRestrictComplete(t *testing.T) {
 				sessionSQL(t, a, "CREATE TABLE t(a INT,CONSTRAINT c1 CHECK(nextval('s')>0),CONSTRAINT c2 CHECK(nextval('s')>0))")
 			}
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-			before := e.CatalogRead().state
+			before := e.CatalogRead().State()
 			op, err := a.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -173,7 +173,7 @@ func TestCheckReviewDependencyRestrictComplete(t *testing.T) {
 				t.Fatal("failed DROP exposed result", result)
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "2BP01", Message: "cannot drop sequence s because other objects depend on it", Detail: detail, Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
-			if e.CatalogRead().state != before {
+			if e.CatalogRead().State() != before {
 				t.Fatal("RESTRICT changed catalog")
 			}
 			checkReviewDependencyValid(t, e)

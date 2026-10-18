@@ -94,9 +94,9 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				if err := other.Replace(&replacement); err != nil {
 					t.Fatal(err)
 				}
-				roles, epoch := e.roles, e.catalog.state.epoch
+				roles, epoch := e.roles, e.catalog.state.Epoch()
 				ownershipUnitPublish(t, e, other)
-				if e.roles != roles || e.catalog.state.epoch != epoch {
+				if e.roles != roles || e.catalog.state.Epoch() != epoch {
 					t.Fatal("database-only publication changed role authority or epoch")
 				}
 			case "reset":
@@ -109,7 +109,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.authSession.mu.Unlock()
 			case "namespace-headroom":
 				next := cloneCatalog(e.catalog.state)
-				next.namespaceGeneration = ^uint64(0)
+				next.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = next
 			case "role-headroom":
 				next := *e.roles

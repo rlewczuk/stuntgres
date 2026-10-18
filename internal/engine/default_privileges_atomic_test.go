@@ -38,7 +38,7 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 			catalog, roles := f.e.catalog.state, f.e.roles
 			err := f.apply(tc.s)
 			defaultUnitDiagnostic(t, err, tc.code, tc.message)
-			if f.e.catalog.state != catalog || f.e.roles != roles || len(catalog.defaultACLs) != 0 {
+			if f.e.catalog.state != catalog || f.e.roles != roles || catalog.DefaultACLCount() != 0 {
 				t.Fatal("failed utility published a partial candidate")
 			}
 		})
@@ -63,7 +63,7 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.roles.revision != oldRevision+1 || len(f.e.catalog.state.defaultACLs) != 2 {
+	if f.e.roles.revision != oldRevision+1 || f.e.catalog.state.DefaultACLCount() != 2 {
 		t.Fatal("multiple schemas/repeated operands not one publication")
 	}
 	firstCatalog, firstRoles := f.e.catalog.state, f.e.roles
@@ -77,7 +77,7 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.e.catalog.state.defaultACLs) != 0 || f.e.roles.revision != oldRevision+2 {
+	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles.revision != oldRevision+2 {
 		t.Fatal("baseline reversal")
 	}
 	roles := *f.e.roles
@@ -165,7 +165,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.defaultReads {
-				if key.Class != authorization.DefaultTables || key.Creator != f.owner || record != stage.base.state.defaultACLs[key] {
+				if key.Class != authorization.DefaultTables || key.Creator != f.owner || record != stage.base.State().DefaultACL(key) {
 					t.Fatal("incorrect creation observations")
 				}
 			}

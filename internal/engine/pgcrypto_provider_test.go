@@ -97,10 +97,10 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		original := view.Get(ext.Members[0])
 		bad := *original.(*procedureDescriptor)
 		mutate(&bad)
-		view.state.setDescriptor(ext.Members[0], &bad)
+		view.State().setDescriptor(ext.Members[0], &bad)
 		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifestFailure := stockPgcrypto.ValidateExtension(view, ext)
-		view.state.setDescriptor(ext.Members[0], original)
+		view.State().setDescriptor(ext.Members[0], original)
 		if failure == nil {
 			t.Fatal("invalid provider accepted", bad)
 		}
@@ -120,9 +120,9 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		} {
 			bad := *original
 			mutate(&bad)
-			view.state.setDescriptor(address, &bad)
+			view.State().setDescriptor(address, &bad)
 			failure := stockPgcrypto.ValidateExtension(view, ext)
-			view.state.setDescriptor(address, original)
+			view.State().setDescriptor(address, original)
 			if failure == nil {
 				t.Fatal("invalid random/FIPS member admitted", bad)
 			}

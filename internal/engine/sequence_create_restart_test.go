@@ -357,7 +357,7 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 					want = "stuntgres: catalog definition revision exhausted"
 				case "Namespace":
 					state := cloneCatalog(e.catalog.state)
-					state.namespaceGeneration = ^uint64(0)
+					state.SetNamespaceGeneration(^uint64(0))
 					e.catalog.state = state
 					query = "CREATE TEMP SEQUENCE failed START 5 RESTART 9"
 					want = "stuntgres: namespace invalidation generation exhausted"

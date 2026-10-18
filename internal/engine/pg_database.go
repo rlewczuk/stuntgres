@@ -26,7 +26,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.state.epoch || ref.Address != source.Address() {
+	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.State().Epoch() || ref.Address != source.Address() {
 		return nil, fmt.Errorf("stuntgres: foreign database source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}

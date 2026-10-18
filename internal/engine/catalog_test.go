@@ -260,7 +260,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	setEpoch := func(epoch ids.CatalogEpoch) {
 		e.mu.Lock()
 		next := cloneCatalog(e.catalog.state)
-		next.epoch = epoch
+		next.SetEpoch(epoch)
 		err := e.reownCatalogExpressions(next, nil, false)
 		if err == nil {
 			e.catalog.state = next
@@ -314,7 +314,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 		t.Fatalf("address collision: changes=%+v error=%v", changes, err)
 	}
 	after := e.CatalogRead()
-	if after.state != before.state || len(changes.Definitions) != 0 {
+	if after.State() != before.State() || len(changes.Definitions) != 0 {
 		t.Fatal("conflict changed authority or emitted definitions")
 	}
 	if got := after.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "second"}); len(got) != 0 {
@@ -597,7 +597,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 		if err := tc.engine.ValidateObjectRef(va, tc.own); tc.engine == b && (err == nil || err.Error() != "stuntgres: foreign catalog view") {
 			t.Fatalf("foreign view: %v", err)
 		}
-		if tc.engine.CatalogRead().state != tc.view.state || catalogRef(t, tc.engine, tc.view, "t") != tc.own {
+		if tc.engine.CatalogRead().State() != tc.view.State() || catalogRef(t, tc.engine, tc.view, "t") != tc.own {
 			t.Fatal("rejected validation changed authority")
 		}
 		rows := tuples(run(t, tc.engine, "SELECT id FROM public.t"))
@@ -693,7 +693,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if err := target.Restore(context.Background(), strings.NewReader("nonsense")); err == nil {
 		t.Fatal("bad restore accepted")
 	}
-	if target.catalog.Domain != owner || target.CatalogRead().state != before.state {
+	if target.catalog.Domain != owner || target.CatalogRead().State() != before.State() {
 		t.Fatal("failed restore changed authority")
 	}
 	if err := target.ValidateObjectRef(before, newRef); err != nil {
@@ -718,11 +718,11 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 		if _, err := receiver.ReplaceCatalog(context.Background(), source, sourceView); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatalf("stale source replacement: %v", err)
 		}
-		if receiver.CatalogRead().state != stateBefore.state {
+		if receiver.CatalogRead().State() != stateBefore.State() {
 			t.Fatal("stale source changed target")
 		}
 	}
-	if target.CatalogRead().state != after.state {
+	if target.CatalogRead().State() != after.State() {
 		t.Fatal("stale replacement changed target authority")
 	}
 	if _, ok := sourceView.Descriptor(sourceRef.Address); !ok {
@@ -745,7 +745,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 	}
 	cancel()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
-	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || changes.Replacement || e.CatalogRead().state != base.state {
+	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || changes.Replacement || e.CatalogRead().State() != base.State() {
 		t.Fatalf("canceled publication changed authority: %#v, %v", changes, err)
 	}
 	e.DiscardCatalogStage(stage)
@@ -779,7 +779,7 @@ func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 			if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || err.Error() != "stuntgres: invalid relation column identity" {
 				t.Fatalf("malformed column index: %v", err)
 			}
-			if e.CatalogRead().state != base.state {
+			if e.CatalogRead().State() != base.State() {
 				t.Fatal("invalid descriptor changed committed state")
 			}
 		})
@@ -824,7 +824,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 		t.Fatalf("canceled self-replacement: changes=%#v error=%v", changes, err)
 	}
-	if e.catalog.Domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
+	if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
 		t.Fatal("canceled self-replacement changed owner/state/epoch/storage")
 	}
 	if err := e.ValidateObjectRef(before, ref); err != nil {
@@ -875,7 +875,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			storageCount := len(e.storage)
 			assertUnchanged := func() {
 				t.Helper()
-				if e.catalog.Domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.Address()] != publishedStorage {
+				if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.Address()] != publishedStorage {
 					t.Fatal("lifecycle operation changed committed authority/storage")
 				}
 				rows := tuples(run(t, e, "SELECT id FROM public.sentinel"))

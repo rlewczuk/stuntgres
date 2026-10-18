@@ -116,7 +116,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	stage, d := queryCreateStage(t, target, "copy", 1)
 	d.Columns[0].Usage = targetArray.Usage()
 	queryCreatePublish(t, target, stage)
-	candidate := cloneCatalog(target.CatalogRead().state)
+	candidate := cloneCatalog(target.CatalogRead().State())
 	imported := *d
 	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	imported.Columns[0].Usage = array.Usage()
@@ -221,7 +221,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	stage, d := queryCreateStage(t, target, "xid_copy", 1)
 	d.Columns[0].Usage = targetType.Usage()
 	queryCreatePublish(t, target, stage)
-	candidate := cloneCatalog(target.CatalogRead().state)
+	candidate := cloneCatalog(target.CatalogRead().State())
 	imported := *d
 	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	imported.Columns[0].Usage = sourceType.Usage()

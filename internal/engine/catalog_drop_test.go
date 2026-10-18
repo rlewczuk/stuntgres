@@ -243,7 +243,7 @@ func TestCatalogDropCanceledGroupAndRestoreEpochFence(t *testing.T) {
 	}
 	cancel()
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(changes, ChangeSet{}) || e.CatalogRead().state != base.state {
+	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(changes, ChangeSet{}) || e.CatalogRead().State() != base.State() {
 		t.Fatal(changes, err)
 	}
 	if roleTableRef(t, e, "a") != a || roleTableRef(t, e, "b") != b {
@@ -297,7 +297,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)
 		}
-		if len(stage.removals) != 0 || e.CatalogRead().state != base.state {
+		if len(stage.removals) != 0 || e.CatalogRead().State() != base.State() {
 			t.Fatal("rejected removal changed authority")
 		}
 	}

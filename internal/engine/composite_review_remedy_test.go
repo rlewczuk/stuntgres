@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -54,8 +53,8 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer.OfType = ids.ObjectAddress{}
 		consumer.RelationKind = materializedViewRelation
 		consumer.Columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
-		state := *before.state
-		state.descriptors = maps.Clone(state.descriptors)
+		state := *before.State()
+		state.cloneDescriptors()
 		state.setDescriptor(table.Address(), &consumer)
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
@@ -71,7 +70,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 			t.Fatal("nonstored view blocked", err)
 		}
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("guard published a candidate")
 	}
 }
@@ -108,7 +107,7 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation failed", err)
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("private pruning published")
 	}
 	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
@@ -179,7 +178,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal("pruned inheritance candidate escaped cancellation", err)
 	}
-	if len(child.CheckConstraints) != 2 || e.CatalogRead().state != before.state {
+	if len(child.CheckConstraints) != 2 || e.CatalogRead().State() != before.State() {
 		t.Fatal("staged pruning mutated published roots")
 	}
 }

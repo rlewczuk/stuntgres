@@ -90,7 +90,7 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
-	target := authority.owner.Domain.Ref(authority.Epoch(), destination.Address())
+	target := authority.Owner().Domain.Ref(authority.Epoch(), destination.Address())
 	return func(ref ids.ObjectRef) ids.ObjectRef {
 		address := ref.Address
 		address.SubID = 0

@@ -69,7 +69,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
-			if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
+			if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != ref.Epoch {
 				err = ids.ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.Relation(ref.Address)
@@ -127,7 +127,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
-			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
+			if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
 				err = ids.ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)
@@ -192,7 +192,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ids.ObjectRef
 		observation := truncateName{name: target.Name}
-		if err == nil && s.txRef.Epoch() != e.catalog.state.epoch {
+		if err == nil && s.txRef.Epoch() != e.catalog.state.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {

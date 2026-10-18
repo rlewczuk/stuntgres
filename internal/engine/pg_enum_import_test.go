@@ -84,7 +84,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 			t.Fatal("import metadata", oldMember, newMember, ok)
 		}
 	}
-	if !reflect.DeepEqual(mood.EnumMembers(), members) || source.CatalogRead().state != original.state {
+	if !reflect.DeepEqual(mood.EnumMembers(), members) || source.CatalogRead().State() != original.State() {
 		t.Fatal("import mutated source")
 	}
 	newRef := catalogRef(t, target, target.CatalogRead(), "saved")

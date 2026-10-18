@@ -316,7 +316,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.owner != v.engine.catalog.owner() || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(currentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.Owner() != v.engine.catalog.owner() || v.catalog.State() == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(currentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -786,7 +786,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address
@@ -900,7 +900,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 }
 
 func (e *Engine) roleRead(catalog CatalogRead, root *roleCatalog) authorization.Read {
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || root == nil {
+	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || root == nil {
 		return authorization.Read{}
 	}
 	database, ok := catalog.Database(currentDatabaseAddress)

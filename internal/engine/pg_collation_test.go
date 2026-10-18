@@ -63,8 +63,8 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, catalog)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
-	capturedDescriptors, capturedNames := maps.Clone(catalog.state.descriptors), maps.Clone(catalog.state.names)
+	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
+	capturedDescriptors, capturedNames := maps.Collect(catalog.State().Descriptors()), maps.Collect(catalog.State().Names())
 	e.mu.Lock()
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
 	e.mu.Unlock()
@@ -128,7 +128,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 		}
 	}
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) || !maps.Equal(capturedDescriptors, catalog.state.descriptors) || !maps.Equal(capturedNames, catalog.state.names) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(catalog.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(catalog.State().Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}

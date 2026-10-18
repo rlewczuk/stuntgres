@@ -90,7 +90,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			retained := [2]*finalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
 			retainedCatalog := e.catalog.state
-			retainedEpoch := e.catalog.state.epoch
+			retainedEpoch := e.catalog.state.Epoch()
 			retainedFrontier := e.commitSeq
 			spare := append([]rowVersion(nil), roots[0][3:4]...)
 			frontier := e.commitSeq
@@ -150,7 +150,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			case "epoch_before":
 				e.mu.Lock()
 				next := *e.catalog.state
-				next.epoch++
+				next.SetEpoch(next.Epoch() + 1)
 				e.catalog.state = &next
 				e.mu.Unlock()
 				_, err = scope.Execute(query, 0, nil)
@@ -234,7 +234,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					t.Fatal("immutable prefix changed", i)
 				}
 				data := retained[i].source.view.read()
-				if retained[i].count != len(root) || data.frontier != retainedFrontier || data.catalog.state != retainedCatalog || data.catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.committed[addresses[i]], prefixes[i]) {
+				if retained[i].count != len(root) || data.frontier != retainedFrontier || data.catalog.State() != retainedCatalog || data.catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.committed[addresses[i]], prefixes[i]) {
 					t.Fatal("retained rows/types/frontier changed", i)
 				}
 				if success {
@@ -297,7 +297,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			// hold is gone and both typed rows have already been published.
 			retained := transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
 			data := retained.source.view.read()
-			catalog, epoch := data.catalog.state, data.catalog.Epoch()
+			catalog, epoch := data.catalog.State(), data.catalog.Epoch()
 			versions := append([]rowVersion(nil), data.committed[address]...)
 			for i := range versions {
 				versions[i].values = append([]sqltype.Value(nil), versions[i].values...)
@@ -352,7 +352,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 						t.Fatal("accepted retained typed row changed", i, present, err, values)
 					}
 				}
-				if retained.count != 2 || view.frontier != frontier+1 || view.catalog.state != catalog ||
+				if retained.count != 2 || view.frontier != frontier+1 || view.catalog.State() != catalog ||
 					view.catalog.Epoch() != epoch || !reflect.DeepEqual(view.committed[address], versions) {
 					t.Fatal("lifecycle boundary changed retained committed rows/metadata/frontier")
 				}

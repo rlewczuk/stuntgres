@@ -234,7 +234,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
+	if c.liveScope() == nil || c.liveScope().commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
 	if e.signature == deparseSerialSequence {

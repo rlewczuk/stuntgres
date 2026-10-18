@@ -231,7 +231,7 @@ func sourceOnly(statement parser.Statement) bool {
 }
 
 func (s *StatementScope) inheritanceRead(current CatalogRead) CatalogRead {
-	if s.inheritanceCatalog.state != nil {
+	if s.inheritanceCatalog.State() != nil {
 		return s.inheritanceCatalog
 	}
 	return current

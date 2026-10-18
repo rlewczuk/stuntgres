@@ -54,7 +54,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 	if err != nil {
 		return err
 	}
-	s.preparedNamespace = auth.catalog.state.namespaceGeneration
+	s.preparedNamespace = auth.catalog.State().NamespaceGeneration()
 	s.preparedPrivate = auth.session.transactions.catalog
 	s.preparedEpoch = auth.catalog.Epoch()
 	if s.Expected == nil {
@@ -69,7 +69,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequenceEnvironment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(analysis.path, path) {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {

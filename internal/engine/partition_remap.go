@@ -80,7 +80,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 				if datum.Kind != 0 {
 					continue
 				}
-				value, err := reownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.state.scalarImports, view.state.aclItemImport)
+				value, err := reownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.State().ScalarImports(), view.State().ACLItemImport())
 				if err != nil {
 					return nil, err
 				}

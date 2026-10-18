@@ -72,7 +72,7 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 	if !published {
 		t.Fatal("regression did not publish a genuine successor role catalog")
 	}
-	if e.CatalogRead().state != view.state || view.Get(address) != descriptor {
+	if e.CatalogRead().State() != view.State() || view.Get(address) != descriptor {
 		t.Fatal("role publication unexpectedly changed captured collation snapshot")
 	}
 }

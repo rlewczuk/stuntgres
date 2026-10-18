@@ -93,7 +93,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				e.storage[table.Address()] = &store
 			case "replacement":
 				state := cloneCatalog(e.catalog.state)
-				state.epoch++
+				state.SetEpoch(state.Epoch() + 1)
 				e.catalog.state = state
 			case "provider":
 				stage.domainBases = append(stage.domainBases, e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}))

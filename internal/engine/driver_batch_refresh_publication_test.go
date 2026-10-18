@@ -144,7 +144,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				cancel()
 			case "epoch":
 				next := cloneCatalog(e.catalog.state)
-				next.epoch++
+				next.SetEpoch(next.Epoch() + 1)
 				e.catalog.state = next
 			case "ref":
 				stale := s.transactions.ref

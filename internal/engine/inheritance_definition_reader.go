@@ -122,7 +122,7 @@ func (r *inheritanceDefinitionReader) appendIdentity(identity *preparedIdentityD
 	r.effects = &inheritanceDefinitionEffect{previous: r.effects, identity: identity}
 }
 func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
-	if view.owner != r.base.owner || view.Epoch() != r.base.Epoch() {
+	if view.Owner() != r.base.Owner() || view.Epoch() != r.base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if r.observations == nil {

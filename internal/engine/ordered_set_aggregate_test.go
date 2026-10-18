@@ -655,7 +655,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			}
 			call := b.aggregates[0]
 			argument := call.argument
-			if b.bindingCatalog().state != catalog.state || argument.ResultUsage().Type != input {
+			if b.bindingCatalog().State() != catalog.State() || argument.ResultUsage().Type != input {
 				t.Fatal("input lost coherent binding generation", argument.ResultUsage(), input)
 			}
 			want := argument.ResultUsage()

@@ -41,7 +41,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 	if len(tables) == 0 {
 		return view, replay
 	}
-	state := *view.state
+	state := *view.State()
 	state.cloneDescriptors()
 	ordinal := 0
 	for _, table := range tables {
@@ -94,7 +94,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 		}
 		state.setDescriptor(next.Address(), &next)
 	}
-	view.state = &state
+	view = view.WithState(&state)
 	return view, replay
 }
 

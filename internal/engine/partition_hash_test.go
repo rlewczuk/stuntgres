@@ -143,12 +143,12 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	destination.ObjectName = "hash_destination"
 	destination.Membership = &partitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 2, Remainder: 1}
 	root.Partition.Children = append(root.Partition.Children, destination.Address())
-	catalog.state.setDescriptor(destination.Address(), &destination)
+	catalog.State().setDescriptor(destination.Address(), &destination)
 	class, _ := sqltype.DefaultIndexClass(source.Columns[0].Usage.Type)
 	makeIndex := func(parent *relationDescriptor, oid ids.OID) *relationDescriptor {
 		index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: parent.Name() + "_key", RelationKind: indexRelation,
 			SQLIndex: &indexDefinition{Parent: parent.Address(), Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Live: true, Valid: true}}
-		catalog.state.setDescriptor(index.Address(), index)
+		catalog.State().setDescriptor(index.Address(), index)
 		return index
 	}
 	sourceIndex := makeIndex(source, 25100)
@@ -183,7 +183,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		source.Address():      {},
 		destination.Address(): {{row: 7, version: 11}: 0},
 	}
-	roots, err := snapshot.transport(evaluation.Context, catalog.state, storage, positions)
+	roots, err := snapshot.transport(evaluation.Context, catalog.State(), storage, positions)
 	if err != nil {
 		t.Fatal(err)
 	}

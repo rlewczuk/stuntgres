@@ -21,7 +21,7 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 	return d
 }
 func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRead {
-	state := cloneCatalog(e.CatalogRead().state)
+	state := cloneCatalog(e.CatalogRead().State())
 	for _, d := range relations {
 		state.setDescriptor(d.Address(), d)
 		state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
@@ -209,7 +209,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	p.Columns[1].Usage = testUsage(e, sqltype.Text)
 	q := inheritanceUnitRelation(e, "q", 22001, "y", "a")
 	q.Columns[0].Usage = testUsage(e, sqltype.Bool)
-	e.catalog.state = inheritanceUnitView(e, p, q).state
+	e.catalog.state = inheritanceUnitView(e, p, q).State()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	auth, err := op.Authorization()
@@ -251,8 +251,8 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	oldRef := e.catalog.Domain.Ref(v.Epoch(), d.Address())
 	oldRef.Address.SubID = 1
 	old := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
-	state := cloneCatalog(v.state)
-	state.epoch++
+	state := cloneCatalog(v.State())
+	state.SetEpoch(state.Epoch() + 1)
 	current := e.catalog.read(state)
 	mapper := createLikeInput{source: d}
 	mapped, err := mapper.remap(old, d, current)

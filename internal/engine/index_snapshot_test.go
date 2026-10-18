@@ -171,7 +171,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if err != nil || again != mapped {
 		t.Fatal("destination-owned ACL copied/reimported", err)
 	}
-	if source.catalog.state.aclItemImport != nil || target.catalog.state.aclItemImport != nil {
+	if source.catalog.state.ACLItemImport() != nil || target.catalog.state.ACLItemImport() != nil {
 		t.Fatal("snapshot published import callback")
 	}
 }

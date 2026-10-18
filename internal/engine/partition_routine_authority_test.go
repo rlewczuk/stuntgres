@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
 	"testing"
@@ -158,13 +157,13 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	// A genuinely bound old expression must reject a newer declaration even
 	// when its address, engine and epoch all still match.
 	staleAuth := auth
-	state := *auth.catalog.state
-	state.descriptors = maps.Clone(state.descriptors)
+	state := *auth.catalog.State()
+	state.cloneDescriptors()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.MustProcedure(address)
 	declaration.ObjectRevision++
 	state.setDescriptor(address, &declaration)
-	staleAuth.catalog.state = &state
+	staleAuth.catalog = staleAuth.catalog.WithState(&state)
 	staleEvaluation := newEvaluation(staleAuth)
 	if _, err := evaluatePartitionRecipe(&staleEvaluation, owner, 0, row); err == nil {
 		t.Fatal("stale declaration revision was rescued by address")

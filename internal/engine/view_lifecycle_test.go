@@ -74,14 +74,14 @@ func TestViewValidationReplacementAdmission(t *testing.T) {
 func TestViewValidationCancellationAtomicity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE sentinel(id INT)")
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	original := e.catalog.Providers[ids.RelationClassID]
 	var once sync.Once
 	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
 	_, err := testExecute(e, ctx, statement(t, "CREATE VIEW v AS SELECT id FROM sentinel"), nil)
-	if !errors.Is(err, context.Canceled) || e.CatalogRead().state != before {
+	if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal(err, "partial catalog publication")
 	}
 	lockEmpty(t, e)

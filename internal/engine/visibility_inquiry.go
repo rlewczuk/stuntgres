@@ -243,7 +243,7 @@ func (e visibilityInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 		}
 		return sqltype.Value{}, sqlError("0A000", "system collation import is unsupported in embedded mode")
 	}
-	if scope.visibilityCatalog.state == nil {
+	if scope.visibilityCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
 	}
 	d, exists := scope.visibilityCatalog.Descriptor(ids.ObjectAddress{ClassID: e.kind.class(), ObjectID: ids.OID(oid)})
@@ -288,7 +288,7 @@ func (e visibilityInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 // Engine.mu is held. The execution frontier owns catalog and path, never mutable
 // session settings or an authorization view subsequently consulted by Eval.
 func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
-	if scope.visibilityCatalog.state != nil {
+	if scope.visibilityCatalog.State() != nil {
 		return nil
 	}
 	auth, err := e.authorizationLocked(scope.op)

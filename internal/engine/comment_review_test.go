@@ -127,7 +127,7 @@ func TestCommentQualifiedDiagnostics(t *testing.T) {
 			if !errors.As(err, &got) || *got != want {
 				t.Errorf("prepared=%v %s: full diagnostic %#v want %#v", prepared, tc.q, got, want)
 			}
-			if before.state != e.CatalogRead().state || rolesPublication != e.roles || storage != e.storage[roleTableRef(t, e, "private.t").Address] {
+			if before.State() != e.CatalogRead().State() || rolesPublication != e.roles || storage != e.storage[roleTableRef(t, e, "private.t").Address] {
 				t.Fatal("failed comment changed catalog, roles or data")
 			}
 		}
@@ -213,7 +213,7 @@ func TestCommentRestoreAuthorityIsolation(t *testing.T) {
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("invalid private marker accepted or fabricated SQL diagnostic", err)
 			}
-			if tc.engine.CatalogRead().state != before.state || tc.engine.roles != rolesPublication || op.RoleState() != identity {
+			if tc.engine.CatalogRead().State() != before.State() || tc.engine.roles != rolesPublication || op.RoleState() != identity {
 				t.Fatal("invalid private marker changed authority/metadata")
 			}
 		})

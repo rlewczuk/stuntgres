@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
@@ -14,7 +13,7 @@ import (
 
 func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	return e.catalog.state.MustRelation(a), e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return e.catalog.state.MustRelation(a), e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
@@ -136,8 +135,8 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	// Authentic installed descriptor, privately copied with only its version
 	// changed for projection. It is never validated/published as installation.
 	state := *e.catalog.state
-	state.descriptors = maps.Clone(e.catalog.state.descriptors)
-	state.names = maps.Clone(e.catalog.state.names)
+	state.cloneDescriptors()
+	state.cloneNames()
 	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := *state.MustExtension(address)
 	ext.Version = "available-unknown"

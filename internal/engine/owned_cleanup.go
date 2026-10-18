@@ -160,7 +160,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			return err
 		}
 	}
-	for key, original := range stage.base.state.defaultACLs {
+	for key, original := range stage.base.State().DefaultACLs() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -210,7 +210,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// Each actual creator-owned policy is independently collected, including
 	// scoped records already tombstoned by namespace AUTO removal. Recipient
 	// normalization and other creators' AUTO records are not owner roots.
-	for key := range stage.base.state.defaultACLs {
+	for key := range stage.base.State().DefaultACLs() {
 		if sources[key.Creator] {
 			return true
 		}

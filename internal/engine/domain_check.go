@@ -127,7 +127,7 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 		return err
 	}
 	view := c.domainCatalog()
-	if view.state == nil {
+	if view.State() == nil {
 		return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 	}
 	d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
@@ -156,7 +156,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 	}
 	if target.IsDomain() && target.HasDomainChecks() {
 		view := c.domainCatalog()
-		if view.state == nil {
+		if view.State() == nil {
 			return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 		}
 		d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
@@ -262,11 +262,11 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 }
 
 func (c *EvalContext) domainCatalog() CatalogRead {
-	if c.catalog.state != nil {
+	if c.catalog.State() != nil {
 		return c.catalog
 	}
 	if scope := c.liveScope(); scope != nil {
-		if scope.domainInputCatalog.state != nil {
+		if scope.domainInputCatalog.State() != nil {
 			return scope.domainInputCatalog
 		}
 		return scope.ResolutionCatalog()
@@ -343,7 +343,7 @@ func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeD
 func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
 	if s.domainEvaluation == nil {
 		catalog := s.domainInputCatalog
-		if catalog.state == nil {
+		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
 		s.domainEvaluation = &EvalContext{Context: ctx, statementScope: s, catalog: catalog, Input: s.input, Output: s.output}
@@ -379,7 +379,7 @@ func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) er
 			address := dependency.Ref.Address
 			address.SubID = 0
 			provider, exists := view.Descriptor(address)
-			if !exists || dependency.Ref.Domain() != view.owner.Domain || dependency.Ref.Epoch != view.Epoch() || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.RelationObject {
+			if !exists || dependency.Ref.Domain() != view.Owner().Domain || dependency.Ref.Epoch != view.Epoch() || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.RelationObject {
 				return fmt.Errorf("stuntgres: invalid domain CHECK provider")
 			}
 		}

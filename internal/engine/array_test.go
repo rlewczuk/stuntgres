@@ -57,7 +57,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 		t.Fatal("partial domain publication")
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("discarded association changed catalog")
 	}
 	// Existing staged names participate in generated-name collision resolution.
@@ -78,7 +78,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 		t.Fatal("staged collision", stagedArray)
 	}
 	// A foreign element generation or broken reverse ID cannot publish.
-	broken := cloneCatalog(e.CatalogRead().state)
+	broken := cloneCatalog(e.CatalogRead().State())
 	copied := *domain
 	copied.Array = sqltype.NameArray
 	broken.setDescriptor(domain.Address(), &copied)
@@ -264,7 +264,13 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		descriptors[target] = descriptor
 		names[descriptorNameKey(descriptor)] = target
 	}
-	next.descriptors, next.names = descriptors, names
+	next.resetMaps(len(descriptors))
+	for address, descriptor := range descriptors {
+		next.setDescriptor(address, descriptor)
+	}
+	for key, address := range names {
+		next.bindName(key, address)
+	}
 	view := e.catalog.read(next)
 	for _, descriptor := range next.Descriptors() {
 		if typ, ok := descriptor.(*typeDescriptor); ok {
@@ -509,7 +515,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		if err == nil || errors.As(err, &diagnostic) || err.Error() != "stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported" {
 			t.Fatal("ordinary boundary", err)
 		}
-		if e.CatalogRead().state != before.state || e.storage[table.Address()] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
+		if e.CatalogRead().State() != before.State() || e.storage[table.Address()] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
 			t.Fatal("rejected replacement changed target state")
 		}
 		domain, _ := before.LookupType(typ.Element().ID())

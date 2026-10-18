@@ -107,7 +107,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 			t.Fatalf("fixture omitted %s", name)
 		}
 	}
-	if e.CatalogRead().state != base.state {
+	if e.CatalogRead().State() != base.State() {
 		t.Fatal("preparation partially published catalog")
 	}
 	for a := range stage.removals {

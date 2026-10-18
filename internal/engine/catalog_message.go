@@ -17,7 +17,7 @@ type catalogNamespaceFence struct {
 
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalogState {
 	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
-		return e.privateCatalogLocked(s.authSession.transactions.catalog).state
+		return e.privateCatalogLocked(s.authSession.transactions.catalog).State()
 	}
 	return e.catalog.state
 }

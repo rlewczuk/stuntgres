@@ -75,7 +75,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 		table := current.MustRelation(tableRef.Address)
 		viewRef := catalogRef(t, e, current, "retained_metadata_v")
 		view := current.MustRelation(viewRef.Address)
-		if current.state == snapshot.state || table == oldTable {
+		if current.State() == snapshot.State() || table == oldTable {
 			t.Fatal("replacement did not produce a genuine successor catalog")
 		}
 		assertMetadata(table.Defaults[table.Attributes[0]].Expression)

@@ -221,9 +221,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			return nil, fmt.Errorf("stuntgres: catalog provider has no principal remapping contract")
 		}
 	}
-	if len(state.defaultACLs) != 0 {
-		next := make(map[defaultACLKey]*defaultACLRecord, len(state.defaultACLs))
-		for key, record := range state.defaultACLs {
+	if state.DefaultACLCount() != 0 {
+		next := make(map[defaultACLKey]*defaultACLRecord, state.DefaultACLCount())
+		for key, record := range state.DefaultACLs() {
 			creator, err := remap(key.Creator)
 			if err != nil {
 				return nil, err
@@ -235,7 +235,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			key.Creator = creator
 			next[key] = &defaultACLRecord{ACL: value}
 		}
-		state.defaultACLs = next
+		state.SetDefaultACLs(next)
 	}
 	if err := validateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
 		return nil, err

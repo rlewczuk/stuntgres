@@ -101,7 +101,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	auth.catalog = f.e.catalog.read(state)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = f.reader
-	ref := f.e.catalog.Domain.Ref(state.epoch, f.schema)
+	ref := f.e.catalog.Domain.Ref(state.Epoch(), f.schema)
 	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: privilege}); err != nil {
 			t.Fatal("physical namespace authority depended on current actor", privilege, err)
@@ -157,6 +157,6 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	}
 	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}}
 	state.setDescriptor(table.Address(), table)
-	tableRef := f.e.catalog.Domain.Ref(state.epoch, table.Address())
+	tableRef := f.e.catalog.Domain.Ref(state.Epoch(), table.Address())
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
 }

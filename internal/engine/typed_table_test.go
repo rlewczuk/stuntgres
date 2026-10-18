@@ -168,7 +168,7 @@ func TestTypedPublicationFinalCancellationPreservesRoots(t *testing.T) {
 	}
 	cancel()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
-	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
+	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancelled publication changed catalog", changes, err)
 	}
 	if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
@@ -181,7 +181,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, stage.base.DescriptorCount()+1)}
+		next := newCatalogState(stage.base.Epoch())
 		for address, descriptor := range stage.base.Descriptors() {
 			next.setDescriptor(address, descriptor)
 		}

@@ -297,7 +297,7 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address id
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.Domain() != catalog.owner.Domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
+			if leaf.ref.Domain() != catalog.Owner().Domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
 			relation, ok := catalog.Relation(address)

@@ -260,7 +260,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	}
 	// Even the exact same namespace appearing in the committed root conflicts
 	// with the original absence stamp; entry admission cannot bypass publication.
-	e.catalog.state = e.privateCatalogLocked(candidate).state
+	e.catalog.state = e.privateCatalogLocked(candidate).State()
 	defer func() { e.catalog.state = before }()
 	if err := e.catalogPreflightLocked(candidate); err == nil {
 		t.Fatal("committed namespace defeated original absence fence")

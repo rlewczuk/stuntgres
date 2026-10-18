@@ -246,7 +246,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 	if (len(c.keys) != 0 || c.constraint != (ids.ObjectAddress{})) && len(c.selected) == 0 {
 		return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 	}
-	c.catalog = view.state
+	c.catalog = view.State()
 	return nil
 }
 

@@ -213,7 +213,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	for i, helper := range aggregate.Aggregate.Helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
-	next := cloneCatalog(before.state)
+	next := cloneCatalog(before.State())
 	for address := range before.Descriptors() {
 		if _, moved := mapping[address]; !moved {
 			continue
@@ -230,10 +230,10 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		next.setDescriptor(destination, descriptor)
 		next.bindName(descriptorNameKey(descriptor), destination)
 	}
-	next.epoch++
+	next.SetEpoch(next.Epoch() + 1)
 	view := e.catalog.read(next)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
-		old.Epoch = next.epoch
+		old.Epoch = next.Epoch()
 		if address, ok := mapping[old.Address]; ok {
 			old.Address = address
 		}

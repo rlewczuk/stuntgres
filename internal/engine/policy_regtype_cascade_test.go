@@ -65,7 +65,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err != nil {
 						t.Fatal("cleaned retirement failed validation", err)
 					}
-					if e.CatalogRead().state != base.state || len(old.Policies) != 2 || e.storage[old.Address()] != storage {
+					if e.CatalogRead().State() != base.State() || len(old.Policies) != 2 || e.storage[old.Address()] != storage {
 						t.Fatal("private retirement mutated published roots/storage")
 					}
 					if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {

@@ -102,7 +102,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			e.mu.Lock()
 			beforeDescriptor := e.catalog.state.Get(ref.Address)
 			beforeStorage := e.storage[ref.Address]
-			beforeEpoch := e.catalog.state.epoch
+			beforeEpoch := e.catalog.state.Epoch()
 			e.mu.Unlock()
 			aclRef := ref
 			if column {
@@ -113,7 +113,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			metadataOnly := e.catalog.state.Get(ref.Address) != beforeDescriptor && e.storage[ref.Address] == beforeStorage && e.catalog.state.epoch == beforeEpoch
+			metadataOnly := e.catalog.state.Get(ref.Address) != beforeDescriptor && e.storage[ref.Address] == beforeStorage && e.catalog.state.Epoch() == beforeEpoch
 			e.mu.Unlock()
 			if !metadataOnly {
 				t.Fatal("fixture did not publish metadata-only ACL descriptor replacement")

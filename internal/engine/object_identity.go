@@ -178,7 +178,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 		return r, nil
 	}
 	if a.ClassID == 1260 {
-		role, ok := roles.Find(view.owner.Principals.Principal(uint64(a.ObjectID)))
+		role, ok := roles.Find(view.Owner().Principals.Principal(uint64(a.ObjectID)))
 		if !ok {
 			return r, nil
 		}

@@ -136,12 +136,12 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
-					wantGeneration := catalog.namespaceGeneration
+					wantGeneration := catalog.NamespaceGeneration()
 					if fresh {
 						wantGeneration++
 					}
-					if e.catalog.state.namespaceGeneration != wantGeneration {
-						t.Fatal("wrong namespace insertion event", e.catalog.state.namespaceGeneration, wantGeneration)
+					if e.catalog.state.NamespaceGeneration() != wantGeneration {
+						t.Fatal("wrong namespace insertion event", e.catalog.state.NamespaceGeneration(), wantGeneration)
 					}
 					sequenceScalar(t, a, "SELECT nextval('pg_temp.created')", 60)
 				}
@@ -186,7 +186,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
 				ns := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
-				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), ns), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, s, "SET SESSION AUTHORIZATION creator")

@@ -46,16 +46,16 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	for _, class := range []string{"tables", "sequences", "functions", "types", "schemas", "large objects"} {
 		f.grant(t, class, "all", nil)
 	}
-	if len(f.e.catalog.state.defaultACLs) != 6 || len(old.state.defaultACLs) != 0 {
+	if f.e.catalog.state.DefaultACLCount() != 6 || old.State().DefaultACLCount() != 0 {
 		t.Fatal("six stored classes/source immutability")
 	}
-	first := f.e.catalog.state.defaultACLs[defaultACLKey{Creator: f.owner, Class: authorization.DefaultRoutines}]
+	first := f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.owner, Class: authorization.DefaultRoutines})
 	alias := defaultUnitStatement("routines", "all", []string{"default_owner"}, nil, []string{"default_reader"})
 	alias.Revoke = true
 	if err := f.apply(alias); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.e.catalog.state.defaultACLs) != 5 || first == nil || len(first.ACL.Entries) != 3 {
+	if f.e.catalog.state.DefaultACLCount() != 5 || first == nil || len(first.ACL.Entries) != 3 {
 		t.Fatal("routine alias/source mutation")
 	}
 	empty := defaultUnitStatement("large objects", "all", []string{"default_owner"}, nil, []string{"default_owner"})
@@ -69,7 +69,7 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)
 	}
-	record := f.e.catalog.state.defaultACLs[defaultACLKey{Creator: f.owner, Class: authorization.DefaultLargeObjects}]
+	record := f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.owner, Class: authorization.DefaultLargeObjects})
 	if record == nil || !record.ACL.Explicit || len(record.ACL.Entries) != 0 {
 		t.Fatal("stored empty lost", record)
 	}
@@ -94,7 +94,7 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 	if err := f.apply(current); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.defaultACLs[defaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}] == nil || f.e.catalog.state.defaultACLs[defaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}] != nil {
+	if f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}) == nil || f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}) != nil {
 		t.Fatal("omitted creator not current")
 	}
 	roles := cloneRoleFixture(f.e.roles)

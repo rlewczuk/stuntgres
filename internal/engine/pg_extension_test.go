@@ -19,7 +19,7 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Ob
 	if !ok {
 		t.Fatal("missing pg_extension")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
@@ -95,12 +95,12 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 func TestPGExtensionCapture(t *testing.T) {
 	e := New()
 	d, ref := pgExtensionUnitSource(t, e)
-	before, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
+	before, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
 	old, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ref, d)
 	if err != nil || old == nil {
 		t.Fatal("capture", old, err)
 	}
-	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
+	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("empty immutable capture", old)
 	}
 	root := &projectNode{querySchema: querySchema(d.Columns), child: &sourceNode{querySchema: querySchema(d.Columns), ref: ref}}
@@ -142,7 +142,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	state := *e.catalog.state
-	state.descriptors = maps.Clone(e.catalog.state.descriptors)
+	state.cloneDescriptors()
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
 			state.removeDescriptor(a)

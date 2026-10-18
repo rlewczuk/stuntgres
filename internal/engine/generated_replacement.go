@@ -44,7 +44,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		// remapCatalogExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
 		stage.catalog.state = cloneCatalog(stage.catalog.state)
-		stage.catalog.state.epoch = candidate.epoch - 1
+		stage.catalog.state.SetEpoch(candidate.Epoch() - 1)
 		err = stage.remapCatalogExpressions(candidate, nil)
 	}
 	if err == nil {

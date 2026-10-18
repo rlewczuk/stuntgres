@@ -205,7 +205,7 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.epoch}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			parent := primaryKeyUnitRelation(t, e, "t")
@@ -597,7 +597,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.epoch}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	source := primaryKeyUnitRelation(t, e, "prebuilt")

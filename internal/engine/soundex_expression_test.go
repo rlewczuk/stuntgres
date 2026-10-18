@@ -95,7 +95,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			before := e.CatalogRead()
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 			for i, address := range ext.Members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
-			next := cloneCatalog(before.state)
+			next := cloneCatalog(before.State())
 			for address := range mapping {
 				next.unbindName(descriptorNameKey(before.Get(address)))
 				next.removeDescriptor(address)
@@ -108,13 +108,13 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
 			consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 			next.setDescriptor(address, consumer)
-			next.epoch++
+			next.SetEpoch(next.Epoch() + 1)
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
 			for _, node := range []expr.Expr{relocated.Defaults[1].Expression, relocated.Generations[2].Expression, relocated.Generations[2].Planned} {
 				n := node.(installedSoundexFunctionExpression)
-				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) { t.Fatal("stale remapped authority", n.ref) }
+				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.Epoch() || n.procedure != next.Get(n.ref.Address) { t.Fatal("stale remapped authority", n.ref) }
 				if err := n.validate(view); err != nil { t.Fatal(err) }
 				value, err := n.Eval(&EvalContext{Context: context.Background()})
 				if err != nil || value.Type() != n.ResultUsage().Type { t.Fatal(value, err) }

@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
@@ -17,9 +16,9 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			e, _, parent, index := primaryKeyUnitFixture(t)
 			view := e.CatalogRead()
-			state := *view.state
-			state.descriptors = maps.Clone(view.state.descriptors)
-			view.state = &state
+			state := *view.State()
+			state.cloneDescriptors()
+			view = view.WithState(&state)
 			next := *parent
 			next.Columns = slices.Clone(parent.Columns)
 			next.UniqueConstraints = slices.Clone(parent.UniqueConstraints)
@@ -164,7 +163,7 @@ func TestPrimaryKeyIdentityGuardPrecedence(t *testing.T) {
 	} {
 		next, err := notNullCandidate(nil, view, parent, tc.action, notNullDirect)
 		nullCountUnitDiagnostic(t, err, tc.diagnostic)
-		if next != nil || e.CatalogRead().state != view.state || parent.Columns[0].Nullable || !parent.UniqueConstraints[0].Primary {
+		if next != nil || e.CatalogRead().State() != view.State() || parent.Columns[0].Nullable || !parent.UniqueConstraints[0].Primary {
 			t.Fatal("identity/PK route guard changed state", next)
 		}
 	}

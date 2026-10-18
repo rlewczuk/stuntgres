@@ -466,7 +466,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// generator. This statement overlay is discarded on failure, never installed
 	// in the owner before Finish. Keep the exact generator pointers through merge.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -536,7 +536,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// Complete TYPE provider rebinding before adding queued FK definitions.
 	// Their selected supporting keys now have the final private key shape.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -814,7 +814,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}

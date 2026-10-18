@@ -114,7 +114,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if source.CatalogRead().state != before.state || original.DomainChecks[0].OID != originalRecipe.OID {
+	if source.CatalogRead().State() != before.State() || original.DomainChecks[0].OID != originalRecipe.OID {
 		t.Fatal("replacement mutated immutable source recipe")
 	}
 	infoYesOrNoUnitCatalog(t, source, before)
@@ -125,7 +125,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	source, fresh := New(), New()
 	originalView := source.CatalogRead()
 	original := infoYesOrNoUnitCatalog(t, source, originalView)
-	next := cloneCatalog(originalView.state)
+	next := cloneCatalog(originalView.State())
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
 	base := *next.MustType(baseAddress)
 	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
@@ -144,7 +144,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	}
 	infoYesOrNoUnitEvaluate(t, view, mapped)
 	// The cloned generation must not alter the published source or its recipe.
-	if source.CatalogRead().state != originalView.state {
+	if source.CatalogRead().State() != originalView.State() {
 		t.Fatal("private rebind published a catalog")
 	}
 	infoYesOrNoUnitCatalog(t, source, originalView)

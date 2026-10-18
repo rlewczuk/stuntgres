@@ -41,7 +41,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 
 func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
-	if v.owner == nil || p != stockPgcrypto || ext.Name() != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
+	if v.Owner() == nil || p != stockPgcrypto || ext.Name() != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
 		return invalid()
 	}
 	seen := make(map[functions.PgcryptoMember]bool, len(functions.PgcryptoMembers))
@@ -56,7 +56,7 @@ func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 		}
 		// Extension membership fixes provider semantics, not independently
 		// transferable member ownership. Each owner still has real provenance.
-		if proc.Owner.ID() == 0 || proc.Owner != v.owner.Principals.Principal(proc.Owner.ID()) {
+		if proc.Owner.ID() == 0 || proc.Owner != v.Owner().Principals.Principal(proc.Owner.ID()) {
 			return invalid()
 		}
 		seen[member] = true

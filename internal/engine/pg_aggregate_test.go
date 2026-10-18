@@ -58,7 +58,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if captured.anonymous[0][0].IsNull() || captured.anonymous[1][1].IsNull() || second.anonymous[0][1].IsNull() {
 		t.Fatal("aggregate row slots alias")
 	}
-	if e.catalog.state != catalog.state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
+	if e.catalog.state != catalog.State() || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
 		t.Fatal("catalog observation changed frontiers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,7 +81,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		}
 	}
 	for i := range source.Columns {
-		state := cloneCatalog(catalog.state)
+		state := cloneCatalog(catalog.State())
 		bad := *source
 		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())

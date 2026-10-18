@@ -20,7 +20,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			sequenceScalar(t, s, "SELECT nextval('s')", 1)
 			table := catalogRef(t, e, e.CatalogRead(), "t")
 			sequence := catalogRef(t, e, e.CatalogRead(), "s")
-			healthyFrontier, healthyNamespace := e.commitSeq, e.catalog.state.namespaceGeneration
+			healthyFrontier, healthyNamespace := e.commitSeq, e.catalog.state.NamespaceGeneration()
 			ref := transactionBegin(t, s)
 			sessionSQL(t, s, "ALTER SEQUENCE s RESTART 100")
 			if r := sessionSQL(t, s, "DELETE FROM t WHERE v=1"); r.Count != 2 {
@@ -33,7 +33,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				// genuine new namespace descriptor, not another temp relation.
 				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
 				state := cloneCatalog(e.catalog.state)
-				state.namespaceGeneration = ^uint64(0)
+				state.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = state
 			}
 			switch phase {
@@ -104,7 +104,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			}
 			if phase == "namespace" {
 				state := cloneCatalog(e.catalog.state)
-				state.namespaceGeneration = healthyNamespace
+				state.SetNamespaceGeneration(healthyNamespace)
 				e.catalog.state = state
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 1, 2)

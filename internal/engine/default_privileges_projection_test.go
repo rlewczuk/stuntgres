@@ -16,7 +16,7 @@ import (
 func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
-	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.Address())
+	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
 	rows, err := captureTablePrivileges(context.Background(), catalog, auth, "unit_database", ref, source)
 	if err != nil {
 		t.Fatal(err)

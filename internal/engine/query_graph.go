@@ -194,7 +194,7 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 // catalog reownership. Pointer comparison here requests metadata reconstruction;
 // it is never an ACL or lifetime admission decision.
 func queryRoutineCarriersChanged(view CatalogRead, node LogicalNode) bool {
-	if node == nil || view.state == nil {
+	if node == nil || view.State() == nil {
 		return false
 	}
 	changed := false

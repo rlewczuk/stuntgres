@@ -132,7 +132,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
 		stage.domainBases = append(stage.domainBases, ns)
-		for key := range base.state.defaultACLs {
+		for key := range base.State().DefaultACLs() {
 			if key.Schema == ns.Address() {
 				if stage.defaultACLs == nil {
 					stage.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)

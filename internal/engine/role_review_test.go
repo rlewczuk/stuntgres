@@ -22,7 +22,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	ns := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	namespaceACL := invalid
 	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege

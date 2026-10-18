@@ -37,7 +37,7 @@ type sequencePathCache struct {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
-	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.Get(currentDatabaseAddress)}
+	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.State().NamespaceGeneration(), epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.Get(currentDatabaseAddress)}
 	if auth.session != nil && auth.session.transactions != nil {
 		key.private = auth.session.transactions.catalog
 	}
@@ -73,7 +73,7 @@ func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequ
 	if err != nil {
 		return sequenceAnalysis{}, err
 	}
-	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.catalog, session: auth.session.token, namespace: auth.catalog.state.namespaceGeneration}, nil
+	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.catalog, session: auth.session.token, namespace: auth.catalog.State().NamespaceGeneration()}, nil
 }
 func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *sequenceAnalysis) (bool, error) {
 	if analysis == nil || len(analysis.constants) == 0 {
@@ -83,7 +83,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	if err != nil {
 		return false, err
 	}
-	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(path, analysis.path)
+	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
 		if ref.Domain() != e.catalog.Domain {

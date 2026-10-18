@@ -26,7 +26,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	return e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
 	return &StatementScope{owner: txOwnerOf(node.ref), txRef: node.ref}

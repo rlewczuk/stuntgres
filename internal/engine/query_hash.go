@@ -20,7 +20,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	data := source.view.read()
-	if data.catalog.state != e.catalog.state {
+	if data.catalog.State() != e.catalog.state {
 		return nil
 	}
 	a := leaf.ref.Address

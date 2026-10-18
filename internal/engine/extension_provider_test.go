@@ -304,7 +304,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 			switch reason {
 			case "epoch":
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.epoch++
+				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "roles":
 				e.roles = advanceRoleRevision(e.roles)
 			case "database":

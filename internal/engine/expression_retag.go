@@ -14,7 +14,7 @@ import (
 func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
-		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
+		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
 			return root, nil
 		}
 		return remapViewQueryMapped(view, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, retainedType, collations...)
@@ -72,7 +72,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		if failure != nil {
 			return nil, false, failure
 		}
-		if view.state != nil {
+		if view.State() != nil {
 			address := captured.Address()
 			switch installed := node.(type) {
 			case installedFunctionExpression:
@@ -664,7 +664,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		for i, old := range n.arms {
 			arm := old
 			arm.condition, arm.result = child(arm.condition), child(arm.result)
-			if arm.routine != nil && view.state != nil {
+			if arm.routine != nil && view.State() != nil {
 				current, ok := view.Procedure(arm.routine.Address())
 				if !ok || !sameRoutineDeclaration(current, arm.routine) {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
@@ -746,7 +746,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 	case literalExpression:
 		info.UnknownNull = n.UnknownNull
 		info.RegclassRef = n.RegclassRef
-		if !changed && (view.state == nil || view.state.aclItemImport == nil || !n.value.Type().ContainsACLItem()) {
+		if !changed && (view.State() == nil || view.State().ACLItemImport() == nil || !n.value.Type().ContainsACLItem()) {
 			return node, false, nil
 		}
 		var collation collationRemapper
@@ -754,7 +754,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			collation = collations[0]
 		}
 		previous := n.value
-		n.value, err = reownDomainDatum(n.value, typ, collation, view.state.scalarImports, view.state.aclItemImport)
+		n.value, err = reownDomainDatum(n.value, typ, collation, view.State().ScalarImports(), view.State().ACLItemImport())
 		if err != nil {
 			return nil, false, err
 		}
@@ -807,7 +807,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		rebound = n
 	case selectedOperatorExpression:
 		n.provider = child(n.provider)
-		if view.state != nil {
+		if view.State() != nil {
 			if current, ok := view.Operator(n.ref.Address); ok {
 				changed = changed || current != n.operator
 				n.operator = current

@@ -112,7 +112,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	return nil
 }
 func (e *Engine) initializeOperators() {
-	e.catalog.state.operatorNames = seededOperatorNames
+	e.catalog.state.SetOperatorNames(seededOperatorNames)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}

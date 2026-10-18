@@ -86,7 +86,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
+			for _, address := range auth.catalog.State().OperatorNames().Buckets[operatorNameKey{path.at(i), spelling}] {
 				d := auth.catalog.MustOperator(address)
 				if d.Left == 0 {
 					continue
@@ -107,7 +107,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
+		for _, address := range auth.catalog.State().OperatorNames().Buckets[operatorNameKey{path.at(i), spelling}] {
 			d := auth.catalog.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue

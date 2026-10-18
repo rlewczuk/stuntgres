@@ -68,7 +68,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				}
 				checkReader(auth, false)
 				oldRoles, oldCatalog := e.roles, e.catalog.state
-				sessionRevision, epoch := session.authorization.revision, oldCatalog.epoch
+				sessionRevision, epoch := session.authorization.revision, oldCatalog.Epoch()
 				oldACL := authorization.ACLValue{Explicit: table.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), table.ACL.Entries...)}
 				oldKeys := append([]uniqueConstraint(nil), table.UniqueConstraints...)
 				before := indexMaintenanceCapture(e)
@@ -130,7 +130,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				} else if outcome == "cancel" {
 					cancel()
 				}
-				if e.roles != oldRoles || e.catalog.state.epoch != epoch || session.authorization.revision != sessionRevision {
+				if e.roles != oldRoles || e.catalog.state.Epoch() != epoch || session.authorization.revision != sessionRevision {
 					t.Fatal("replacement changed role/session/epoch authority")
 				}
 				err = message.end(nil)

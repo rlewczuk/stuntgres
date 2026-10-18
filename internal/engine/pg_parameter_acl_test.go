@@ -145,7 +145,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	}
 	catalog, roles := e.CatalogRead(), e.Roles()
 	state, nextOID, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
+	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	rows := pgParameterACLUnitCapture(t, e, catalog, roles)
 	if rows.count() != 2 {
 		t.Fatal("only actual descriptors", rows.count())
@@ -168,7 +168,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		}
 		pgParameterACLUnitEntries(t, e, row[2], want)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+	if e.catalog.state != state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 		t.Fatal("capture mutated owner roots/frontiers")
 	}
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
@@ -178,7 +178,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	address := catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
 	corrupt := *catalog.MustParameter(address)
 	corrupt.Owner = authorization.PrincipalRef{}
-	broken := cloneCatalog(catalog.state)
+	broken := cloneCatalog(catalog.State())
 	broken.setDescriptor(address, &corrupt)
 	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
@@ -271,7 +271,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state == before.state || e.roles == scope.deparseAuth.roleRecord {
+	if e.catalog.state == before.State() || e.roles == scope.deparseAuth.roleRecord {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()

@@ -144,7 +144,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 				copy.ObjectRevision++
 				e.catalog.state.setDescriptor(d.Address(), &copy)
 			case "epoch":
-				e.catalog.state.epoch++
+				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "cancel":
 				cancel()
 			case "frontier":

@@ -238,7 +238,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 	}
 	index := view.MustRelation(original.Index)
 	for _, phase := range []string{"nonunique", "nonready", "invalid", "notlive"} {
-		state := cloneCatalog(view.state)
+		state := cloneCatalog(view.State())
 		copy := *index
 		definition := *index.SQLIndex
 		switch phase {

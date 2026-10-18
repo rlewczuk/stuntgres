@@ -2690,7 +2690,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if retained {
 				catalog := b.bindingCatalog()
 				if b.expected != nil && statementCatalogType(u.Type) && b.expected.catalogOwner != nil &&
-					(b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch()) {
+					(b.expected.catalogOwner != catalog.Owner() || b.expected.catalogEpoch != catalog.Epoch()) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				current, _ := catalog.LookupType(u.Type.ID())
@@ -3432,9 +3432,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		if found {
 			catalog := b.bindingCatalog()
-			if hasEnumInput(u.Type) && (b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch()) {
+			if hasEnumInput(u.Type) && (b.expected.catalogOwner != catalog.Owner() || b.expected.catalogEpoch != catalog.Epoch()) {
 				actual := *b.expected
-				actual.catalogOwner = catalog.owner
+				actual.catalogOwner = catalog.Owner()
 				actual.catalogEpoch = catalog.Epoch()
 				if err := checkStatementSignature(*b.expected, actual); err != nil {
 					return sqltype.Value{}, err

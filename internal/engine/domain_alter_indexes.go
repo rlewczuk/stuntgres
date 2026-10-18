@@ -7,7 +7,7 @@ import "stuntgres/internal/engine/ids"
 // turn a metadata generation change into another CHECK or index truth event.
 func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalogState, stores map[ids.ObjectAddress]*relationStorage) error {
 	for address, store := range stores {
-		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.base.state, next, e.stageStorageLocked(stage, address), store)
+		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.base.State(), next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
 			return err
 		}

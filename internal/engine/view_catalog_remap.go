@@ -22,7 +22,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			old.Address = target
 		}
 		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
-		old.Epoch = next.epoch
+		old.Epoch = next.Epoch()
 		return old
 	}
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -89,7 +89,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			}
 			next.setDescriptor(address, d)
 		}
-		if typesOnly && next.aclItemImport == nil && !catalogExpressionTypesChanged(d, typ) {
+		if typesOnly && next.ACLItemImport() == nil && !catalogExpressionTypesChanged(d, typ) {
 			continue
 		}
 		if len(d.Defaults) != 0 {

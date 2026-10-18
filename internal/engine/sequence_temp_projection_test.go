@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"database/sql/driver"
+	"maps"
 	"reflect"
 	"testing"
 
@@ -30,7 +31,7 @@ func captureTemporaryProjectionCatalog(e *Engine) temporaryProjectionCatalog {
 
 func (p temporaryProjectionCatalog) unchanged(t *testing.T) {
 	t.Helper()
-	if !reflect.DeepEqual(p.view.state.descriptors, p.descriptors) || !reflect.DeepEqual(p.view.state.names, p.names) {
+	if !reflect.DeepEqual(maps.Collect(p.view.State().Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(p.view.State().Names()), p.names) {
 		t.Fatal("replacement/retirement mutated a retained catalog")
 	}
 }
@@ -268,7 +269,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		}
 	}
 	destBefore.unchanged(t)
-	if source.catalog.state != sourceBefore.view.state || source.sequences[sourceTemp] != sourceGenerator || a.sequences[sourceTemp] != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
+	if source.catalog.state != sourceBefore.view.State() || source.sequences[sourceTemp] != sourceGenerator || a.sequences[sourceTemp] != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
 		t.Fatal("destination import changed source live authority")
 	}
 	r, err := sequencePreparedExecute(dest, b, ast, &description)

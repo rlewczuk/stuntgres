@@ -132,9 +132,9 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	}
 	e.mu.Lock()
 	next := cloneCatalog(e.catalog.state)
-	next.epoch++
+	next.SetEpoch(next.Epoch() + 1)
 	e.catalog.state = next
-	epoch := next.epoch
+	epoch := next.Epoch()
 	e.mu.Unlock()
 	e.replacementMu.Unlock()
 	e.locks.Fence(epoch)

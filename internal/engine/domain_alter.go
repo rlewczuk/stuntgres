@@ -169,7 +169,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			if fence != nil {
 				e.mu.Lock()
 				current := e.stageCatalogBaseLocked(stage)
-				stable := current.epoch == ref.Epoch
+				stable := current.Epoch() == ref.Epoch
 				for address, descriptor := range fence.objects {
 					stable = stable && current.Get(address) == descriptor
 				}

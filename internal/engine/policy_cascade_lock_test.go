@@ -83,7 +83,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						if _, removed := stage.removals[old.Address()]; removed {
 							t.Fatal("lock target became a physical deletion", old.Name())
 						}
-						if len(old.Policies) != 3 || e.CatalogRead().state != base.state {
+						if len(old.Policies) != 3 || e.CatalogRead().State() != base.State() {
 							t.Fatal("staging mutated published roots")
 						}
 					}

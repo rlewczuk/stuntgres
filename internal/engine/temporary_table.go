@@ -149,7 +149,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 			}
 			resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
 			_, exists := e.catalog.state.LookupName(key)
-			same := resolveErr == nil && resolved.Address == ns.Address && e.catalog.state.epoch == base.Epoch()
+			same := resolveErr == nil && resolved.Address == ns.Address && e.catalog.state.Epoch() == base.Epoch()
 			var accessErr error
 			if same && exists {
 				accessErr = currentAuth.CheckCreate(resolved)
@@ -182,7 +182,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 // immutable overlay. New stores use committed absence as their honest fence.
 func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *catalogChanges) error {
 	e.mu.Lock()
-	if scope.txRef.Epoch() != e.catalog.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -190,7 +190,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).state, scope.catalogAuthority)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).State(), scope.catalogAuthority)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -231,7 +231,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	e.mu.Lock()
 	scope.op.session.mu.Lock()
 	err = publicationOperationLocked(e, scope.op)
-	if err == nil && scope.txRef.Epoch() != e.catalog.state.epoch {
+	if err == nil && scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).revision != stage.roleRevision) {

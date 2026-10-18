@@ -139,7 +139,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if _, err := e.stageRowSecurityFlagsLocked(noOpScope, op, auth, d, d); err != nil {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().state != retained.state {
+	if e.CatalogRead().State() != retained.State() {
 		t.Fatal("no-op published a catalog revision")
 	}
 	exhausted := *d
@@ -150,7 +150,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if _, err := e.stageRowSecurityFlagsLocked(exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
 		t.Fatal("revision exhaustion", err)
 	}
-	if e.CatalogRead().state != retained.state || exhaustedScope.catalog != nil {
+	if e.CatalogRead().State() != retained.State() || exhaustedScope.catalog != nil {
 		t.Fatal("revision exhaustion staged or published changes")
 	}
 	expression, err := policyUnitBind(t, e, op, d, "id>0")
@@ -213,7 +213,7 @@ func TestRLSBaseControls(t *testing.T) {
 	for _, state := range []struct{ enabled, forced bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
 		next := *d
 		next.RLSEnabled, next.RLSForced = state.enabled, state.forced
-		catalog := cloneCatalog(base.state)
+		catalog := cloneCatalog(base.State())
 		catalog.setDescriptor(d.Address(), &next)
 		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
 		if err != nil {
@@ -258,7 +258,7 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled flags published")
 	}
-	if e.CatalogRead().state != base.state || d.RLSEnabled || d.RLSForced {
+	if e.CatalogRead().State() != base.State() || d.RLSEnabled || d.RLSForced {
 		t.Fatal("cancellation changed original catalog")
 	}
 	rlsBaseLockCancellation(t, e, d)

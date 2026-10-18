@@ -327,7 +327,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 		}
 	}
 	if p.stage != nil {
-		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.base.state, targets})
+		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.base.State(), targets})
 		return
 	}
 	p.prepared.recordEffect(dropEffect{identityRoots: targets})
@@ -504,7 +504,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.catalog.Relation(ref.Address); !present {
@@ -544,7 +544,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog CatalogRead) error {
-	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.owner.Domain || prepared.ref.Epoch != catalog.Epoch() {
+	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.Owner().Domain || prepared.ref.Epoch != catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {
@@ -624,7 +624,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		case len(effect.identityRoots) != 0:
 			state := effect.identityState
 			if state == nil {
-				state = prepared.base.state
+				state = prepared.base.State()
 			}
 			stage.identityDependencies = append(stage.identityDependencies, catalogDependencyObservation{state, effect.identityRoots})
 		case effect.layout != nil:

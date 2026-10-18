@@ -91,7 +91,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
-	before, descriptors := e.catalog.state, maps.Clone(e.catalog.state.descriptors)
+	before, descriptors := e.catalog.state, maps.Collect(e.catalog.state.Descriptors())
 	rows := pgAttributeUnitCapture(t, e, catalog)
 	for _, row := range rows.anonymous {
 		if len(row) != 25 {
@@ -133,12 +133,12 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified := *d
 	modified.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	modified.Columns[24].Usage.Typmod = 0
-	privateState := cloneCatalog(catalog.state)
+	privateState := cloneCatalog(catalog.State())
 	privateState.setDescriptor(d.Address(), &modified)
 	if got, err := e.capturePGAttribute(context.Background(), e.catalog.read(privateState), e.Roles(), ref, &modified); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
-	if e.catalog.state != before || !maps.Equal(descriptors, e.catalog.state.descriptors) {
+	if e.catalog.state != before || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) {
 		t.Fatal("capture mutated catalog")
 	}
 	for _, n := range []int{32768, -32769} {

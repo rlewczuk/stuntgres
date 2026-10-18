@@ -65,7 +65,7 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	old := e.catalog.state
 	retained := scope.owner.sequenceCatalog
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.epoch++
+	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	// Wake the candidate as an ordinary resolved safe candidate: admission
 	// must still reject its old epoch and discard the retained catalog pointer.
 	node.resolved = true

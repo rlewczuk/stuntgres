@@ -433,7 +433,7 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 	if cmp == 0 {
 		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
 		if auth != nil && auth.engine != nil {
-			ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), parent.Address())
+			ref := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), parent.Address())
 			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.Keys)
 			if err != nil {
 				return err

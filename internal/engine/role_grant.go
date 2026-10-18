@@ -229,7 +229,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if next != nil {
 				changed[address] = objectGrantChange{descriptor: next}
 				if candidate == nil {
-					candidate = cloneCatalog(v.catalog.state)
+					candidate = cloneCatalog(v.catalog.State())
 				}
 				if parameter, ok := next.(*parameterDescriptor); ok {
 					installParameterGrant(candidate, parameter)
@@ -418,7 +418,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				next.SequencePlanStamp = stamp
 			}
 			if candidate == nil {
-				candidate = cloneCatalog(v.catalog.state)
+				candidate = cloneCatalog(v.catalog.State())
 			}
 			candidate.setDescriptor(address, next)
 		}

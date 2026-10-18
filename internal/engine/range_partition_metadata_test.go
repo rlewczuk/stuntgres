@@ -107,7 +107,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 	row := []sqltype.Value{finite[0].Value, finite[1].Value}
 	for _, catalog := range []CatalogRead{retained, e.CatalogRead()} {
 		parent, child := root, rest
-		if catalog.state == e.CatalogRead().state {
+		if catalog.State() == e.CatalogRead().State() {
 			parent, child = newRoot, newRest
 		}
 		accepted, err := partitionAccepts(catalog, parent, child, row, &EvalContext{Context: context.Background()})
@@ -178,12 +178,12 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		if err := validatePartitionDescriptor(view, relation); err != nil {
 			t.Fatal("valid owned key authority", err)
 		}
-		missing := cloneCatalog(view.state)
+		missing := cloneCatalog(view.State())
 		missing.removeDescriptor(address)
 		if err := validatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
-		mismatch := cloneCatalog(view.state)
+		mismatch := cloneCatalog(view.State())
 		changed := *provider
 		changed.Semantics = other.Semantics
 		mismatch.setDescriptor(address, &changed)
@@ -260,7 +260,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	if err := validatePartitionDescriptor(e.CatalogRead(), &badDefault); err == nil {
 		t.Fatal("DEFAULT retained explicit tuple")
 	}
-	cyclic := cloneCatalog(e.CatalogRead().state)
+	cyclic := cloneCatalog(e.CatalogRead().State())
 	cyclicRoot, cyclicMiddle := *root, *middle
 	cyclicRoot.Membership = &partitionMembership{Parent: middle.Address(), DefaultBound: true}
 	middleDefinition := *middle.Partition
@@ -272,7 +272,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
-	overlapping := cloneCatalog(e.CatalogRead().state)
+	overlapping := cloneCatalog(e.CatalogRead().State())
 	overlappingRoot, overlappingRest := *root, *rest
 	rootDefinition := *root.Partition
 	rootDefinition.DefaultChild = ids.ObjectAddress{}

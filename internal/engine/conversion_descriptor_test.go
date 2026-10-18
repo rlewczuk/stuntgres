@@ -124,7 +124,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	if e.CatalogRead().Get(second.Address()) != second {
 		t.Fatal("legal moved-default shape rejected")
 	}
-	if e.CatalogRead().state == before.state {
+	if e.CatalogRead().State() == before.State() {
 		t.Fatal("duplicate shape not published")
 	}
 	if err = conversionProbeResult("real_routine", 1); !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != "encoding conversion function real_routine returned incorrect result for empty input" {
@@ -150,7 +150,7 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 		t.Fatal("late missing batch target succeeded")
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before.state || before.Get(d.Address()) != d {
+	if e.CatalogRead().State() != before.State() || before.Get(d.Address()) != d {
 		t.Fatal("batch published prefix")
 	}
 	stage = e.BeginCatalogStage(before)
@@ -164,7 +164,7 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().state != before.state {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
 		t.Fatal("final cancellation published conversion", err)
 	}
 }
@@ -217,7 +217,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		}
 		e.DiscardCatalogStage(stage)
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("no-op/error/pin checks published state")
 	}
 	if result, err := e.Execute(op, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "unchanged")}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {

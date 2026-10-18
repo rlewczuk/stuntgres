@@ -67,7 +67,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	source, target := New(), New()
 	original := source.CatalogRead()
 	d := infoTimeStampCatalogType(t, original)
-	next := cloneCatalog(original.state)
+	next := cloneCatalog(original.State())
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Timestamptz)}
 	reboundBase := *next.MustType(baseAddress)
 	reboundBase.SQLType = target.CatalogRead().MustType(baseAddress).SQLType
@@ -113,7 +113,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err := validateACL(target.Roles(), retained); err != nil {
 		t.Fatal("principal remap left invalid builtin authority", err)
 	}
-	invalid := cloneCatalog(original.state)
+	invalid := cloneCatalog(original.State())
 	if _, err := reownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false); err == nil {
 		t.Fatal("builtin domain reminted")
 	}

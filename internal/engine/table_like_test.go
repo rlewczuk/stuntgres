@@ -113,7 +113,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.state || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.Defaults[3].OID == source.Defaults[2].OID || destination.Generations[5].OID == source.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
+	if e.catalog.state != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.Defaults[3].OID == source.Defaults[2].OID || destination.Generations[5].OID == source.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
 	if !destination.CheckConstraints[0].NoInherit || destination.CheckConstraints[0].Name != "positive" || destination.ColumnComments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
@@ -162,7 +162,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 			t.Fatal("invalid candidate accepted")
 		}
 		e.DiscardCatalogStage(stage)
-		if e.catalog.state != before.state || len(e.storage) != stores || len(e.sequences) != generators {
+		if e.catalog.state != before.State() || len(e.storage) != stores || len(e.sequences) != generators {
 			t.Fatal("failed candidate leaked publication")
 		}
 	}
@@ -177,7 +177,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.state || len(e.storage) != stores || len(e.sequences) != generators {
+	if e.catalog.state != before.State() || len(e.storage) != stores || len(e.sequences) != generators {
 		t.Fatal("canceled candidate leaked publication")
 	}
 }
@@ -214,7 +214,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
-	if e.catalog.state != incumbent.state {
+	if e.catalog.state != incumbent.State() {
 		t.Fatal("stale candidate partially published")
 	}
 }

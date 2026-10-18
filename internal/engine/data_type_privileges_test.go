@@ -25,7 +25,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 
 func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
-	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.Address())
+	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
 }
 

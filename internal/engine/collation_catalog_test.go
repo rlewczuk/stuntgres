@@ -95,7 +95,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().state != before.state {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancellation published a collation", err)
 	}
 }

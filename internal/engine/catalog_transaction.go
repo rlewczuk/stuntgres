@@ -125,7 +125,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	if c == nil {
 		return e.catalog.read(e.catalog.state)
 	}
-	if c.cachedBase == e.catalog.state && c.cached.state != nil {
+	if c.cachedBase == e.catalog.state && c.cached.State() != nil {
 		return c.cached
 	}
 	if len(c.descriptors) == 0 && len(c.defaultACLs) == 0 {
@@ -134,8 +134,8 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		return c.cached
 	}
 	n := cloneCatalog(e.catalog.state)
-	n.defaultACLs = overlayDefaultACLs(e.catalog.state.defaultACLs, c.defaultACLs)
-	operators := operatorIndexEdit{index: e.catalog.state.operatorNames}
+	n.OverlayDefaultACLs(e.catalog.state, c.defaultACLs)
+	operators := operatorIndexEdit{index: e.catalog.state.OperatorNames()}
 	for a, d := range c.descriptors {
 		operators.replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
@@ -143,7 +143,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		}
 		if d == nil {
 			n.removeDescriptor(a)
-			delete(n.dumpPriorities, a)
+			n.RemoveDumpPriority(a)
 		} else {
 			n.setDescriptor(a, d)
 		}
@@ -153,7 +153,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 			n.bindName(descriptorNameKey(d), d.Address())
 		}
 	}
-	n.operatorNames = operators.index
+	n.SetOperatorNames(operators.index)
 	c.cachedBase, c.cached = e.catalog.state, e.catalog.read(n)
 	return c.cached
 }
@@ -204,12 +204,12 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	e.mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
-	if e.catalog.state.epoch != epoch {
+	if e.catalog.state.Epoch() != epoch {
 		e.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
-	if err := catalogDependencyPreflight(e.catalog.state, view.state, c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.dependencies, c.originals); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 			return nil, err
 		}
 	}
-	return view.state, ctx.Err()
+	return view.State(), ctx.Err()
 }
 func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.rolesBase != nil && e.roles != c.rolesBase {
@@ -269,7 +269,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 			return CatalogConflict{}
 		}
 	}
-	if err := catalogDependencyPreflight(e.catalog.state, catalog.state, c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, catalog.State(), c.dependencies, c.originals); err != nil {
 		return err
 	}
 	if err := e.truncateGraphPreflightLocked(c); err != nil {

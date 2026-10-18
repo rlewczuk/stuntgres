@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
@@ -19,7 +18,7 @@ func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obj
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 	t.Helper()
@@ -137,7 +136,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	state := *e.catalog.state
-	state.descriptors = maps.Clone(e.catalog.state.descriptors)
+	state.cloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &sequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
 	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
@@ -161,7 +160,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	base := *e.catalog.state
-	base.descriptors = maps.Clone(e.catalog.state.descriptors)
+	base.cloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	base.setDescriptor(a, &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := newCatalogChanges()
@@ -189,7 +188,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	base := *e.catalog.state
-	base.descriptors = maps.Clone(e.catalog.state.descriptors)
+	base.cloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
@@ -233,7 +232,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{&base, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
+	for _, state := range []*catalogState{&base, newCatalogState(0)} {
 		rows, err := capturePGSequence(ctx, state, own, ref, source)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)

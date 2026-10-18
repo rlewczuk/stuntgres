@@ -19,7 +19,7 @@ func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, id
 	if !ok {
 		t.Fatal("missing shared catalog descriptor")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
 func pgShDescriptionUnitBag(t *testing.T, source *querySource) map[uint32]string {
@@ -304,7 +304,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind = name, viewRelation
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
 		e.catalog.state.setDescriptor(view.Address(), &view)
 		return viewRef

@@ -163,8 +163,8 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 	defer e.mu.Unlock()
 	lockState := e.locks.Inspect(entry.ticket)
 	s := preparedBoundarySnapshot{
-		catalog: e.catalog.state, descriptors: maps.Clone(e.catalog.state.descriptors), names: maps.Clone(e.catalog.state.names),
-		counters:        [10]uint64{uint64(e.catalog.state.epoch), e.catalog.state.namespaceGeneration, uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.nextRow, e.nextVersion, uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.nextPrincipal},
+		catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()),
+		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.nextRow, e.nextVersion, uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.nextPrincipal},
 		storagePointers: maps.Clone(e.storage), storage: map[ids.ObjectAddress]relationStorage{},
 		generators: maps.Clone(e.sequences), generatorValues: map[ids.ObjectAddress]sequenceGenerator{},
 		indexes: maps.Clone(e.indexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
@@ -704,7 +704,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	for address, change := range entry.catalog.storage {
 		stores[address], rebuild[address] = change.replacement, true
 	}
-	roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, entry.catalog.cached.state, stores, e.indexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, entry.catalog.cached.State(), stores, e.indexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only PREPARE materialized installable index map/root", roots, err)
 	}
@@ -716,7 +716,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if materialized.next == nil || materialized.nextEnds == nil || len(materialized.slots) != len(publication.writes) || materialized.slots[updatePosition] != predecessorSlot || &materialized.next[0] == &publication.root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
-	roots, err = e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, entry.catalog.cached.state, stores, e.indexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err = e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, entry.catalog.cached.State(), stores, e.indexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || len(roots) == 0 {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}

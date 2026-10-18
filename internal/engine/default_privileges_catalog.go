@@ -13,7 +13,7 @@ func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.
 			s.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
 		}
 		if _, exists := s.defaultReads[key]; !exists {
-			s.defaultReads[key] = s.base.state.defaultACLs[key]
+			s.defaultReads[key] = s.base.State().DefaultACL(key)
 		}
 		if schema == (ids.ObjectAddress{}) {
 			break
@@ -35,7 +35,7 @@ func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key defaultACLKey, re
 		c.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 	}
 	if _, exists := c.defaultOriginals[key]; !exists {
-		c.defaultOriginals[key] = e.catalog.state.defaultACLs[key]
+		c.defaultOriginals[key] = e.catalog.state.DefaultACL(key)
 	}
 	c.defaultACLs[key] = record
 	c.cachedBase = nil
@@ -78,7 +78,7 @@ func (s *CatalogStage) defaultPreflight(current *catalogState) error {
 	if !defaultRecordsUnchanged(current, s.defaultReads) {
 		return CatalogConflict{}
 	}
-	for key := range current.defaultACLs {
+	for key := range current.DefaultACLs() {
 		if _, removed := s.removals[key.Schema]; !removed {
 			continue
 		}
@@ -89,7 +89,7 @@ func (s *CatalogStage) defaultPreflight(current *catalogState) error {
 	return nil
 }
 func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
-	for key, record := range s.base.state.defaultACLs {
+	for key, record := range s.base.State().DefaultACLs() {
 		if key.Schema != schema {
 			continue
 		}
@@ -104,7 +104,7 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 	}
 }
 func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
-	for key, record := range view.state.defaultACLs {
+	for key, record := range view.State().DefaultACLs() {
 		kind := byte('a')
 		dependent := key.Creator == ref
 		if dependent {
@@ -145,7 +145,7 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 				c.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
 			}
 			if _, exists := c.defaultReads[key]; !exists {
-				c.defaultReads[key] = e.catalog.state.defaultACLs[key]
+				c.defaultReads[key] = e.catalog.state.DefaultACL(key)
 			}
 		}
 		if schema == (ids.ObjectAddress{}) {

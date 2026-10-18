@@ -79,7 +79,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	var captures []capture
 	e := stage.owner
 	e.mu.Lock()
-	if e.catalog.state.epoch != stage.base.Epoch() {
+	if e.catalog.state.Epoch() != stage.base.Epoch() {
 		e.mu.Unlock()
 		return nil, false, ids.ErrCatalogReplaced
 	}

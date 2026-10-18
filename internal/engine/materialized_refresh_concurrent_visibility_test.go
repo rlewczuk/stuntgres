@@ -16,7 +16,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	d = e.catalog.state.MustRelation(d.Address())
 	original := e.storage[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 	current := e.storage[d.Address()]
@@ -97,7 +97,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.Address()].storage != e.storage[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 			if !beforeCapture {
 				if _, err := scope.AcquireDataView(ref); err != nil {
 					t.Fatal(err)
@@ -131,8 +131,8 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			originalEpoch := e.catalog.state.epoch
-			defer func() { e.catalog.state.epoch = originalEpoch }()
+			originalEpoch := e.catalog.state.Epoch()
+			defer func() { e.catalog.state.SetEpoch(originalEpoch) }()
 			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
 			d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 			switch phase {
@@ -141,7 +141,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "plain_no_data":
 				d = concurrentUnitReplace(t, e, d, nil, false, false)
 			case "control_epoch":
-				e.catalog.state.epoch++
+				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "ordinary_incarnation":
 				copy := *e.storage[d.Address()]
 				copy.materializedLineage = nil

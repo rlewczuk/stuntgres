@@ -113,7 +113,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 	if err != nil {
 		return fail(err)
 	}
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if _, generated := original.Generations[original.Attributes[source]]; generated {
@@ -242,7 +242,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	target := ref.Address

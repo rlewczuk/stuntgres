@@ -69,7 +69,7 @@ func TestPGSequencesCTEStoredGraphAuthority(t *testing.T) {
 	catalog := e.CatalogRead()
 	root := &sourceNode{ref: catalogRef(t, e, catalog, "nested")}
 	v := catalogRef(t, e, catalog, "v")
-	broken := cloneCatalog(catalog.state)
+	broken := cloneCatalog(catalog.State())
 	broken.removeDescriptor(v.Address)
 	if _, err := cteStoredViewVolatile(e.catalog.read(broken), root); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("invalid stored identity err=%v want ErrCatalogReplaced", err)

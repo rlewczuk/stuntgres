@@ -159,7 +159,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			}
 			check("catalog epoch replacement", func() {
 				catalog := cloneCatalog(e.catalog.state)
-				catalog.epoch++
+				catalog.SetEpoch(catalog.Epoch() + 1)
 				e.catalog.state = catalog
 			}, ids.ErrCatalogReplaced)
 			if err := scope.Finish(rollback); err != rollback {

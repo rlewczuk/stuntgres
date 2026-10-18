@@ -175,7 +175,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			view := e.CatalogRead()
 			direct := domainUnitType(t, view, "operator_direct")
 			chain := domainUnitType(t, view, "operator_chain")
-			next := cloneCatalog(view.state)
+			next := cloneCatalog(view.State())
 			mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 			for i, domain := range []*typeDescriptor{direct, chain} {
 				if !domain.SQLType.Concrete() || !domain.SQLType.Usage().Valid() || !sqltype.IsOperatorAlias(domain.SQLType.BaseType().ID()) {

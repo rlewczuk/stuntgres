@@ -58,7 +58,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			beforeDependencies := append([]ids.ObjectRef(nil), predicate.Dependencies...)
 			beforeAttributes := append([]int32(nil), predicate.Attributes...)
 			next := cloneCatalog(oldCatalog)
-			next.epoch++
+			next.SetEpoch(next.Epoch() + 1)
 			next.setDescriptor(index.Address(), &index)
 			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
 			typeDefinition := *next.MustType(typeAddress)

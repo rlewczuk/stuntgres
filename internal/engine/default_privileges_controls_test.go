@@ -23,7 +23,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		global := defaultACLKey{Creator: target.owner, Class: authorization.DefaultTables}
 		scoped := defaultACLKey{Creator: target.owner, Schema: source.schema, Class: authorization.DefaultTypes}
 		for _, key := range []defaultACLKey{global, scoped} {
-			record := target.e.catalog.state.defaultACLs[key]
+			record := target.e.catalog.state.DefaultACL(key)
 			if record == nil {
 				t.Fatal("imported default missing", key)
 			}
@@ -33,11 +33,11 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 				}
 			}
 		}
-		if retained.state.defaultACLs[defaultACLKey{Creator: source.owner, Class: authorization.DefaultTables}] == nil || retained.state.defaultACLs[global] != nil || target.e.roles != oldRolesPublication {
+		if retained.State().DefaultACL(defaultACLKey{Creator: source.owner, Class: authorization.DefaultTables}) == nil || retained.State().DefaultACL(global) != nil || target.e.roles != oldRolesPublication {
 			t.Fatal("replacement changed source or target role catalog")
 		}
 		// Exact target incarnation, not just a recycled name, is fenced by remap.
-		candidate := cloneCatalog(retained.state)
+		candidate := cloneCatalog(retained.State())
 		snapshot := target.e.Roles()
 		roles := cloneRoleFixture(target.e.roles)
 		replacement := target.reader
@@ -70,14 +70,14 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if projection.state.defaultACLs[scoped] != nil || projection.state.defaultACLs[global] == nil || source.state.defaultACLs[scoped] == nil {
+		if projection.State().DefaultACL(scoped) != nil || projection.State().DefaultACL(global) == nil || source.State().DefaultACL(scoped) == nil {
 			t.Fatal("TEMP default projection/source immutability")
 		}
 		if _, err = f.e.ReplaceCatalog(context.Background(), f.e, source); err != nil {
 			t.Fatal(err)
 		}
 		rights := authorization.ACLRights(table.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
-		if f.e.catalog.state.Get(table.Address()) != table || f.e.catalog.state.MustNamespace(table.Namespace()).Temporary != f.op.session.token || f.e.catalog.state.defaultACLs[scoped] != nil || f.e.catalog.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
+		if f.e.catalog.state.Get(table.Address()) != table || f.e.catalog.state.MustNamespace(table.Namespace()).Temporary != f.op.session.token || f.e.catalog.state.DefaultACL(scoped) != nil || f.e.catalog.state.DefaultACL(global) == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
@@ -96,7 +96,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if f.e.catalog.state.Get(table.Address()) != nil {
 			t.Fatal("physical end retained TEMP child")
 		}
-		if f.e.catalog.state.defaultACLs[tempKey] != nil || endSnapshot.state.defaultACLs[tempKey] == nil || f.e.catalog.state.defaultACLs[global] == nil {
+		if f.e.catalog.state.DefaultACL(tempKey) != nil || endSnapshot.State().DefaultACL(tempKey) == nil || f.e.catalog.state.DefaultACL(global) == nil {
 			t.Fatal("TEMP retirement leaked scoped defaults or changed retained source")
 		}
 	})
@@ -118,10 +118,10 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		imported := target.e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "default_schema"})
-		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.catalog.state.defaultACLs[defaultACLKey{Creator: target.owner, Schema: imported, Class: authorization.DefaultTables}] == nil || target.e.catalog.state.defaultACLs[defaultACLKey{Creator: target.owner, Schema: target.schema, Class: authorization.DefaultTables}] != nil {
+		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.catalog.state.DefaultACL(defaultACLKey{Creator: target.owner, Schema: imported, Class: authorization.DefaultTables}) == nil || target.e.catalog.state.DefaultACL(defaultACLKey{Creator: target.owner, Schema: target.schema, Class: authorization.DefaultTables}) != nil {
 			t.Fatal("namespace collision did not remap imported policy identity")
 		}
-		if target.e.catalog.state.defaultACLs[defaultACLKey{Creator: target.owner, Class: authorization.DefaultSequences}] == nil {
+		if target.e.catalog.state.DefaultACL(defaultACLKey{Creator: target.owner, Class: authorization.DefaultSequences}) == nil {
 			t.Fatal("foreign global policy lost")
 		}
 		// A source TEMP-only record is projected out even on a foreign import.
@@ -136,7 +136,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := fresh.e.ReplaceCatalog(context.Background(), source.e, source.e.catalog.read(tempSource)); err != nil {
 			t.Fatal(err)
 		}
-		if len(fresh.e.catalog.state.defaultACLs) != 1 || fresh.e.catalog.state.defaultACLs[defaultACLKey{Creator: fresh.owner, Class: authorization.DefaultSequences}] == nil || tempSource.defaultACLs[defaultACLKey{Creator: source.owner, Schema: source.schema, Class: authorization.DefaultTables}] == nil {
+		if fresh.e.catalog.state.DefaultACLCount() != 1 || fresh.e.catalog.state.DefaultACL(defaultACLKey{Creator: fresh.owner, Class: authorization.DefaultSequences}) == nil || tempSource.DefaultACL(defaultACLKey{Creator: source.owner, Schema: source.schema, Class: authorization.DefaultTables}) == nil {
 			t.Fatal("foreign TEMP policy/source filtering")
 		}
 	})
@@ -169,13 +169,13 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 	roles := f.e.Roles()
 	edges := roles.Memberships()
 	err := f.e.Restore(context.Background(), strings.NewReader("CREATE TABLE before_reject(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;"))
-	if err == nil || f.e.catalog.state != before.state || f.e.roles != rolesPublication {
+	if err == nil || f.e.catalog.state != before.State() || f.e.roles != rolesPublication {
 		t.Fatal("Restore admitted defaults or changed original", err)
 	}
 	if err = f.e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.e.catalog.state.defaultACLs) != 0 || f.e.roles != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
+	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
 		t.Fatal("Reset default/role/edge boundary")
 	}
 	// Pristine dependent hardwired TYPE baselines must not make ordinary table

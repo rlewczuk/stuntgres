@@ -279,7 +279,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed Descriptor, cu
 	if current.Get(observed.Address()) == observed {
 		return true
 	}
-	if snapshot == nil || snapshot.catalog.Epoch() != current.epoch || snapshot.catalog.Get(observed.Address()) != observed {
+	if snapshot == nil || snapshot.catalog.Epoch() != current.Epoch() || snapshot.catalog.Get(observed.Address()) != observed {
 		return false
 	}
 	old, ok := observed.(*relationDescriptor)
@@ -297,7 +297,7 @@ type materializedSourceFence struct {
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
-	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != materializedViewRelation {
+	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.Epoch() || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != materializedViewRelation {
 		return false
 	}
 	current, _ := e.catalog.state.Relation(f.ref.Address)

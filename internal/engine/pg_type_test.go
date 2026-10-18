@@ -18,7 +18,7 @@ func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing type source")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map[uint32][]sqltype.Value {
 	t.Helper()
@@ -119,7 +119,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 			t.Fatal("attribute usage", i, c)
 		}
 	}
-	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
+	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
 	capture := func() *querySource {
 		t.Helper()
 		s, err := e.capturePGType(t.Context(), catalog, roles, ref, d)
@@ -130,7 +130,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	first, second := capture(), capture()
 	bag := pgTypeUnitBag(t, second, d)
-	if first.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
+	if first.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated authority")
 	}
 	first.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
@@ -173,7 +173,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
 	ordinary(s, err)
 	for _, badWidth := range []bool{false, true} {
-		root := cloneCatalog(catalog.state)
+		root := cloneCatalog(catalog.State())
 		bad := *d
 		bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		if badWidth {
@@ -187,7 +187,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		ordinary(s, err)
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
-	root := cloneCatalog(catalog.state)
+	root := cloneCatalog(catalog.State())
 	original := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	changed := *original
 	changed.ACL = authorization.ACLValue{Explicit: true}
@@ -333,7 +333,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				kind = "missing"
 			}
 			t.Run(name+"/"+kind, func(t *testing.T) {
-				root := cloneCatalog(catalog.state)
+				root := cloneCatalog(catalog.State())
 				original := domainUnitType(t, catalog, name)
 				if missing {
 					root.removeDescriptor(original.Address())

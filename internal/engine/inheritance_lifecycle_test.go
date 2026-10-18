@@ -64,7 +64,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(stage.removals) != 1 || e.catalog.state != base.state {
+	if len(stage.removals) != 1 || e.catalog.state != base.State() {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
 	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
@@ -80,7 +80,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
 	}
-	if e.catalog.state != base.state || leaf.Inheritance.Parents[2] != other.Address() {
+	if e.catalog.state != base.State() || leaf.Inheritance.Parents[2] != other.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -106,7 +106,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.state != base.state || len(stage.removals) != 2 {
+	if e.catalog.state != base.State() || len(stage.removals) != 2 {
 		t.Fatal("cancel published changes")
 	}
 }
@@ -176,7 +176,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				parent.Address(): {{row: 1, version: 1, values: []sqltype.Value{one}}},
 				child.Address():  {{row: 2, version: 2, values: []sqltype.Value{two}}},
 			}
-			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, changes)
+			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -41,7 +41,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						called = true
 						e.catalog.Providers[ids.RelationClassID] = original
 						typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
-						winner = e.CatalogRead().state
+						winner = e.CatalogRead().State()
 					}}
 					query := "CREATE TABLE late OF pair"
 					if mode != "persistent" {
@@ -75,7 +75,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					changed := current.MustType(observed)
-					if current.state != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
+					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
 					for _, d := range current.Descriptors() {

@@ -157,7 +157,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		if err == nil {
 			t.next++
 			e.diagnosticTx++
-			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.epoch, t, e.diagnosticTx)
+			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, e.diagnosticTx)
 			e.enrollSerializableLocked(next, isolation)
 		}
 		op.session.mu.Unlock()
@@ -202,7 +202,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			e.replacementMu.RLock()
 			chainFence = true
 			e.mu.Lock()
-			if err == nil && next.Epoch() != e.catalog.state.epoch {
+			if err == nil && next.Epoch() != e.catalog.state.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
@@ -217,7 +217,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		// Replacement also fences SQL recovery commits of aborted blocks.
 		if err == nil && commit {
 			e.mu.Lock()
-			if ref.Epoch() != e.catalog.state.epoch {
+			if ref.Epoch() != e.catalog.state.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
@@ -237,7 +237,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			e.replacementMu.RLock()
 			chainFence = true
 			e.mu.Lock()
-			if cleanupErr == nil && next.Epoch() != e.catalog.state.epoch {
+			if cleanupErr == nil && next.Epoch() != e.catalog.state.Epoch() {
 				cleanupErr = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()

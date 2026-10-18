@@ -29,7 +29,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	inheritanceLifecycleInstall(e, p)
 	temp := inheritanceControlsTemporary(e, 20001, "tc", p.Address())
-	state, oid, revision, epoch, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.catalog.state.epoch, e.storage[temp.Address()]
+	state, oid, revision, epoch, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.catalog.state.Epoch(), e.storage[temp.Address()]
 	next := cloneCatalog(New().catalog.state)
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
@@ -37,7 +37,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	if err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.epoch != epoch || e.storage[temp.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != epoch || e.storage[temp.Address()] != storage {
 		t.Fatal("rejection changed target/allocator")
 	}
 	// Reset uses the same final replacement fence, not just a helper-only guard.

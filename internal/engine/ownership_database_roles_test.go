@@ -80,7 +80,7 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	e := New()
 	retained := e.CatalogRead()
 	auth := catalogAuthorization(e, retained)
-	candidate := cloneCatalog(retained.state)
+	candidate := cloneCatalog(retained.State())
 	database := *candidate.MustDatabase(currentDatabaseAddress)
 	database.ObjectRevision++
 	candidate.setDescriptor(currentDatabaseAddress, &database)
@@ -109,7 +109,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth := catalogAuthorization(e, e.catalog.read(candidate))
 	auth.state.CurrentUser = reader
-	ref := e.catalog.Domain.Ref(candidate.epoch, currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(candidate.Epoch(), currentDatabaseAddress)
 	for _, tc := range []struct {
 		requirement AccessRequirement
 		message     string
@@ -123,7 +123,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 			t.Fatal("distinct database diagnostic convention", err, "want", expected)
 		}
 	}
-	if candidate.Get(currentDatabaseAddress) != &database || auth.pairedCatalog.state != candidate {
+	if candidate.Get(currentDatabaseAddress) != &database || auth.pairedCatalog.State() != candidate {
 		t.Fatal("diagnostic check changed retained descriptor or role/catalog pair")
 	}
 }

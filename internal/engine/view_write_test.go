@@ -29,7 +29,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: tableRelation, Attributes: []int32{7, 11, 19}, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, AttributeHighWater: 19}
-	baseRef := e.catalog.Domain.Ref(e.catalog.state.epoch, base.Address())
+	baseRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), base.Address())
 	column := func(slot int) expr.Expr {
 		ref := baseRef
 		ref.Address.SubID = base.Attributes[slot]
@@ -39,7 +39,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &projectNode{querySchema: querySchema(view.Columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
 	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
-	viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	e.catalog.state.setDescriptor(base.Address(), base)
 	e.catalog.state.setDescriptor(view.Address(), view)
 	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())

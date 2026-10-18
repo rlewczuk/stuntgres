@@ -37,7 +37,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 	var diagnostic *sqlstate.Error
 	if errors.As(err, &diagnostic) && (diagnostic.Code == "23514" || diagnostic.Code == "23502") {
 		view := c.evaluation.domainCatalog()
-		if view.state != nil {
+		if view.State() != nil {
 			d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
 			if ok && d.SQLType == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.ObjectNamespace).Name() {
 				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
@@ -198,7 +198,7 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 		return annotation, nil
 	}
 	view := b.bindingCatalog()
-	if b.expected.catalogOwner != view.owner || b.expected.catalogEpoch != view.Epoch() {
+	if b.expected.catalogOwner != view.Owner() || b.expected.catalogEpoch != view.Epoch() {
 		return annotation, nil
 	}
 	key := preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}

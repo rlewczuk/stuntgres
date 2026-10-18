@@ -38,7 +38,7 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 			if !slices.Contains(descriptorReferences(next), reader) {
 				t.Fatal("ACL recipient missing from role dependencies")
 			}
-			if kind == "schema" && e.catalog.state.namespaceGeneration != before.namespaceGeneration+1 {
+			if kind == "schema" && e.catalog.state.NamespaceGeneration() != before.NamespaceGeneration()+1 {
 				t.Fatal("schema ACL did not invalidate namespace authority")
 			}
 			stable, stableRoles := e.catalog.state, e.roles

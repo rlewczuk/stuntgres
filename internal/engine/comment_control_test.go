@@ -101,7 +101,7 @@ func TestCommentControls(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(canonical+"COMMENT ON TABLE s.t IS 'earlier';"+suffix)); err == nil {
 			t.Fatal("accepted invalid restore", suffix)
 		}
-		if before.state != e.CatalogRead().state || rolesPublication != e.roles || commentDump(t, e) != canonical {
+		if before.State() != e.CatalogRead().State() || rolesPublication != e.roles || commentDump(t, e) != canonical {
 			t.Fatal("failed restore published metadata")
 		}
 	}

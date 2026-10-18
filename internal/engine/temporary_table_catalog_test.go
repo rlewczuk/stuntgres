@@ -81,7 +81,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 		mark := cloneCatalogChanges(c)
-		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, c)
+		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)
 		}
@@ -109,8 +109,8 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
 	view := e.privateCatalogLocked(c)
 	old := e.catalog.Domain.Ref(view.Epoch(), table.Address())
-	advanced := cloneCatalog(view.state)
-	advanced.epoch++
+	advanced := cloneCatalog(view.State())
+	advanced.SetEpoch(advanced.Epoch() + 1)
 	retained := e.catalog.read(advanced)
 	if !storedReferenceEpochValid(retained, table, old) {
 		t.Fatal("exact retained owner rejected")
@@ -126,7 +126,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("removed attribute accepted")
 	}
 	bad = old
-	bad.Epoch = advanced.epoch + 1
+	bad.Epoch = advanced.Epoch() + 1
 	if storedReferenceEpochValid(retained, table, bad) {
 		t.Fatal("future incarnation accepted")
 	}
@@ -214,8 +214,8 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), sequence.Address())
 	typeRef := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
 	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
-	next := cloneCatalog(view.state)
-	next.epoch++
+	next := cloneCatalog(view.State())
+	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	var manifest []ids.ObjectRef
 	renderer := scalarRenderer{owner: table, dependencies: &manifest, capturedManifest: []ids.ObjectRef{typeRef, ref}}
@@ -422,7 +422,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("pre-removed owned-index closure omitted/duplicated sibling or consumed independent generation", ownedIndexes, columns)
 	}
 	e.DiscardCatalogStage(preflight)
-	if e.CatalogRead().state != retained.state || e.storage[consumer.Address()] != store || e.indexRoots[providerIndex.Address()] != indexRoot || !sameVersionRoot(store.versions, rows) || store.ends != ends {
+	if e.CatalogRead().State() != retained.State() || e.storage[consumer.Address()] != store || e.indexRoots[providerIndex.Address()] != indexRoot || !sameVersionRoot(store.versions, rows) || store.ends != ends {
 		t.Fatal("closure discovery mutated genuine catalog/row/index predecessors")
 	}
 	sessionSQL(t, owner, "DROP TABLE live_provider CASCADE")

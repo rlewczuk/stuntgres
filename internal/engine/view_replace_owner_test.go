@@ -22,7 +22,7 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			owner, _ := e.Roles().Lookup("owner")
 			successor, _ := e.Roles().Lookup("successor")
 			admin := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-			ns := e.catalog.Domain.Ref(e.catalog.state.epoch, e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0])
+			ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0])
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}, {Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: successor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}

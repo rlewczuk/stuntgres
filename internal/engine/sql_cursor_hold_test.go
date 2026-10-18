@@ -22,7 +22,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	if !c.promoted || c.tx != (ids.TxRef{}) || c.epoch != epoch || c.root != nil || c.source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.currentSource != nil || c.state.source != nil || c.state.parameters != nil || pin.data.Load() != nil || cell.scope != nil || cell.expression != nil || c.count != 2 || c.storeOffset != 1 || c.ordinalPosition != 1 {
 		t.Fatal("export retains producer or loses owned remainder", c, cell)
 	}
-	if c.catalog.state != nil || !reflect.DeepEqual(first.Rows.Schema(), c.schema) {
+	if c.catalog.State() != nil || !reflect.DeepEqual(first.Rows.Schema(), c.schema) {
 		t.Fatal("export retains declaration catalog or loses owned schema")
 	}
 	sessionSQL(t, s, "BEGIN")
@@ -36,7 +36,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	if err := c.dispose(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if c.values != nil || c.catalog.state != nil || cell.scope != nil || pin.data.Load() != nil {
+	if c.values != nil || c.catalog.State() != nil || cell.scope != nil || pin.data.Load() != nil {
 		t.Fatal("repeated close retains resources")
 	}
 	if !reflect.DeepEqual(tuples(first), [][]driver.Value{{int64(1)}}) || !reflect.DeepEqual(tuples(second), [][]driver.Value{{int64(2)}}) {

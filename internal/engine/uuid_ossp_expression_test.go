@@ -275,10 +275,10 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority
-		auth.catalog.state = cloneCatalog(auth.catalog.state)
+		auth.catalog = auth.catalog.WithState(cloneCatalog(auth.catalog.State()))
 		bad := *captured
 		mutate(&bad)
-		auth.catalog.state.setDescriptor(n.ref.Address, &bad)
+		auth.catalog.State().setDescriptor(n.ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -301,7 +301,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000},
 		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
 	}
-	state := cloneCatalog(evaluation.catalog.state)
+	state := cloneCatalog(evaluation.catalog.State())
 	for address := range mapping {
 		state.unbindName(descriptorNameKey(state.Get(address)))
 		state.removeDescriptor(address)
@@ -311,10 +311,10 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		state.setDescriptor(dest, d)
 		state.bindName(descriptorNameKey(d), dest)
 	}
-	state.epoch++
+	state.SetEpoch(state.Epoch() + 1)
 	view := e.catalog.read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
-		ref.Epoch = state.epoch
+		ref.Epoch = state.Epoch()
 		if dest, ok := mapping[ref.Address]; ok {
 			ref.Address = dest
 		}

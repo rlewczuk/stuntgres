@@ -72,7 +72,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err == nil {
 		current, _ = auth.catalog.Relation(ref.Address)
 	}
-	if err == nil && (s.txRef.Epoch() != e.catalog.state.epoch || !materializedRefreshCompatible(observed, current)) {
+	if err == nil && (s.txRef.Epoch() != e.catalog.state.Epoch() || !materializedRefreshCompatible(observed, current)) {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
@@ -285,7 +285,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.RelationKind != materializedViewRelation || d.View == nil || s.base.Get(d.Address()) != d || e.stageCatalogBaseLocked(s).Get(d.Address()) != d || previous == nil || e.stageStorageLocked(s, d.Address()) != previous || !populated && len(rows) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
-	if s.base.Epoch() != e.catalog.state.epoch {
+	if s.base.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.Revision() == ids.DefinitionRevision(^uint64(0)) || previous.generation == ^uint64(0) {
@@ -367,7 +367,7 @@ func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, sto
 	if s.descriptors[r.original.Address()] != r.descriptor {
 		return CatalogConflict{}
 	}
-	if catalog.epoch != s.base.Epoch() || catalog.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
+	if catalog.Epoch() != s.base.Epoch() || catalog.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
 		return CatalogConflict{}
 	}
 	// The effective diff depends on every eligible key; root publication also

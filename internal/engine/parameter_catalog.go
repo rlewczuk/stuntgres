@@ -30,7 +30,7 @@ type parameterProvider struct{ definitions map[string]SettingDefinition }
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
-	if !ok || d == nil || v.owner == nil || v.state == nil || v.Get(d.Address()) != d {
+	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
 	name, err := canonicalGrantParameter(p.definitions, d.Name())

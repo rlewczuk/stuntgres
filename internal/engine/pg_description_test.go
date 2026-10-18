@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
@@ -18,7 +17,7 @@ func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.
 	if !ok {
 		t.Fatal("missing catalog descriptor")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
 func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {
@@ -129,7 +128,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	e := New()
 	source, ref := pgDescriptionUnitSource(t, e)
 	oldState := *e.catalog.state
-	oldState.descriptors = maps.Clone(e.catalog.state.descriptors)
+	oldState.cloneDescriptors()
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &relationDescriptor{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
@@ -157,7 +156,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 		t.Fatal("capture mutated descriptor")
 	}
 	newState := oldState
-	newState.descriptors = maps.Clone(oldState.descriptors)
+	newState.cloneDescriptors()
 	updated := *d
 	updated.Comment = "replacement"
 	updated.ColumnComments = map[int32]string{3: "replacement third"}
@@ -188,7 +187,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{e.catalog.state, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
+	for _, state := range []*catalogState{e.catalog.state, newCatalogState(0)} {
 		captured, err := capturePGDescription(ctx, e.catalog.read(state), ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)

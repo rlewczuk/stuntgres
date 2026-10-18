@@ -70,7 +70,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 
 func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
-	if p != stockIntagg || v.owner == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
+	if p != stockIntagg || v.Owner() == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
 		return invalid()
 	}
 	var seen [len(intaggMembers)]bool
@@ -95,7 +95,7 @@ func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescript
 		if !found {
 			return invalid()
 		}
-		if proc.Owner.ID() == 0 || proc.Owner != v.owner.Principals.Principal(proc.Owner.ID()) {
+		if proc.Owner.ID() == 0 || proc.Owner != v.Owner().Principals.Principal(proc.Owner.ID()) {
 			return invalid()
 		}
 	}

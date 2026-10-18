@@ -18,7 +18,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obje
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
@@ -87,12 +87,12 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
+	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
+	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture changed catalog/ref")
 	}
 	bag := pgOpclassUnitBag(t, rows, d)

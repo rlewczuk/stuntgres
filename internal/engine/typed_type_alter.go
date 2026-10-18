@@ -69,7 +69,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	e.mu.Lock()
 	current := e.catalog.read(e.catalog.state)
-	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
+	valid := e.catalog.state.Epoch() == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
 		return Result{}, CatalogConflict{}

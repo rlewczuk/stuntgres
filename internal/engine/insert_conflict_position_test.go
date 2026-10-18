@@ -146,7 +146,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			}
 			index.SQLIndex = &shapedDefinition
 			nextCatalog := *f.e.catalog.state
-			nextCatalog.descriptors = maps.Clone(nextCatalog.descriptors)
+			nextCatalog.cloneDescriptors()
 			nextCatalog.setDescriptor(parent.Address(), &parent)
 			nextCatalog.setDescriptor(index.Address(), &index)
 			stores := maps.Clone(f.e.storage)

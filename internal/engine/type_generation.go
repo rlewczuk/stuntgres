@@ -6,7 +6,7 @@ import "stuntgres/internal/engine/ids"
 // reownership without changing OIDs, object references, or old catalog roots.
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
-	next := view.state
+	next := view.State()
 	if _, err := reownDomainTypes(next, nil, false); err != nil {
 		return err
 	}

@@ -47,7 +47,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 			stage := typedRenameStage(t, e, source, table)
 			defer e.DiscardCatalogStage(stage)
 			domainUnitPublish(t, e, stage)
-			winning := e.CatalogRead().state
+			winning := e.CatalogRead().State()
 			transactionEnd(t, holder, tx, false)
 			released = true
 			select {
@@ -60,7 +60,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("source admission did not complete", ctx.Err())
 			}
-			if e.CatalogRead().state != winning {
+			if e.CatalogRead().State() != winning {
 				t.Fatal("stale CREATE published over winning source generation")
 			}
 			for _, descriptor := range winning.Descriptors() {

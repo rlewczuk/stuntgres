@@ -30,7 +30,7 @@ func schemaFail(t *testing.T, e *Engine, op *Operation, q, code string) {
 	storage := e.storage
 	_, err := e.Execute(op, statement(t, q), 0, nil)
 	state(t, err, code)
-	if e.CatalogRead().state != before.state || !reflect.DeepEqual(e.storage, storage) {
+	if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage, storage) {
 		t.Fatal("failure published catalog/storage", q)
 	}
 }
@@ -342,7 +342,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	}
 	before := e.CatalogRead()
 	for _, bad := range []string{"CREATE SCHEMA x AUTHORIZATION absent;", "CREATE SCHEMA x AUTHORIZATION schema_owner; SET SESSION AUTHORIZATION table_owner; CREATE TABLE x.t(id INT); INSERT INTO x.t VALUES(17); INSERT INTO missing VALUES(1);", "CREATE SCHEMA x; CREATE TABLE x.t(id INT); CREATE TABLE x.t(id INT);"} {
-		if err := e.Restore(context.Background(), strings.NewReader(bad)); err == nil || e.CatalogRead().state != before.state {
+		if err := e.Restore(context.Background(), strings.NewReader(bad)); err == nil || e.CatalogRead().State() != before.State() {
 			t.Fatal("failed restore changed target", bad, err)
 		}
 	}

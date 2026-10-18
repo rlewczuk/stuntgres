@@ -84,7 +84,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
 		child.RelationKind = tableRelation
 		partitionAttachUnitInstall(t, e, child)
-		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, child.Address())
+		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), child.Address())
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
 		partitionAttachUnitWrite(t, e, writer, ref, 1)
 		partitionAttachUnitBegin(t, e, owner, RepeatableRead)
@@ -169,7 +169,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			child = e.catalog.state.MustRelation(child.Address())
 			owner := sessionStart(t, e, nil)
 			tx := partitionAttachUnitBegin(t, e, owner, ReadCommitted)
-			parentRef := e.catalog.Domain.Ref(e.catalog.state.epoch, parent.Address())
+			parentRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), parent.Address())
 			childRef := parentRef
 			childRef.Address = child.Address()
 			before, beforeOp := partitionAttachUnitScope(t, e, owner)

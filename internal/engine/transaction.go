@@ -186,7 +186,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	}
 	e.diagnosticTx++
 	t.next++
-	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.epoch, t, e.diagnosticTx)
+	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, e.diagnosticTx)
 	t.state = state
 	session.notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
@@ -544,7 +544,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return err
 	}
 	e.mu.Lock()
-	stale := t.ref.Epoch() != e.catalog.state.epoch
+	stale := t.ref.Epoch() != e.catalog.state.Epoch()
 	e.mu.Unlock()
 	if stale {
 		return ids.ErrCatalogReplaced
@@ -615,7 +615,7 @@ retry:
 	s.owner.mu.Lock()
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	admission := e.privateCatalogLocked(s.owner.catalog).state
+	admission := e.privateCatalogLocked(s.owner.catalog).State()
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
 		s.owner.mu.Unlock()
@@ -641,7 +641,7 @@ retry:
 	if ref.Domain() != e.catalog.Domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
+	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.ref.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {

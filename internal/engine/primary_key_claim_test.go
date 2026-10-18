@@ -82,7 +82,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, index.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address())
 	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)

@@ -119,7 +119,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	// Check all originals before transferring any member. Earlier overlay originals

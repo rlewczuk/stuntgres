@@ -355,7 +355,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if outcome = scope.gate(&parser.Insert{}); outcome != nil {
 		t.Fatal(outcome)
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ordinary.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ordinary.Address())
 	if outcome = scope.stage.Apply(ref, [][]sqltype.Value{{value}}); outcome != nil {
 		t.Fatal(outcome)
 	}

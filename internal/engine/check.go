@@ -95,7 +95,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
 		if altering {
 			e.mu.Lock()
-			if auth.catalog.Epoch() != e.catalog.state.epoch {
+			if auth.catalog.Epoch() != e.catalog.state.Epoch() {
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}

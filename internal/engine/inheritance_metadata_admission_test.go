@@ -370,7 +370,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					}
 					command.scope.Finish(err)
 					holder.Finish(nil)
-					if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
+					if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 						t.Fatal("failed metadata admission published any partial graph or row change")
 					}
 					lockEmpty(t, e)

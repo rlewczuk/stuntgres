@@ -85,7 +85,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return fmt.Errorf("stuntgres: dump cannot serialize SQL/MED foreign metadata")
 		}
 	}
-	if len(e.catalog.state.defaultACLs) != 0 {
+	if e.catalog.state.DefaultACLCount() != 0 {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
 	}
@@ -890,7 +890,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// Capture collision-remap provenance from the same immutable snapshot as
 	// the graph, before any dump-private naming substitutions.
 	var priorities map[ids.OID]ids.OID
-	for address, priority := range originalCatalog.state.dumpPriorities {
+	for address, priority := range originalCatalog.State().DumpPriorities() {
 		if _, emitted := viewDependencies[dumpEventKey{oid: address.ObjectID}]; emitted {
 			if priorities == nil {
 				priorities = make(map[ids.OID]ids.OID)

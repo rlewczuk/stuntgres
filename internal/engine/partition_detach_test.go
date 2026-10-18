@@ -237,9 +237,9 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)
-	next.state.removeDescriptor(f.child.Address())
-	next.state.removeDescriptor(f.leaf.Address())
-	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{}}, next.state, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	next.State().removeDescriptor(f.child.Address())
+	next.State().removeDescriptor(f.leaf.Address())
+	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, newCatalogState(0), next.State(), nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.Address()] != nil || f.parent.SQLIndex.Valid {
 		t.Fatal("virtual invalid-complete required root or promotion", err)
 	}

@@ -68,7 +68,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 
 func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
-	if v.owner == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
+	if v.Owner() == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
 		return invalid()
 	}
 	var seen [len(fuzzystrmatchMembers)]bool
@@ -92,7 +92,7 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionD
 		}
 		// Membership fixes the exact provider, not separately transferable
 		// function ownership. Every member retains real typed provenance.
-		if proc.Owner.ID() == 0 || proc.Owner != v.owner.Principals.Principal(proc.Owner.ID()) {
+		if proc.Owner.ID() == 0 || proc.Owner != v.Owner().Principals.Principal(proc.Owner.ID()) {
 			return invalid()
 		}
 	}

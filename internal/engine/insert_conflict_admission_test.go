@@ -48,7 +48,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Address())
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
 	ctx := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {

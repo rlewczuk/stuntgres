@@ -28,7 +28,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
 					p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.Attributes, p.AttributeHighWater, p.Index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}
-					ref := e.catalog.Domain.Ref(e.catalog.state.epoch, provider.Address())
+					ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), provider.Address())
 					switch definition {
 					case "column":
 						p.Columns[0].Usage = domain.Usage()
@@ -143,7 +143,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 							t.Fatal("dependent definition was not consumed")
 						}
 					}
-					if e.catalog.state != base.state || e.catalog.state.Get(p.Address()) != p || len(p.Columns) != 2 || c.Inheritance.Parents[0] != p.Address() {
+					if e.catalog.state != base.State() || e.catalog.state.Get(p.Address()) != p || len(p.Columns) != 2 || c.Inheritance.Parents[0] != p.Address() {
 						t.Fatal("source authority changed")
 					}
 				})
@@ -164,7 +164,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			p.Attributes, p.AttributeHighWater, p.Index = []int32{1}, 1, map[string]int{"a": 0}
 			c.Columns = []ColumnDescriptor{{Name: "a", Usage: u}}
 			c.Attributes, c.AttributeHighWater, c.Index = []int32{1}, 1, map[string]int{"a": 0}
-			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, q.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), q.Address())
 			if definition == "default" {
 				p.Defaults = map[int32]columnDefault{1: {OID: 29103, Dependencies: []ids.ObjectRef{ref}}}
 				c.Defaults = map[int32]columnDefault{1: {OID: 29104, Dependencies: []ids.ObjectRef{ref}}}
@@ -208,7 +208,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if len(next.Defaults) != 0 || len(next.CheckConstraints) != 0 || inheritanceStageAlterGuard(stage, next) != nil {
 				t.Fatal("retained parent did not become standalone with consumed definition")
 			}
-			if e.catalog.state != base.state || e.catalog.state.Get(q.Address()) != q || e.catalog.state.Get(p.Address()) != p || e.catalog.state.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0] != q.Address() || c.Inheritance.Parents[1] != p.Address() {
+			if e.catalog.state != base.State() || e.catalog.state.Get(q.Address()) != q || e.catalog.state.Get(p.Address()) != p || e.catalog.state.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0] != q.Address() || c.Inheritance.Parents[1] != p.Address() {
 				t.Fatal("source or captured inheritance authority changed")
 			}
 			if definition == "default" {

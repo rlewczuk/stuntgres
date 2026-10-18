@@ -177,7 +177,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			e := New().restoreStage()
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
-			e.catalog.state = e.stageRead(stage).state
+			e.catalog.state = e.stageRead(stage).State()
 			e.storage[d.Address()] = &relationStorage{}
 			before, store := e.catalog.state, e.storage[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{{"public", "unit_mv", true, rows}}); err == nil {
@@ -191,7 +191,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	e := New().restoreStage()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	e.catalog.state = e.stageRead(stage).state
+	e.catalog.state = e.stageRead(stage).State()
 	e.storage[d.Address()] = &relationStorage{}
 	record := materializedSnapshot{"public", "unit_mv", true, "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record, record}); err == nil {
@@ -227,7 +227,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 		t.Fatal("canceled stage published rows/catalog")
 	}
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.epoch++
+	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}

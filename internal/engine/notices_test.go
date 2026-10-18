@@ -134,7 +134,7 @@ func TestNoticesPublicationConflict(t *testing.T) {
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
 	}
-	if e.CatalogRead().state != winner.state {
+	if e.CatalogRead().State() != winner.State() {
 		t.Fatal("winner catalog replaced")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")
@@ -181,7 +181,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 				t.Errorf("canceled losing CREATE emitted notices: %#v", notices)
 			}
 			after := e.CatalogRead()
-			if after.state != winner.state {
+			if after.State() != winner.State() {
 				t.Fatal("losing CREATE replaced winner catalog")
 			}
 			if _, exists := after.Descriptor(loser); exists || e.storage[loser] != nil {
@@ -271,7 +271,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 		t.Errorf("canceled skip emitted notices: %#v", notices)
 	}
 	after := e.CatalogRead()
-	if after.state != winner.state {
+	if after.State() != winner.State() {
 		t.Fatal("losing CREATE replaced winner catalog")
 	}
 	if _, exists := after.Descriptor(loser); exists || e.storage[loser] != nil {
@@ -388,7 +388,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 		if result, err := e.Execute(op, skip, 0, nil); err != nil || result.Count != 0 || op.DetachNotices() != nil {
 			t.Fatal("filtered authorized skip", result, err)
 		}
-		if e.CatalogRead().state != before.state {
+		if e.CatalogRead().State() != before.State() {
 			t.Fatal("skip published catalog changes")
 		}
 	})
@@ -411,7 +411,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 		t.Fatal("CREATE authorization is execution-time", err)
 	}
 	roleErrorPosition(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)", "42501", "permission denied for schema public", "", "28")
-	if op.DetachNotices() != nil || e.CatalogRead().state != before.state {
+	if op.DetachNotices() != nil || e.CatalogRead().State() != before.State() {
 		t.Fatal("denied skip emitted notice or mutated catalog")
 	}
 	// Revoking USAGE removes public from the unqualified destination path.
@@ -420,7 +420,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	}
 	before = e.CatalogRead()
 	roleErrorPosition(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)", "3F000", "no schema has been selected to create in", "", "28")
-	if op.DetachNotices() != nil || e.CatalogRead().state != before.state {
+	if op.DetachNotices() != nil || e.CatalogRead().State() != before.State() {
 		t.Fatal("unselected skip emitted notice or mutated catalog")
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
@@ -473,7 +473,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			}
 			withPublicSchemaUnitOwner(t, e, "losing_creator", func() {
 				roleErrorPosition(t, e, loser, "CREATE TABLE IF NOT EXISTS contested_notice(lost TEXT)", code, message, "", "28")
-				if loser.DetachNotices() != nil || e.CatalogRead().state != winner.state {
+				if loser.DetachNotices() != nil || e.CatalogRead().State() != winner.State() {
 					t.Fatal("unauthorized conflict became skip or changed winner")
 				}
 			})

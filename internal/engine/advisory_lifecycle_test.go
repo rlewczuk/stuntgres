@@ -87,7 +87,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		t.Fatal(indexErr)
 	}
 	e.mu.Lock()
-	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
+	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.State()), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
 		for _, descriptor := range next.Descriptors() {
@@ -106,7 +106,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			}
 		}
 	}
-	epoch := e.catalog.state.epoch
+	epoch := e.catalog.state.Epoch()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

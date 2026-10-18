@@ -37,11 +37,11 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
 	first := &collationDescriptor{OID: 1, ObjectName: "same", Encoding: -1}
 	second := &collationDescriptor{OID: 2, ObjectName: "same", Encoding: 6}
-	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, names: map[ids.NameKey]ids.ObjectAddress{
+	state := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, map[ids.NameKey]ids.ObjectAddress{
 		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
-	}}
-	view := CatalogRead{state: state}
+	})
+	view := newCatalogRead(nil, state)
 	if !visibleCollation(view, []ids.ObjectAddress{a, b}, first) || visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("later exact beat earlier fallback")
 	}

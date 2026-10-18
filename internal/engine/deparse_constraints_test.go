@@ -379,7 +379,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 			t.Fatal(id, next, err)
 		}
 	}
-	bad := cloneCatalog(view.state)
+	bad := cloneCatalog(view.State())
 	copy := *d
 	copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
 	copy.CheckConstraints[0].OID = d.Defaults[1].OID

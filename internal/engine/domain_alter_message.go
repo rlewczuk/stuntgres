@@ -68,7 +68,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 	}
 	e := scope.op.session.Engine()
 	e.mu.Lock()
-	next := e.privateCatalogLocked(changes).state
+	next := e.privateCatalogLocked(changes).State()
 	e.mu.Unlock()
 	for address, rowShape := range stage.rowShapes {
 		writes, deletes := scope.columnProjectionRoots(address)
@@ -77,7 +77,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			return err
 		}
 		original, target := relationStorage{versions: writes}, relationStorage{versions: mapped}
-		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.base.state, next, &original, &target)
+		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.base.State(), next, &original, &target)
 		if err != nil {
 			return err
 		}
@@ -87,7 +87,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
 				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				shape.fills[attribute], err = reownDomainDatum(value, target.SQLType, nil, next.scalarImports, next.aclItemImport)
+				shape.fills[attribute], err = reownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return err
 				}

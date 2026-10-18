@@ -35,7 +35,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		{authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}}}, authorization.CreatePrivilege, 0},
 		{baseline, authorization.DatabasePrivileges, authorization.DatabasePublicPrivileges},
 	} {
-		candidate := cloneCatalog(base.state)
+		candidate := cloneCatalog(base.State())
 		next := *db
 		next.ACL = tc.acl
 		candidate.setDescriptor(currentDatabaseAddress, &next)
@@ -113,7 +113,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	if rights, err := auth.ownTemporaryPrivileges(); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
-	candidate := cloneCatalog(base.state)
+	candidate := cloneCatalog(base.State())
 	next := *candidate.MustDatabase(currentDatabaseAddress)
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.setDescriptor(currentDatabaseAddress, &next)

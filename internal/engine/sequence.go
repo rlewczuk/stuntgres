@@ -116,7 +116,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
@@ -553,7 +553,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.catalog.Epoch() != e.catalog.state.epoch {
+	if auth.catalog.Epoch() != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	for address := range checkStage.descriptors {
@@ -612,7 +612,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for address := range checkStage.removals {
 		targets = append(targets, address)
 	}
-	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.state, targets: targets})
+	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.State(), targets: targets})
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)

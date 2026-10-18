@@ -129,7 +129,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 // revisions may refresh authority before binding, never an already bound layout.
 func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
 	current, ok := catalog.Relation(source.ref.Address)
-	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
+	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.Epoch() || source.ref.Address.SubID != 0 ||
 		current.Address() != source.relation.Address() || current.Namespace() != source.relation.Namespace() || current.Name() != source.relation.Name() || current.RelationKind != source.relation.RelationKind ||
 		!sameRelationRowShape(current, source.relation) {
 		return nil, ids.ErrCatalogReplaced
@@ -210,7 +210,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 // commentEngine returns the engine whose catalog the comment snapshot was
 // captured from, or nil before capture.
 func (s *StatementScope) commentEngine() *Engine {
-	if s.commentCatalog.owner == nil {
+	if s.commentCatalog.Owner() == nil {
 		return nil
 	}
 	return s.op.session.Engine()
@@ -219,7 +219,7 @@ func (s *StatementScope) commentEngine() *Engine {
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across
 // query providers and completed-row CHECK evaluation. The caller holds e.mu.
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
-	if scope.commentCatalog.state == nil {
+	if scope.commentCatalog.State() == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
 		scope.commentRoles = e.roleRead(scope.commentCatalog, e.operationRolesLocked(scope.op))
 	}

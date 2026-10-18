@@ -475,7 +475,7 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 	}
 	slices.SortFunc(indexes[inline:], func(a, b *relationDescriptor) int {
 		priority := func(index *relationDescriptor) ids.OID {
-			if source := view.state.dumpPriorities[index.Address()]; source != 0 {
+			if source := view.State().DumpPriority(index.Address()); source != 0 {
 				return source
 			}
 			return index.Address().ObjectID

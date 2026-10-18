@@ -41,7 +41,7 @@ func TestCollationPrivateSessionIdentity(t *testing.T) {
 	roleIdentity(t, e, op, "postgres")
 	before := e.CatalogRead()
 	_, err = e.Execute(op, statement(t, `CREATE COLLATION pg_temp.private_recursive FROM pg_catalog."C"`), 0, nil)
-	if err == nil || !strings.Contains(err.Error(), "private maintenance cannot create a temporary namespace") || e.CatalogRead().state != before.state {
+	if err == nil || !strings.Contains(err.Error(), "private maintenance cannot create a temporary namespace") || e.CatalogRead().State() != before.State() {
 		t.Fatal("private session recursively created TEMP", err)
 	}
 	lockEmpty(t, e)
@@ -68,7 +68,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && privateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
-	if !valid || e.CatalogRead().state != before.state {
+	if !valid || e.CatalogRead().State() != before.State() {
 		t.Fatal("cleanup bypassed genuine AX or published before lock admission")
 	}
 	transactionEnd(t, peer, tx, false)
@@ -110,7 +110,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	if _, err := e.removeTemporaryNamespaceCandidate(private, base, []*namespaceDescriptor{ns}, children, owner.token); err == nil {
 		t.Fatal("late owned child was blind-deleted")
 	}
-	if e.CatalogRead().state != current.state {
+	if e.CatalogRead().State() != current.State() {
 		t.Fatal("stale candidate partially published namespace or children")
 	}
 	for _, name := range []string{"coll_cleanup_first", "coll_cleanup_late"} {
@@ -132,7 +132,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	sessionSQL(t, owner, `INSERT INTO coll_cleanup_exhausted_t VALUES(7,'é')`)
 	e.mu.Lock()
 	state := cloneCatalog(e.catalog.state)
-	state.namespaceGeneration = ^uint64(0)
+	state.SetNamespaceGeneration(^uint64(0))
 	e.catalog.state = state
 	e.mu.Unlock()
 	before := e.CatalogRead()
@@ -145,7 +145,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 		t.Fatal("child-only cleanup failed at namespace-generation exhaustion", err)
 	}
 	after := e.CatalogRead()
-	if after.state == before.state || after.state.namespaceGeneration != ^uint64(0) || owner.temporaryNamespace != (ids.ObjectAddress{}) {
+	if after.State() == before.State() || after.State().NamespaceGeneration() != ^uint64(0) || owner.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("cleanup fabricated namespace event or retained active authority")
 	}
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)

@@ -267,7 +267,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.Domain.Ref(old.Epoch, old.Address)
+			old = view.Owner().Domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}

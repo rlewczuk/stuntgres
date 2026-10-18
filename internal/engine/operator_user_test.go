@@ -68,7 +68,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	if !errors.As(err, &d) || d.Code != "42P13" || d.Message != "only boolean operators can have negators" {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().state != auth.catalog.state {
+	if e.CatalogRead().State() != auth.catalog.State() {
 		t.Fatal("failed stage published")
 	}
 }
@@ -475,7 +475,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	before := e.CatalogRead()
 	cancel()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
-	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
+	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("canceled publication changed operator authority", changes, err)
 	}
 	e.DiscardCatalogStage(stage)
@@ -497,7 +497,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	if _, err = e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("foreign principal adopted")
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("invalid principal stage published")
 	}
 }
@@ -518,7 +518,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	if d.Address().ClassID != ids.OperatorClassID || d.Function != 65 || d.Commutator != d.Address().ObjectID {
 		t.Fatal("self link must select the exact existing definition", d)
 	}
-	base := auth.catalog.state
+	base := auth.catalog.State()
 	stage = e.BeginCatalogStage(auth.catalog)
 	e.mu.Lock()
 	err = e.stageCreateOperatorLocked(op, auth, stage, create)
@@ -527,7 +527,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "operator #=# already exists" {
 		t.Fatal("duplicate must fail before catalog publication", err)
 	}
-	if e.CatalogRead().state != base {
+	if e.CatalogRead().State() != base {
 		t.Fatal("duplicate changed the published catalog")
 	}
 	stage = e.BeginCatalogStage(auth.catalog)

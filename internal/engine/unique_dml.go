@@ -14,7 +14,7 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, C
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return nil, CatalogRead{}, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
@@ -50,17 +50,17 @@ retry:
 	if err != nil {
 		return nil, err
 	}
-	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.state {
+	if b := s.uniqueBinding; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.State() {
 		return b, nil
 	}
-	if b := s.indexBindings[ref.Address]; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.state {
+	if b := s.indexBindings[ref.Address]; b != nil && b.ref == ref && b.parent == parent && b.catalog == view.State() {
 		s.uniqueBinding = b
 		return b, nil
 	}
 	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.ref == ref {
 		overlay.overlays = nil
 	}
-	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.state}
+	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.State()}
 	var indexes []*relationDescriptor
 	var checkedNonunique []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
@@ -186,7 +186,7 @@ retry:
 	if b.checked {
 		e := s.op.session.Engine()
 		e.mu.Lock()
-		if e.privateCatalogLocked(s.owner.catalog).state != view.state {
+		if e.privateCatalogLocked(s.owner.catalog).State() != view.State() {
 			e.mu.Unlock()
 			goto retry
 		}
@@ -411,12 +411,12 @@ retry:
 			return uniqueConflict{}, err
 		}
 		e.mu.Lock()
-		if ref.Epoch != e.catalog.state.epoch {
+		if ref.Epoch != e.catalog.state.Epoch() {
 			e.mu.Unlock()
 			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
 		current := e.privateCatalogLocked(s.owner.catalog)
-		if current.state != binding.catalog {
+		if current.State() != binding.catalog {
 			e.mu.Unlock()
 			s.uniqueBinding = nil
 			goto retry

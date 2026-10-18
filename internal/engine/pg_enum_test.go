@@ -104,7 +104,7 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_enum")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func TestPGEnumShapeAndCapture(t *testing.T) {
@@ -228,7 +228,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.catalog.state
-	invalidOwner.descriptors = make(map[ids.ObjectAddress]Descriptor, e.catalog.state.DescriptorCount())
+	invalidOwner.resetDescriptors(e.catalog.state.DescriptorCount())
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		invalidOwner.setDescriptor(address, descriptor)
 	}

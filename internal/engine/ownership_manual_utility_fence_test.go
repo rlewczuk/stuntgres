@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
@@ -132,7 +133,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	}
 	ownershipUnitPublish(t, e, stage)
 	e.DiscardCatalogStage(stage)
-	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.epoch != before.roots.catalog.epoch {
+	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != before.roots.catalog.Epoch() {
 		t.Fatal("database replacement changed role/session/epoch authority")
 	}
 	for address, descriptor := range before.roots.catalog.Descriptors() {
@@ -160,7 +161,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 
 func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed Descriptor, old *relationDescriptor, retainedACL authorization.ACLValue, retainedOptions sequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
-	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.epoch != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions {
+	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
 	if session.sequences[sequence.Address] != before.memory || *before.memory != before.memoryValue || session.lastSequence != before.last {
@@ -299,7 +300,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 								t.Fatal("veto installed retained row prefix")
 							}
 						}
-						if len(e.sequences) != len(before.generators) || !reflect.DeepEqual(e.catalog.state.names, before.roots.catalog.names) {
+						if len(e.sequences) != len(before.generators) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Names()), maps.Collect(before.roots.catalog.Names())) {
 							t.Fatal("veto installed sequence generator/name prefix")
 						}
 					} else {

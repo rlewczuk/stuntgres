@@ -109,7 +109,7 @@ func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 		if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 			t.Fatal("invalid column type accepted", usage)
 		}
-		if e.CatalogRead().state != base.state {
+		if e.CatalogRead().State() != base.State() {
 			t.Fatal("invalid type published")
 		}
 	}
@@ -152,7 +152,7 @@ func TestFloatFailedRestorePreservesEpochAndCatalog(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore")
 		}
-		if current := e.CatalogRead(); current.state != before.state || current.Epoch() != before.Epoch() {
+		if current := e.CatalogRead(); current.State() != before.State() || current.Epoch() != before.Epoch() {
 			t.Fatal("failed float restore changed catalog generation")
 		}
 		var dump bytes.Buffer

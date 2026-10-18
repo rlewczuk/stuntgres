@@ -224,11 +224,11 @@ func TestConcurrentIndexU7OrdinaryUniqueUsesPublicParseAndExecute(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	op := transactionOperation(t, s)
 	result, err := e.Execute(op, statements[0], 0, nil)
 	op.Done()
-	if err != nil || result.Count != 0 || e.CatalogRead().state == before {
+	if err != nil || result.Count != 0 || e.CatalogRead().State() == before {
 		t.Fatal("ordinary UNIQUE public execution", result, err)
 	}
 	index, _ := concurrentUnitIndex(t, e, "ui", true, true)
@@ -248,12 +248,12 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 	concurrentUnitError(t, a, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n)", "23505")
 	sessionSQL(t, b, "CREATE TABLE sentinel(n INT)")
 	sessionSQL(t, b, "INSERT INTO sentinel VALUES(9)")
-	sourceState, targetState := source.CatalogRead().state, target.CatalogRead().state
+	sourceState, targetState := source.CatalogRead().State(), target.CatalogRead().State()
 	oldOID, oldRevision, oldRow, oldVersion := target.catalog.nextOID, target.catalog.nextRevision, target.nextRow, target.nextVersion
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("invalid source was imported/healed")
 	}
-	if target.CatalogRead().state != targetState || source.CatalogRead().state != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {
+	if target.CatalogRead().State() != targetState || source.CatalogRead().State() != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {
 		t.Fatal("failed replacement changed source or destination authority")
 	}
 	for _, stream := range []string{
@@ -264,7 +264,7 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 		if err := target.Restore(context.Background(), strings.NewReader(stream)); err == nil {
 			t.Fatal("invalid isolated stream succeeded", stream)
 		}
-		if target.CatalogRead().state != targetState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision {
+		if target.CatalogRead().State() != targetState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision {
 			t.Fatal("isolated failed stream mutated destination", stream)
 		}
 	}
@@ -370,7 +370,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 				}
 			}
 			retained, absent := concurrentUnitIndex(t, e, "ui", false, false)
-			if retained != original || absent != nil || e.CatalogRead().state != base.state {
+			if retained != original || absent != nil || e.CatalogRead().State() != base.State() {
 				t.Fatal("final veto/source conflict mutated committed phase")
 			}
 			lockEmpty(t, e)

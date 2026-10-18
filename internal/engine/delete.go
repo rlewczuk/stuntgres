@@ -105,7 +105,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Epoch != e.catalog.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Epoch != e.catalog.state.Epoch() || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -142,7 +142,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.ref.Epoch != e.catalog.state.epoch || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.ref.Epoch != e.catalog.state.Epoch() || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return false, ids.ErrCatalogReplaced
 	}
 	if s.view == nil {
@@ -410,11 +410,11 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
 	data := pin.read()
-	if data.catalog.owner == nil {
+	if data.catalog.Owner() == nil {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility catalog")
 	}
-	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.Domain || ref.Epoch != data.catalog.Epoch() {
+	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.Owner().Domain || ref.Epoch != data.catalog.Epoch() {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}

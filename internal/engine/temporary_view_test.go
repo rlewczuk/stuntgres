@@ -60,7 +60,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	candidate := cloneCatalogChanges(changes)
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, candidate)
 	}
@@ -99,7 +99,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -108,7 +108,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
-	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, changes)
+	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err = e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err = e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -160,7 +160,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	e, _, changes, table, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT v FROM pg_temp.candidate WHERE v>0")
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -169,8 +169,8 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := cloneCatalog(before.state)
-	next.epoch++
+	next := cloneCatalog(before.State())
+	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	ref := viewOf(view).sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
@@ -184,7 +184,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
-	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(ref.Epoch, ref.Address), e.catalog.Domain.Ref(next.epoch+1, ref.Address), e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address().ObjectID, SubID: 99})} {
+	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(ref.Epoch, ref.Address), e.catalog.Domain.Ref(next.Epoch()+1, ref.Address), e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address().ObjectID, SubID: 99})} {
 		if storedViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}
@@ -205,7 +205,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	e, _, changes, _, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT 11 AS v FROM pg_catalog.pg_class WHERE relname='candidate_view'")
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -214,8 +214,8 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := cloneCatalog(before.state)
-	next.epoch++
+	next := cloneCatalog(before.State())
+	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	ref := viewOf(view).sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {

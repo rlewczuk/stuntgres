@@ -23,7 +23,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	putFixtureRole(roles, bootstrap)
 	successor := e.authorizationDomain.Principal(100001)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
-	before := cloneCatalog(auth.catalog.state)
+	before := cloneCatalog(auth.catalog.State())
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	namespace := *before.MustNamespace(address)
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.Owner, Grantee: authorization.ACLGrantee{Role: namespace.Owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}

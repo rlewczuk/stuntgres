@@ -80,7 +80,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					cancel()
 				case "epoch":
 					next := *e.catalog.state
-					next.epoch++
+					next.SetEpoch(next.Epoch() + 1)
 					e.catalog.state = &next
 					original = e.catalog.state
 				case "xid":

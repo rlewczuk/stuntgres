@@ -229,7 +229,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			return nil, err
 		}
 	}
-	e.catalog.state = &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
+	e.catalog.state = newCatalogState(1)
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
@@ -462,7 +462,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, composites: b.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.Owner(), catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, composites: b.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))

@@ -31,6 +31,15 @@ func (s *catalogState) unbindName(k ids.NameKey) { delete(s.names, k) }
 // shared.
 func (s *catalogState) cloneDescriptors() { s.descriptors = maps.Clone(s.descriptors) }
 
+// cloneNames gives s its own copy of its name map. Descriptors stay shared.
+func (s *catalogState) cloneNames() { s.names = maps.Clone(s.names) }
+
+// resetDescriptors gives s an empty descriptor map with room for capacity
+// entries. Names stay shared.
+func (s *catalogState) resetDescriptors(capacity int) {
+	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
+}
+
 // resetMaps gives s empty descriptor and name maps with room for capacity
 // entries and returns the previous descriptor map, which s no longer uses.
 func (s *catalogState) resetMaps(capacity int) map[ids.ObjectAddress]Descriptor {

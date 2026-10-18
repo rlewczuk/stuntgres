@@ -36,7 +36,7 @@ func TestCheckReviewReplayHistoryFailurePreservesDestination(t *testing.T) {
 	err := target.Restore(ctx, bytes.NewReader(dump.Bytes()))
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: "Failing row contains (9).", Schema: "public", Table: "t", Constraint: "c"})
 	after := target.CatalogRead()
-	if after.state != before.state || after.Epoch() != before.Epoch() || target.storage[ref.Address] != storage {
+	if after.State() != before.State() || after.Epoch() != before.Epoch() || target.storage[ref.Address] != storage {
 		t.Fatal("failed volatile replay replaced destination")
 	}
 	if err := target.ValidateObjectRef(after, ref); err != nil {

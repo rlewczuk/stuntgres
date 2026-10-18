@@ -77,7 +77,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if err != nil || len(rows.anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
 	}
-	removed := cloneCatalog(view.state)
+	removed := cloneCatalog(view.State())
 	removed.removeDescriptor(proc.Address())
 	removed.unbindName(descriptorNameKey(proc))
 	retired := e.catalog.read(removed)
@@ -118,7 +118,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		owned := *proc.Aggregate
 		mutate(&owned)
 		bad.Aggregate = &owned
-		state := cloneCatalog(view.state)
+		state := cloneCatalog(view.State())
 		state.setDescriptor(proc.Address(), &bad)
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
@@ -131,13 +131,13 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		} else {
 			bad.Aggregate = proc.Aggregate
 		}
-		state := cloneCatalog(view.state)
+		state := cloneCatalog(view.State())
 		state.setDescriptor(member, &bad)
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
-	collision := cloneCatalog(view.state)
+	collision := cloneCatalog(view.State())
 	helper := proc.Aggregate.Helpers[0]
 	namespace := *view.MustNamespace(proc.Namespace())
 	namespace.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.ID}
@@ -217,7 +217,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	if err := stockIntagg.stage(e, stage, ext, ext.Owner, AuthorizationView{}); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
-	if e.catalog.state != before.state {
+	if e.catalog.state != before.State() {
 		t.Fatal("failed provider published partial installation")
 	}
 	for _, d := range e.catalog.state.Descriptors() {

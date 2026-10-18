@@ -145,7 +145,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				defer target.replacementMu.Unlock()
 				target.mu.Lock()
 				defer target.mu.Unlock()
-				next, err := target.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
+				next, err := target.remapPreparedCatalog(cloneCatalog(replacement.State()), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
 				}
@@ -198,7 +198,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if target.CatalogRead().state != before.state || target.storage[ref.Address] != storage || target.commitSeq != frontier {
+				if target.CatalogRead().State() != before.State() || target.storage[ref.Address] != storage || target.commitSeq != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
 				}
 				if err = target.ValidateObjectRef(before, ref); err != nil {
@@ -214,7 +214,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				controlsRequire(t, a, "COMMIT")
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
 			}
-			if retained.count != 1 || retained.source.view.read().catalog.state != before.state || testExport(storage.versions[0].values[0]) != int64(77) {
+			if retained.count != 1 || retained.source.view.read().catalog.State() != before.State() || testExport(storage.versions[0].values[0]) != int64(77) {
 				t.Fatal("retained generation changed")
 			}
 		})

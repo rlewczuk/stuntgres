@@ -48,9 +48,9 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					e.catalog.state.setDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.setDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.state.epoch
-					e.catalog.state.epoch++
-					restore = func() { e.catalog.state.epoch = original }
+					original := e.catalog.state.Epoch()
+					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
+					restore = func() { e.catalog.state.SetEpoch(original) }
 				case "teardown":
 					op.session.RequestEnd(CleanClose)
 				}

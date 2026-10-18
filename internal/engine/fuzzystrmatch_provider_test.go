@@ -341,7 +341,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	// between the two catalogs' immutable builtin descriptors.
 	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
 	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
-	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
 	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.Address() || n.ref.Domain() != target.catalog.Domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {

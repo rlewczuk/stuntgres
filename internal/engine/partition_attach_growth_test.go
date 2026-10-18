@@ -106,7 +106,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate = e.catalog.state.MustRelation(candidate.Address())
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, old.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Address())
 			partitionAttachUnitGrant(t, holder, ref, lock.AccessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.Address()
@@ -245,7 +245,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target = e.catalog.state.MustRelation(target.Address())
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := e.catalog.Domain.Ref(e.catalog.state.epoch, leaf.Address())
+			leafRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), leaf.Address())
 			targetRef := leafRef
 			targetRef.Address = target.Address()
 			partitionAttachUnitGrant(t, holder, leafRef, lock.AccessShare)

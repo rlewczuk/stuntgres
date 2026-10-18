@@ -36,7 +36,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	for _, dependency := range table.CheckConstraints[0].Dependencies {
 		if dependency.Ref.Address == identity.Sequence {
 			found = true
-			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.epoch || dependency.Revision != provider.Revision() {
+			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.Epoch() || dependency.Revision != provider.Revision() {
 				t.Fatal("CHECK did not capture exact candidate provider", dependency)
 			}
 		}
@@ -291,7 +291,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	if visible, err := binder.builtinVisible(qualified.Name, functionLookup); err != nil || visible {
 		t.Fatal("builtin namespace lookup ignored candidate authority", visible, err)
 	}
-	if e.catalog.state != read.state || e.catalog.state.Get(address) != original || e.sequences[address].called {
+	if e.catalog.state != read.State() || e.catalog.state.Get(address) != original || e.sequences[address].called {
 		t.Fatal("binding published or evaluated the candidate")
 	}
 }
