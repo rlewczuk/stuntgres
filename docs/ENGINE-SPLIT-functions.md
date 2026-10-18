@@ -60,14 +60,13 @@ legality have one protocol branch each.
 
 State after the second F2 session: deparse (`deparse_renderer.go`) and
 node-tree output (`deparse_tree.go`) read one `expr.Rendering` value per node
-through the `expr.Renderable` hook. Still to do:
+through the `expr.Renderable` hook.
 
-- stored scalar SQL (`scalar_function_sql.go` and the function cases of
-  `default.go`, which the list above missed) adopts the same `Rendering`,
-  extended with what replay needs (see the session 2 notes); its output must
-  stay byte-identical;
-- removing `Arguments()` where it duplicates `Children()`, once no switch
-  calls it (preflight and aggregate binding still do).
+State after the third F2 session: stored scalar SQL (`scalar_function_sql.go`
+and the function cases of `default.go`) reads the same `Rendering`, extended
+with `Replay`, and its helpers are gone. Still to do: removing `Arguments()`
+where it duplicates `Children()`, once no switch calls it (preflight and
+aggregate binding still do).
 
 ### F3 — Binder interface and registry, with a pilot family
 
@@ -154,11 +153,12 @@ Tier C has a refined plan.
   `functionInfo`, docs `937962c4f`)
 - [ ] F2 — Switches converted: [x] retag [x] remap [x] volatility
   [x] deparse [x] node tree [x] generated admission [x] conditional plan
-  [x] join legality [ ] stored scalar SQL (session 1: `c6de24e8f` members,
+  [x] join legality [x] stored scalar SQL (session 1: `c6de24e8f` members,
   `144458647` join, `5d7935b7d` volatility, `4c54eaf54` conditional,
   `1fa051e96` generated, `1e6bd8aec` retag, `c703fd8d9` remap, `09fc24b0a`
   math helpers, docs `ec2fba8bd`; session 2: `68cbeefed` node tree,
-  `42ec6b7e5` deparse, then the docs commit)
+  `42ec6b7e5` deparse, then the docs commit; session 3: `2e7673441`
+  replay protocol, `cca30a78c` stored scalar SQL, then the docs commit)
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
@@ -1213,6 +1213,88 @@ Notes for later steps (F2):
   above can go.
 - `Arguments()` still duplicates `Children()` on several nodes; preflight in
   `expression.go` and `aggregate_bind.go` still call it.
+
+F2 session 3 record (stored scalar SQL), measured at its start on
+`423c4a9da` and rebased onto `5fdfd0f0c`:
+
+- Function-node cases removed: 37 in `scalarFunctionSQL` and 16 in
+  `scalarRenderer.sql` (plus 34 function types from its shared case list).
+  `sql` routes a final `case expr.Renderable:` to `scalarFunctionSQL`, whose
+  explicit SQLJSON, installed-wrapper and engine-node cases precede its own
+  protocol branch; `scalar_rendering.go` interprets the `Rendering`.
+  `scalarFunctionSQL` lost its unused usage parameter.
+- Protocol: `Rendering.Replay` and three `RenderArg` fields (see the `expr`
+  README). `Replay.Validate` is lazy: the stored checks rebind providers
+  (String, Math, Enum, Binary, ranges, arrays) and are stricter than display.
+  Running them inside `Render` panicked on partially built unit-test nodes
+  and could have added deparse failures, so display never calls them and
+  deparse and node-tree output are unchanged.
+- Corrections to the session 2 notes: replay renders every argument in
+  order before assembling the form, because the POSITION and TRIM templates
+  reference arguments out of order and NORMALIZE's form literal is still
+  captured though not printed (CHECK-literal `$n` numbering and dependency
+  order depend on it). Replay always quotes labels (`quoteIdentifier`), while
+  display quotes them when needed. Operator schemas differ by node: array and
+  range operators always quote a written schema, POSIX operators quote it when
+  needed, and binary and string operators always write
+  `OPERATOR(pg_catalog.op)`; those two now state the `pg_catalog` schema,
+  which display already shows bare. Set-returning nodes that the old
+  `default.go` list left out (RegexpSet, JSONBPathQuery, the JSON key, each
+  and element sets, JSONBRecord) refuse through `Replay.Validate` with the
+  old "unsupported stored default node". SQLJSON keeps its explicit case, as
+  the JSON operators record expected.
+- Messages changed only for corrupted nodes: a foreign pg_sleep clock type is
+  now "foreign stored function type", and nodes whose `Render` already
+  validated report that error before the replay checks.
+- Deleted: `binary_render.go` (`renderBinaryCall`),
+  `datetime_make_render.go`, `datetime_extract_render.go`, `regexpSQL`,
+  `stringSpecialSQL`, `trimSyntaxSQL`, `stringArgumentSQL`,
+  `versionInformationSQL`, `datetimeOverlapsLogicalSQL`, `rangeOperatorSQL`
+  and the `functions` stored-SQL renderers (`JSONStripNullsSQL`,
+  `JSONExtractSQL`, the `JSONBPath*SQL`, `JSONBSetSQL`, `ArrayInspectSQL`,
+  `ArrayRandomSQL`, `ArrayTransformSQL`, `ArraySearchSQL`). The remaining
+  child mappers moved to `json_extract_children.go` and
+  `array_node_children.go`. `CurrentDateTimeSQL` and `TransactionTimeSQL` are
+  private. Raw view deparse spells SQL-standard calls through the exported
+  `functions.SyntaxPieces` and `TrimPieces` and the engine's `templateSQL`.
+- Byte identity: a throwaway probe (not committed) put 334 expressions,
+  covering every node and form (labels, VARIADIC, the SQL-standard
+  syntaxes, NORMALIZE and IS NORMALIZED, SIMILAR with and without ESCAPE,
+  EXTRACT, OVERLAPS, `^@`, schema-qualified operators, NULL uuidv7 shifts,
+  format/concat/JSON creation literals, regclass arguments, pg_size_pretty,
+  num_nulls field notation and the set-returning refusals) into DEFAULTs,
+  column and literal CHECKs, STORED and VIRTUAL generated columns,
+  expression indexes and domain CHECKs, then after `ALTER COLUMN TYPE`. It
+  rendered every stored definition with plain, flag-collecting, owner,
+  CHECK-literal and replay-precision renderers, printing text, error,
+  dependency order and the comment, visibility and alias flags (11,520
+  successful renders), plus native Dump output. Master and the branch
+  matched on both bases, except one unreachable path: a SIMILAR whose
+  normalizer the planner folded away fails with the same error but no
+  longer records the left operand's dependencies first; stored SQL never
+  renders planned forms.
+
+Tests in F2 session 3: added `functions/render_replay_test.go`
+(`TestRenderReplayForms`, `TestRenderReplayNames`,
+`TestRenderReplayOperatorSchemas`, `TestRenderReplayTransport`,
+`TestRenderReplaySnapshots`, `TestRenderReplayFaults`), which failed before
+the nodes stated their replay form. Adapted, because they called deleted
+helpers: the position check in `TestBitStringFunctionsBindingAndReownership`
+and `TestRangeOperatorRetagAndStoredAuthority` now render through
+`scalarFunctionSQL` (the latter asserts the real, quoted
+`OPERATOR("pg_catalog".+)`), and the array_sample, JSON extraction, current
+datetime and transaction time checks read `Render`. Ten call sites in eight files dropped
+the usage argument. No test moved or was deleted; no reference test changed.
+
+Verification in F2 session 3: `make quickcheck` passed before and after the
+rebase (44 packages); `make deps` lists only module paths; `functions` and
+`expr` import no engine state packages. `REFERENCE=1` selections
+`^TestReference(View|Generated|Default|Check|Deparse)`,
+`^TestReference(Datetime|Regexp|Regex|Similar|Posix|Timezone|AtTimeZone|String)`,
+`^TestReference(Binary|Array|Range|JSON|Math|Format|UUID|Network|Enum|Random|NullCount)`
+and `^TestReference.*(Dump|Restore|StoredConsumers)` passed on both backends
+with no failures. Racecheck skipped at the user's request; no bench (stored
+SQL is not on the startup path).
 
 F4/F5 JSON operators, SQL/JSON constructors and `IS JSON` record, measured
 at its start on `91357248c` (after every other Tier A family):

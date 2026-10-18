@@ -347,9 +347,9 @@ the remaining processing calls (typeof, length, keys, each, elements, JSON
 records). `json_object`/`jsonb_object` sat in the final switch, so they use
 `ExactSpelling` and `SharedGates`. The slot calls (`jsonb_set*`, JSONPath
 calls, `json_strip_nulls`) share `bindSlots` in `json_slot_bind.go`.
-`json_sql.go` exports their stored-SQL renderers, `MapJSONExtractChildren`
-and `JSONBPathQueryName` for the engine's stored scalar SQL, preflight and
-aggregate-binding switches until they adopt the protocol.
+`json_extract_children.go` exports `MapJSONExtractChildren` for the engine's
+preflight switch until it adopts the protocol; `JSONBPathQueryName` serves
+aggregate binding.
 
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
@@ -515,9 +515,8 @@ extension routines keep their engine wrapper nodes (for example
 validation and stored identity; registered bind code reaches them only through
 `InstalledRoutine`. UUID and pgcrypto DEFAULT admission (`closedUUIDDefault`,
 `closedPgcryptoDefault`) stay with the engine's DEFAULT binder. Stored scalar
-SQL (`scalar_function_sql.go` and the function cases of `default.go`) still
-lists function nodes and keeps its helpers (`renderBinaryCall`, `regexpSQL`,
-`datetimeMakeSQL`, `stringSpecialSQL`) until it adopts `expr.Rendering`.
+SQL replays function nodes from their `expr.Rendering` (`Replay` in the
+`expr` README); a node states its stored form there, next to its display.
 The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
 (`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
 the engine; preflight, grouping, DEFAULT closure, index inquiry and view
@@ -526,8 +525,7 @@ literal capture name `SQLJSON`/`JSONPredicate` explicitly.
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine: `random.go`, the `EvalContext` clock and sleep methods in
 `transaction_time.go`, and the closed DEFAULT admission of clock and sleep
-calls (`closedTransactionTimeDefault`). `TransactionTimeSQL` and
-`CurrentDateTimeSQL` are exported for the engine's stored scalar SQL switch. Function evaluation borrows the same owners only when demanded. Literal
+calls (`closedTransactionTimeDefault`). Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate
 providers own execution-local state; the engine owns FILTER/DISTINCT/ORDER,
 grouping, windows and state lifetime: `finishAggregate`, `ownAggregate`, the
@@ -548,9 +546,8 @@ exported: `FinishArrayTransform` (the `||` operator), `ArraySearchNode` (the
 not registered: their operands are analyzed with string intents, and they
 move with the string family. `unnest` and `generate_subscripts` stay with the
 engine's set-returning functions, and the array/range operators with operator
-binding. `array_node_sql.go` holds the array nodes' child-mapping and SQL
-helpers for the engine's preflight and stored scalar SQL switches until they
-adopt the protocol.
+binding. `array_node_children.go` holds the array nodes' child-mapping
+helpers for the engine's preflight switch until it adopts the protocol.
 
 ## Family notes
 
@@ -680,6 +677,7 @@ Node protocol on function nodes:
 ```sh
 make check RUN='^Test(Composite|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|StringVariadicAnnotationRoundTrip|Render)'
 make check RUN='^TestReference(DeparseConstraints|DeparseRelations|View|Generated|Default|Check)'
+make check RUN='^TestReference.*(Dump|Restore|StoredConsumers)'
 ```
 
 JSON/JSONB function calls (registry; the engine's `TestJSON*` bind through
