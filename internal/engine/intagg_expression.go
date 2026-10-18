@@ -36,20 +36,8 @@ func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call
 }
 
 func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
-	if b.aggregateClause == "INSERT VALUES" && b.queryNamespace == nil {
-		// As with SUM/bitwise aggregates, VALUES has no input namespace.
-		// Destination columns are inaccessible diagnostic candidates only.
-		b.queryNamespace = &queryNamespace{}
-		hidden := b.queryHidden
-		if target := b.insertTarget; target != nil {
-			columns := make([]queryColumn, len(target.columns))
-			for i, descriptor := range target.columns {
-				columns[i].descriptor = descriptor
-			}
-			b.queryHidden = append(b.queryHidden, queryQualifier{name: target.name, columns: columns, lateralForbidden: true})
-		}
-		defer func() { b.queryNamespace, b.queryHidden = nil, hidden }()
-	}
+	// As with SUM/bitwise aggregates, VALUES has no input namespace.
+	defer b.valuesAggregateNamespace()()
 	callRaw := parser.FunctionExpr{Name: name, Args: raw.Args, Star: raw.Star, Variadic: raw.Variadic, Pos: raw.Pos}
 	arg, proc, ref, filter, err := b.resolveIntaggAggregate(raw, callRaw)
 	if err != nil {
