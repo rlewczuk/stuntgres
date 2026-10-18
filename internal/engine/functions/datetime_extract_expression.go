@@ -180,6 +180,17 @@ func (e DatetimeExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 	return rebuilt(node, err)
 }
 
-func (e DatetimeExtract) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+func (e DatetimeExtract) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
 
 func (e DatetimeExtract) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeExtract) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, planChanged, err := e.Reconstruct(info, args, env.Type)
+	return retagged(node, changed || planChanged, err)
+}

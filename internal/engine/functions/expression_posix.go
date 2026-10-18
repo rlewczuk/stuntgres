@@ -135,8 +135,36 @@ func (e Posix) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) 
 	return rebuilt(e.Reconstruct(info, children[0], children[1], e.Provider.Collation(), e.Provider.Conflict()))
 }
 
-func (e Posix) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e Posix) IntrinsicVolatility() expr.Volatility          { return expr.Immutable }
 func (e PosixSubstring) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
-func (e Posix) ValidateStoredProvider() error { return nil }
+func (e Posix) ValidateStoredProvider() error          { return nil }
 func (e PosixSubstring) ValidateStoredProvider() error { return nil }
+
+// Retag recomputes the input collation from the retagged operands.
+func (e Posix) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	if !changed {
+		return e, false, nil
+	}
+	collation, err := env.Collated(expr.Info{Usage: children[0].ResultUsage(), Pos: info.Pos}, children...)
+	if err != nil {
+		return nil, false, err
+	}
+	node, err := e.Reconstruct(info, children[0], children[1], collation.Usage.Collation, collation.CollationConflict)
+	return retagged(node, true, err)
+}
+
+// Retag derives the result collation from the retagged operands.
+func (e PosixSubstring) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	if !changed {
+		return e, false, nil
+	}
+	info, err := env.Collated(info, children...)
+	if err != nil {
+		return nil, false, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, err := e.Reconstruct(info, args)
+	return retagged(node, true, err)
+}

@@ -350,3 +350,25 @@ func (e Math) StrictNull() expr.Strict {
 }
 
 func (e Math) ValidateStoredProvider() error { return nil }
+
+// Retag remaps the comparison collation and recomputes the wrapper context
+// from the retagged arguments.
+func (e Math) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	ref, conflict := e.Plan.InputCollation()
+	next, err := env.Collation(ref)
+	if err != nil {
+		return nil, false, err
+	}
+	if !changed && next == ref {
+		return e, false, nil
+	}
+	if err := checkPresent("stuntgres: invalid remapped math argument", children); err != nil {
+		return nil, false, err
+	}
+	node, err := e.Reconstruct(info, children, next, conflict)
+	if err != nil {
+		return nil, false, err
+	}
+	node.WrapperContext = MathWrapperContext(node.Plan.Name(), node.Args)
+	return node, true, nil
+}

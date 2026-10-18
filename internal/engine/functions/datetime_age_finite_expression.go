@@ -215,8 +215,19 @@ func (e DatetimeAgeFinite) Rebuild(info expr.Info, children []expr.Expr) (expr.E
 	return rebuilt(node, err)
 }
 
-func (e DatetimeAgeFinite) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+func (e DatetimeAgeFinite) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
 
 func (e DatetimeAgeFinite) StrictNull() expr.Strict { return expr.StrictAfter }
 
 func (e DatetimeAgeFinite) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeAgeFinite) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, planChanged, err := e.Reconstruct(info, args, env.Type)
+	return retagged(node, changed || planChanged, err)
+}

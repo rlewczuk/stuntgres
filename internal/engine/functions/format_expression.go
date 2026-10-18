@@ -120,3 +120,11 @@ func (e Format) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 func (e Format) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (e Format) ValidateStoredProvider() error { return nil }
+
+// Retag retains the INT4 descriptor generation.
+func (e Format) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	int4 := env.Type(e.Int4)
+	changed = changed || int4 != e.Int4
+	e.Info, e.Args, e.Int4 = info, children, int4
+	return e, changed, nil
+}

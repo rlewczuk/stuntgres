@@ -51,3 +51,12 @@ func stableIf(stable bool) expr.Volatility {
 	}
 	return expr.Immutable
 }
+
+// retagged returns the node a Retag hook rebuilt, keeping the caller's change
+// bit.
+func retagged[T expr.Expr](node T, changed bool, err error) (expr.Expr, bool, error) {
+	if err != nil {
+		return nil, false, err
+	}
+	return node, changed, nil
+}

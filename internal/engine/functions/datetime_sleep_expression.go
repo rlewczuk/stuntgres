@@ -248,3 +248,15 @@ func (x DatetimeSleep) IntrinsicVolatility() expr.Volatility { return x.Property
 func (x DatetimeSleep) StrictNull() expr.Strict { return expr.StrictAfterBare }
 
 func (x DatetimeSleep) PlanningFold() expr.Fold { return expr.FoldNever }
+
+// Retag retains the clock descriptor generation.
+func (x DatetimeSleep) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	clock := x.ClockUsage
+	clock.Type = env.Type(clock.Type)
+	changed = changed || clock.Type != x.ClockUsage.Type
+	if !changed {
+		return x, false, nil
+	}
+	node, err := x.Reconstruct(info, children[0], clock)
+	return retagged(node, true, err)
+}

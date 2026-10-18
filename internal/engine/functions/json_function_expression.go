@@ -212,12 +212,12 @@ func NewJSONBElements(info expr.Info, name string, arg expr.Expr) (JSONBElements
 	return JSONBElements{info, plan, []expr.Expr{arg}}, nil
 }
 
-func (e JSONKeys) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e JSONEach) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e JSONElements) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e JSONKeys) IntrinsicVolatility() expr.Volatility      { return expr.Immutable }
+func (e JSONEach) IntrinsicVolatility() expr.Volatility      { return expr.Immutable }
+func (e JSONElements) IntrinsicVolatility() expr.Volatility  { return expr.Immutable }
 func (e JSONBElements) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
-func (e JSONKeys) PlanningFold() expr.Fold { return expr.FoldNever }
-func (e JSONEach) PlanningFold() expr.Fold { return expr.FoldNever }
-func (e JSONElements) PlanningFold() expr.Fold { return expr.FoldNever }
+func (e JSONKeys) PlanningFold() expr.Fold      { return expr.FoldNever }
+func (e JSONEach) PlanningFold() expr.Fold      { return expr.FoldNever }
+func (e JSONElements) PlanningFold() expr.Fold  { return expr.FoldNever }
 func (e JSONBElements) PlanningFold() expr.Fold { return expr.FoldNever }

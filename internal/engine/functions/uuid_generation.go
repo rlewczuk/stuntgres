@@ -206,3 +206,15 @@ func (e UUIDGeneration) IntrinsicVolatility() expr.Volatility { return e.Propert
 func (e UUIDGeneration) StrictNull() expr.Strict { return expr.StrictAfter }
 
 func (e UUIDGeneration) PlanningFold() expr.Fold { return expr.FoldNever }
+
+// Retag retains the timestamp descriptor generation.
+func (e UUIDGeneration) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	if len(children) == 0 {
+		e.Info = info
+		return e, changed, nil
+	}
+	timestamp := env.Type(e.Timestamp)
+	changed = changed || timestamp != e.Timestamp
+	node, err := e.Reconstruct(info, children, timestamp)
+	return retagged(node, changed, err)
+}

@@ -330,8 +330,19 @@ func (e DatetimeOverlaps) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 	return rebuilt(node, err)
 }
 
-func (e DatetimeOverlaps) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+func (e DatetimeOverlaps) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
 
 func (e DatetimeOverlaps) PlanningFold() expr.Fold { return expr.FoldOverlapsRoute }
 
 func (e DatetimeOverlaps) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors and retags folded pair ends;
+// either change counts as a change.
+func (e DatetimeOverlaps) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, planChanged, err := e.Reconstruct(info, args, env.Type, sqltype.Value.Retag)
+	return retagged(node, changed || planChanged, err)
+}

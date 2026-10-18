@@ -372,3 +372,22 @@ func (e String) StrictNull() expr.Strict {
 }
 
 func (e String) ValidateStoredProvider() error { return nil }
+
+// Retag retains and remaps the bound text usage. A text usage change alone is
+// revalidated but does not count as a change.
+func (e String) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	if err := checkPresent("stuntgres: invalid remapped string argument", children); err != nil {
+		return nil, false, err
+	}
+	text := e.Plan.TextUsage()
+	text.Type = env.Type(text.Type)
+	var err error
+	if text.Collation, err = env.Collation(text.Collation); err != nil {
+		return nil, false, err
+	}
+	if !changed && text == e.Plan.TextUsage() {
+		return e, false, nil
+	}
+	node, err := e.Reconstruct(info, children, text)
+	return retagged(node, changed, err)
+}

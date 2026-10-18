@@ -138,6 +138,24 @@ func (e ArraySearch) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, e
 	return rebuilt(e.Reconstruct(info, children, e.Plan.Array(), info.Usage.Type, e.Plan.Integer(), ref, conflict))
 }
 
-func (e ArraySearch) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+func (e ArraySearch) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
 
 func (e ArraySearch) ValidateStoredProvider() error { return nil }
+
+// Retag remaps the comparison collation and retains the array and integer
+// descriptor generations.
+func (e ArraySearch) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	ref, conflict := e.Plan.InputCollation()
+	next, err := env.Collation(ref)
+	if err != nil {
+		return nil, false, err
+	}
+	array, integer := env.Type(e.Plan.Array()), env.Type(e.Plan.Integer())
+	if !changed && next == ref && array == e.Plan.Array() && integer == e.Plan.Integer() {
+		return e, false, nil
+	}
+	node, err := e.Reconstruct(info, children, array, info.Usage.Type, integer, next, conflict)
+	return retagged(node, true, err)
+}

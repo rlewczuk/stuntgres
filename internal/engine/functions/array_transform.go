@@ -345,3 +345,17 @@ func (e ArrayTransform) PlanningFold() expr.Fold {
 }
 
 func (e ArrayTransform) ValidateStoredProvider() error { return e.Validate() }
+
+// Retag remaps the bound sort collation.
+func (e ArrayTransform) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	ref, conflict := e.Sort.InputCollation()
+	next, err := env.Collation(ref)
+	if err != nil {
+		return nil, false, err
+	}
+	if !changed && next == ref {
+		return e, false, nil
+	}
+	node, err := e.Reconstruct(info, children, next, conflict)
+	return retagged(node, true, err)
+}

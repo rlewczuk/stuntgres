@@ -523,3 +523,15 @@ func (e Binary) IntrinsicVolatility() expr.Volatility { return stableIf(!e.Plan.
 func (e Binary) StrictNull() expr.Strict { return expr.StrictAfter }
 
 func (e Binary) ValidateStoredProvider() error { return nil }
+
+// Retag rejects a missing argument even when nothing changed.
+func (e Binary) Retag(info expr.Info, children []expr.Expr, changed bool, _ expr.Retag) (expr.Expr, bool, error) {
+	if err := checkPresent("stuntgres: invalid remapped binary argument", children); err != nil {
+		return nil, false, err
+	}
+	if !changed {
+		return e, false, nil
+	}
+	node, err := e.Reconstruct(info, children)
+	return retagged(node, true, err)
+}

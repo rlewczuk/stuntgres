@@ -23,17 +23,6 @@ func regexpSQL(call functions.RegexpCall, name string, render func(BoundExpr) (s
 	return text + ")", nil
 }
 
-func mapRegexpChildren(call functions.RegexpCall, view CatalogRead, info expressionInfo, child func(BoundExpr) BoundExpr) (functions.RegexpCall, error) {
-	call.Args = append([]BoundExpr(nil), call.Args...)
-	for i, old := range call.Args {
-		call.Args[i] = child(old)
-	}
-	input, err := collatedInfo(view, expressionInfo{Usage: call.Args[0].ResultUsage(), Pos: info.Pos}, call.Args...)
-	if err != nil {
-		return call, err
-	}
-	return call.Reconstruct(info, call.Args, input.Usage.Collation, input.CollationConflict)
-}
 func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive bool) (functions.RegexpCall, bool, error) {
 	var args []BoundExpr
 	for i, old := range call.Args {

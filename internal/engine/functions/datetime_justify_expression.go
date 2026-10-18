@@ -71,3 +71,10 @@ func (e DatetimeJustify) IntrinsicVolatility() expr.Volatility { return expr.Imm
 func (e DatetimeJustify) StrictNull() expr.Strict { return expr.StrictAfter }
 
 func (e DatetimeJustify) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeJustify) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	node, planChanged, err := e.Reconstruct(info, children[0], env.Type)
+	return retagged(node, changed || planChanged, err)
+}

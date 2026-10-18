@@ -239,8 +239,18 @@ func (e DatetimeZoneCalendar) Rebuild(info expr.Info, children []expr.Expr) (exp
 	return rebuilt(node, err)
 }
 
-func (e DatetimeZoneCalendar) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
+func (e DatetimeZoneCalendar) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.IntrinsicStable())
+}
 
 func (e DatetimeZoneCalendar) StrictNull() expr.Strict { return expr.StrictBefore }
 
 func (e DatetimeZoneCalendar) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the arithmetic provider; a provider change counts as a change.
+func (e DatetimeZoneCalendar) Retag(info expr.Info, children []expr.Expr, changed bool, _ expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, providerChanged, err := e.Reconstruct(info, args)
+	return retagged(node, changed || providerChanged, err)
+}
