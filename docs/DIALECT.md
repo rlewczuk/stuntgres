@@ -1756,9 +1756,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   input. Named/reordered/default calls retain JSON metadata and symbolic replay.
   Explicit scalar-final VARIADIC is accepted without array expansion; a named
   final written argument must map to the last supplied formal position.
-  This PostgreSQL 18.0 function is STRICT STABLE: DEFAULT/CHECK/view consumers
-  are supported, but generated columns and expression/predicate indexes reject
-  it as nonimmutable. No `jsonb_strip_nulls` or JSON equality provider is added.
+  It is STRICT IMMUTABLE, as in PostgreSQL 18.1 and later (18.0 marked it
+  STABLE): generated columns and expression/predicate indexes accept it, as do
+  DEFAULT/CHECK/view consumers. No `jsonb_strip_nulls` or JSON equality
+  provider is added.
   JSON array aggregates `json_agg`, `jsonb_agg`, their `_strict` variants and
   `json_arrayagg` use ordinary grouping/FILTER/local ordering. SQL NULL is included
   by ordinary variants and omitted by strict/default ABSENT ON NULL; JSON null is

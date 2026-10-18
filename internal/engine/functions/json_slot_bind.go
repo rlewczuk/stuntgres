@@ -298,7 +298,7 @@ func bindJSONStripNulls(b Binder, raw parser.FunctionExpr, visible bool) (expr.E
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels := [2]string{"target", "strip_in_arrays"}
 	ids := [2]sqltype.ID{sqltype.JSON, sqltype.Bool}
-	call, err := bindSlots(b, raw, visible && !raw.ResolutionOnly && name == "json_strip_nulls", slotSpec{labels: labels[:], formals: ids[:], required: 1, ordinalVariadic: true, volatility: expr.Stable})
+	call, err := bindSlots(b, raw, visible && !raw.ResolutionOnly && name == "json_strip_nulls", slotSpec{labels: labels[:], formals: ids[:], required: 1, ordinalVariadic: true, volatility: expr.Immutable})
 	if err != nil {
 		return nil, err
 	}

@@ -31,7 +31,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 			t.Fatal("formal inference", i)
 		}
 	}
-	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Stable || plannedIntrinsicVolatility(node) != expr.Stable {
+	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || plannedIntrinsicVolatility(node) != expr.Immutable {
 		t.Fatal(node.Properties())
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
@@ -44,11 +44,11 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 		q          string
 		volatility expr.Volatility
 	}{
-		{`SELECT json_strip_nulls('{}')`, expr.Stable}, {`SELECT json_strip_nulls(NULL,NULL)`, expr.Stable},
+		{`SELECT json_strip_nulls('{}')`, expr.Immutable}, {`SELECT json_strip_nulls(NULL,NULL)`, expr.Immutable},
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		n := jsonStripUnitBind(t, binder, tc.q)
-		if n.Properties().Volatility != tc.volatility || plannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Stable {
+		if n.Properties().Volatility != tc.volatility || plannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Immutable {
 			t.Fatal(tc.q, n.Properties(), plannedVolatility(n))
 		}
 	}
@@ -61,7 +61,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if volatile.Properties().Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Stable || generationImmutable(volatile) {
+	if volatile.Properties().Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || generationImmutable(volatile) {
 		t.Fatal("volatile Boolean child lost", volatile.Properties(), plannedVolatility(volatile))
 	}
 }
@@ -83,7 +83,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 			t.Fatal("retag lost authority", i)
 		}
 	}
-	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || plannedVolatility(n) != expr.Stable {
+	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || plannedVolatility(n) != expr.Immutable {
 		t.Fatal("retag lost presentation/volatility")
 	}
 	got, err := n.Eval(&EvalContext{Context: ctx})
@@ -95,7 +95,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(e, mapped) || plannedVolatility(mapped) != expr.Stable {
+	if err != nil || !sameGroupExpression(e, mapped) || plannedVolatility(mapped) != expr.Immutable {
 		t.Fatal(mapped, err)
 	}
 	different := e

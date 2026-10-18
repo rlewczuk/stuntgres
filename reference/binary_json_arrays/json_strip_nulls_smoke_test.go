@@ -29,9 +29,7 @@ func TestReferenceJSONStripNullsFeatureSmoke(t *testing.T) {
 		bad := jsonTypeError("SELECT json_strip_nulls('oops')", "22P02", "invalid input syntax for type json", 25)
 		bad.Diagnostic.Detail, bad.Diagnostic.Context = `Token "oops" is invalid.`, "JSON data, line 1: oops"
 		jsonTypeAnalysisError(t, p, b, c, bad)
-		stable := jsonTypeError("CREATE INDEX js_smoke_index ON js_smoke ((json_strip_nulls(v)::text))", "42P17", "functions in index expression must be marked IMMUTABLE", 0)
-		stable.SelectRows = false
-		jsonTypeBoth(t, p, b, c, stable)
+		jsonTypeRun(t, p, b, c, fixture.Exec("CREATE INDEX js_smoke_index ON js_smoke ((json_strip_nulls(v)::text))", 0))
 		check := jsonStripStored(t, p, b, c)
 		constraint := fixture.ControlsReferenceDiagnostic("23514", `new row for relation "js_stored" violates check constraint "js_clean"`)
 		constraint.Detail = `Failing row contains (4, "bad", t).`

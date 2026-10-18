@@ -110,20 +110,19 @@ func TestReferenceJSONStripNullsMetadata(t *testing.T) {
 	})
 }
 
-func TestReferenceJSONStripNullsStable(t *testing.T) {
+// PostgreSQL 18.1 and later mark json_strip_nulls IMMUTABLE (18.0 had STABLE),
+// so generated columns and expression and predicate indexes accept it.
+func TestReferenceJSONStripNullsImmutable(t *testing.T) {
 	jsonStripScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		jsonTypeRun(t, p, b, c, fixture.Exec("CREATE TABLE js_stable(v json)", 0))
-		for _, tc := range []struct{ q, message string }{
-			{"CREATE TABLE js_generated(v json,g text GENERATED ALWAYS AS (json_strip_nulls(v)::text) STORED)", "generation expression is not immutable"},
-			{"CREATE INDEX js_expr ON js_stable ((json_strip_nulls(v)::text))", "functions in index expression must be marked IMMUTABLE"},
-			{"CREATE INDEX js_pred ON js_stable ((v::text)) WHERE json_strip_nulls(v)::text='{}'", "functions in index predicate must be marked IMMUTABLE"},
+		for _, s := range []fixture.Step{
+			fixture.Exec("CREATE TABLE js_immutable(v json,g text GENERATED ALWAYS AS (json_strip_nulls(v)::text) STORED)", 0),
+			fixture.Exec("CREATE INDEX js_expr ON js_immutable ((json_strip_nulls(v)::text))", 0),
+			fixture.Exec("CREATE INDEX js_pred ON js_immutable ((v::text)) WHERE json_strip_nulls(v)::text='{}'", 0),
+			fixture.Exec(`INSERT INTO js_immutable VALUES('{"a":null}'),('{"b":1,"c":null}'),(NULL)`, 3),
 		} {
-			t.Run(tc.message, func(t *testing.T) {
-				s := jsonTypeError(tc.q, "42P17", tc.message, 0)
-				s.SelectRows = false
-				jsonTypeBoth(t, p, b, c, s)
-			})
+			jsonTypeRun(t, p, b, c, s)
 		}
-		jsonTypeRun(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM js_stable", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
+		jsonTypeRun(t, p, b, c, fixture.Select("SELECT g FROM js_immutable ORDER BY g NULLS LAST", []string{"g"}, []string{"TEXT"}, [][]any{{"{\"b\":1}"}, {"{}"}, {nil}}))
+		jsonTypeRun(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM js_immutable WHERE json_strip_nulls(v)::text='{}'", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 	})
 }

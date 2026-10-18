@@ -100,7 +100,7 @@ func TestIntrinsicVolatilityExcludesChildren(t *testing.T) {
 		want expr.Volatility
 	}{
 		{RangeInspect{Info: expr.Info{Property: expr.Properties{Volatility: expr.Volatile}}}, expr.Immutable},
-		{JSONStripNulls{}, expr.Stable},
+		{JSONStripNulls{}, expr.Immutable},
 		{ArrayRandom{}, expr.Volatile},
 		{Timezone{Local: true}, expr.Stable},
 		{TransactionTime{Info: expr.Info{Property: expr.Properties{Volatility: expr.Stable}}}, expr.Stable},

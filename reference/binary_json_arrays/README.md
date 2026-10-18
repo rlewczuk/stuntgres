@@ -808,8 +808,9 @@ array stripping, bare JSON null versus SQL NULL, empty containers, duplicate
 members, raw numeric spelling and processing-time string normalization/errors.
 Shared direct/held prepared scenarios assert independent rows, metadata, counts,
 English diagnostics, SQLSTATE, character locations and analysis/execution stages.
-The function is STRICT STABLE in PostgreSQL 18.0, so generated/index consumers
-reject it while DEFAULT/CHECK/view expressions remain symbolic and replayable.
+The function is STRICT IMMUTABLE in PostgreSQL 18.6 (18.0 marked it STABLE), so
+`Immutable` checks generated columns and expression/predicate indexes, while
+DEFAULT/CHECK/view expressions remain symbolic and replayable.
 Explicit scalar-final VARIADIC preserves fixed-formal resolution, not expansion;
 named reordered final-target VARIADIC has the independently pinned 42883 record.
 The `FullJoin` regression checks direct/prepared TEXT equality keys containing
@@ -832,7 +833,7 @@ Run each selected set both without and with `REFERENCE=1`, under an external
 ```sh
 make check RUN='^TestReferenceJSONStripNulls(Values|Nulls|Lexical)$'
 make check RUN='^TestReferenceJSONStripNulls(Typing|TypingVariadic|Parameters|Diagnostics|Unicode)$'
-make check RUN='^TestReferenceJSONStripNulls(Consumers|FullJoin|Metadata|ACL|Stable)$'
+make check RUN='^TestReferenceJSONStripNulls(Consumers|FullJoin|Metadata|ACL|Immutable)$'
 make check RUN='^TestReferenceJSONStripNulls(Controls|Atomicity|Cancellation|FeatureSmoke)$'
 make check RUN='^TestJSONStripNulls.*$'
 make check RUN='^TestReferenceJSONStripNulls(Parameters|Controls|Cancellation)$' RACE=1
