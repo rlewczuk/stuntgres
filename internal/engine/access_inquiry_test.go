@@ -139,7 +139,7 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				want := enabled && forced && actor != bypass.Ref && actor != auth.state.CurrentUser
 				// A policy's provider may be irrelevant or even stale; eligibility must
 				// never traverse its roles or demand expression enforcement.
-				next.policies = []policyDefinition{{permissive: true, command: policyAll, roles: []policyRole{{public: true}}, using: using}}
+				next.policies = []policyDefinition{{permissive: true, command: policyAll, roles: []policyRole{{public: true}}, using: policyPayloadOf(using)}}
 				active, err := rowSecurityApplies(auth, &next, actor)
 				if err != nil || active != want {
 					t.Fatalf("eligibility %v/%v/%v: %v %v", enabled, forced, actor, active, err)

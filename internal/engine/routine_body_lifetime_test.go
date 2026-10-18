@@ -112,7 +112,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		def := table.defaults[table.attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.expression, refs: def.dependencies},
-			{consumer: stored, node: stored.view.query.Root.(*projectNode).expressions[0], checks: stored.view.dependencies},
+			{consumer: stored, node: viewOf(stored).query.Root.(*projectNode).expressions[0], checks: viewOf(stored).dependencies},
 		}
 	}
 	authority := func(e *Engine) AuthorizationView {

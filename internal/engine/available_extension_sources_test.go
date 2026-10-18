@@ -156,7 +156,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	e := New()
 	d, _ := availableUnitSource(e, 12085)
 	empty, schema := "", "fixed_control_schema"
-	metadata := registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &empty, schema: &schema, requires: []string{"first", "quote\"name", "comma,name"}}
+	metadata := extensionControl{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &empty, schema: &schema, requires: []string{"first", "quote\"name", "comma,name"}}
 	// Metadata-only projection input, not a new registry entry or provider.
 	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{version: "1.1", targetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
 	if err != nil {
@@ -182,17 +182,23 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	if row, err := projectAvailableExtension("unaccent", metadata, nil, d); err == nil || row != nil {
 		t.Fatal("unchecked NAME dependency", row, err)
 	}
-	// Registration detaches actual provider metadata; no fake package is added.
+	// The registry holds the implementation itself; its control metadata is
+	// read as a detached copy, so readers cannot mutate registered storage.
 	registry := &Engine{}
-	metadata = e.catalog.extensions["unaccent"]
-	metadata.comment, metadata.schema, metadata.requires = &empty, &schema, []string{"original"}
-	if err := registry.registerExtension("unaccent", metadata); err != nil {
+	if err := registry.registerExtension("unaccent", stockUnaccent); err != nil {
 		t.Fatal(err)
 	}
-	empty, schema, metadata.requires[0] = "mutated", "mutated", "mutated"
-	stored := registry.catalog.extensions["unaccent"]
-	if *stored.comment != "" || *stored.schema != "fixed_control_schema" || stored.requires[0] != "original" {
-		t.Fatal("caller storage retained", stored)
+	read := registry.catalog.extensions["unaccent"].Control()
+	*read.comment = "mutated"
+	if stored := registry.catalog.extensions["unaccent"].Control(); registry.catalog.extensions["unaccent"] != stockUnaccent || *stored.comment != "text search dictionary that removes accents" {
+		t.Fatal("registry storage shared", stored)
+	}
+	empty, schema = "", "fixed_control_schema"
+	original := extensionControl{version: "1.1", comment: &empty, schema: &schema, requires: []string{"original"}}
+	detached := original.detached()
+	empty, schema, original.requires[0] = "mutated", "mutated", "mutated"
+	if *detached.comment != "" || *detached.schema != "fixed_control_schema" || detached.requires[0] != "original" {
+		t.Fatal("caller storage retained", detached)
 	}
 }
 

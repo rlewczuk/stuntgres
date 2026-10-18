@@ -315,7 +315,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 
 func TestRuleProgramOrdering(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.rules = []ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}, {OID: 900102, Name: "z", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 3, 30)}}}
+	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}, {OID: 900102, Name: "z", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 3, 30)}}})
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
@@ -338,7 +338,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 
 func TestRuleProgramAuthority(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.rules = []ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}, {OID: 900102, Name: "z", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 2, 20)}}}
+	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "a", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}, {OID: 900102, Name: "z", event: "INSERT", instead: true, actions: []ruleAction{ruleUnitInsert(e, sink, 2, 20)}}})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
@@ -350,7 +350,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	if count != 1 || len(p.commands) != 2 {
 		t.Fatalf("last same-event authority=%d commands=%d want1/2", count, len(p.commands))
 	}
-	src.rules = []ruleDefinition{{OID: 900101, Name: "nothing", event: "INSERT", instead: true}}
+	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "nothing", event: "INSERT", instead: true}})
 	p = ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
 	count, err = e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
@@ -367,9 +367,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 		defer done()
 		auth := f.authorization(t, op)
 		f.base.relationKind, f.base.virtualView = viewRelation, true
-		f.base.rules = []ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}}
-		f.view.view.checkOption = viewCheckCascaded
-		project := f.view.view.query.Root.(*projectNode)
+		f.base.rules = rulesPayloadOf([]ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}})
+		viewOf(f.view).checkOption = viewCheckCascaded
+		project := viewOf(f.view).query.Root.(*projectNode)
 		predicate := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
 		project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: predicate}
 		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
@@ -398,8 +398,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 
 func TestRuleProgramRecursion(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.rules = []ruleDefinition{{OID: 900101, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}}
-	sink.rules = []ruleDefinition{{OID: 900102, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, src, 1, 10)}}}
+	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
+	sink.rules = rulesPayloadOf([]ruleDefinition{{OID: 900102, Name: "cycle", event: "INSERT", actions: []ruleAction{ruleUnitInsert(e, src, 1, 10)}}})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{}
 	e.mu.Lock()
@@ -409,7 +409,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 		t.Fatalf("recursion error=%v", err)
 	}
 	sink.rules = nil
-	src.rules[0].actions = append(src.rules[0].actions, ruleUnitInsert(e, sink, 2, 20))
+	rulesOf(src)[0].actions = append(rulesOf(src)[0].actions, ruleUnitInsert(e, sink, 2, 20))
 	p = ruleProgram{}
 	e.mu.Lock()
 	_, err = e.expandRulesLocked(nil, auth, original.syntax, original.binding, nil, &p)
@@ -473,7 +473,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		}
 	}
 	r.references = refs
-	src.rules = []ruleDefinition{r}
+	src.rules = rulesPayloadOf([]ruleDefinition{r})
 	edges, err := collectPGDepend(context.Background(), auth.catalog)
 	if err != nil {
 		t.Fatal(err)
@@ -510,7 +510,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.rules = []ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}}
+	src.rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
 	newSrc, newSink := *src, *sink
 	newSrc.address.ObjectID += 10
 	newSink.address.ObjectID += 10
@@ -533,10 +533,10 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.rules[0].condition.(columnExpression).origin.Address.ObjectID != newSrc.address.ObjectID || mapped.rules[0].actions[0].binding.ref.Address != newSink.address {
+	if rulesOf(mapped)[0].condition.(columnExpression).origin.Address.ObjectID != newSrc.address.ObjectID || rulesOf(mapped)[0].actions[0].binding.ref.Address != newSink.address {
 		t.Fatal("nested rule references not remapped")
 	}
-	if src.rules[0].condition.(columnExpression).origin != oldRef || src.rules[0].actions[0].binding.ref.Address != sink.address {
+	if rulesOf(src)[0].condition.(columnExpression).origin != oldRef || rulesOf(src)[0].actions[0].binding.ref.Address != sink.address {
 		t.Fatal("remapping mutated original template")
 	}
 }

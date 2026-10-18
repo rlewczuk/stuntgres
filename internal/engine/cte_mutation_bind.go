@@ -60,7 +60,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
 		}
-		if len(b.relation.rules) != 0 {
+		if len(rulesOf(b.relation)) != 0 {
 			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.name), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:

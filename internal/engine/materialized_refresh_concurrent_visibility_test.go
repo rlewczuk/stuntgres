@@ -156,7 +156,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				case "name":
 					copy.name = "renamed"
 				case "view":
-					definition := *copy.view
+					definition := *viewOf(&copy)
 					copy.view = &definition
 				case "columns":
 					copy.columns = append([]ColumnDescriptor(nil), copy.columns...)

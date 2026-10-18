@@ -264,8 +264,8 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 		if volatile, ok := memo[relation.address]; ok {
 			return volatile
 		}
-		volatile := cteVolatile(relation.view.query.Root)
-		for _, source := range relation.view.sources {
+		volatile := cteVolatile(viewOf(relation).query.Root)
+		for _, source := range viewOf(relation).sources {
 			if volatile {
 				break
 			}

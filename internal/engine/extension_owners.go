@@ -47,7 +47,7 @@ func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *
 		switch d := d.(type) {
 		case *procedureDescriptor:
 			member = extensionMemberOwner{Kind: "procedure", Name: d.name, Signature: string(d.signature)}
-			if d.queryCodec != nil && d.name == "bqarr_out" {
+			if d.intarrayProvider() != nil && d.name == "bqarr_out" {
 				member.Signature = "query_int"
 			}
 			principal = d.owner

@@ -63,7 +63,7 @@ func viewComputedWriteError(d *relationDescriptor, operation string, slot int) e
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
 // query boundary and must not be mistaken for a top-level aggregate/window.
 func viewWriteShape(d *relationDescriptor) (*projectNode, *sourceNode, []expr.Expr, string) {
-	q := d.view.syntax
+	q := viewOf(d).syntax
 	if q.Distinct != nil {
 		return nil, nil, nil, "Views containing DISTINCT are not automatically updatable."
 	}
@@ -79,7 +79,7 @@ func viewWriteShape(d *relationDescriptor) (*projectNode, *sourceNode, []expr.Ex
 	if q.Bounds != nil {
 		return nil, nil, nil, "Views containing LIMIT or OFFSET are not automatically updatable."
 	}
-	p, ok := d.view.query.Root.(*projectNode)
+	p, ok := viewOf(d).query.Root.(*projectNode)
 	if !ok {
 		return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 	}
@@ -182,7 +182,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	cascaded := false
 	for d.relationKind == viewRelation {
 		match := false
-		for _, rule := range d.rules {
+		for _, rule := range rulesOf(d) {
 			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
 				match = true
 				if rule.instead && rule.condition == nil {
@@ -204,10 +204,10 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		if reason != "" {
 			return viewWriteError(d, operation, reason)
 		}
-		if sourceNode.occurrence < 0 || sourceNode.occurrence >= len(d.view.sources) {
+		if sourceNode.occurrence < 0 || sourceNode.occurrence >= len(viewOf(d).sources) {
 			return ids.ErrCatalogReplaced
 		}
-		leaf := d.view.sources[sourceNode.occurrence]
+		leaf := viewOf(d).sources[sourceNode.occurrence]
 		source, ok := auth.catalog.Relation(leaf.ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced
@@ -266,7 +266,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(auth.catalog, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && quoteOriginOf(q).owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision})
+					q = q.WithOrigin(quoteOrigin{owner: ref, definition: viewOf(d).rule, revision: viewOf(d).quoteRevision})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.
@@ -365,7 +365,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				w.checks[i].predicates[j] = next
 			}
 		}
-		cascaded = cascaded || d.view.checkOption == viewCheckCascaded
+		cascaded = cascaded || viewOf(d).checkOption == viewCheckCascaded
 		var checked []expr.Expr
 		for _, expr := range predicates {
 			next, _, err := lowerStored(expr, true)
@@ -373,7 +373,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				return err
 			}
 			w.predicates = append(w.predicates, next)
-			if operation != "delete" && (cascaded || d.view.checkOption != viewCheckNone) {
+			if operation != "delete" && (cascaded || viewOf(d).checkOption != viewCheckNone) {
 				checked = append(checked, next)
 			}
 		}
@@ -384,7 +384,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		d = source
 		ref = use
 	}
-	for _, rule := range d.rules {
+	for _, rule := range rulesOf(d) {
 		if rule.event == ruleEvent(stmt) && rule.instead && rule.condition == nil && (len(consumed) == 0 || consumed[0] != ref) {
 			w.checks = nil
 			break

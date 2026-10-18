@@ -97,7 +97,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		case *procedureDescriptor:
 			add(d.address, d.extension, 'e')
 			add(d.address, d.namespace, 'n')
-			if d.queryCodec != nil {
+			if d.intarrayProvider() != nil {
 				if d.name == "bqarr_in" {
 					add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.result}, 'n')
 				} else {
@@ -154,7 +154,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			for _, policy := range d.policies {
 				owner := ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.address, 'a')
-				for _, condition := range []*policyExpression{policy.using, policy.check} {
+				for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
 					if condition != nil {
 						if err := expression(owner, condition.expression, d.address, 'n'); err != nil {
 							return nil, err
@@ -399,7 +399,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					return nil, err
 				}
 			}
-			for _, rule := range d.rules {
+			for _, rule := range rulesOf(d) {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}
 				add(owner, d.address, 'a')
 				for _, ref := range rule.references {
@@ -407,9 +407,9 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 			}
 			if d.view != nil {
-				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.view.rule}
+				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.view.RuleOID()}
 				add(owner, d.address, 'i')
-				refs, err := pgDependQueryRefs(ctx, catalog, d.view.query)
+				refs, err := pgDependQueryRefs(ctx, catalog, viewOf(d).query)
 				if err != nil {
 					return nil, err
 				}

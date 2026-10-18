@@ -10,9 +10,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type intarrayProvider struct{ version string }
+type intarrayProvider struct{ control extensionControl }
 
-var stockIntarray = &intarrayProvider{version: "1.5"}
+// Control implements extensionImplementation.
+func (p *intarrayProvider) Control() extensionControl { return p.control.detached() }
+
+var stockIntarray = &intarrayProvider{control: extensionControl{version: "1.5", trusted: true, superuser: true, relocatable: true, comment: new("functions, operators, and index support for 1-D arrays of integers")}}
 
 const intarrayTypeContext = "SQL statement \"CREATE TYPE query_int (\n\tINTERNALLENGTH = -1,\n\tINPUT = bqarr_in,\n\tOUTPUT = bqarr_out\n)\"\nextension script file \"intarray--1.2.sql\", near line 21"
 const intarrayInputContext = "SQL statement \"CREATE FUNCTION bqarr_in(cstring)\nRETURNS query_int\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 11"
@@ -67,7 +70,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
 		}
-		proc := &procedureDescriptor{address: ext.members[i+1], namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: expr.Immutable, strict: true, queryCodec: p}
+		proc := &procedureDescriptor{address: ext.members[i+1], namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: expr.Immutable, strict: true, implementation: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
@@ -84,9 +87,9 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	return nil
 }
 
-func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
+func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
-	if p != stockIntarray || ext.name != "intarray" || ext.version != p.version || len(ext.members) != 3 {
+	if p != stockIntarray || ext.name != "intarray" || ext.version != p.control.version || len(ext.members) != 3 {
 		return invalid()
 	}
 	if ext.members[0].ClassID != ids.TypeClassID || ext.members[1].ClassID != ids.ProcedureClassID || ext.members[2].ClassID != ids.ProcedureClassID {
@@ -105,14 +108,14 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 	}
 	for i, address := range ext.members[1:] {
 		proc, ok := v.Procedure(address)
-		if !ok || proc.address != address || proc.queryCodec != p || proc.extension != ext.address || proc.namespace != ext.targetNamespace || proc.revision == 0 {
+		if !ok || proc.address != address || proc.intarrayProvider() != p || proc.extension != ext.address || proc.namespace != ext.targetNamespace || proc.revision == 0 {
 			return invalid()
 		}
 		name, signature, result := "bqarr_in", procedureSignature("2275"), ids.OID(base.typ.ID())
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(base.typ.ID()), 2275
 		}
-		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != expr.Immutable || proc.provider != nil || proc.intagg != nil || proc.uuidOssp != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) {
+		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != expr.Immutable || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}
@@ -124,5 +127,5 @@ func (p *intarrayProvider) validateProcedure(v CatalogRead, proc *procedureDescr
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intarray codec installation")
 	}
-	return p.validate(v, ext)
+	return p.ValidateExtension(v, ext)
 }

@@ -11,20 +11,9 @@ import (
 )
 
 func policyDepends(p policyDefinition, target ids.ObjectAddress) bool {
-	for _, expr := range []*policyExpression{p.using, p.check} {
-		if expr == nil {
-			continue
-		}
-		for _, leaf := range expr.presentation.sources {
-			if target.SubID == 0 && leaf.ref.Address == target {
-				return true
-			}
-		}
-		for _, dep := range expr.presentation.dependencies {
-			a := dep.ref.Address
-			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
-				return true
-			}
+	for _, condition := range []policyPayload{p.using, p.check} {
+		if condition != nil && condition.DependsOn(target) {
+			return true
 		}
 	}
 	return false

@@ -139,7 +139,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.MustProcedure(original)
-		if remapped.members[i] != proc.address || proc.extension != remapped.address || proc.namespace != old.namespace || proc.owner != old.owner || proc.crypto != old.crypto || proc.signature != old.signature || proc.result != old.result || proc.strict != old.strict || proc.volatility != old.volatility {
+		if remapped.members[i] != proc.address || proc.extension != remapped.address || proc.namespace != old.namespace || proc.owner != old.owner || proc.pgcryptoProvider() != old.pgcryptoProvider() || proc.signature != old.signature || proc.result != old.result || proc.strict != old.strict || proc.volatility != old.volatility {
 			t.Fatal("remapped member identity", proc)
 		}
 		if old.address != original || old.extension != ext.address || ext.members[i] != original {

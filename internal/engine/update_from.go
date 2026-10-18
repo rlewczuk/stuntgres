@@ -65,12 +65,12 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		mark = effectiveQueryRowMark(relation, mark)
-		if err := authorizeViewSourceSnapshot(auth, ref, relation.view, sourceInvoker, mark); err != nil {
+		if err := authorizeViewSourceSnapshot(auth, ref, viewOf(relation), sourceInvoker, mark); err != nil {
 			return err
 		}
 		active = append(active, ref)
 		defer func() { active = active[:len(active)-1] }()
-		for i, child := range relation.view.sources {
+		for i, child := range viewOf(relation).sources {
 			if child.analysisOnly {
 				continue
 			}
@@ -80,7 +80,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 			// Nested invoker views retain this occurrence's original invoker;
 			// each definer view selects its own owner in the canonical check.
-			if err := authorize(use, sourceInvoker, viewLeafRowMark(relation.view, i, mark)); err != nil {
+			if err := authorize(use, sourceInvoker, viewLeafRowMark(viewOf(relation), i, mark)); err != nil {
 				return err
 			}
 		}
@@ -121,7 +121,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				visited = make(map[ids.ObjectRef]bool)
 			}
 			visited[ref] = true
-			for _, child := range relation.view.sources {
+			for _, child := range viewOf(relation).sources {
 				if child.analysisOnly {
 					continue
 				}

@@ -70,14 +70,16 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		t.Fatal("membership count", count)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.uuidOssp = &uuidOsspProvider{version: "1.1"} },
+		func(p *procedureDescriptor) {
+			p.implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
+		},
 		func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
 		func(p *procedureDescriptor) { p.builtin = builtinRoutineByOID[3432] },
-		func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
-		func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch },
-		func(p *procedureDescriptor) { p.provider = stockUnaccent },
-		func(p *procedureDescriptor) { p.queryCodec = stockIntarray },
-		func(p *procedureDescriptor) { p.intagg = stockIntagg },
+		func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
+		func(p *procedureDescriptor) { p.implementation = stockFuzzystrmatch },
+		func(p *procedureDescriptor) { p.implementation = stockUnaccent },
+		func(p *procedureDescriptor) { p.implementation = stockIntarray },
+		func(p *procedureDescriptor) { p.implementation = stockIntagg },
 		func(p *procedureDescriptor) { p.aggregate = &ownedAggregate{} },
 		func(p *procedureDescriptor) { p.foreign = &foreignProcedure{} },
 		func(p *procedureDescriptor) { p.name = "uuidv4" },
@@ -93,7 +95,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		mutate(&bad)
 		view.state.setDescriptor(address, &bad)
 		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
-		manifest := stockUUIDOssp.validate(view, ext)
+		manifest := stockUUIDOssp.ValidateExtension(view, ext)
 		view.state.setDescriptor(address, proc)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
@@ -107,7 +109,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	} {
 		bad := *ext
 		mutate(&bad)
-		if err := stockUUIDOssp.validate(view, &bad); err == nil {
+		if err := stockUUIDOssp.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("invalid parent accepted")
 		}
 	}
@@ -116,9 +118,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	cryptoView := cryptoEngine.CatalogRead()
 	original := cryptoView.MustProcedure(cryptoExt.members[0])
 	bad := *original
-	bad.uuidOssp = stockUUIDOssp
+	bad.implementation = stockUUIDOssp
 	cryptoView.state.setDescriptor(bad.address, &bad)
-	failure := stockPgcrypto.validate(cryptoView, cryptoExt)
+	failure := stockPgcrypto.ValidateExtension(cryptoView, cryptoExt)
 	cryptoView.state.setDescriptor(bad.address, original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
@@ -128,9 +130,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	for _, address := range intaggExt.members {
 		original := intaggView.MustProcedure(address)
 		bad := *original
-		bad.uuidOssp = stockUUIDOssp
+		bad.implementation = stockUUIDOssp
 		intaggView.state.setDescriptor(address, &bad)
-		manifestFailure := stockIntagg.validate(intaggView, intaggExt)
+		manifestFailure := stockIntagg.ValidateExtension(intaggView, intaggExt)
 		admissionFailure := intaggEngine.catalog.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.state.setDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
@@ -139,7 +141,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	builtin := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 	mixed := *builtin
-	mixed.uuidOssp = stockUUIDOssp
+	mixed.implementation = stockUUIDOssp
 	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}

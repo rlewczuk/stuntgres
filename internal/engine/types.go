@@ -133,7 +133,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		if !ok || parent.name != "intarray" || parent.targetNamespace != t.Namespace() || !t.typ.IsQueryInt() {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
-		if err := stockIntarray.validate(view, parent); err != nil {
+		if err := stockIntarray.ValidateExtension(view, parent); err != nil {
 			return err
 		}
 	} else if t.typ.IsQueryInt() {

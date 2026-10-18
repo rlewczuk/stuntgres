@@ -70,7 +70,7 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.Ob
 		return nil
 	}
 	actual, ok := v.Procedure(ref.Address)
-	if !ok || actual != proc || ref.Domain() != v.owner.domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intagg != stockIntagg {
+	if !ok || actual != proc || ref.Domain() != v.owner.domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intaggProvider() != stockIntagg {
 		return fmt.Errorf("stuntgres: invalid stored intagg identity")
 	}
 	return stockIntagg.validateProcedure(v, proc)
@@ -80,7 +80,7 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.Ob
 // the engine binder always appended it, and returns its reference.
 func (r installedExtensionRoutine) intaggIdentity() (*procedureDescriptor, ids.ObjectRef, error) {
 	p := r.procedure
-	if p.intagg != stockIntagg {
+	if p.intaggProvider() != stockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
 	ref := r.binder.engine.catalog.domain.Ref(r.catalog.Epoch(), p.address)

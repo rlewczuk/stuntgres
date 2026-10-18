@@ -16,21 +16,7 @@ import (
 )
 
 func viewDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
-	if d.view == nil {
-		return false
-	}
-	for _, leaf := range d.view.sources {
-		if target.SubID == 0 && leaf.ref.Address == target {
-			return true
-		}
-	}
-	for _, dependency := range d.view.dependencies {
-		a := dependency.ref.Address
-		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
-			return true
-		}
-	}
-	return false
+	return d.view != nil && d.view.DependsOn(target)
 }
 
 type viewDependencyEdge struct {
@@ -474,7 +460,15 @@ func emitViewCascade(op *Operation, details []string) {
 }
 
 func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
-	definition := d.view
+	if d.view == nil {
+		return fmt.Errorf("stuntgres: invalid view definition")
+	}
+	return d.view.Validate(v, d)
+}
+
+// Validate implements viewPayload: it checks the frozen definition against
+// its owning relation d in catalog v.
+func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor) error {
 	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}

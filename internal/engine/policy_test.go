@@ -141,7 +141,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.policies = []policyDefinition{{OID: oid, Name: "p", permissive: true, command: "all", roles: []policyRole{{public: true}}, using: expression}}
+	next.policies = []policyDefinition{{OID: oid, Name: "p", permissive: true, command: "all", roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -179,7 +179,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{ref: d.owner}, {ref: d.owner}}, using: expression}}
+	next.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{ref: d.owner}, {ref: d.owner}}, using: policyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -215,14 +215,14 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if p.using == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.domain {
+	if policyExpressionOf(p.using) == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)
 	if err != nil {
 		t.Fatal(err)
 	}
-	importedSQL, err := policyExpressionSQL(context.Background(), view, p.using)
+	importedSQL, err := policyExpressionSQL(context.Background(), view, policyExpressionOf(p.using))
 	if err != nil || importedSQL != originalSQL {
 		t.Fatal("remapped presentation lost frozen context", originalSQL, importedSQL, err)
 	}
@@ -255,7 +255,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := cloneCatalog(base.state)
 			attached := *owner
-			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: expression}}
+			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
 			state.setDescriptor(owner.address, &attached)
 			base.state = state
 			var target ids.ObjectAddress

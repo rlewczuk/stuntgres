@@ -79,7 +79,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 			t.Fatal("replacement did not produce a genuine successor catalog")
 		}
 		assertMetadata(table.defaults[table.attributes[0]].expression)
-		assertMetadata(view.view.query.Root)
+		assertMetadata(viewOf(view).query.Root)
 	}
 	// An explicitly user-held old read remains a legitimate snapshot; removal of
 	// hidden expression metadata roots must not invalidate its concrete Usage.

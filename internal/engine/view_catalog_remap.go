@@ -81,7 +81,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if !ok {
 			continue
 		}
-		if len(d.rules) != 0 {
+		if len(rulesOf(d)) != 0 {
 			var err error
 			d, err = remapRules(view, d, mapping, ref, typ, collation)
 			if err != nil {
@@ -267,12 +267,12 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if d.view == nil {
 			continue
 		}
-		definition, err := remapFrozenPresentation(view, d.view, mapping, ref, typ, collation)
+		definition, err := remapFrozenPresentation(view, viewOf(d), mapping, ref, typ, collation)
 		if err != nil {
 			return err
 		}
 		copy := *d
-		copy.view = definition
+		copy.view = viewPayloadOf(definition)
 		next.setDescriptor(address, &copy)
 	}
 	return nil

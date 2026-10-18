@@ -32,7 +32,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
 			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, source.address)
-			definition := *d.view
+			definition := *viewOf(d)
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
 			d.view = &definition
 			targetRef := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)

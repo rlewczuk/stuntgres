@@ -52,7 +52,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "expr_preflight_v")
-	definition := view.MustRelation(ref.Address).view
+	definition := viewOf(view.MustRelation(ref.Address))
 	frozen := definition.query.Root
 	for _, tc := range []struct {
 		name, q string
@@ -101,7 +101,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 	view := e.CatalogRead()
 	innerRef := catalogRef(t, e, view, "expr_nested_inner")
 	inner := view.MustRelation(innerRef.Address)
-	innerRoot := inner.view.query.Root
+	innerRoot := viewOf(inner).query.Root
 	for _, tc := range []struct {
 		name, q string
 		outer   string
@@ -115,9 +115,9 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			outerRef := catalogRef(t, e, view, tc.outer)
 			outer := view.MustRelation(outerRef.Address)
-			frozenRoot := outer.view.query.Root
-			reads := make([][]int32, len(outer.view.sources))
-			for i, leaf := range outer.view.sources {
+			frozenRoot := viewOf(outer).query.Root
+			reads := make([][]int32, len(viewOf(outer).sources))
+			for i, leaf := range viewOf(outer).sources {
 				reads[i] = append([]int32(nil), leaf.reads...)
 			}
 			if (tc.name == "selected" || tc.name == "full") && !reflect.DeepEqual(reads[0], inner.attributes) {
@@ -160,10 +160,10 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 					t.Fatal("nested authorization capture changed")
 				}
 			}
-			if outer.view.query.Root != frozenRoot || inner.view.query.Root != innerRoot {
+			if viewOf(outer).query.Root != frozenRoot || viewOf(inner).query.Root != innerRoot {
 				t.Fatal("nested demand mutated frozen source roots")
 			}
-			for i, leaf := range outer.view.sources {
+			for i, leaf := range viewOf(outer).sources {
 				if !reflect.DeepEqual(leaf.reads, reads[i]) {
 					t.Fatal("executable pruning weakened frozen ACL/dependency reads", i, leaf.reads, reads[i])
 				}

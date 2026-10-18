@@ -111,7 +111,7 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 	if s.source != nil && s.source.routineRecipe != nil {
 		recipe := s.source.routineRecipe
 		evaluation.routineRecipe = true
-		evaluation.routineChecks, evaluation.routineConsumer = recipe.view.dependencies, recipe
+		evaluation.routineChecks, evaluation.routineConsumer = viewOf(recipe).dependencies, recipe
 	}
 	evaluation.setContext(ctx)
 	return evaluation

@@ -62,24 +62,24 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			refs = append(refs, ref)
 		}
 		if d.relationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.relationKind == materializedViewRelation {
-			if d.view.temporary != (ids.SessionToken{}) {
-				for old := range d.view.references {
+			if viewOf(d).temporary != (ids.SessionToken{}) {
+				for old := range viewOf(d).references {
 					if old.Epoch != e.catalog.state.epoch {
 						retainedViews = append(retainedViews, d)
 						break
 					}
 				}
 			}
-			for i, leaf := range d.view.sources {
+			for i, leaf := range viewOf(d).sources {
 				use, err := storedViewUseReference(catalog, d, leaf.ref)
 				if err != nil {
 					return err
 				}
-				if err := visit(use, viewLeafRowMark(d.view, i, queryRowMark{mode: mode}).mode); err != nil {
+				if err := visit(use, viewLeafRowMark(viewOf(d), i, queryRowMark{mode: mode}).mode); err != nil {
 					return err
 				}
 			}
-			for _, dependency := range d.view.dependencies {
+			for _, dependency := range viewOf(d).dependencies {
 				if dependency.ref.Address.ClassID == ids.RelationClassID {
 					child, err := storedViewUseReference(catalog, d, dependency.ref)
 					if err != nil {
@@ -144,7 +144,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 	}
 	for _, view := range retainedViews {
-		for ref := range view.view.references {
+		for ref := range viewOf(view).references {
 			if !storedViewReferenceValid(catalog, view, ref) {
 				return ids.ErrCatalogReplaced
 			}

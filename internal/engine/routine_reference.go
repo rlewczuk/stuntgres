@@ -62,10 +62,7 @@ func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
 		current.name == captured.name && current.signature == captured.signature &&
 		current.routineKind == captured.routineKind && current.result == captured.result &&
 		current.strict == captured.strict && current.volatility == captured.volatility &&
-		current.builtin == captured.builtin && current.provider == captured.provider &&
-		current.queryCodec == captured.queryCodec && current.crypto == captured.crypto &&
-		current.fuzzy == captured.fuzzy && current.intagg == captured.intagg &&
-		current.uuidOssp == captured.uuidOssp &&
+		current.builtin == captured.builtin && current.implementation == captured.implementation &&
 		current.conversion == captured.conversion
 }
 
@@ -79,9 +76,11 @@ func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
 		return nil, nil
 	}
 	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
-	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 ||
-		recipe.view.consumer != (ids.ObjectAddress{}) && recipe.view.consumer != recipe.address ||
-		recipe.view.temporary != (ids.SessionToken{}) && recipe.view.consumer != recipe.address {
+	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 {
+		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
+	}
+	if consumer, temporary := recipe.view.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.address ||
+		temporary != (ids.SessionToken{}) && consumer != recipe.address {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
 	return recipe, nil
@@ -108,6 +107,6 @@ func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	c.routineChecks = recipe.view.dependencies
+	c.routineChecks = viewOf(recipe).dependencies
 	return nil
 }

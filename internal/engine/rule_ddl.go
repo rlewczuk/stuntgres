@@ -57,7 +57,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(tableKind(old, "change"))
 	}
 	next := *old
-	next.rules = slices.Clone(old.rules)
+	next.rules = rulesPayloadOf(slices.Clone(rulesOf(old)))
 	var sources []queryLeaf
 	switch s := stmt.(type) {
 	case *parser.CreateRule:
@@ -99,14 +99,14 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := old.view.temporary != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, old.view.barrier, old.view.invoker, old.view.rule, viewRelation, temporary)
+			temporary := viewOf(old).temporary != (ids.SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).invoker, viewOf(old).rule, viewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
-			definition.options = old.view.options
-			definition.checkOption = old.view.checkOption
-			next.view = definition
+			definition.options = viewOf(old).options
+			definition.checkOption = viewOf(old).checkOption
+			next.view = viewPayloadOf(definition)
 			sources = b.querySources
 		} else {
 			if name == "_RETURN" {
@@ -120,14 +120,14 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				return fail(err)
 			}
 			if index >= 0 {
-				definition.OID = old.rules[index].OID
-				next.rules[index] = definition
+				definition.OID = rulesOf(old)[index].OID
+				rulesOf(&next)[index] = definition
 			} else {
 				definition.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return fail(err)
 				}
-				next.rules = append(next.rules, definition)
+				next.rules = rulesPayloadOf(append(rulesOf(&next), definition))
 			}
 			for _, action := range definition.actions {
 				sources = append(sources, action.binding.querySources...)
@@ -149,20 +149,20 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		if ruleIndex(old, s.Rename.Text) >= 0 || old.view != nil && s.Rename.Text == "_RETURN" {
 			return fail(ruleDuplicate(s.Rename.Text, old))
 		}
-		next.rules[index].Name = s.Rename.Text
+		rulesOf(&next)[index].Name = s.Rename.Text
 	case *parser.DropRule:
 		if old.view != nil && name == "_RETURN" {
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.name, old.name), Hint: fmt.Sprintf("You can drop view %s instead.", old.name)})
 		}
-		next.rules = append(next.rules[:index], next.rules[index+1:]...)
+		next.rules = rulesPayloadOf(append(rulesOf(&next)[:index], rulesOf(&next)[index+1:]...))
 	}
-	slices.SortFunc(next.rules, func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(rulesOf(&next), func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
 	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}
 	if next.view != old.view {
-		next.view.quoteRevision = next.revision
+		viewOf(&next).quoteRevision = next.revision
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)

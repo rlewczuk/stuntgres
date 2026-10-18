@@ -28,12 +28,12 @@ func TestMaterializedAlterIdentity(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	store := e.storage[d.address]
-	rule, rowType := d.view.rule, d.rowType
+	rule, rowType := viewOf(d).rule, d.rowType
 	if err := materializedAlterUnit(t, e, op, d, "rename", "saved"); err != nil {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustRelation(d.address)
-	if next == d || next.name != "saved" || d.name != "unit_mv" || next.rowType != rowType || next.view.rule != rule || next.view != d.view || e.storage[d.address] != store || !reflect.DeepEqual(next.attributes, d.attributes) {
+	if next == d || next.name != "saved" || d.name != "unit_mv" || next.rowType != rowType || viewOf(next).rule != rule || next.view != d.view || e.storage[d.address] != store || !reflect.DeepEqual(next.attributes, d.attributes) {
 		t.Fatal("metadata publication reminted or mutated captured identity")
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowType)})

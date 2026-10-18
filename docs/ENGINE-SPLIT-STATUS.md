@@ -5,18 +5,19 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `91357248c`.
+Last verified against `master` at `5e64a4722`.
 
 ## Next ready sub-steps
 
 - **F2 stored scalar SQL** — adopt `expr.Rendering` in
   `scalar_function_sql.go`/`default.go` (needs F2 deparse ✓) *(broad
   rewrite)*.
-- **5c** — view, rule, policy, extension-provider and expression payload
-  seams (needs 5b ✓).
+- **5d** — descriptor names decided, fields exported (needs 5c ✓) *(broad
+  rewrite)*.
 
-They may run in parallel on separate branches, except that F2 must not run
-alongside another broad rewrite or alias removal (§8).
+They may run in parallel on separate branches, except that F2 and 5d are
+both broad rewrites: do not run them alongside each other or any alias
+removal (§8).
 
 ## Task tree
 
@@ -122,8 +123,9 @@ alongside another broad rewrite or alias removal (§8).
     (`17a54431b`, `ddd9eb246`, `0175300e5`, `5aeaedcdc`, then the docs
     commit) *(full racecheck skipped at user request; targeted RACE=1 runs
     passed)*
-  - [ ] 5c — View, rule, policy, extension-provider and expression payload
-    seams
+  - [x] 5c — View, rule, policy, extension-provider and expression payload
+    seams (`3f4eb275c`, `0559a8d7b`, `1e2576d18`, `b4d7e495b`, then the docs
+    commit) *(racecheck skipped at user request)*
   - [ ] 5d — Descriptor names decided, fields exported *(broad rewrite)*
   - [ ] 5e — `catalog` created, types moved, `Candidate` split from
     `CatalogStage`

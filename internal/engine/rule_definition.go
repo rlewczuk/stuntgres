@@ -40,7 +40,7 @@ type ruleDefinition struct {
 }
 
 func ruleIndex(d *relationDescriptor, name string) int {
-	return slices.IndexFunc(d.rules, func(r ruleDefinition) bool { return r.Name == name })
+	return slices.IndexFunc(rulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
 }
 func ruleMissing(name string, d *relationDescriptor) error {
 	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.name))

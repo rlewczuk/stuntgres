@@ -104,7 +104,7 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 		if origin.attribute != 0 {
 			return d.defaults[origin.attribute].OID == origin.definition
 		}
-		return d.view != nil && d.view.rule == origin.definition && d.view.quoteRevision == origin.revision
+		return d.view != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
 	}
 	for i, entry := range g.entries {
 		if valid(entry.origin) {

@@ -10,46 +10,63 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type extensionProvider interface {
-	stage(*Engine, *CatalogStage, *extensionDescriptor, authorization.PrincipalRef, AuthorizationView) error
-	validate(CatalogRead, *extensionDescriptor) error
-}
-type registeredExtension struct {
+// extensionControl is a registered extension's control-file metadata.
+type extensionControl struct {
 	version                         string
 	trusted, superuser, relocatable bool
-	provider                        extensionProvider
 	comment, schema                 *string
 	requires                        []string
+}
+
+// detached returns a copy that shares no storage with c.
+func (c extensionControl) detached() extensionControl {
+	if c.comment != nil {
+		value := *c.comment
+		c.comment = &value
+	}
+	if c.schema != nil {
+		value := *c.schema
+		c.schema = &value
+	}
+	c.requires = append([]string(nil), c.requires...)
+	return c
+}
+
+// extensionImplementation is one registered extension. The catalog owner
+// record and every member descriptor hold the same instance, so pointer
+// identity proves which implementation installed a member.
+type extensionImplementation interface {
+	// Control returns the extension's control metadata as a detached copy.
+	Control() extensionControl
+	// ValidateExtension checks an installed extension's manifest.
+	ValidateExtension(CatalogRead, *extensionDescriptor) error
+}
+
+// extensionInstaller is the engine side of an implementation: staging needs
+// the engine and its catalog stage, which catalog code never names.
+type extensionInstaller interface {
+	extensionImplementation
+	stage(*Engine, *CatalogStage, *extensionDescriptor, authorization.PrincipalRef, AuthorizationView) error
 }
 
 const unaccentTemplateContext = "SQL statement \"CREATE TEXT SEARCH TEMPLATE unaccent (\n\tINIT = unaccent_init,\n\tLEXIZE = unaccent_lexize\n)\"\nextension script file \"unaccent--1.1.sql\", near line 26"
 
 // Registration is initialization-only and duplicate checked, like catalog
 // provider registration. It does not execute scripts or load external packages.
-func (e *Engine) registerExtension(name string, registration registeredExtension) error {
+func (e *Engine) registerExtension(name string, implementation extensionInstaller) error {
 	if e.catalog.state != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
-	if name == "" || registration.version == "" || registration.provider == nil {
+	if name == "" || implementation == nil || implementation.Control().version == "" {
 		return fmt.Errorf("stuntgres: invalid extension registration")
 	}
 	if e.catalog.extensions == nil {
-		e.catalog.extensions = make(map[string]registeredExtension)
+		e.catalog.extensions = make(map[string]extensionImplementation)
 	}
 	if _, exists := e.catalog.extensions[name]; exists {
 		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
 	}
-	// Detach caller-owned control metadata before publishing the registry.
-	if registration.comment != nil {
-		value := *registration.comment
-		registration.comment = &value
-	}
-	if registration.schema != nil {
-		value := *registration.schema
-		registration.schema = &value
-	}
-	registration.requires = append([]string(nil), registration.requires...)
-	e.catalog.extensions[name] = registration
+	e.catalog.extensions[name] = implementation
 	return nil
 }
 
@@ -96,10 +113,12 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		}
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))
 	}
-	registration, ok := e.catalog.extensions[s.Name.Text]
-	if !ok {
+	implementation, ok := e.catalog.extensions[s.Name.Text]
+	installer, installable := implementation.(extensionInstaller)
+	if !ok || !installable {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, s.Name.Text)}
 	}
+	registration := implementation.Control()
 	version := registration.version
 	var schema *parser.Identifier
 	seen := map[string]bool{}
@@ -186,7 +205,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err := stage.Create(ext); err != nil {
 		return nil, err
 	}
-	if err := registration.provider.stage(e, stage, ext, memberOwner, auth); err != nil {
+	if err := installer.stage(e, stage, ext, memberOwner, auth); err != nil {
 		return nil, err
 	}
 	return stage, nil
@@ -223,7 +242,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			vol = expr.Volatile
 			strict = false
 		}
-		proc := &procedureDescriptor{address: ext.members[i], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: vol, strict: strict, provider: p}
+		proc := &procedureDescriptor{address: ext.members[i], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: vol, strict: strict, implementation: p}
 		if i < 2 {
 			proc.dictionary = ext.members[5]
 		}
@@ -263,7 +282,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	tmpl := &tsTemplateDescriptor{address: ext.members[4], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", init: helpers[0], lexize: helpers[1], provider: p}
+	tmpl := &tsTemplateDescriptor{address: ext.members[4], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", init: helpers[0], lexize: helpers[1], implementation: p}
 	if stage.lookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(tmpl, ext.targetNamespace)
 	}
@@ -274,7 +293,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	dict := &tsDictionaryDescriptor{address: ext.members[5], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", template: tmpl.address, owner: owner, provider: p}
+	dict := &tsDictionaryDescriptor{address: ext.members[5], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", template: tmpl.address, owner: owner, implementation: p}
 	if stage.lookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(dict, ext.targetNamespace)
 	}

@@ -167,7 +167,9 @@ startup regression. 5f completes the step; 5g is optional.
   (`17a54431b`, `ddd9eb246`, `0175300e5`, `5aeaedcdc`, then the commit that
   records this status) *(full racecheck skipped at user request; targeted
   RACE=1 runs passed)*
-- [ ] 5c — View, rule, policy, extension-provider and expression payload seams
+- [x] 5c — View, rule, policy, extension-provider and expression payload
+  seams (`3f4eb275c`, `0559a8d7b`, `1e2576d18`, `b4d7e495b`, then the commit
+  that records this status) *(racecheck skipped at user request)*
 - [ ] 5d — Descriptor names decided, fields exported
 - [ ] 5e — `catalog` created, types moved, `Candidate` split from
   `CatalogStage`
@@ -288,10 +290,92 @@ Outstanding aliases: none yet.
   from `5b986e558` (the <1 ms target is already missed there). `make deps`
   lists only module paths. Package imports are unchanged.
 
+5c results:
+
+- **Extension implementations** (`extension_install.go`,
+  `extension_implementation.go`). One `extensionImplementation` interface
+  (`Control() extensionControl`, `ValidateExtension(CatalogRead,
+  *extensionDescriptor)`) replaces `extensionProvider`, `registeredExtension`
+  and the six provider pointers on `procedureDescriptor` (`provider`,
+  `queryCodec`, `fuzzy`, `crypto`, `intagg`, `uuidOssp`) plus the
+  `*unaccentProvider` on the text search template and dictionary.
+  - Each descriptor has one `implementation` field. The owner record holds
+    `extensions map[string]extensionImplementation`, the same instance the
+    members point at.
+  - Providers own their control metadata (moved from `engine.go`);
+    `Control()` returns a detached copy, which replaces the copy that
+    registration used to make.
+  - Staging needs `*Engine` and `*CatalogStage`, so it stays out of the
+    interface: `extensionInstaller` embeds it and adds `stage`, and
+    `registerExtension` takes an installer.
+  - Typed accessors (`d.pgcryptoProvider()`, ..., comma-ok, nil otherwise)
+    keep all 83 production reads exact. Exclusivity checks between two
+    provider fields, which one field cannot violate, were removed;
+    `sameRoutineDeclaration` compares the single field. Comparisons that
+    looked at only some providers (`scalar_function_sql.go`) keep their
+    typed form. `aggregate`, `conversion` and `foreign` are unchanged.
+- **Views** (`view_payload.go`). `relationDescriptor.view` is a
+  `viewPayload`: `RuleOID`, `DependsOn`, `TemporaryConsumer`,
+  `CapturedReference` and `Validate`. `viewOf(d)` is the checked accessor
+  (111 production uses, all feature code); `viewPayloadOf` keeps a nil
+  definition a nil payload, so `d.view != nil` and `a.view != b.view` keep
+  their meaning. Catalog-level code uses the methods: the relation
+  validator (`validateViewDefinition` delegates to `Validate`),
+  `viewDepends`, temporary provenance, recipe grafting and the pg_rewrite
+  identity readers (`definition_identity`, `object_identity`,
+  `object_address_lookup`, `catalog_sources`, `pg_depend`).
+- **Policy presentation** (`policy_payload.go`). `policyDefinition.using`
+  and `.check` are `policyPayload` (`DependsOn`, `Validate`). The payload is
+  the whole `policyExpression`, not only its `presentation`: its validation
+  walks engine expression nodes, so a catalog validator can reach it only
+  through the interface. Accessor `policyExpressionOf` (19 production
+  uses).
+- **Rules, cuts 8 and 9** (`rule_payload.go`). `relationDescriptor.rules`
+  is a `rulesPayload` with only `Validate`; `ruleList []ruleDefinition` is
+  the engine's implementation and `rulesOf(d)` the accessor (53 production
+  uses). The payload is the whole list, so slice value semantics and
+  copy-on-write sharing are unchanged. Deviation from the plan: no
+  `DependsOn`, because every rule dependency check is per rule and labels
+  the rule by name, which is engine code (`ruleDepends`).
+- **Expression payloads** needed no change: check, default, generation
+  (`expression`, `planned`), index keys and predicates (`definition`,
+  `execution`), domain checks, policy `expression` and rule `condition` were
+  already `expr.Expr` (steps 2a–2d), and no engine-only method is called on
+  them.
+- **Tooling.** A `go/types` rewrite tool (scratchpad `payrw`, modes
+  `count`, `reads`, `writes`) rewrote reads to the accessors, kept nil and
+  field-to-field comparisons and copies, and wrapped non-literal writes in
+  the `...PayloadOf` helpers; 7 value-typed receivers needed `&` by hand.
+- **Tests.** None moved or deleted. New: `TestCatalogPayloadAccessors`, and
+  implementation-identity assertions in `TestExtensionProviderIdentity`.
+  Rewritten: the registry half of `TestAvailableExtensionsMetadataValues`
+  (registration now keeps the implementation; detachment is pinned on
+  `Control` and `extensionControl.detached`). Adapted mechanically: provider
+  lookalike literals and two-provider mutations (now a single replacement,
+  still rejected) in 10 provider/expression test files, and the view, rule
+  and policy fixtures.
+- **Verification.** `quickcheck` passed after each commit (3 and 4 together;
+  the branch needed no rebase). Targeted extension, view, rule, policy,
+  catalog, remap, Dump/Restore and provenance selections passed.
+  `REFERENCE=1` extension, rule, RLS/policy, view, materialized, temporary
+  and Restore selections passed except four tests whose PostgreSQL oracle
+  subtests fail identically on `master` (18.6 drift, fixed on
+  `fix/pg186-drift`): `TestReferencePGNamespaceViewStoragePrecedence`,
+  `TestReferenceRLSBaseFreshAuthority`, `TestReferenceRLSBaseFreshness`,
+  `TestReferenceTemporaryTableDiagnostics`. `racecheck` skipped at the
+  user's request. `make bench`: 7,768 allocations (7,769 before) and about
+  2.07 MB/op (2.12 MB before); ns/op was noise-dominated by machine load in
+  both master and branch runs (1.5–2.2 ms), with the quiet baseline at about
+  1.52 ms. `make deps` lists only module paths; imports are unchanged.
+
 Notes for later steps:
 
-- 5c/5e: `registeredExtension` (extension implementations) now lives in the
-  owner record; 5c's provider interface should replace it there.
+- 5e: the payload methods take `CatalogRead` and `*relationDescriptor`,
+  which become `catalog.Read` and the exported relation type when the
+  interfaces move; their method names are already exported so the engine's
+  `viewDefinition`, `policyExpression`, `ruleList` and providers can keep
+  implementing them. `extensionInstaller.stage` stays in the engine.
+- 5e: `extensionControl` is catalog data and moves with the interface.
 - 5e: composite literals that build a `catalogState` and the test whole-map
   uses are the remaining direct map selectors.
 - 5a was a broad rewrite in practice (670 files). Do not run it, or a

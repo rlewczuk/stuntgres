@@ -62,7 +62,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 			}
 			active = append(active, d.address)
 			defer func() { active = active[:len(active)-1] }()
-			for i, child := range d.view.sources {
+			for i, child := range viewOf(d).sources {
 				if child.analysisOnly {
 					continue
 				}
@@ -70,7 +70,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 				if err != nil {
 					return err
 				}
-				if err := walk(queryLeaf{ref: ref, only: child.only, mark: viewLeafRowMark(d.view, i, leaf.mark)}); err != nil {
+				if err := walk(queryLeaf{ref: ref, only: child.only, mark: viewLeafRowMark(viewOf(d), i, leaf.mark)}); err != nil {
 					return err
 				}
 			}
@@ -111,7 +111,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			return ids.ErrCatalogReplaced
 		}
 		roots = append([]queryLeaf(nil), roots...)
-		for _, leaf := range d.view.sources {
+		for _, leaf := range viewOf(d).sources {
 			if leaf.analysisOnly {
 				continue
 			}

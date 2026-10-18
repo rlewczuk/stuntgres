@@ -129,7 +129,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
 		aliases := 0
-		for _, leaf := range outer.view.sources {
+		for _, leaf := range viewOf(outer).sources {
 			view, err := scope.AcquireDataView(leaf.ref)
 			if err != nil || view.data.Load() != snapshot {
 				t.Fatal("source/alias recaptured separately", leaf.ref, err)

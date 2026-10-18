@@ -529,7 +529,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				// canonical materialized renderer must qualify user types too.
 				presentation.path = []ids.ObjectAddress{}
 			}
-			body, err := r.view.selectSQL(ctx, catalog, presentation)
+			body, err := viewOf(r).selectSQL(ctx, catalog, presentation)
 			if err != nil {
 				e.mu.Unlock()
 				return err
@@ -543,9 +543,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				columns = " (" + strings.Join(labels, ", ") + ")"
 			}
 			options := ""
-			if len(r.view.options) != 0 {
-				installed := make([]string, len(r.view.options))
-				for i, option := range r.view.options {
+			if len(viewOf(r).options) != 0 {
+				installed := make([]string, len(viewOf(r).options))
+				for i, option := range viewOf(r).options {
 					name, value, _ := strings.Cut(option, "=")
 					installed[i] = quoteIdentifier(name) + "=" + commentLiteral(value)
 				}
@@ -588,19 +588,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				sql += "ALTER MATERIALIZED VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + " DEPENDS ON EXTENSION " + quoteIdentifier(extension.name) + ";\n"
 			}
-			for _, leaf := range r.view.sources {
+			for _, leaf := range viewOf(r).sources {
 				if err := addPredecessor(leaf.ref.Address); err != nil {
 					e.mu.Unlock()
 					return err
 				}
 			}
-			for _, dependency := range r.view.dependencies {
+			for _, dependency := range viewOf(r).dependencies {
 				if err := addPredecessor(dependency.ref.Address); err != nil {
 					e.mu.Unlock()
 					return err
 				}
 			}
-			for _, literal := range r.view.literals {
+			for _, literal := range viewOf(r).literals {
 				if err := regclassReplayReferences(e.catalog.read(e.catalog.state), literal, addPredecessor); err != nil {
 					e.mu.Unlock()
 					return err

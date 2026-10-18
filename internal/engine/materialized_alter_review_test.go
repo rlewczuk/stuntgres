@@ -301,9 +301,9 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	// the original MV's valid rule, rowtype, exposed attributes and stale rows.
 	// Validation/publication, rather than a direct descriptor-map mutation,
 	// establishes this defining predecessor while the real ALTER is pending.
-	definition := *producer.view
-	definition.rule = d.view.rule
-	definition.consumer = d.view.consumer
+	definition := *viewOf(producer)
+	definition.rule = viewOf(d).rule
+	definition.consumer = viewOf(d).consumer
 	next := *d
 	next.view = &definition
 	next.revision++
@@ -326,7 +326,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	current := e.catalog.state.MustRelation(d.address)
-	if current.view != &definition || current.columns[0].Name != "i" || current.rowType != d.rowType || !reflect.DeepEqual(current.attributes, d.attributes) || e.storage[d.address] != store || e.indexRoots[index.address] != root || current.view.query != producer.view.query || current.view.rule != d.view.rule {
+	if viewOf(current) != &definition || current.columns[0].Name != "i" || current.rowType != d.rowType || !reflect.DeepEqual(current.attributes, d.attributes) || e.storage[d.address] != store || e.indexRoots[index.address] != root || viewOf(current).query != viewOf(producer).query || viewOf(current).rule != viewOf(d).rule {
 		t.Fatal("rejected queued ALTER changed validated producer predecessor")
 	}
 	result = sessionSQL(t, holder, "SELECT i FROM unit_mv ORDER BY i")

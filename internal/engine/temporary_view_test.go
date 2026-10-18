@@ -34,7 +34,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: viewPayloadOf(definition), columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	definition.consumer = d.address
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = e.stageRowTypeLocked(stage, d)
@@ -172,7 +172,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	next := cloneCatalog(before.state)
 	next.epoch++
 	retained := e.catalog.read(next)
-	ref := view.view.sources[0].ref
+	ref := viewOf(view).sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact retained source rejected")
 	}
@@ -217,7 +217,7 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	next := cloneCatalog(before.state)
 	next.epoch++
 	retained := e.catalog.read(next)
-	ref := view.view.sources[0].ref
+	ref := viewOf(view).sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact captured catalog provider rejected")
 	}
@@ -229,7 +229,7 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	}
 	next.setDescriptor(ref.Address, old)
 	fake := *view
-	fake.view = &viewDefinition{consumer: view.address, temporary: view.view.temporary}
+	fake.view = &viewDefinition{consumer: view.address, temporary: viewOf(view).temporary}
 	next.setDescriptor(view.address, &fake)
 	if storedViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")
@@ -247,7 +247,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.catalog.state
-	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: view.view.syntax}
+	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: viewOf(view).syntax}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
 	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.base.Get(view.address) != nil {

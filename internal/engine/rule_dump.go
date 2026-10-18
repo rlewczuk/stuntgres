@@ -456,7 +456,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.rules) == 0 {
+		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}
 		ns := view.MustNamespace(d.namespace)
@@ -472,7 +472,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 			return nil, err
 		}
 		var sql strings.Builder
-		for _, r := range d.rules {
+		for _, r := range rulesOf(d) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}

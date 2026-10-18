@@ -8,8 +8,16 @@ import (
 )
 
 func validateRules(view CatalogRead, d *relationDescriptor) error {
+	if d.rules == nil {
+		return nil
+	}
+	return d.rules.Validate(view, d)
+}
+
+// validateRuleList checks rules owned by d.
+func validateRuleList(view CatalogRead, d *relationDescriptor, rules []ruleDefinition) error {
 	previous := ""
-	for i, r := range d.rules {
+	for i, r := range rules {
 		if r.OID == 0 || r.Name == "" || i != 0 && strings.Compare(previous, r.Name) >= 0 {
 			return fmt.Errorf("stuntgres: invalid rule identity/order")
 		}

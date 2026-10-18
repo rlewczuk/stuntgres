@@ -141,7 +141,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		converted := coercionExpression{Info: expr.Info{Usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
-		definition := *d.view
+		definition := *viewOf(d)
 		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []expr.Expr{converted}}}
 		d.view = &definition
 		e.mu.Lock()

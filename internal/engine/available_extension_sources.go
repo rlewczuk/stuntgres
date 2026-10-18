@@ -10,7 +10,7 @@ import (
 // The initialization-only registry supplies availability; the captured catalog
 // supplies installed state. Neither target-schema visibility nor provider calls
 // participate in this metadata projection.
-func captureAvailableExtensions(ctx context.Context, registry map[string]registeredExtension, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureAvailableExtensions(ctx context.Context, registry map[string]extensionImplementation, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -32,13 +32,13 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]registe
 		}
 	}
 	rows := make([][]sqltype.Value, 0, len(registry))
-	for name, registration := range registry {
+	for name, implementation := range registry {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name})
 		installed, _ := catalog.Extension(address)
-		row, err := projectAvailableExtension(name, registration, installed, source)
+		row, err := projectAvailableExtension(name, implementation.Control(), installed, source)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +52,7 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]registe
 
 // Metadata-only component seam: fixed control schema is not the installed
 // target namespace, and an unknown installed version never creates a package.
-func projectAvailableExtension(name string, registration registeredExtension, installed *extensionDescriptor, source *relationDescriptor) ([]sqltype.Value, error) {
+func projectAvailableExtension(name string, registration extensionControl, installed *extensionDescriptor, source *relationDescriptor) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(source.columns))
 	for i, column := range source.columns {
 		row[i] = sqltype.Null(column.Usage.Type)

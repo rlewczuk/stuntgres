@@ -30,7 +30,7 @@ func grantRoutineKindMatches(target string, kind routineKind) bool {
 
 func (d *procedureDescriptor) returnsSet() bool {
 	return d.builtin != nil && d.builtin.returnsSet ||
-		d.intagg == stockIntagg && d.routineKind == functionRoutine &&
+		d.intaggProvider() == stockIntagg && d.routineKind == functionRoutine &&
 			d.name == "int_array_enum" && d.signature == "1007" && d.result == 23
 }
 

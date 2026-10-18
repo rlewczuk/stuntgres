@@ -98,7 +98,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			expression(constraint.expression)
 		}
 		if relation.view != nil {
-			for _, literal := range relation.view.literals {
+			for _, literal := range viewOf(relation).literals {
 				check(literal.value)
 			}
 		}
@@ -129,10 +129,10 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 		}
 		for _, policy := range relation.policies {
 			if policy.using != nil {
-				expression(policy.using.expression)
+				expression(policyExpressionOf(policy.using).expression)
 			}
 			if policy.check != nil {
-				expression(policy.check.expression)
+				expression(policyExpressionOf(policy.check).expression)
 			}
 		}
 		if failure != nil {

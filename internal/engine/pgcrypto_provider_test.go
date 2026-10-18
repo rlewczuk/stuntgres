@@ -79,10 +79,12 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.crypto = &pgcryptoProvider{version: "1.4"} },
-		func(p *procedureDescriptor) { p.provider = stockUnaccent },
-		func(p *procedureDescriptor) { p.queryCodec = stockIntarray },
-		func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch },
+		func(p *procedureDescriptor) {
+			p.implementation = &pgcryptoProvider{control: extensionControl{version: "1.4"}}
+		},
+		func(p *procedureDescriptor) { p.implementation = stockUnaccent },
+		func(p *procedureDescriptor) { p.implementation = stockIntarray },
+		func(p *procedureDescriptor) { p.implementation = stockFuzzystrmatch },
 		func(p *procedureDescriptor) { p.name = "crypt" },
 		func(p *procedureDescriptor) { p.signature = "25" },
 		func(p *procedureDescriptor) { p.result = 25 },
@@ -97,7 +99,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		mutate(&bad)
 		view.state.setDescriptor(ext.members[0], &bad)
 		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
-		manifestFailure := stockPgcrypto.validate(view, ext)
+		manifestFailure := stockPgcrypto.ValidateExtension(view, ext)
 		view.state.setDescriptor(ext.members[0], original)
 		if failure == nil {
 			t.Fatal("invalid provider accepted", bad)
@@ -112,12 +114,14 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			func(p *procedureDescriptor) { p.strict = !p.strict },
 			func(p *procedureDescriptor) { p.result = 25 },
 			func(p *procedureDescriptor) { p.signature = "25" },
-			func(p *procedureDescriptor) { p.crypto = &pgcryptoProvider{version: "1.4"} },
+			func(p *procedureDescriptor) {
+				p.implementation = &pgcryptoProvider{control: extensionControl{version: "1.4"}}
+			},
 		} {
 			bad := *original
 			mutate(&bad)
 			view.state.setDescriptor(address, &bad)
-			failure := stockPgcrypto.validate(view, ext)
+			failure := stockPgcrypto.ValidateExtension(view, ext)
 			view.state.setDescriptor(address, original)
 			if failure == nil {
 				t.Fatal("invalid random/FIPS member admitted", bad)
@@ -127,11 +131,11 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	bad := *ext
 	bad.members = slices.Clone(ext.members)
 	bad.members[1] = bad.members[0]
-	if err := stockPgcrypto.validate(view, &bad); err == nil {
+	if err := stockPgcrypto.ValidateExtension(view, &bad); err == nil {
 		t.Fatal("duplicate member accepted")
 	}
 	bad.members = bad.members[:3]
-	if err := stockPgcrypto.validate(view, &bad); err == nil {
+	if err := stockPgcrypto.ValidateExtension(view, &bad); err == nil {
 		t.Fatal("incomplete parent accepted")
 	}
 }
@@ -201,7 +205,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if mapped.crypto != stockPgcrypto || mapped.signature != n.procedure.signature || mapped.result != 17 || mapped.address == n.procedure.address {
+	if mapped.pgcryptoProvider() != stockPgcrypto || mapped.signature != n.procedure.signature || mapped.result != 17 || mapped.address == n.procedure.address {
 		t.Fatal(mapped)
 	}
 	// A four-child call must retain IV/type children and its genuine installed
@@ -232,7 +236,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(aesRefs, err)
 	}
 	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
-	if mappedAES.crypto != stockPgcrypto || mappedAES.signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
+	if mappedAES.pgcryptoProvider() != stockPgcrypto || mappedAES.signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
 		t.Fatal(mappedAES)
 	}
 	for _, v := range []struct {

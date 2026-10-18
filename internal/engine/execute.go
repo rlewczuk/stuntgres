@@ -489,7 +489,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, boundary
 		}
 	}
-	if relation := bindingRuleRelation(b); relation != nil && len(relation.rules) != 0 {
+	if relation := bindingRuleRelation(b); relation != nil && len(rulesOf(relation)) != 0 {
 		return e.executeRuleProgramLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)
 	}
 	return e.executeBoundLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)

@@ -111,17 +111,17 @@ func TestViewWriteMapping(t *testing.T) {
 	compact.attributes = []int32{11, 19}
 	compact.columns = []ColumnDescriptor{f.base.columns[1], f.base.columns[2]}
 	compact.columns[0].Name = "renamed"
-	slot, err := stableViewSlot(&compact, f.view.view.sources[0], 1)
+	slot, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 1)
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
 	}
-	if _, err := stableViewSlot(&compact, f.view.view.sources[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing identity admitted", err)
 	}
 	// Reject the first released classifier reason rather than a later group
 	// restriction. These are admitted AST shapes, not invented parser nodes.
 	restricted := *f.view
-	definition := *f.view.view
+	definition := *viewOf(f.view)
 	syntax := *definition.syntax
 	syntax.Distinct = &parser.DistinctClause{}
 	syntax.GroupBy = &parser.GroupClause{}

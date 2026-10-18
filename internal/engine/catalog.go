@@ -81,7 +81,7 @@ type relationDescriptor struct {
 	physicalNotNull      map[int32]physicalNotNullProof
 	checkConstraints     []checkConstraint
 	policies             []policyDefinition
-	rules                []ruleDefinition
+	rules                rulesPayload
 	rlsEnabled           bool
 	rlsForced            bool
 	uniqueConstraints    []uniqueConstraint
@@ -98,7 +98,7 @@ type relationDescriptor struct {
 	subclassPublication  ids.DefinitionRevision
 	onCommit             parser.OnCommitAction
 	sequence             *sequenceOptions
-	view                 *viewDefinition
+	view                 viewPayload
 	populated            bool                // Independent of stored row count, including populated-empty MVs.
 	autoExtensions       []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
 	virtualView          bool
@@ -1373,7 +1373,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.rules) != 0 {
+			if relation, ok := descriptor.(*relationDescriptor); ok && len(rulesOf(relation)) != 0 {
 				if err := validateRules(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}

@@ -70,7 +70,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				next := *originalView
 				next.address.ObjectID, next.name, next.revision = oid, "late_view", revision
 				next.rowType = 0
-				definition := *originalView.view
+				definition := *viewOf(originalView)
 				definition.rule = rule
 				next.view = &definition
 				next.columns = append([]ColumnDescriptor(nil), originalView.columns...)

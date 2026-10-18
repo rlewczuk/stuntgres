@@ -54,9 +54,9 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					view := e.stageRead(stage)
 					// Validation must still reject the unpruned old condition; the
 					// fix changes retirement authority, not validator strictness.
-					condition := old.policies[0].using
+					condition := policyExpressionOf(old.policies[0].using)
 					if clause == "WITH CHECK" {
-						condition = old.policies[0].check
+						condition = policyExpressionOf(old.policies[0].check)
 					}
 					if err := validatePolicyExpression(view, next, condition); err == nil {
 						t.Fatal("stale represented provider accepted")

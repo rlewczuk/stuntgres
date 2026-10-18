@@ -39,7 +39,7 @@ type policyDefinition struct {
 	permissive   bool
 	command      policyCommand
 	roles        []policyRole
-	using, check *policyExpression
+	using, check policyPayload
 }
 
 func policyOwnerNoun(stmt parser.Statement) string {
@@ -142,9 +142,9 @@ func validatePolicies(view CatalogRead, d *relationDescriptor) error {
 		if p.command == policyInsert && p.using != nil || (p.command == policySelect || p.command == policyDelete) && p.check != nil {
 			return fmt.Errorf("stuntgres: invalid policy clauses")
 		}
-		for _, expr := range []*policyExpression{p.using, p.check} {
-			if expr != nil {
-				if err := validatePolicyExpression(view, d, expr); err != nil {
+		for _, condition := range []policyPayload{p.using, p.check} {
+			if condition != nil {
+				if err := condition.Validate(view, d); err != nil {
 					return err
 				}
 			}

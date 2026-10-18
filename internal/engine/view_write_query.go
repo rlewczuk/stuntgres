@@ -21,8 +21,8 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 	var definition *viewDefinition
 	var consumer *relationDescriptor
 	for _, layer := range w.layers {
-		if _, found := layer.relation.view.queries[project.syntax]; found {
-			definition = layer.relation.view
+		if _, found := viewOf(layer.relation).queries[project.syntax]; found {
+			definition = viewOf(layer.relation)
 			consumer = layer.relation
 			break
 		}
@@ -144,12 +144,12 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 				continue
 			}
 			for _, layer := range b.viewWrite.layers {
-				if layer.relation.view != key.definition {
+				if viewOf(layer.relation) != key.definition {
 					continue
 				}
 				current := auth.catalog.MustRelation(layer.ref.Address)
 				source.principal = current.owner
-				if current.view.invoker {
+				if viewOf(current).invoker {
 					source.principal = auth.state.CurrentUser
 				}
 				break

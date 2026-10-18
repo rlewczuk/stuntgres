@@ -77,7 +77,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if proc.uuidOssp != stockUUIDOssp || proc.signature != "" || proc.result != 2950 || proc.address == n.procedure.address {
+	if proc.uuidOsspProvider() != stockUUIDOssp || proc.signature != "" || proc.result != 2950 || proc.address == n.procedure.address {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -268,8 +268,10 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		})
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(d *procedureDescriptor) { d.uuidOssp = nil },
-		func(d *procedureDescriptor) { d.uuidOssp = &uuidOsspProvider{version: "1.1"} },
+		func(d *procedureDescriptor) { d.implementation = nil },
+		func(d *procedureDescriptor) {
+			d.implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
+		},
 		func(d *procedureDescriptor) { d.routineKind = procedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority

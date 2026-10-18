@@ -221,29 +221,13 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(tablespaceProvider{}); err != nil {
 		return nil, err
 	}
-	comment := "text search dictionary that removes accents"
-	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUnaccent}); err != nil {
-		return nil, err
-	}
-	comment = "functions, operators, and index support for 1-D arrays of integers"
-	if err := e.registerExtension("intarray", registeredExtension{version: "1.5", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockIntarray}); err != nil {
-		return nil, err
-	}
-	comment = "determine similarities and distance between strings"
-	if err := e.registerExtension("fuzzystrmatch", registeredExtension{version: "1.2", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockFuzzystrmatch}); err != nil {
-		return nil, err
-	}
-	comment = "integer aggregator and enumerator (obsolete)"
-	if err := e.registerExtension("intagg", registeredExtension{version: "1.1", superuser: true, relocatable: true, comment: &comment, provider: stockIntagg}); err != nil {
-		return nil, err
-	}
-	comment = "cryptographic functions"
-	if err := e.registerExtension("pgcrypto", registeredExtension{version: "1.4", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockPgcrypto}); err != nil {
-		return nil, err
-	}
-	comment = "generate universally unique identifiers (UUIDs)"
-	if err := e.registerExtension("uuid-ossp", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUUIDOssp}); err != nil {
-		return nil, err
+	for _, extension := range []struct {
+		name           string
+		implementation extensionInstaller
+	}{{"unaccent", stockUnaccent}, {"intarray", stockIntarray}, {"fuzzystrmatch", stockFuzzystrmatch}, {"intagg", stockIntagg}, {"pgcrypto", stockPgcrypto}, {"uuid-ossp", stockUUIDOssp}} {
+		if err := e.registerExtension(extension.name, extension.implementation); err != nil {
+			return nil, err
+		}
 	}
 	e.catalog.state = &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
 	for _, ns := range []struct {
@@ -437,7 +421,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
-	if relation := bindingRuleRelation(b); relation != nil && len(relation.rules) != 0 {
+	if relation := bindingRuleRelation(b); relation != nil && len(rulesOf(relation)) != 0 {
 		program := ruleProgram{count: -1, returning: -1}
 		if _, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err

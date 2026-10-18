@@ -31,7 +31,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		}
 		authority := v
 		authority.state.CurrentUser = current.owner
-		if current.view.invoker {
+		if viewOf(current).invoker {
 			authority.state.CurrentUser = invoker
 		}
 		source, ok := v.catalog.Relation(layer.sourceRef.Address)
@@ -46,7 +46,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		} else if err := authority.checkColumns(physical, mask, layer.targets); err != nil {
 			return err
 		}
-		for occurrence, leaf := range current.view.sources {
+		for occurrence, leaf := range viewOf(current).sources {
 			// Only the rewritten main target inherits outer command reads.
 			// Independent subquery occurrences keep their own SELECT record,
 			// including another occurrence of the same physical relation.
@@ -82,7 +82,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			if occurrence == layer.mainOccurrence {
 				continue // The next write layer owns main-source expansion.
 			}
-			mark := viewLeafRowMark(current.view, occurrence, queryRowMark{})
+			mark := viewLeafRowMark(viewOf(current), occurrence, queryRowMark{})
 			if mark.mode != 0 {
 				if err := authority.checkColumns(sourceBinding, authorization.UpdatePrivilege, nil); err != nil {
 					return err

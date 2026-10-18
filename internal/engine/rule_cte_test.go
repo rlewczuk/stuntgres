@@ -43,7 +43,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	definition := &cteDefinition{statement: original.syntax, mutation: &original.binding, schema: querySchema(src.columns), owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
-		src.rules = []ruleDefinition{{Name: "redirect", event: "INSERT", instead: true, actions: []ruleAction{action}}}
+		src.rules = rulesPayloadOf([]ruleDefinition{{Name: "redirect", event: "INSERT", instead: true, actions: []ruleAction{action}}})
 		defer func() { src.rules = nil }()
 		parent := binding{ctes: []*cteDefinition{definition}}
 		e.mu.Lock()
