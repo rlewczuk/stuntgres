@@ -720,35 +720,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		e.Arg = next
 		changed = changed || did
 		expression = e
-	case sqlJSONExpression:
-		var args []expr.Expr
-		for i, old := range e.args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i], changed = node, true
-			}
-		}
-		if args != nil {
-			next, failure := e.reconstruct(e.Info, args)
-			if failure != nil {
-				return nil, false, failure
-			}
-			expression = next
-		}
-	case jsonPredicateExpression:
-		next, did, failure := simplifyConditional(c, e.child, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		e.child = next
-		changed = changed || did
-		expression = e
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		next, did, done, failure := simplifyCompositeNode(c, e, decisiveDefaults)
@@ -880,18 +851,6 @@ func conditionalConstantInputs(node expr.Expr) bool {
 		return true
 	case installedFunctionExpression:
 		return e.procedure != nil && e.procedure.volatility == expr.Immutable && literal(e.Arg)
-	case sqlJSONExpression:
-		if e.Property.Volatility != expr.Immutable {
-			return false
-		}
-		for _, arg := range e.args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case jsonPredicateExpression:
-		return literal(e.child)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		return compositeConstantInputs(e)

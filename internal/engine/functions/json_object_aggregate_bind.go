@@ -178,7 +178,7 @@ func resolveSQLJSONObjectAggregate(b Binder, raw parser.AggregateExpr, name pars
 	}
 	options := raw.JSON
 	if options.Input != nil {
-		args[1], err = formatJSONInput(b, args[1], options.Input)
+		args[1], err = SQLJSONInput(b, args[1], options.Input, false, false)
 		if err != nil {
 			return fail(err)
 		}

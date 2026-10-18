@@ -12,16 +12,6 @@ import (
 
 func arrayMembershipName(name string) bool { return name == "@>" || name == "<@" || name == "&&" }
 
-func (b *expressionBinder) arrayMembershipError(left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
-	err := b.comparisonError(sqlError("42883", "operator does not exist"), left, right, raw)
-	if d, ok := err.(*sqlstate.Error); ok {
-		copy := *d
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", functions.ArrayTypeName(b, left), objectNameText(raw.Name), functions.ArrayTypeName(b, right))
-		return &copy
-	}
-	return err
-}
-
 func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Args) != 2 {
 		return nil, fmt.Errorf("stuntgres: invalid membership arity")
@@ -44,7 +34,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		return nil, err
 	}
 	if !visible {
-		return nil, b.arrayMembershipError(left, right, raw)
+		return nil, functions.ArrayOperatorError(b, left, right, raw)
 	}
 	if left == nil && right == nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -52,9 +42,9 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}
-	if jsonbContainmentName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) &&
+	if functions.JSONBContainmentName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) &&
 		(left != nil && left.BaseType().ID() == sqltype.JSONB || right != nil && right.BaseType().ID() == sqltype.JSONB) {
-		return b.bindJSONBContainment(raw, operands)
+		return functions.BindJSONBContainment(b, raw, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])})
 	}
 	// ACL arrays select the fixed array/item signature for an unknown RHS;
 	// a known array RHS still belongs to the generic array/array operator.
@@ -86,7 +76,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		}
 		base := d.BaseType()
 		if !base.IsArray() || selected != nil && selected != base {
-			return nil, b.arrayMembershipError(left, right, raw)
+			return nil, functions.ArrayOperatorError(b, left, right, raw)
 		}
 		selected = base
 	}
@@ -108,7 +98,7 @@ func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [
 	if !array(left) && !array(right) {
 		return nil, false, nil
 	}
-	signature := func() (expr.Expr, error) { return nil, b.arrayMembershipError(left, right, raw) }
+	signature := func() (expr.Expr, error) { return nil, functions.ArrayOperatorError(b, left, right, raw) }
 	if !visible {
 		e, err := signature()
 		return e, true, err

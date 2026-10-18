@@ -72,14 +72,14 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
-	case sqlJSONExpression:
+	case functions.SQLJSON:
 		return r.sqlJSON(ctx, view, n, sqltype.Usage{})
-	case jsonPredicateExpression:
-		text, err := r.sql(ctx, view, n.child)
+	case functions.JSONPredicate:
+		text, err := r.sql(ctx, view, n.Child)
 		if err != nil {
 			return "", err
 		}
-		return jsonPredicateRecipe(text, n.kind, n.unique, n.not), nil
+		return jsonPredicateRecipe(text, n.Kind, n.Unique, n.Not), nil
 	case installedUUIDOsspFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored uuid-ossp reference")
@@ -183,7 +183,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
-		if n.Plan.Name() != "||" && n.Plan.Name() != "-" && n.Plan.Name() != "#-" && !jsonbContainmentName(n.Plan.Name()) && !jsonbExistenceName(n.Plan.Name()) && !jsonExtractionName(n.Plan.Name()) {
+		if n.Plan.Name() != "||" && n.Plan.Name() != "-" && n.Plan.Name() != "#-" && !functions.JSONBContainmentName(n.Plan.Name()) && !functions.JSONBExistenceName(n.Plan.Name()) && !functions.JSONExtractionName(n.Plan.Name()) {
 			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, "pg_catalog."+n.Plan.Name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 		}
 		left, err := r.sql(ctx, view, n.Args[0])

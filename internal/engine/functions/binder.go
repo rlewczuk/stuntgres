@@ -60,8 +60,9 @@ type Binder interface {
 	CollatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error)
 	// RetainUntypedParameter keeps an argument bound to an ANY formal pending
 	// when it is a parameter whose type is still unresolved, so statement
-	// completion reports 42P08 unless another occurrence resolves it.
-	RetainUntypedParameter(expr.Expr)
+	// completion reports 42P08 unless another occurrence resolves it. It
+	// reports whether the argument was such a parameter.
+	RetainUntypedParameter(expr.Expr) bool
 	// NoteCatalogText records that the statement renders a catalog-identifier
 	// value as text, so execution captures the catalog snapshot it reads.
 	NoteCatalogText()

@@ -5,15 +5,13 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `cd8737298`.
+Last verified against `master` at `91357248c`.
 
 ## Next ready sub-steps
 
 - **F2 stored scalar SQL** — adopt `expr.Rendering` in
   `scalar_function_sql.go`/`default.go` (needs F2 deparse ✓) *(broad
   rewrite)*.
-- **F4/F5 JSON** — JSON operators, SQL/JSON constructors and `IS JSON`
-  (needs F3 ✓).
 - **5c** — view, rule, policy, extension-provider and expression payload
   seams (needs 5b ✓).
 
@@ -61,7 +59,7 @@ alongside another broad rewrite or alias removal (§8).
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
-  - [ ] F4/F5 Tier A — port in place, then move
+  - [x] F4/F5 Tier A — port in place, then move
     - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs `96e11f662`)
       *(racecheck skipped at user request)*
     - [x] string (`69133565c`, `7c28e5c79`, `76d0201d9`, `db9694a8f`, then
@@ -71,9 +69,11 @@ alongside another broad rewrite or alias removal (§8).
       *(racecheck skipped at user request)*
     - [x] datetime (`5c5928497`, `5a293c0b3`, `4acb5e42b`, then the docs
       commit; pg_sleep is Tier B) *(racecheck skipped at user request)*
-    - [ ] JSON/JSONB/SQL-JSON *(function calls done: `059a86924`, `94b71bb40`,
+    - [x] JSON/JSONB/SQL-JSON (function calls: `059a86924`, `94b71bb40`,
       `a6c399c2b`, `b1099500b`, then the docs commit; operators, SQL/JSON
-      constructors and `IS JSON` remain; racecheck skipped at user request)*
+      constructors and `IS JSON`: `13aba123e` diagnostics seam, `d7103073a`/
+      `06d03de3c` operators, `d4b19bb66`/`b3e056f62` SQL/JSON, then the docs
+      commit) *(racecheck skipped at user request)*
     - [x] arrays (with ranges: `a46ee7c5c`, `48d987da7`, `62f610cb1`,
       `050805a1e`, `a5be023f9`, then the docs commit)
       *(racecheck skipped at user request)*

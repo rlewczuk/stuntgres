@@ -162,16 +162,18 @@ Tier C has a refined plan.
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
-- [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
+- [x] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
   `0f3c7e5a2` move, docs `96e11f662`) [x] string [x] LIKE/SIMILAR/regex
   [x] datetime (datetime: `5c5928497` seam, `5a293c0b3` port, `4acb5e42b`
   move; pattern: `ba236a2b8` seam, `1807e7ee9` port, `34f7300d1` move;
   string: `69133565c` seam, `7c28e5c79` port, `76d0201d9` move,
   `db9694a8f` string_to_table and variadic bookkeeping; then the docs
-  commit) [ ] JSON/JSONB/SQL-JSON
-  (function calls done: `059a86924` seam, `94b71bb40`
+  commit) [x] JSON/JSONB/SQL-JSON
+  (function calls: `059a86924` seam, `94b71bb40`
   port, `a6c399c2b` move, `b1099500b` slot binder, then the docs commit;
-  operators, SQL/JSON constructors and `IS JSON` remain) [x] arrays [x] ranges (`a46ee7c5c` seam,
+  operators, SQL/JSON constructors and `IS JSON`: `13aba123e` diagnostics
+  seam, `d7103073a` port and `06d03de3c` move of the operators, `d4b19bb66`
+  port and `b3e056f62` move of SQL/JSON, then the docs commit) [x] arrays [x] ranges (`a46ee7c5c` seam,
   `48d987da7`/`62f610cb1` arrays, `050805a1e`/`a5be023f9` ranges, then the
   docs commit) [x] UUID [x] format
   [x] binary (`6e15eb725` seam, `8e4f3177b` port, `0d43b5592` move, then
@@ -208,7 +210,8 @@ generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
 `NoteVisibilitySnapshot` (binary); `JSONReturningType` and the
 `AggregateBinder` methods `AnalyzeAggregateFilter`, `FinishAggregate`,
 `DomainTypeName`, `CollationName`, `CommonArgumentUsage` and
-`CollationRelabel` (aggregates and windows). The pgcrypto, fuzzystrmatch and unaccent
+`CollationRelabel` (aggregates and windows). The JSON operators and SQL/JSON
+port added none; `RetainUntypedParameter` now reports whether it retained. The pgcrypto, fuzzystrmatch and unaccent
 port added none, nor did the intagg, random, clock and sleep port. Reasons
 for every method are in the `functions` README.
 
@@ -671,7 +674,8 @@ Notes for later steps (JSON):
   when more families register.
 - The JSON operator binders can reuse `BuiltinOperatorRoutineInfo` (arrays
   and ranges) but still need the engine's operator diagnostics
-  (`arrayMembershipError`, `comparisonError`) before they can port.
+  (`arrayMembershipError`, `comparisonError`) before they can port (done in
+  the JSON operators record below).
 
 F4/F5 binary record, measured on `7af01d85b` (after the datetime, pattern,
 string and JSON ports; an earlier attempt from `684513b33` was redone on it,
@@ -1209,6 +1213,90 @@ Notes for later steps (F2):
   above can go.
 - `Arguments()` still duplicates `Children()` on several nodes; preflight in
   `expression.go` and `aggregate_bind.go` still call it.
+
+F4/F5 JSON operators, SQL/JSON constructors and `IS JSON` record, measured
+at its start on `91357248c` (after every other Tier A family):
+
+- Seam. The operator binders used the engine's `comparisonError` and
+  `arrayMembershipError`. Both are pure over existing `Binder` methods
+  (`DiagnosticTypeName`, `ArrayTypeName`; `qualifiedName` equals the engine's
+  `objectNameText`), so they moved as `functions.ComparisonError` and
+  `functions.ArrayOperatorError`; their 11 engine callers outside the JSON
+  files (array comparison and membership, ranges, comparison) were
+  repointed. No method was added.
+- Operators (`json_operator_bind.go`). They are syntax-dispatched, so nothing
+  registers: the builtin operator binder calls `BindJSONExtraction`,
+  `BindJSONBExistence` and `BindJSONBPathDelete`; the `||`, `-` and
+  `@>`/`<@` selectors call `SelectJSONBConcat`, `SelectJSONBDelete` and
+  `BindJSONBContainment` with their analyzed operands, converted by the
+  engine's new `operandArgument`. The three name predicates are exported for
+  dispatch, stored scalar SQL and index inquiry. `ArrayType` replaces the
+  direct `LookupArray(text)`; for the builtin text type both return the same
+  descriptor. Five engine glue files are deleted.
+- SQL/JSON constructors and `IS JSON`. `functions.SQLJSON` and
+  `functions.JSONPredicate` replace the engine's `sqlJSONExpression` and
+  `jsonPredicateExpression` and implement `expr.Composite`, `Intrinsic`
+  (SQLJSON: its bound volatility, which the old volatility and generated
+  cases read; IS JSON: immutable), `StoredProvider` (the stored-plan
+  validator's protocol branch requires it; the old cases validated only the
+  children) and `Renderable`. IS JSON's SQL uses the template form with
+  hidden implicit casts and no parent, which is what the old `child()` call
+  rendered. `Rebuild` now checks the child count (an integrity check only a
+  corrupted call reaches).
+- Corrections to the plan: RETURNING stays an engine coercion, as for the
+  JSON aggregates. `BindSQLJSON` returns the RETURNING usage and the engine
+  wrapper applies it in the old order (capture, plan, `coercionInfo`). The
+  engine also keeps the invalid-kind check and the subquery form
+  `JSON_ARRAY(SELECT ...)`. `SQLJSON` has no SQL `Rendering`: its arguments
+  display through the engine's formatted-input coercion unwrap
+  (`sqlJSONSource`), and its RETURNING comes from the enclosing coercion. So
+  the deparse and stored-SQL cases stay explicit. Formatted input reuses the
+  `JSONFormattedArgument` intent; `SQLJSONInput` also replaces the aggregates'
+  `formatJSONInput`, which was the `format != nil` case of the same code.
+  `JSON_OBJECT` keys keep an untyped parameter unfinalized only when it is a
+  parameter, so `RetainUntypedParameter` now returns whether it retained one
+  (the argument kind alone cannot tell a parameter from other untyped nodes).
+- Switch cases removed (now protocol branches): walk, join legality,
+  volatility, conditional simplify and constant inputs, generated admission
+  (three), retag, remap, node tree and the IS JSON deparse case. The old
+  conditional, retag and remap cases matched the protocol defaults: fold as
+  a constant only when immutable with literal children, never strict, rebuild
+  on change. Explicit cases on the exported types remain in the switches that
+  have no protocol branch: `aggregate_bind.go` (grouping identity, rewrite,
+  walk), preflight in `expression.go`, `default.go`, `scalar_function_sql.go`,
+  `index_control.go`, the DEFAULT closures in `transaction_time.go` and
+  `uuid_generation.go`, `view_literals.go`, the deparser's SQLJSON and
+  RETURNING-coercion cases and `sqljson_deparse.go`.
+- Byte identity. A throwaway probe (not committed) bound 42 expressions:
+  every constructor form with FORMAT/ENCODING/RETURNING/ABSENT/UNIQUE, every
+  IS JSON form, and every JSON operator, including error cases. It put them
+  in views, CHECK constraints, expression indexes, STORED and VIRTUAL
+  generated columns and defaults. It compared direct and parameterized
+  results, `pg_get_viewdef` (plain and pretty), `pg_get_constraintdef`,
+  `pg_get_indexdef` and `pg_get_expr` with `quote_all_identifiers` off and
+  on, and native Dump output. Output was identical on master and the branch,
+  except for `now()` values.
+
+Tests: added `functions/sqljson_expression_test.go` (`TestSQLJSONProtocol`,
+`TestJSONPredicateProtocol`), which failed before the nodes moved. No
+engine test referenced the moved binders or nodes, so none was adapted. No
+test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. Quick mode and
+`REFERENCE=1` passed, on both backends with no failures, for
+`^TestReference(JSON|SQLJSON|ObjectGrant.*JSON|Array|Range(Operator|More)|Enum|Comparison|StringConcat|View|Generated|Default|Check|Deparse)`.
+Bench skipped: bind path only, no startup code changed. Racecheck skipped at
+the user's request.
+
+Notes for later steps (JSON operators and SQL/JSON):
+
+- F2 stored scalar SQL: `SQLJSON` needs a rendering that knows the
+  formatted-input coercion and RETURNING, or the engine keeps
+  `sqljson_deparse.go`. `jsonPredicateRecipe` now reuses
+  `functions.JSONPredicateSuffix`.
+- The `JSON_ARRAY(SELECT ...)` subquery form and the constructor's RETURNING
+  coercion stay with the engine's query and coercion nodes.
 
 The PostgreSQL 18.6 oracle drift listed in these records (UUIDv7 shifts,
 `json_strip_nulls`, EXTRACT quoting, final sigma, Hangul TBASE, lock rechecks

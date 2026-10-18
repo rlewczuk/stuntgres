@@ -1831,31 +1831,31 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Args = args
 			return e, true, nil
 		}
-	case sqlJSONExpression:
+	case functions.SQLJSON:
 		var args []expr.Expr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			next, err := e.reconstruct(e.Info, args)
+			next, err := e.Rebuild(e.Info, args)
 			return next, true, err
 		}
-	case jsonPredicateExpression:
-		folded, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+	case functions.JSONPredicate:
+		folded, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if changed {
-			e.child = folded
+			e.Child = folded
 			return e, true, nil
 		}
 	case functions.JSONCreate:
@@ -2582,7 +2582,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.JSONPredicateExpr:
 			var err error
-			node, err = b.bindJSONPredicate(r)
+			node, err = functions.BindJSONPredicate(b, r)
 			if err != nil {
 				return nil, err
 			}
@@ -3597,6 +3597,16 @@ func (o comparisonOperand) descriptor() *sqltype.Descriptor {
 	return o.node.ResultUsage().Type
 }
 
+// operandArgument hands an analyzed comparison operand to functions bind
+// code; CoerceArgument rebuilds the operand from Expression and Raw.
+func operandArgument(o comparisonOperand) functions.Argument {
+	argument := functions.Argument{Expression: o.node, Raw: o.raw}
+	if o.node != nil {
+		argument.Usage = o.node.ResultUsage()
+	}
+	return argument
+}
+
 func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand, error) {
 	return b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext})
 }
@@ -3894,7 +3904,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	}
 	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
-		return nil, b.comparisonError(err, left.descriptor(), right.descriptor(), raw)
+		return nil, functions.ComparisonError(b, err, left.descriptor(), right.descriptor(), raw)
 	}
 	p, rp := l.Properties(), r.Properties()
 	p.RowDependent = p.RowDependent || rp.RowDependent
@@ -4029,7 +4039,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
 	if name == "-" && len(raw.Args) == 2 {
-		if node, selected, err := b.selectJSONBDelete(raw, left, right); selected {
+		if node, selected, err := functions.SelectJSONBDelete(b, raw, operandArgument(left), operandArgument(right)); selected {
 			return node, err
 		}
 	}

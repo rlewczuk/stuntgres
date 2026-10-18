@@ -141,17 +141,17 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if n, ok := bound.(subqueryExpression); ok {
 				return b.captureSubqueryLeft(nil, n, path, ordinal)
 			}
-		} else if n, ok := bound.(sqlJSONExpression); ok {
+		} else if n, ok := bound.(functions.SQLJSON); ok {
 			for i, arg := range r.Args {
-				if err := child(arg, sqlJSONSource(n.args[i])); err != nil {
+				if err := child(arg, sqlJSONSource(n.Args[i])); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
 	case parser.JSONPredicateExpr:
-		if n, ok := bound.(jsonPredicateExpression); ok {
-			return child(r.Child, n.child)
+		if n, ok := bound.(functions.JSONPredicate); ok {
+			return child(r.Child, n.Child)
 		}
 	case parser.SubqueryExpr:
 		if n, ok := bound.(subqueryExpression); ok {

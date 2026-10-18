@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -282,13 +279,4 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, gener
 		}
 	}
 	return nil
-}
-func (b *expressionBinder) comparisonError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
-	diagnostic := functions.OperatorError(err, left, right, raw)
-	if record, ok := diagnostic.(*sqlstate.Error); ok && record.Code == "42883" {
-		copy := *record
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", b.diagnosticTypeName(left), objectNameText(raw.Name), b.diagnosticTypeName(right))
-		return &copy
-	}
-	return diagnostic
 }

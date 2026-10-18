@@ -777,10 +777,6 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case installedFunctionExpression:
 		children = []expr.Expr{e.Arg}
-	case sqlJSONExpression:
-		children = e.args
-	case jsonPredicateExpression:
-		children = []expr.Expr{e.child}
 	case currentSchemasExpression:
 		children = []expr.Expr{e.arg}
 	case objectAddressExpression:

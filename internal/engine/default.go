@@ -282,7 +282,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			*r.visibilitySnapshot = *r.visibilitySnapshot || demand
 		}
 		return r.scalarFunctionSQL(ctx, view, node, u)
-	case sqlJSONExpression, jsonPredicateExpression:
+	case functions.SQLJSON, functions.JSONPredicate:
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case functions.UUIDGeneration, functions.Random,
 		functions.DatetimeJustify, functions.DatetimeExtract, functions.DatetimeOverlaps,
@@ -586,7 +586,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && plan.SessionDependent()) {
 			*r.commentSnapshot = true
 		}
-		if constructor, ok := n.child.(sqlJSONExpression); ok && n.plan.IsJSONReturning() {
+		if constructor, ok := n.child.(functions.SQLJSON); ok && n.plan.IsJSONReturning() {
 			return r.sqlJSON(ctx, view, constructor, u)
 		}
 		child, err := r.sql(ctx, view, n.child)

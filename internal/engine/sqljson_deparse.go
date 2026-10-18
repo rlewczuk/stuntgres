@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ func sqlJSONResult(node expr.Expr) bool {
 	if conversion, ok := node.(coercionExpression); ok && conversion.plan.IsJSONReturning() {
 		node = conversion.child
 	}
-	_, ok := node.(sqlJSONExpression)
+	_, ok := node.(functions.SQLJSON)
 	return ok
 }
 
@@ -59,16 +60,16 @@ func sqlJSONRecipe(raw parser.SQLJSONExpr, parts []string, query, returning stri
 	}
 	return strings.ToUpper(raw.Kind) + "(" + text + ")"
 }
-func (r pgRenderer) sqlJSON(ctx context.Context, n sqlJSONExpression, returning sqltype.Usage) (string, error) {
-	parts := make([]string, len(n.args))
-	for i, arg := range n.args {
+func (r pgRenderer) sqlJSON(ctx context.Context, n functions.SQLJSON, returning sqltype.Usage) (string, error) {
+	parts := make([]string, len(n.Args))
+	for i, arg := range n.Args {
 		var err error
 		parts[i], err = r.sql(ctx, sqlJSONSource(arg), pgRenderParent{functionArgument: true})
 		if err != nil {
 			return "", err
 		}
-		if i < len(n.raw.Formats) {
-			parts[i] += jsonAggregateFormatSQL(n.raw.Formats[i])
+		if i < len(n.Raw.Formats) {
+			parts[i] += jsonAggregateFormatSQL(n.Raw.Formats[i])
 		}
 	}
 	declaration := ""
@@ -79,33 +80,22 @@ func (r pgRenderer) sqlJSON(ctx context.Context, n sqlJSONExpression, returning 
 			return "", err
 		}
 	}
-	return sqlJSONRecipe(n.raw, parts, "", declaration), nil
+	return sqlJSONRecipe(n.Raw, parts, "", declaration), nil
 }
 func jsonPredicateRecipe(child, kind string, unique, not bool) string {
-	text := child + " IS "
-	if not {
-		text += "NOT "
-	}
-	text += "JSON"
-	if kind != "" {
-		text += " " + strings.ToUpper(kind)
-	}
-	if unique {
-		text += " WITH UNIQUE KEYS"
-	}
-	return "(" + text + ")"
+	return "(" + child + functions.JSONPredicateSuffix(kind, unique, not)
 }
 
-func (r scalarRenderer) sqlJSON(ctx context.Context, view CatalogRead, n sqlJSONExpression, returning sqltype.Usage) (string, error) {
-	parts := make([]string, len(n.args))
-	for i, arg := range n.args {
+func (r scalarRenderer) sqlJSON(ctx context.Context, view CatalogRead, n functions.SQLJSON, returning sqltype.Usage) (string, error) {
+	parts := make([]string, len(n.Args))
+	for i, arg := range n.Args {
 		text, err := r.sql(ctx, view, sqlJSONSource(arg))
 		if err != nil {
 			return "", err
 		}
 		parts[i] = text
-		if i < len(n.raw.Formats) {
-			parts[i] += jsonAggregateFormatSQL(n.raw.Formats[i])
+		if i < len(n.Raw.Formats) {
+			parts[i] += jsonAggregateFormatSQL(n.Raw.Formats[i])
 		}
 	}
 	declaration := ""
@@ -116,7 +106,7 @@ func (r scalarRenderer) sqlJSON(ctx context.Context, view CatalogRead, n sqlJSON
 			return "", err
 		}
 	}
-	return sqlJSONRecipe(n.raw, parts, "", declaration), nil
+	return sqlJSONRecipe(n.Raw, parts, "", declaration), nil
 }
 
 func jsonAggregateFormatSQL(format *parser.JSONFormat) string {

@@ -87,10 +87,13 @@ func (b *expressionBinder) CollatedInfo(info expr.Info, inputs ...expr.Expr) (ex
 	return b.collatedInfo(info, inputs...)
 }
 
-func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) {
-	if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
-		b.anyParameters = append(b.anyParameters, parameter)
+func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
+	parameter, ok := arg.(parameterExpression)
+	if !ok || parameter.Usage.Type != nil {
+		return false
 	}
+	b.anyParameters = append(b.anyParameters, parameter)
+	return true
 }
 
 func (b *expressionBinder) NoteCatalogText() { b.regclassConcat = true }

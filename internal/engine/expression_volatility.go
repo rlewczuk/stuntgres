@@ -149,10 +149,6 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return merge(n.procedure.volatility, children(n.Args...))
 	case installedFunctionExpression:
 		return merge(n.procedure.volatility, children(n.Arg))
-	case sqlJSONExpression:
-		return merge(n.Property.Volatility, children(n.args...))
-	case jsonPredicateExpression:
-		return children(n.child)
 	case caseExpression:
 		v := children(n.test, n.otherwise)
 		for _, arm := range n.arms {

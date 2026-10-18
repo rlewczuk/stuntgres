@@ -126,10 +126,6 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		// No argument children.
 	case installedFunctionExpression:
 		walk(e.Arg)
-	case sqlJSONExpression:
-		args(e.args)
-	case jsonPredicateExpression:
-		walk(e.child)
 	case indexPropertyExpression:
 		args(e.children())
 	case catalogUserNameExpression:

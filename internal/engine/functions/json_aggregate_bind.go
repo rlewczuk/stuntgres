@@ -150,34 +150,13 @@ func resolveJSONArrayAggregateSignature(b Binder, raw parser.AggregateExpr, name
 			}
 		}
 		if options.Input != nil {
-			arg, err = formatJSONInput(b, arg, options.Input)
+			arg, err = SQLJSONInput(b, arg, options.Input, false, false)
 			if err != nil {
 				return fail(err)
 			}
 		}
 	}
 	return arg, b.Type(id).Usage(), returning, nil
-}
-
-// formatJSONInput applies an explicit FORMAT JSON input clause: JSON and
-// JSONB pass through, string and bytea inputs convert explicitly to JSON.
-func formatJSONInput(b Binder, arg expr.Expr, format *parser.JSONFormat) (expr.Expr, error) {
-	base := arg.ResultUsage().Type.BaseType()
-	if format.Encoding != "" && base.ID() != sqltype.Bytea {
-		return nil, expr.ErrorAt("42804", "JSON ENCODING clause is only allowed for bytea input type", format.Pos)
-	}
-	if base.ID() == sqltype.JSON || base.ID() == sqltype.JSONB {
-		return arg, nil
-	}
-	if base.ID() != sqltype.Bytea && !sqltype.StringCategory(base.ID()) {
-		return nil, expr.ErrorAt("42804", "cannot use non-string types with explicit FORMAT JSON clause", format.Pos)
-	}
-	target := b.Type(sqltype.JSON).Usage()
-	plan, err := sqltype.PlanJSONFormattedInput(arg.ResultUsage(), target, format.Encoding)
-	if err != nil {
-		return nil, err
-	}
-	return b.CoerceArgument(Argument{Expression: arg, Usage: arg.ResultUsage()}, CoercionRequest{Intent: JSONFormattedArgument, Target: target, Plan: plan, Planned: true})
 }
 
 func windowJSONArrayAggregate(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, sqltype.Usage, error) {

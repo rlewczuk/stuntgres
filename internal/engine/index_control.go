@@ -224,7 +224,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
 	case functions.String:
 		return n.Plan.Name() != "||"
-	case sqlJSONExpression, jsonPredicateExpression:
+	case functions.SQLJSON, functions.JSONPredicate:
 		return true
 	case functions.StringVariadic, functions.JSONCreate:
 		return true
@@ -289,7 +289,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 	case functions.DatetimeSleep:
 		return true
 	case functions.Binary:
-		return !jsonbExistenceName(n.Plan.Name()) && !jsonbContainmentName(n.Plan.Name())
+		return !functions.JSONBExistenceName(n.Plan.Name()) && !functions.JSONBContainmentName(n.Plan.Name())
 	case namespaceInquiryExpression, blockingInquiryExpression, accessInquiryExpression, objectACLExpression, objectAddressExpression:
 		return true
 	case functions.VersionInformation:

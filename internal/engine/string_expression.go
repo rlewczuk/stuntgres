@@ -99,7 +99,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr,
 	if node, selected, err := b.selectArrayConcat(raw, operands, visible); selected {
 		return node, err
 	}
-	if node, selected, err := b.selectJSONBConcat(raw, operands, visible); selected {
+	if node, selected, err := functions.SelectJSONBConcat(b, raw, operands, visible); selected {
 		return node, err
 	}
 	textual, binary, resolution := functions.SelectStringConcat(visible, types)

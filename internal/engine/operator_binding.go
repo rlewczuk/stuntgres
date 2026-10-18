@@ -46,12 +46,12 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 		return functions.BindPosix(b, r)
 	case arrayMembershipName(name):
 		return b.bindArrayMembership(r)
-	case jsonExtractionName(name):
-		return b.bindJSONExtraction(r)
-	case jsonbExistenceName(name):
-		return b.bindJSONBExistence(r)
+	case functions.JSONExtractionName(name):
+		return functions.BindJSONExtraction(b, r)
+	case functions.JSONBExistenceName(name):
+		return functions.BindJSONBExistence(b, r)
 	case name == "#-":
-		return b.bindJSONBPathDelete(r)
+		return functions.BindJSONBPathDelete(b, r)
 	case bitwiseName(name):
 		return b.bindBitwise(r)
 	case arithmeticName(name) || symbolicArithmeticName(name):
@@ -62,7 +62,7 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 }
 func builtinOperatorSpelling(name string) bool {
 	_, comparison := comparisonOperator(name)
-	return comparison || arithmeticName(name) || bitwiseName(name) || name == "||" || name == "^@" || likeName(name) || functions.PosixName(name) || arrayMembershipName(name) || jsonExtractionName(name) || jsonbExistenceName(name) || name == "#-" || name == "@>" || name == "<@" || name == "&&" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
+	return comparison || arithmeticName(name) || bitwiseName(name) || name == "||" || name == "^@" || likeName(name) || functions.PosixName(name) || arrayMembershipName(name) || functions.JSONExtractionName(name) || functions.JSONBExistenceName(name) || name == "#-" || name == "@>" || name == "<@" || name == "&&" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
 }
 
 type operatorCandidateSet struct {

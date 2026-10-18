@@ -41,3 +41,28 @@ func OperatorError(err error, left, right *sqltype.Descriptor, raw parser.Operat
 	}
 	return &copy
 }
+
+// ComparisonError is OperatorError with PostgreSQL's diagnostic type names in
+// a 42883 message, including the qualified names of user-defined types.
+func ComparisonError(b Binder, err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
+	diagnostic := OperatorError(err, left, right, raw)
+	if record, ok := diagnostic.(*sqlstate.Error); ok && record.Code == "42883" {
+		copy := *record
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", b.DiagnosticTypeName(left), qualifiedName(raw.Name), b.DiagnosticTypeName(right))
+		return &copy
+	}
+	return diagnostic
+}
+
+// ArrayOperatorError is the 42883 of the array-shaped operators (membership,
+// concatenation, ranges and JSONB): array operands are named by element type
+// with a "[]" suffix.
+func ArrayOperatorError(b Binder, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
+	err := ComparisonError(b, sqlError("42883", "operator does not exist"), left, right, raw)
+	if d, ok := err.(*sqlstate.Error); ok {
+		copy := *d
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", ArrayTypeName(b, left), qualifiedName(raw.Name), ArrayTypeName(b, right))
+		return &copy
+	}
+	return err
+}

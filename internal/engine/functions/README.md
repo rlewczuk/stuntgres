@@ -69,7 +69,10 @@ Added for UUID generation, `format` and uuid-ossp (F4/F5):
 - `RetainUntypedParameter`: an argument bound to an ANY formal that is a
   still-untyped `$n` stays pending, so statement completion reports 42P08
   unless another occurrence resolves it. Count, NULL-count, JSON creation,
-  string variadics and SQL/JSON do the same.
+  string variadics and SQL/JSON do the same. It reports whether the argument
+  was such a parameter: a `JSON_OBJECT` key keeps it unfinalized, other
+  untyped keys finalize to text (added for SQL/JSON constructors; callers
+  that don't branch ignore it).
 - `NoteCatalogText`: the statement renders a catalog-identifier value
   (`regclass` and friends) as text, so execution captures the catalog
   snapshot that output reads. It is statement-level analyzer state.
@@ -299,7 +302,31 @@ entry point, because they need engine state the registry cannot express:
   binders call `AnalyzeIntaggArguments` and `ResolveIntagg`, then keep FILTER,
   grouping and the aggregate call (its procedure identity is engine state).
 - Not name dispatch: AT TIME ZONE (`BindTimeZone`), the POSIX and SIMILAR TO
-  operators (`BindPosix`, `BindSimilar`) and `||`/`^@` (`StringNode`).
+  operators (`BindPosix`, `BindSimilar`), `||`/`^@` (`StringNode`), the JSON
+  operators and the SQL/JSON syntax (below).
+
+The JSON and JSONB operators are dispatched by the engine's builtin operator
+binder and call `json_operator_bind.go`: `BindJSONExtraction` (`->`, `->>`,
+`#>`, `#>>`), `BindJSONBExistence` (`?`, `?|`, `?&`), `BindJSONBPathDelete`
+(`#-`), and the branches that other operator selectors reach with analyzed
+operands: `SelectJSONBConcat` (jsonb `||`, from the string `||` selector),
+`SelectJSONBDelete` (jsonb `-`, from arithmetic) and `BindJSONBContainment`
+(jsonb `@>`/`<@`, from array membership). `JSONExtractionName`,
+`JSONBExistenceName` and `JSONBContainmentName` serve dispatch, stored scalar
+SQL and index inquiry. They build `Binary` nodes with the operator's routine
+identity (`BuiltinOperatorRoutineInfo`) and need no `Binder` method beyond the
+existing set.
+
+SQL/JSON constructors and `IS JSON` are syntax-dispatched
+(`parser.SQLJSONExpr`, `parser.JSONPredicateExpr`). `BindSQLJSON` binds
+`JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR` and `JSON_SERIALIZE` into
+the `SQLJSON` node and returns the RETURNING usage; the engine applies that
+assignment coercion, as it does for the JSON aggregates (`BindReturning`), and
+keeps the subquery form `JSON_ARRAY(SELECT ...)`. `SQLJSONInput` applies FORMAT
+JSON and the implicit JSON input through the `JSONFormattedArgument` coercion
+intent; the JSON aggregates' FORMAT JSON input uses it too.
+`SQLJSONReturningType` resolves RETURNING with the SETOF and pseudo-type
+checks. `BindJSONPredicate` binds `IS JSON` into `JSONPredicate`.
 
 `BindBinary` takes a precomputed visibility for the engine's analyzer tests;
 it reaches the text routes `BindPosixSubstring`, `BindSimilarSubstring` and
@@ -339,7 +366,10 @@ signature spelling by leaf name), `NotedResolutionError` (42883 through
 `SignatureError`, 42725 unnoted) and `DiagnosticNameOrUnknown` (the
 unqualified argument spelling, `unknown` for deferred literals).
 `operator_error.go`'s `OperatorError` is the operator form of both
-diagnostics. Pure supply helpers serve bind code in and out of the engine:
+diagnostics; `ComparisonError` respells its 42883 with qualified diagnostic
+type names, and `ArrayOperatorError` with element names and `[]` for array
+operands (the array, range and JSONB operators, inside and outside the
+engine). Pure supply helpers serve bind code in and out of the engine:
 `TemporalTypesFor` and `SupplyBinaryTypes`.
 
 ### Aggregate and window registries
@@ -460,7 +490,10 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   builders: `callRendering`, `writtenArgs`/`writtenCall` for written-order
   calls with labels, `infixRendering`, and `syntaxPieces`/`trimPieces` for
   OVERLAY, SUBSTRING, POSITION and TRIM. `Render` runs the validation either
-  renderer ran before. The extension nodes (`Soundex`, `Metaphone`,
+  renderer ran before. `JSONPredicate` renders through the template form;
+  `SQLJSON` has only a node-tree form, because the engine renders its SQL
+  (arguments through their formatted-input coercions, RETURNING from the
+  enclosing coercion). The extension nodes (`Soundex`, `Metaphone`,
   `Levenshtein`, `Pgcrypto`) have no `Render`: only their engine wrappers
   display, with the installed procedure's schema.
 
@@ -472,8 +505,7 @@ provider, rebuild on change) does not describe it.
 ## What stays in the engine
 
 The engine owns the analyzer behind `Binder`, the bind code of families not
-yet registered (for JSON: the operators, SQL/JSON constructors and `IS
-JSON`), function column definition lists and JSONB record star
+yet registered, function column definition lists and JSONB record star
 expansion, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context. Installed
@@ -486,6 +518,10 @@ validation and stored identity; registered bind code reaches them only through
 SQL (`scalar_function_sql.go` and the function cases of `default.go`) still
 lists function nodes and keeps its helpers (`renderBinaryCall`, `regexpSQL`,
 `datetimeMakeSQL`, `stringSpecialSQL`) until it adopts `expr.Rendering`.
+The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
+(`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
+the engine; preflight, grouping, DEFAULT closure, index inquiry and view
+literal capture name `SQLJSON`/`JSONPredicate` explicitly.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine: `random.go`, the `EvalContext` clock and sleep methods in
@@ -653,6 +689,16 @@ the analyzer and cover engine switches; reference tests in both modes):
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestJSON|TestJsonb)'
 make check RUN='^(TestReference(JSON|SQLJSON)|TestReferenceObjectGrant.*JSON)'
 make check REFERENCE=1 RUN='^(TestReference(JSON|SQLJSON)|TestReferenceObjectGrant.*JSON)'
+```
+
+JSON operators, SQL/JSON constructors and `IS JSON` (node protocol here; the
+reference selection also covers the array and range callers of the shared
+operator diagnostics and the stored/deparse paths):
+
+```sh
+make check RUN='^Test(SQLJSON|JSONPredicate)Protocol$'
+make check RUN='^TestReference(JSON|SQLJSON|ObjectGrant.*JSON|Array|Range(Operator|More)|Enum|Comparison|StringConcat|View|Generated|Default|Check|Deparse)'
+make check REFERENCE=1 RUN='^TestReference(JSON|SQLJSON|ObjectGrant.*JSON|Array|Range(Operator|More)|Enum|Comparison|StringConcat|View|Generated|Default|Check|Deparse)'
 ```
 
 Math family (registry, kernels; the engine's `TestMath*` cover analyzer

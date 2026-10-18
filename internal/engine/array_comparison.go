@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -152,7 +153,7 @@ func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, 
 		err = sqlError("42883", "operator does not exist")
 	}
 	if err != nil {
-		return nil, nil, b.comparisonError(err, lt, rt, raw)
+		return nil, nil, functions.ComparisonError(b, err, lt, rt, raw)
 	}
 	return b.comparisonInputType(signature.Left, lt, rt), b.comparisonInputType(signature.Right, rt, lt), nil
 }
@@ -218,7 +219,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 		lt = b.comparisonInputType(sqltype.ID(selected.left), left.descriptor(), element)
 		rt = b.comparisonInputType(sqltype.ID(selected.right), element, left.descriptor())
 		if !ok {
-			return nil, b.comparisonError(sqlError("42883", "operator does not exist"), left.descriptor(), element, operatorRaw)
+			return nil, functions.ComparisonError(b, sqlError("42883", "operator does not exist"), left.descriptor(), element, operatorRaw)
 		}
 	} else {
 		signature, resolveErr := sqltype.ResolveComparison(operator, left.descriptor(), element)
@@ -226,7 +227,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 			resolveErr = sqlError("42883", "operator does not exist")
 		}
 		if resolveErr != nil {
-			return nil, b.comparisonError(resolveErr, left.descriptor(), element, operatorRaw)
+			return nil, functions.ComparisonError(b, resolveErr, left.descriptor(), element, operatorRaw)
 		}
 		lt = b.comparisonInputType(signature.Left, left.descriptor(), element)
 		rt = b.comparisonInputType(signature.Right, element, left.descriptor())
@@ -262,7 +263,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	}
 	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type.BaseType().Element(), b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
-		return nil, b.comparisonError(err, left.descriptor(), element, operatorRaw)
+		return nil, functions.ComparisonError(b, err, left.descriptor(), element, operatorRaw)
 	}
 	properties := expr.MergeProperties(l.Properties(), r.Properties())
 	if predicate.SessionDependent() && properties.Volatility < expr.Stable {
@@ -424,7 +425,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			}
 			predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, children[0].ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 			if err != nil {
-				return nil, b.comparisonError(err, left.descriptor(), common.Type, op)
+				return nil, functions.ComparisonError(b, err, left.descriptor(), common.Type, op)
 			}
 			if predicate.SessionDependent() && properties.Volatility < expr.Stable {
 				properties.Volatility = expr.Stable
