@@ -201,3 +201,8 @@ func (e UUIDGeneration) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 // IntrinsicVolatility is the analyzed volatility: the call is volatile or
 // has no children, so nothing from eliminated arms can be retained.
 func (e UUIDGeneration) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
+
+// StrictNull eliminates demand even though the provider is volatile.
+func (e UUIDGeneration) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e UUIDGeneration) PlanningFold() expr.Fold { return expr.FoldNever }

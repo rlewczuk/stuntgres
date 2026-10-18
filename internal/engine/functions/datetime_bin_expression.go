@@ -143,3 +143,5 @@ func (e DatetimeBin) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, e
 }
 
 func (e DatetimeBin) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e DatetimeBin) StrictNull() expr.Strict { return expr.StrictAfter }

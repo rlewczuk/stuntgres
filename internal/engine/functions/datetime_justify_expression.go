@@ -67,3 +67,5 @@ func (e DatetimeJustify) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 }
 
 func (e DatetimeJustify) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e DatetimeJustify) StrictNull() expr.Strict { return expr.StrictAfter }

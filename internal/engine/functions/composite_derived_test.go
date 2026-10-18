@@ -16,7 +16,7 @@ func TestCompositeTimezoneChildrenFollowMode(t *testing.T) {
 	value := temporalTestLiteral(temporalTestTimestamp(t, d[sqltype.Timestamptz], 0))
 	zone := temporalTestLiteral(sqltype.String(d[sqltype.Text], "UTC"))
 	info := expr.Info{Usage: d[sqltype.Timestamp].Usage()}
-	rebuildIdentity(t, Timezone{Info: info, Value: value, Zone: zone}, []expr.Expr{value, zone})
+	rebuildIdentity(t, Timezone{Info: info, Value: value, Zone: zone}, []expr.Expr{zone, value})
 	local := Timezone{Info: info, Value: value, Local: true}
 	rebuildIdentity(t, local, []expr.Expr{value})
 }

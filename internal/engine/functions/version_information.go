@@ -99,3 +99,5 @@ func (e VersionInformation) Rebuild(info expr.Info, children []expr.Expr) (expr.
 // IntrinsicVolatility is the analyzed volatility: the call is volatile or
 // has no children, so nothing from eliminated arms can be retained.
 func (e VersionInformation) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
+
+func (e VersionInformation) PlanningFold() expr.Fold { return expr.FoldNever }

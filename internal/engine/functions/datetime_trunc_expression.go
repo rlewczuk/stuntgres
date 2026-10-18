@@ -171,3 +171,5 @@ func (e DatetimeTrunc) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr,
 }
 
 func (e DatetimeTrunc) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e DatetimeTrunc) StrictNull() expr.Strict { return expr.StrictAfter }

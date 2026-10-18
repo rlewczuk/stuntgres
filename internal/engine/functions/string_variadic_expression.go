@@ -243,3 +243,10 @@ func (e StringVariadic) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 }
 
 func (e StringVariadic) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
+
+func (e StringVariadic) PlanningFold() expr.Fold {
+	if e.IntrinsicStable() {
+		return expr.FoldNever
+	}
+	return expr.FoldQuoteCapture
+}

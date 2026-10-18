@@ -60,29 +60,32 @@ func (e Timezone) Arguments() []expr.Expr {
 	return []expr.Expr{e.Zone, e.Value}
 }
 
-// Timezone implements expr.Composite. Children lists Value before Zone, the
-// order every engine traversal used; AT LOCAL has no Zone child.
+// Timezone implements expr.Composite. Children follow evaluation order, Zone
+// before Value, as in PostgreSQL's timezone(zone, value); AT LOCAL has no Zone
+// child.
 var _ expr.Composite = Timezone{}
 
 func (e Timezone) Children() []expr.Expr {
 	if e.Local {
 		return []expr.Expr{e.Value}
 	}
-	return []expr.Expr{e.Value, e.Zone}
+	return []expr.Expr{e.Zone, e.Value}
 }
 func (e Timezone) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	want := 2
 	if e.Local {
-		want = 1
+		if err := checkChildren("Timezone", children, 1); err != nil {
+			return nil, err
+		}
+		e.Info, e.Value = info, children[0]
+		return e, nil
 	}
-	if err := checkChildren("Timezone", children, want); err != nil {
+	if err := checkChildren("Timezone", children, 2); err != nil {
 		return nil, err
 	}
-	e.Info, e.Value = info, children[0]
-	if !e.Local {
-		e.Zone = children[1]
-	}
+	e.Info, e.Zone, e.Value = info, children[0], children[1]
 	return e, nil
 }
 
 func (e Timezone) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
+
+func (e Timezone) StrictNull() expr.Strict { return expr.StrictBefore }

@@ -178,3 +178,5 @@ func (e DatetimeMake) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, 
 }
 
 func (e DatetimeMake) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e DatetimeMake) StrictNull() expr.Strict { return expr.StrictAfter }

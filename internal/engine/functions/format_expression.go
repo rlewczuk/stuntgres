@@ -115,3 +115,6 @@ func (e Format) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error)
 }
 
 func (e Format) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+// PlanningFold: format is intrinsically STABLE, even with literal children.
+func (e Format) PlanningFold() expr.Fold { return expr.FoldNever }

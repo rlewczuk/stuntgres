@@ -341,3 +341,10 @@ func (e Math) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 }
 
 func (e Math) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e Math) StrictNull() expr.Strict {
+	if SelectedLogPower(e.Plan.Name()) {
+		return expr.StrictNone
+	}
+	return expr.StrictAfter
+}

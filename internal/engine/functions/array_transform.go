@@ -336,3 +336,10 @@ func (e ArrayTransform) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 }
 
 func (e ArrayTransform) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
+
+func (e ArrayTransform) PlanningFold() expr.Fold {
+	if e.IntrinsicStable() {
+		return expr.FoldNever
+	}
+	return expr.FoldConstant
+}

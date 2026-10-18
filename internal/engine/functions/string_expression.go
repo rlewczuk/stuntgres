@@ -357,3 +357,16 @@ func (e String) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error)
 }
 
 func (e String) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e String) PlanningFold() expr.Fold {
+	if e.Plan.Name() == "string_to_table" {
+		return expr.FoldNever
+	}
+	return expr.FoldConstant
+}
+func (e String) StrictNull() expr.Strict {
+	if e.Plan.Strict() {
+		return expr.StrictAfter
+	}
+	return expr.StrictNone
+}

@@ -239,3 +239,5 @@ func (e JSONBPathExists) IntrinsicVolatility() expr.Volatility { return expr.Imm
 func (e JSONBPathMatch) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 func (e JSONBPathQueryFirst) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 func (e JSONBPathQuery) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e JSONBPathQuery) PlanningFold() expr.Fold { return expr.FoldNever }

@@ -210,3 +210,6 @@ func (e ArrayRandom) Eval(c expr.Context) (sqltype.Value, error) {
 }
 
 func (e ArrayRandom) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
+
+// PlanningFold: volatile even for strict NULL, empty and singleton arrays.
+func (e ArrayRandom) PlanningFold() expr.Fold { return expr.FoldNever }

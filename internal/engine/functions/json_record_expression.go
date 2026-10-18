@@ -70,3 +70,5 @@ func NewJSONRecord(info expr.Info, name string, baseIndex int, args []expr.Expr)
 }
 
 func (e JSONRecord) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+func (e JSONRecord) PlanningFold() expr.Fold { return expr.FoldNever }

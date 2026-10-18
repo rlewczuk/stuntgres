@@ -331,3 +331,5 @@ func (e DatetimeOverlaps) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 }
 
 func (e DatetimeOverlaps) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e DatetimeOverlaps) PlanningFold() expr.Fold { return expr.FoldOverlapsRoute }

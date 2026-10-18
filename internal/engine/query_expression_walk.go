@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 )
 
 // Query boundaries are explicit: lexical argument walking visits predicate
@@ -160,6 +161,14 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case subqueryExpression:
 		for _, comparison := range e.comparisons {
 			walk(comparison.left)
+		}
+	case functions.Timezone:
+		// Known divergence kept from before the node protocol: PostgreSQL walks
+		// timezone(zone, value) zone first, which decides the reported column in
+		// GROUP BY and nested-aggregate errors. Children follow PostgreSQL.
+		walk(e.Value)
+		if !e.Local {
+			walk(e.Zone)
 		}
 	case expr.Composite:
 		// Last, so the explicit cases above keep precedence over embedded nodes.

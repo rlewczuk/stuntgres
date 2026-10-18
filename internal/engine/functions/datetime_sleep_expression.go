@@ -244,3 +244,7 @@ func (x DatetimeSleep) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr,
 // IntrinsicVolatility is the analyzed volatility: the call is volatile or
 // has no children, so nothing from eliminated arms can be retained.
 func (x DatetimeSleep) IntrinsicVolatility() expr.Volatility { return x.Property.Volatility }
+
+func (x DatetimeSleep) StrictNull() expr.Strict { return expr.StrictAfterBare }
+
+func (x DatetimeSleep) PlanningFold() expr.Fold { return expr.FoldNever }

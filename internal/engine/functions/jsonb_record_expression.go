@@ -219,3 +219,5 @@ func (e JSONBRecord) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 }
 
 func (e JSONBRecord) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+func (e JSONBRecord) PlanningFold() expr.Fold { return expr.FoldNever }
