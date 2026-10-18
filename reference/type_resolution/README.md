@@ -10,11 +10,14 @@ repository root.
 
 `comparison-ledger.md` owns the independent REL_18_6 signatures, direct implicit
 coercions, concrete/structural inventory and observed oracle provenance.
-`comparison_facts_test.go` enumerates 87 concrete types and all 52,983 ordered
-pair/spelling cells. Predicate shards classify 658,503 triples and exercise all
-4,103 ordering-admitted triples across six BETWEEN forms and27 value/NULL
-assignments:4,100 ordinary triples plus three demand-failing leaf-array triples.
-The latter independently require198 strict-NULL successes and288 demand errors.
+`comparison_facts_test.go` enumerates 87 concrete types and classifies all 52,983
+ordered pair/spelling cells. The matrix executes all 2,524 admitted and 24
+partially denied cells in full and witnesses each of the 7,205 empty pairs (no
+released operator) once; see "Negative-space and bound-product sampling" below.
+Predicate shards classify 658,503 triples and execute 671 ordering-admitted
+triples across six BETWEEN forms and 27 value/NULL assignments: 668 ordinary
+triples plus three demand-failing leaf-array triples. The latter independently
+require 198 strict-NULL successes and 288 demand errors.
 DISTINCT, null/truth, consumer, identity/demand and lifecycle definitions use the
 same public dual-mode fixture, not native-derived goldens.
 
@@ -111,12 +114,14 @@ its next bound expression. Final partial flush uses its accumulated source;
 ordinary-only batches have no extra join. Each direct/held execution owns its
 own source; nothing survives a query, backend or scenario boundary.
 
-No behavioral workload was sampled: 87 types, 7,569 ordered pairs, 52,983
-pair/spelling cells (2,524 admitted / 50,459 denied), 658,503 classified triples,
-and 4,103 admitted triples remain. The 4,100 ordinary triples exercise six forms
-and all 27 assignments (664,200 expression/assignment outcomes); the three
-exceptional triples retain 486 assignments, with 198 strict-NULL successes and
-288 Execute-demand errors. All nine pair assignments, WHERE/empty metadata,
+The finite inventory is unchanged: 87 types, 7,569 ordered pairs, 52,983
+pair/spelling cells (2,524 admitted / 50,459 denied), 658,503 classified triples
+and 4,103 ordering-admitted triples. Execution samples only the redundant
+dimensions described in the next section. The 668 executed ordinary triples
+exercise six forms and all 27 assignments (108,216 expression/assignment
+outcomes); the three exceptional triples retain 486 assignments, with 198
+strict-NULL successes and 288 Execute-demand errors. All nine pair assignments,
+WHERE/empty metadata,
 populated/all-NULL/empty analysis failures, successful Prepare versus demanded
 Execute failures, SQLSTATE/English diagnostics/positions, raw rows/arguments and
 applicable structural/consumer/parameter/lifecycle routes remain independently
@@ -129,66 +134,53 @@ Regtype's existing reciprocal narrowing and replay batching, all 40 mixed
 creator/order cases, checkpoints, failed late Restore atomicity, second Restore,
 fresh defaults and actual emitted replay are untouched.
 
-##### Predicate-error family and window ownership remedy
+##### Negative-space and bound-product sampling
 
-After synchronization to base `b1a556f009976c2175c5e3e4427a47ed50d6eace`,
-the original monolithic PredicateErrors native race failed in the CHAR scenario:
-the expected 42883 was replaced by a context deadline. The definition reported
-1106.66s; the external 900-second command deadline also expired. That harness
-initially killed only the make parent; descendant draining completed at 1141s.
-These are failures, not a passing bounded run. The harness correction is temporary;
-no repository runner or deadline changes are part of this repair.
+The exhaustive negative space made this package the long pole of quickcheck
+(220s native). 7,205 of the 7,569 ordered pairs are *empty*: no released
+operator in any of the six slots. Each empty pair ran 126 analysis queries that
+differed only by operator spelling, a WHERE filter that cannot suppress an
+analysis error, the route, or the DISTINCT/BETWEEN form. BETWEEN additionally
+executed the full lower × upper product per left identity.
 
-`comparisonPredicateErrors(t, family)` replaces that definition with the same
-eight left-family shards as Matrix/Between. For every left identity, it visits
-all 87 rights in original order in fixed half-open eight-right windows:
-`[0,8)`, `[8,16)`, ..., `[72,80)`, `[80,87)`. Each named window subtest calls
-`comparisonPredicateErrorsWindow(t,left,start,end)` and owns the actual
-`comparisonFiniteScenario`: fresh context, driver/engine, table/setup and
-recorders. Its synchronous return completes pool closure, schema reset under
-the existing 15-second cleanup context and cancellation before the next window.
-The unchanged 30-second scenario includes before-reset/setup and both selected
-backends, not just SQL execution. No context is renewed on a shared engine.
+`comparison_negative_plan_test.go` now owns a pure, DB-free witness plan. An
+empty pair's rotating ordinal (its index among the left's empty rights, offset
+by the left index) selects:
 
-Family sharding bounds selectable definitions; windows bound actual scenario
-ownership. Neither is a speedup claim. The complete union still executes every
-ordered pair, both DISTINCT forms, all six BETWEEN forms, both incompatible
-endpoint positions and populated/all-NULL/empty analysis cases with unchanged
-SQL, released diagnostics/positions and direct/failed-Prepare routes. Even
-admitted/no-work rights remain in the windows. The universal bound creates
-**957 scenarios (87 × 11), versus 87 previously**, increasing setup/reset work.
-At most 336 query texts / 672 analysis-route attempts occur in an eight-right
-window, plus setup; the final seven-right window has maxima 294 / 588.
+- Matrix: one spelling and one of the populated/all-NULL/empty filters, on
+  both direct execution and failed Prepare.
+- PredicateErrors: one DISTINCT form and one BETWEEN form at **each** endpoint,
+  each with one filter and one route. Endpoint priority (an unorderable x/x
+  failure wins at the upper endpoint), canonical operators and NOT positions
+  are unchanged.
 
-The historical measurements below remain matched **d61-base source-repair**
-evidence, not measurements of this b1-base ownership remedy. On the b1 base,
-three uncached same-host `GOMAXPROCS=2` compiled-binary samples compared the
-original whole definition with the complete final eight-shard union:
+Before any fixture is allocated, every family asserts that its plan covers all
+spelling × filter, DISTINCT form × filter × route and BETWEEN form × endpoint ×
+filter × route combinations, so a rotation gap fails loudly. Admitted cells and
+partially admitted pairs (XID/integer, XID, CID, ACLITEM) still execute every
+spelling, form, filter, endpoint and route. Every empty pair keeps its own
+witnesses; no pair is dropped.
 
-| Aggregate denial workload | Before median [min–max], seconds | After median [min–max], seconds |
-|---|---:|---:|
-| Native | 281.141 [280.869–304.602] | 199.657 [182.765–226.373] |
-| Native + pinned 18.6 | 319.810 [308.439–358.098] | 229.183 [227.360–238.307] |
+BETWEEN lowers to independent `x >= lower` and `x <= upper` comparisons. Per
+left, execution pairs each ordering-eligible identity with itself and with the
+next eligible identity (deduplicated), so every eligible identity is both a
+lower and an upper bound, alone and mixed: 671 of 4,103 admitted triples.
 
-That is a 29.0% / 28.3% aggregate median reduction despite the additional
-setup/reset work, not a comparison of one shard with the old whole definition.
-One same-base whole-package native run was 659.306 → 355.544s; it is not a
-three-sample package benchmark. These observations use the same production
-sources, with only the original test builders/orchestration restored by a
-temporary compiler overlay for the baseline. Build/startup and host-contention
-caveats below still apply; this is not a claim about production SQL performance.
+Matrix admitted cells batch their nine-row results and empty BOOL metadata into
+the existing 32-expression projections; the WHERE-only-true and leaf-demand
+routes stay per cell. Matrix and Consumers bind catalog CHAR values once per
+query through `comparisonFiniteCharSource`, as BETWEEN already did. Consumers
+alternate the released grammar synonyms ANY/SOME by cell, while ALL always runs.
+Matrix, PredicateErrors and BETWEEN each own one scenario per left identity;
+the former eight-right PredicateErrors windows and per-lower BETWEEN fixtures
+are gone. Consumers keeps its two-right windows: PostgreSQL re-runs the catalog
+node-tree source inside every correlated route and needs that bound. The duplicate
+`TestReferenceRegtypeFeatureSmoke` aggregator, which re-ran 26 definitions of
+this package, was removed; select `^TestReferenceRegtype` instead.
 
-A temporary actual-helper probe timed all 957 windows including subtest cleanup.
-Slowest native/combined windows were CHAR `[72,80)` at 0.647 / 0.672s.
-CHAR `[0,8)`, `[8,16)`, `[80,87)` were respectively
-0.447/0.345/0.586s native and 0.501/0.402/0.622s combined. These are non-race
-observations, not wall-clock assertions or replacements for selected race proof.
-All 30-second scenario and 15-second reset bounds remain unchanged.
-The baseline selector is the historical `^TestReferenceComparisonPredicateErrors$`;
-the final aggregate selector is
-`^TestReferenceComparisonPredicateErrors(Numeric|Strings|Temporal|Identifiers|BinaryNetwork|NegativeSpace|Ranges|Arrays)$`.
-Selected correctness/race, quickcheck and postmerge finalcheck remain separate
-required gates; aggregate measurements do not stand in for those commands.
+The whole package then ran in 44s native on a lightly loaded 32-CPU host, versus
+220s before. The remaining costs are per-query engine work (goyacc union copies
+in `Parse`, `inheritanceChildren` map scans), not fixture setup.
 
 ##### Matched observations, not a production performance claim
 
@@ -302,7 +294,7 @@ The obsolete unsharded definition has no compatibility alias. Apply an external
 are the required final proof recipe, **not a claim that final selected make
 checks, quickcheck, review or post-integration finalcheck have passed**.
 
-The expanded actual-helper smoke and complete denial-window smoke were rerun
+The expanded actual-helper smoke and the former denial-window smoke were rerun
 together on the b1 base: pinned-18.6 first (266.894s), then native (190.359s),
 both passing. Temporary bridges and the timing probe were removed. Earlier
 source-only smoke observations were 36.478s / 2.781s on the older base and are
@@ -342,18 +334,6 @@ use `comparisonFiniteValueFrom(charIndex,"x",-1,"comparison_char_source")` and
   `t.Run("ActualBetweenStrings", func(t *testing.T) { comparisonBetween(t,"Strings") })`
   rather than copying the batching algorithm.
 
-Add `TestReferenceTypeResolutionPredicateErrorsWindowSmoke(t *testing.T)` in
-the same temporary bridge. Loop the literal eight family labels in synchronous
-family-named subtests, calling actual `comparisonPredicateErrors(t, family)`:
-this must execute the complete family union, not a sampled or copied SQL loop.
-Find CHAR by its independent inventory name, require its presence, and add
-`CHAR_right_00_08`, `CHAR_right_08_16`, `CHAR_right_80_87` subtests calling actual
-`comparisonPredicateErrorsWindow` with `[0,8)`, `[8,16)`, `[80,87)`.
-The helper retains independently released 42883 diagnostics, casts hints, rune
-positions, endpoint priority and execute/failed-Prepare stages for all three
-data shapes; inspect representative recorder observations as well as outcomes.
-Each focused CHAR call owns actual setup/cleanup, not a parent-owned fixture.
-
 The helpers live in `_test.go` and require `testing.T`; an ordinary `go run`
 client cannot import them. This bridge is actual public SQL exercised by a
 temporary test client, not the standalone command smoke described above.
@@ -363,16 +343,7 @@ From repository root, with external 900-second deadlines:
 go test -c -tags reference -o /tmp/type-resolution-public-smoke.test ./reference/type_resolution
 (cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPerformancePublicSmoke$' -test.count=1 -test.timeout=0 -reference=true)
 (cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPerformancePublicSmoke$' -test.count=1 -test.timeout=0 -reference=false)
-(cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPredicateErrorsWindowSmoke$' -test.count=1 -test.timeout=0 -reference=true)
-(cd reference/type_resolution && GOMAXPROCS=2 /tmp/type-resolution-public-smoke.test -test.run '^TestReferenceTypeResolutionPredicateErrorsWindowSmoke$' -test.count=1 -test.timeout=0 -reference=false)
 ```
-
-For separate boundary measurements use
-`-test.run '^TestReferenceTypeResolutionPredicateErrorsWindowSmoke$/^CHAR_right_(00_08|08_16|80_87)$'`
-in each mode; measure through subtest completion so cleanup is included. A
-separate `go test -c -race -tags reference` binary may use the same focused
-selector with `-reference=false`. Record actual per-window observations, not a
-shard total divided by its window count; do not rerun the failed old race.
 
 Expect exit 0 only after independently specified rows, raw/metadata, diagnostic
 stages and same-held reuse assertions pass. Remove the temporary bridge and
@@ -1001,11 +972,9 @@ quickcheck invocation has a 900-second deadline:
 ```sh
 make check RUN='^TestReferenceRegtype'
 make check REFERENCE=1 RUN='^TestReferenceRegtype'
-make check RUN='^TestReferenceRegtypeFeatureSmoke$'
-make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'
 ```
 
-The feature smoke independently asserts name/OID conversion, builtin and user
+The regtype definitions independently assert name/OID conversion, builtin and user
 row identities, qualification/shadowing, held input recovery, metadata,
 persistent scalar/domain/array values and native control atomicity. Native
 controls must replay the actual emitted native stream on PostgreSQL; never

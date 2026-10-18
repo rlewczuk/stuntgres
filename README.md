@@ -2589,8 +2589,8 @@ role creation/drop does not retarget held literals or repeat their analysis noti
 qualified schema lookup still enforces current USAGE after ownership changes.
 See [REGTYPE contracts](https://www.postgresql.org/docs/18/datatype-oid.html) and
 [design/inventory](docs/design/PG18-TYPE-REG-TYPE.md).
-Feature smoke: `make check RUN='^TestReferenceRegtypeFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'`.
+Feature selector: `make check RUN='^TestReferenceRegtype'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRegtype'`.
 
 Change note: `REGCOLLATION` (OID4191, array4192) and `REGNAMESPACE`
 (OID4089, array4090) support unsigned OID identities, symbolic input/output,

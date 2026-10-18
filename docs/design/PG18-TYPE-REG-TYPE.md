@@ -148,8 +148,6 @@ make generate
 make check RUN='^TestRegtype'
 make check RUN='^TestReferenceRegtype'
 make check REFERENCE=1 RUN='^TestReferenceRegtype'
-make check RUN='^TestReferenceRegtypeFeatureSmoke$'
-make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'
 ```
 
 Expected assertions cover complete identity lookup, standalone diagnostics,

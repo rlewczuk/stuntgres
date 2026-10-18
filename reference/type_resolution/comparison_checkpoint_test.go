@@ -42,10 +42,19 @@ func comparisonCheckpointBool(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 
 func comparisonCheckpointAnalysis(t *testing.T, p *fixture.Pair, b fixture.Backend, q string, d fixture.Diagnostic, args ...any) {
 	t.Helper()
+	comparisonCheckpointAnalysisRoute(t, p, b, q, d, false, args...)
+	comparisonCheckpointAnalysisRoute(t, p, b, q, d, true, args...)
+}
+
+// One analysis route: direct execution fails at execute stage; Prepare fails
+// genuinely at prepare stage.
+func comparisonCheckpointAnalysisRoute(t *testing.T, p *fixture.Pair, b fixture.Backend, q string, d fixture.Diagnostic, prepared bool, args ...any) {
+	t.Helper()
 	s := fixture.ImplicitError(q, d, args...)
 	s.SelectRows, s.ErrorStage = true, "execute"
-	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-	s.Prepared, s.ErrorStage = true, "prepare"
+	if prepared {
+		s.Prepared, s.ErrorStage = true, "prepare"
+	}
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 }
 

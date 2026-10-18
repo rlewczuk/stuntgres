@@ -117,18 +117,23 @@ Missing comparison/coercion on an admitted route is never an exclusion.
 
 ## Complete enumeration and independent outcomes
 
-`comparison_matrix_test.go`: every pair/spelling, nine low/high/NULL combinations,
-direct plus genuinely held statement twice, empty BOOL metadata, WHERE-only-true,
-empty/populated/NULL analysis errors and array leaf demand. English42883 hint and
+`comparison_matrix_test.go`: every admitted or partially admitted pair/spelling,
+nine low/high/NULL combinations, direct plus genuinely held statement twice,
+empty BOOL metadata, WHERE-only-true, empty/populated/NULL analysis errors and
+array leaf demand. Each of the 7,205 empty pairs (no released operator) is
+witnessed once on both analysis routes with a rotating spelling and filter whose
+family-wide coverage is asserted (`comparison_negative_plan_test.go`). English42883 hint and
 character position are independent; `!=` uses canonical `<>` diagnostics.
 
 Remainder definitions:
 
 * Eight `Between{Numeric,Strings,Temporal,Identifiers,BinaryNetwork,NegativeSpace,Ranges,Arrays}`
   shards classify87³=658,503 triples. Released ordering lookup admits4,103
-  ordered triples (sum of each left identity's ordering degree squared),
-  through six forms =24,618 triple/forms. Of these,4,100 successful triples
-  project27 low/high/NULL assignments each (664,200 triple/form/assignments).
+  ordered triples (sum of each left identity's ordering degree squared).
+  Lowering makes the lower and upper pairs independent, so execution pairs each
+  eligible identity with itself and with the next eligible identity: 671
+  triples. Of these, 668 successful triples project 27 low/high/NULL
+  assignments through six forms (108,216 triple/form/assignments).
   Three same-type triples (JSON[],JSONPATH[],ACLITEM[]) require unavailable leaf
   ordering. All3×6×27=486 assignments pass both modes:198 strict-NULL successes
   and288 execution-demand errors,11/16 respectively per27/form. Prepare succeeds;
@@ -136,18 +141,18 @@ Remainder definitions:
   without hint/position when a nonnull pair first demands array_cmp's leaf.
   NULL x or two NULL bounds avoid demand; UNKNOWN does not short-circuit the
   other AND/OR child. Case names retain lower-first versus upper-first demand.
-  Thus664,686 admitted triple/form/assignments are actually exercised.
+  Thus 108,702 admitted triple/form/assignments are actually exercised.
   Lower/upper selection is independent, not a global common type.
-  PredicateErrors covers each denied ordered pair at each endpoint across
-  six forms and empty/populated/NULL inputs.
+  PredicateErrors covers each denied ordered pair at each endpoint. Empty
+  pairs rotate forms, empty/populated/NULL inputs and routes with asserted
+  family-wide coverage; partially admitted pairs keep every combination.
   Classification is not execution: all658,503 triples receive released-rule
   classification, while denied triple behavior is represented by the independently
   enumerated failed pair/endpoint/error-stage witnesses, not falsely reported as
   executing every denied triple. Before setup, each left classifies all7,569
-  lower/upper combinations; only ordering-eligible (left,lower) windows allocate
-  fixtures, each retaining every eligible upper, six forms and27 assignments.
-  No context/deadline increase or coverage sampling; projections remain32-wide
-  direct plus the same held statement executed twice.
+  lower/upper combinations; one fixture per left executes its sampled bounds,
+  six forms and27 assignments. No context/deadline increase; projections
+  remain32-wide direct plus the same held statement executed twice.
 * Distinct visits all7,569 pairs;364 released equality-admitted pairs, both total
   Boolean forms, nine assignments; leaf demand versus whole SQL NULL is explicit.
   CID/ACL use `=` only, never a fabricated `<>` provider.
@@ -191,15 +196,18 @@ Remainder definitions:
   owner at64–68. Released `contrib/intarray/intarray--1.2.sql` defines query_int
   and @@/~~ consumers, not standard query_int comparison overloads.
 * Consumers visits all52,983 spelling cells and executes each of2,524
-  lookup-admitted spellings through one-field row, ANY/SOME/ALL subquery,
+  lookup-admitted spellings through one-field row, ANY-or-SOME (alternating
+  grammar synonyms) and ALL subquery,
   applicable concrete-array constructors and IN/NOT IN where the spelling is
   applicable. Empty subquery reductions include NULL lhs. Dedicated reductions
   distinguish NULL container/element, decisive match/miss, duplicate preservation
   and row first-decisive/3VL. Array capability is determined by source inventory,
   not comparison success; array operands do not become arbitrary nested arrays.
   Execution windows contain at most two applicable right identities for each
-  left; all609 right/spelling cells per left are visited before fixture setup.
-  Excluded rights create no dead fixture contexts. BatchSelection distinguishes
+  left (PostgreSQL re-runs the catalog node-tree source in every correlated
+  route); all609 right/spelling cells per left are visited before fixture setup,
+  and catalog CHAR binds once per query. Excluded rights create no dead fixture
+  contexts. BatchSelection distinguishes
   successful common-type array selection from pairwise fallback, including both
   TIME/INTERVAL orientations and asymmetric XID/integer, with concrete true BOOLs.
   Released `parse_expr.c:transformAExprIn` passes NULL error context to

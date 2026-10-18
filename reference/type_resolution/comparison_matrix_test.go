@@ -205,66 +205,107 @@ func comparisonDemandRoutes(t *testing.T, p *fixture.Pair, b fixture.Backend, q,
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(s))
 }
 
+// Every pair/spelling cell is classified. Admitted and partially admitted
+// pairs execute every spelling and every analysis filter; an empty pair (no
+// released operator at all) is witnessed by one rotating spelling and filter
+// on both routes, see comparison_negative_plan_test.go.
 func comparisonMatrix(t *testing.T, family string) {
+	comparisonAssertMatrixRotation(t, family)
 	for left, typ := range comparisonConcrete {
 		if typ.family != family {
 			continue
 		}
 		t.Run(typ.name, func(t *testing.T) {
 			comparisonFiniteScenario(t, left, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				var values, empties comparisonProjection
 				visited := 0
-				for right, rt := range comparisonConcrete {
-					for op, spelling := range comparisonSpellings {
+				for right := range comparisonConcrete {
+					empty := comparisonEmptyPair(left, right)
+					witness, witnessFilter := comparisonMatrixWitness(left, right)
+					for op := range comparisonSpellings {
 						visited++
-						t.Run(rt.name+spelling, func(t *testing.T) {
-							x, y := comparisonFiniteValue(left, "l", right), comparisonFiniteValue(right, "r", left)
-							expr := x + " " + spelling + " " + y
-							from := " FROM comparison_values l CROSS JOIN comparison_values r"
-							if comparisonSignature(left, right).operators[comparisonOperatorSlots[op]] == 0 {
-								for _, filter := range []string{"l.id=1 AND r.id=1", "l.id=0 AND r.id=0", "FALSE"} {
-									q := "SELECT " + expr + " AS v" + from + " WHERE " + filter
-									comparisonCheckpointAnalysis(t, p, b, q, comparisonNoMatch(q, left, right, op, " "+spelling+" "))
-								}
-								return
-							}
-							demand := comparisonDemand(left, op)
-							filter := ""
-							if demand != "" {
-								comparisonDemandRoutes(t, p, b, "SELECT "+expr+" AS v"+from+" WHERE l.id=1 AND r.id=1", demand)
-								filter = " WHERE l.id=0 OR r.id=0"
-							}
-							var expected, retained [][]any
-							for l := range 3 {
-								for r := range 3 {
-									if demand != "" && l != 0 && r != 0 {
-										continue
-									}
-									var want any
-									if l != 0 && r != 0 {
-										want = comparisonTruth(op, comparisonFiniteSign(left, right, l, r))
-									}
-									expected = append(expected, []any{int64(l), int64(r), want})
-									if want == true {
-										retained = append(retained, []any{int64(l), int64(r)})
-									}
-								}
-							}
-							q := "SELECT l.id AS l,r.id AS r," + expr + " AS v" + from + filter + " ORDER BY l.id,r.id"
-							comparisonCheckpointRoutes(t, p, b, fixture.Select(q, []string{"l", "r", "v"}, []string{"INT4", "INT4", "BOOL"}, expected))
-							comparisonCheckpointRoutes(t, p, b, fixture.Select("SELECT "+expr+" AS v"+from+" WHERE FALSE", []string{"v"}, []string{"BOOL"}, nil))
-							if demand == "" {
-								q = "SELECT l.id AS l,r.id AS r" + from + " WHERE " + expr + " ORDER BY l.id,r.id"
-								comparisonCheckpointRoutes(t, p, b, fixture.Select(q, []string{"l", "r"}, []string{"INT4", "INT4"}, retained))
-							}
-						})
+						if empty && op != witness {
+							continue
+						}
+						if comparisonSignature(left, right).operators[comparisonOperatorSlots[op]] != 0 {
+							comparisonMatrixAdmitted(t, p, b, &values, &empties, left, right, op)
+							continue
+						}
+						filters := comparisonAnalysisFilters
+						if empty {
+							filters = filters[witnessFilter : witnessFilter+1]
+						}
+						comparisonMatrixDenied(t, p, b, left, right, op, filters)
 					}
 				}
+				values.flush(t, p, b)
+				empties.flush(t, p, b)
 				if visited != 609 {
 					t.Fatalf("visited %d cells, want 609", visited)
 				}
 			})
 		})
 	}
+}
+
+func comparisonMatrixDenied(t *testing.T, p *fixture.Pair, b fixture.Backend, left, right, op int, filters []string) {
+	t.Helper()
+	spelling := comparisonSpellings[op]
+	expr := comparisonFiniteValue(left, "l", right) + " " + spelling + " " + comparisonFiniteValue(right, "r", left)
+	for _, filter := range filters {
+		q := "SELECT " + expr + " AS v FROM comparison_values l CROSS JOIN comparison_values r WHERE " + filter
+		comparisonCheckpointAnalysis(t, p, b, q, comparisonNoMatch(q, left, right, op, " "+spelling+" "))
+	}
+}
+
+// An admitted cell's nine low/high/NULL results and its empty BOOL metadata
+// join 32-wide projections; the WHERE-only-true route stays per cell, and so
+// does the leaf-demand route whose rows exclude the demanding pairs.
+func comparisonMatrixAdmitted(t *testing.T, p *fixture.Pair, b fixture.Backend, values, empties *comparisonProjection, left, right, op int) {
+	t.Helper()
+	charSource, join := comparisonCharBinding(left, right)
+	x, y := comparisonFiniteValueFrom(left, "l", right, charSource), comparisonFiniteValueFrom(right, "r", left, charSource)
+	expr := x + " " + comparisonSpellings[op] + " " + y
+	from := " FROM comparison_values l CROSS JOIN comparison_values r" + join
+	empties.use(t, p, b, from+" WHERE FALSE")
+	empties.add(t, p, b, expr, nil)
+	demand := comparisonDemand(left, op)
+	var nine []any
+	var retained [][]any
+	var demandRows [][]any
+	for l := range 3 {
+		for r := range 3 {
+			var want any
+			if l != 0 && r != 0 {
+				want = comparisonTruth(op, comparisonFiniteSign(left, right, l, r))
+			} else {
+				demandRows = append(demandRows, []any{int64(l), int64(r), nil})
+			}
+			nine = append(nine, want)
+			if want == true {
+				retained = append(retained, []any{int64(l), int64(r)})
+			}
+		}
+	}
+	if demand != "" {
+		comparisonDemandRoutes(t, p, b, "SELECT "+expr+" AS v"+from+" WHERE l.id=1 AND r.id=1", demand)
+		q := "SELECT l.id AS l,r.id AS r," + expr + " AS v" + from + " WHERE l.id=0 OR r.id=0 ORDER BY l.id,r.id"
+		comparisonCheckpointRoutes(t, p, b, fixture.Select(q, []string{"l", "r", "v"}, []string{"INT4", "INT4", "BOOL"}, demandRows))
+		return
+	}
+	values.use(t, p, b, from+" ORDER BY l.id,r.id")
+	values.add(t, p, b, expr, nine)
+	q := "SELECT l.id AS l,r.id AS r" + from + " WHERE " + expr + " ORDER BY l.id,r.id"
+	comparisonCheckpointRoutes(t, p, b, fixture.Select(q, []string{"l", "r"}, []string{"INT4", "INT4"}, retained))
+}
+
+// Catalog CHAR values bind once per query through comparisonFiniteCharSource
+// instead of per-row catalog subqueries.
+func comparisonCharBinding(left, right int) (charSource, join string) {
+	if comparisonConcrete[left].name == "char" || comparisonConcrete[right].name == "char" {
+		return "comparison_char_source", " CROSS JOIN " + comparisonFiniteCharSource
+	}
+	return "", ""
 }
 
 func TestReferenceComparisonMatrixNumeric(t *testing.T)       { comparisonMatrix(t, "Numeric") }

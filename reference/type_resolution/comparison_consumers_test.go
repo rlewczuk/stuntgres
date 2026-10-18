@@ -8,12 +8,19 @@ import (
 // Every lookup-admitted concrete pair, not a handpicked changed-pair shortlist.
 // A one-field row deliberately avoids the multi-field B-tree requirement;
 // comparison_row/composite contracts independently retain that requirement.
+// SOME is the released grammar synonym of ANY, so the two alternate by cell;
+// ALL always runs. Catalog CHAR values bind once per query, as in BETWEEN.
 func TestReferenceComparisonConsumers(t *testing.T) {
+	arrayRoutes := map[int]bool{}
+	for _, candidate := range comparisonConcrete {
+		if candidate.element >= 0 {
+			arrayRoutes[candidate.element] = true
+		}
+	}
 	for left, typ := range comparisonConcrete {
 		t.Run(typ.name, func(t *testing.T) {
 			// Visit every spelling before fixture setup, then execute only
-			// applicable right windows. At most two right identities share a
-			// context, bounding catalog-valued routes without dead fixtures.
+			// applicable rights; excluded rights create no dead fixtures.
 			visited := 0
 			var rights []int
 			for right := range comparisonConcrete {
@@ -31,68 +38,74 @@ func TestReferenceComparisonConsumers(t *testing.T) {
 			if visited != 609 {
 				t.Fatalf("visited %d consumer cells, want 609", visited)
 			}
+			// At most two right identities share a 30-second scenario: PostgreSQL
+			// re-runs the catalog-valued node-tree source inside every correlated
+			// consumer route, so a whole-left scenario exceeds that bound.
 			for start := 0; start < len(rights); start += 2 {
-				end := start + 2
-				if end > len(rights) {
-					end = len(rights)
-				}
-				t.Run(comparisonConcrete[rights[start]].name, func(t *testing.T) {
+				window := rights[start:min(start+2, len(rights))]
+				t.Run(comparisonConcrete[window[0]].name, func(t *testing.T) {
 					comparisonFiniteScenario(t, left, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-						projection := comparisonProjection{from: " FROM comparison_values l CROSS JOIN comparison_values r ORDER BY l.id,r.id"}
-						arrayRoutes := map[int]bool{}
-						for _, candidate := range comparisonConcrete {
-							if candidate.element >= 0 {
-								arrayRoutes[candidate.element] = true
-							}
-						}
-						for _, right := range rights[start:end] {
-							x, y := comparisonFiniteValue(left, "l", right), comparisonFiniteValue(right, "r", left)
-							for op, spelling := range comparisonSpellings {
-								if comparisonSignature(left, right).operators[comparisonOperatorSlots[op]] == 0 {
-									continue
-								}
-								var values []any
-								for l := range 3 {
-									for r := range 3 {
-										values = append(values, comparisonFiniteResult(left, right, l, r, op))
-									}
-								}
-								expressions := []string{"ROW(" + x + ") " + spelling + " ROW(" + y + ")"}
-								for _, quantifier := range []string{"ANY", "SOME", "ALL"} {
-									expressions = append(expressions, x+" "+spelling+" "+quantifier+"(SELECT "+y+")")
-									if arrayRoutes[right] {
-										expressions = append(expressions, x+" "+spelling+" "+quantifier+"(ARRAY["+y+"]) ")
-									}
-								}
-								if op == 0 || op == 1 {
-									keyword := " IN "
-									if op == 1 {
-										keyword = " NOT IN "
-									}
-									expressions = append(expressions, x+keyword+"("+y+")", x+keyword+"(SELECT "+y+")")
-								}
-								for _, expr := range expressions {
-									if message := comparisonDemand(left, op); message != "" {
-										comparisonDemandRoutes(t, p, b, "SELECT "+expr+" AS v FROM comparison_values l CROSS JOIN comparison_values r WHERE l.id=1 AND r.id=1", message)
-									} else {
-										projection.add(t, p, b, expr, values)
-									}
-								}
-								for _, quantifier := range []string{"ANY", "SOME", "ALL"} {
-									empty := x + " " + spelling + " " + quantifier + "(SELECT " + y + " WHERE FALSE)"
-									var emptyValues []any
-									for range 9 {
-										emptyValues = append(emptyValues, quantifier == "ALL")
-									}
-									projection.add(t, p, b, empty, emptyValues)
-								}
-							}
+						projection := comparisonProjection{}
+						for _, right := range window {
+							comparisonConsumerPair(t, p, b, &projection, left, right, arrayRoutes[right])
 						}
 						projection.flush(t, p, b)
 					})
 				})
 			}
 		})
+	}
+}
+
+func comparisonConsumerPair(t *testing.T, p *fixture.Pair, b fixture.Backend, projection *comparisonProjection, left, right int, arrayRoute bool) {
+	t.Helper()
+	charSource, join := comparisonCharBinding(left, right)
+	from := " FROM comparison_values l CROSS JOIN comparison_values r" + join
+	projection.use(t, p, b, from+" ORDER BY l.id,r.id")
+	x, y := comparisonFiniteValueFrom(left, "l", right, charSource), comparisonFiniteValueFrom(right, "r", left, charSource)
+	for op, spelling := range comparisonSpellings {
+		if comparisonSignature(left, right).operators[comparisonOperatorSlots[op]] == 0 {
+			continue
+		}
+		var values []any
+		for l := range 3 {
+			for r := range 3 {
+				values = append(values, comparisonFiniteResult(left, right, l, r, op))
+			}
+		}
+		quantifiers := []string{"ANY", "ALL"}
+		if (left+right+op)%2 == 1 {
+			quantifiers[0] = "SOME"
+		}
+		expressions := []string{"ROW(" + x + ") " + spelling + " ROW(" + y + ")"}
+		for _, quantifier := range quantifiers {
+			expressions = append(expressions, x+" "+spelling+" "+quantifier+"(SELECT "+y+")")
+			if arrayRoute {
+				expressions = append(expressions, x+" "+spelling+" "+quantifier+"(ARRAY["+y+"]) ")
+			}
+		}
+		if op == 0 || op == 1 {
+			keyword := " IN "
+			if op == 1 {
+				keyword = " NOT IN "
+			}
+			expressions = append(expressions, x+keyword+"("+y+")", x+keyword+"(SELECT "+y+")")
+		}
+		for _, expr := range expressions {
+			if message := comparisonDemand(left, op); message != "" {
+				comparisonDemandRoutes(t, p, b, "SELECT "+expr+" AS v"+from+" WHERE l.id=1 AND r.id=1", message)
+			} else {
+				projection.add(t, p, b, expr, values)
+			}
+		}
+		for _, quantifier := range quantifiers {
+			empty := x + " " + spelling + " " + quantifier + "(SELECT " + y + " WHERE FALSE)"
+			var emptyValues []any
+			for range 9 {
+				emptyValues = append(emptyValues, quantifier == "ALL")
+			}
+			projection.add(t, p, b, empty, emptyValues)
+		}
 	}
 }
 
