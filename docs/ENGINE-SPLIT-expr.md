@@ -129,7 +129,7 @@ evaluation regression. 2d completes the step.
   (`328df6341` protocol, `aafd6fe97` function nodes, `f038faf09` walk
   adopter, docs `767e1293e`)
 - [x] 2d — Aliases removed (`a30776ce9` shadowing locals, `d981cc9c0`
-  embedded field, `f70e8a7d9` functions, `f6107872e` engine, docs DOCS)
+  embedded field, `f70e8a7d9` functions, `f6107872e` engine, docs `7dfcd7b80`)
 
 Outstanding aliases: none. 2d deleted both `expr_aliases.go` files.
 

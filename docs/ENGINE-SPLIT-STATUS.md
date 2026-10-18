@@ -41,7 +41,7 @@ not run alongside each other or another broad rewrite or alias removal (§8).
     (`328df6341`, `aafd6fe97`, `f038faf09`, docs `767e1293e`)
     *(full racecheck skipped at user request)*
   - [x] 2d — Aliases removed (`a30776ce9`, `d981cc9c0`, `f70e8a7d9`,
-    `f6107872e`, docs DOCS) *(racecheck skipped at user request)*
+    `f6107872e`, docs `7dfcd7b80`) *(racecheck skipped at user request)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
   2b, and 2c for F2)
   - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)
