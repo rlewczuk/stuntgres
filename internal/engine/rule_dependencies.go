@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"iter"
-	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -178,7 +177,7 @@ func ruleDepends(catalog CatalogRead, r ruleDefinition, target ids.ObjectAddress
 }
 
 func ruleDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
-	return ruleDependentLabelsFrom(catalog, targets, path, maps.All(catalog.state.descriptors), nil)
+	return ruleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
 }
 
 func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []supportedDependent {

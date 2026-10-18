@@ -152,8 +152,8 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	maximumStore := *originalStore
 	maximumStore.generation = ^uint64(0)
 	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.descriptors[survivor.address] = &maximum
-	e.catalog.state.descriptors[index.address] = &maximumIndex
+	e.catalog.state.setDescriptor(survivor.address, &maximum)
+	e.catalog.state.setDescriptor(index.address, &maximumIndex)
 	e.storage[survivor.address] = &maximumStore
 	t.Cleanup(func() {
 		if e.catalog.state.Get(provider.address) != nil {
@@ -258,13 +258,13 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 			switch counter {
 			case "Table":
 				maximum.revision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.descriptors[survivor.address] = &maximum
+				e.catalog.state.setDescriptor(survivor.address, &maximum)
 			case "Storage":
 				maximumStore.generation = ^uint64(0)
 				e.storage[survivor.address] = &maximumStore
 			case "Index":
 				maximumIndex.revision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.descriptors[index.address] = &maximumIndex
+				e.catalog.state.setDescriptor(index.address, &maximumIndex)
 			}
 			captured := e.catalog.state
 			t.Cleanup(func() {
@@ -298,7 +298,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			definition.ready, definition.valid = ready, false
 			changed.sqlIndex = &definition
 			e.catalog.state = cloneCatalog(e.catalog.state)
-			e.catalog.state.descriptors[index.address] = &changed
+			e.catalog.state.setDescriptor(index.address, &changed)
 			previous := e.indexRoots[index.address]
 			if !ready {
 				delete(e.indexRoots, index.address)

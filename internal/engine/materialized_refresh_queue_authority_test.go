@@ -93,8 +93,8 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "ref":
 				next.address.ObjectID += 100000
 				expectedAddress = next.address
-				delete(nextState.descriptors, d.address)
-				nextState.names[ids.NameKey{ClassID: d.address.ClassID, Namespace: d.namespace, Name: d.name}] = next.address
+				nextState.removeDescriptor(d.address)
+				nextState.bindName(ids.NameKey{ClassID: d.address.ClassID, Namespace: d.namespace, Name: d.name}, next.address)
 				storage := *oldStorage
 				expectedStorage = &storage
 				e.storage = maps.Clone(e.storage)
@@ -103,7 +103,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "epoch":
 				nextState.epoch++
 			}
-			nextState.descriptors[expectedAddress] = &next
+			nextState.setDescriptor(expectedAddress, &next)
 			e.catalog.state = &nextState
 			before, rowCounter, versionCounter := e.commitSeq, e.nextRow, e.nextVersion
 			e.mu.Unlock()

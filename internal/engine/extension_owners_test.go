@@ -119,13 +119,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
-		delete(next.names, descriptorNameKey(before.Get(address)))
-		delete(next.descriptors, address)
+		next.unbindName(descriptorNameKey(before.Get(address)))
+		next.removeDescriptor(address)
 	}
 	for address, destination := range mapping {
 		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
-		next.descriptors[destination] = descriptor
-		next.names[descriptorNameKey(descriptor)] = destination
+		next.setDescriptor(destination, descriptor)
+		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	view := e.catalog.read(next)
 	remapped := next.MustExtension(mapping[ext.address])
@@ -170,7 +170,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			definition: call, execution: call, dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}
-	next.descriptors[address] = consumer
+	next.setDescriptor(address, consumer)
 	next.epoch++
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal("relocated consumer", err)

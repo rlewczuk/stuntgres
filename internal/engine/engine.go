@@ -261,8 +261,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			}}
 		}
 		d.comment = namespaceCommentBaseline(ns.oid)
-		e.catalog.state.descriptors[d.address] = d
-		e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}] = d.address
+		e.catalog.state.setDescriptor(d.address, d)
+		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}, d.address)
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
@@ -272,15 +272,15 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if typ.NamespaceName() == "information_schema" {
 			d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
-		e.catalog.state.descriptors[d.Address()] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
 		d.owner = e.authorizationDomain.Principal(10)
-		e.catalog.state.descriptors[d.Address()] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeConversionRoutines()
 	e.initializeBuiltinRoutines()
@@ -291,8 +291,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d.owner = e.authorizationDomain.Principal(10)
 		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.revision = 1
-		e.catalog.state.descriptors[d.Address()] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeOperators()
 	e.initializeDatabase(database)

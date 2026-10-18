@@ -151,7 +151,7 @@ func TestPGCastProjection(t *testing.T) {
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
-			delete(state.descriptors, a)
+			state.removeDescriptor(a)
 		}
 	}
 	view := e.catalog.read(&state)
@@ -159,7 +159,7 @@ func TestPGCastProjection(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
-	delete(state.descriptors, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
+	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
 	if rows, err := capturePGCast(context.Background(), view, ref, d); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}

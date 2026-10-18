@@ -78,8 +78,8 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := cloneCatalog(view.state)
-	delete(removed.descriptors, proc.address)
-	delete(removed.names, descriptorNameKey(proc))
+	removed.removeDescriptor(proc.address)
+	removed.unbindName(descriptorNameKey(proc))
 	retired := e.catalog.read(removed)
 	for _, helper := range proc.aggregate.helpers {
 		if _, ok := routineIdentityByOID(retired, helper.id); ok {
@@ -119,7 +119,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		mutate(&owned)
 		bad.aggregate = &owned
 		state := cloneCatalog(view.state)
-		state.descriptors[proc.address] = &bad
+		state.setDescriptor(proc.address, &bad)
 		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
@@ -132,7 +132,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 			bad.aggregate = proc.aggregate
 		}
 		state := cloneCatalog(view.state)
-		state.descriptors[member] = &bad
+		state.setDescriptor(member, &bad)
 		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
@@ -141,7 +141,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	helper := proc.aggregate.helpers[0]
 	namespace := *view.MustNamespace(proc.namespace)
 	namespace.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.id}
-	collision.descriptors[namespace.address] = &namespace
+	collision.setDescriptor(namespace.address, &namespace)
 	if err := stockIntagg.validate(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
@@ -238,8 +238,8 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 		name:    "pg_temp_pga_collision", revision: 1, owner: target.authorizationDomain.Principal(10),
 		temporary: target.catalog.domain.Session(99),
 	}
-	target.catalog.state.descriptors[namespace.address] = namespace
-	target.catalog.state.names[descriptorNameKey(namespace)] = namespace.address
+	target.catalog.state.setDescriptor(namespace.address, namespace)
+	target.catalog.state.bindName(descriptorNameKey(namespace), namespace.address)
 	target.catalog.nextOID = 30000
 	next := cloneCatalog(source.catalog.state)
 	target.mu.Lock()

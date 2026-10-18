@@ -144,14 +144,14 @@ func TestPGExtensionCapture(t *testing.T) {
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
-			delete(state.descriptors, a)
+			state.removeDescriptor(a)
 		}
 	}
 	view := e.catalog.read(&state)
 	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d); err != nil || rows == nil || rows.count() != 0 {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
-	delete(state.descriptors, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
+	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
 	if rows, err := captureExtensionCatalog(context.Background(), view, ref, d); err == nil || rows != nil {
 		t.Fatal("missing array descriptor", rows, err)
 	}

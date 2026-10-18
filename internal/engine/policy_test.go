@@ -92,7 +92,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			owner.name = "renamed"
 			owner.columns = append([]ColumnDescriptor(nil), d.columns...)
 			owner.columns[0].Name = "key"
-			next.descriptors[d.address] = &owner
+			next.setDescriptor(d.address, &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
@@ -255,7 +255,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			state := cloneCatalog(base.state)
 			attached := *owner
 			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: expression}}
-			state.descriptors[owner.address] = &attached
+			state.setDescriptor(owner.address, &attached)
 			base.state = state
 			var target ids.ObjectAddress
 			for address, descriptor := range state.Descriptors() {

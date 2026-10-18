@@ -2,7 +2,6 @@ package engine
 
 import (
 	"iter"
-	"maps"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +32,7 @@ func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, 
 	if a.definition != nil {
 		return a.definition.descriptors()
 	}
-	return maps.All(a.catalog.state.descriptors)
+	return a.catalog.Descriptors()
 }
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return definitionTypeAt(a.catalog, a.definition, id)

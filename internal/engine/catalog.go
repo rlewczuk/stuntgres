@@ -1250,19 +1250,19 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			d := removal.descriptor
 			operators.replace(current.Get(a), s.descriptors[a])
-			delete(next.descriptors, a)
+			next.removeDescriptor(a)
 			delete(next.dumpPriorities, a)
-			delete(next.names, descriptorNameKey(d))
+			next.unbindName(descriptorNameKey(d))
 			delete(storage, a)
 		}
 		for k := range s.oldNames {
-			delete(next.names, k)
+			next.unbindName(k)
 		}
 		for a, d := range s.descriptors {
 			if _, removed := s.removals[a]; !removed {
 				operators.replace(current.Get(a), d)
 			}
-			next.descriptors[a] = d
+			next.setDescriptor(a, d)
 			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind.stored() && storage[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
 					storage[a] = initial
@@ -1278,7 +1278,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			storage[replacement.original.address] = replacement.storage
 		}
 		for k, a := range s.names {
-			next.names[k] = a
+			next.bindName(k, a)
 		}
 		next.operatorNames = operators.index
 		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
@@ -1889,10 +1889,10 @@ func cloneCatalog(s *catalogState) *catalogState {
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	for k, v := range s.Descriptors() {
-		n.descriptors[k] = v
+		n.setDescriptor(k, v)
 	}
 	for k, v := range s.Names() {
-		n.names[k] = v
+		n.bindName(k, v)
 	}
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))

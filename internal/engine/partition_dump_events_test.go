@@ -41,8 +41,8 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	otherGood.sqlIndex = &otherDefinition
 	otherDefinition.parent = other.address
 	for _, d := range []*relationDescriptor{&other, &good, &leafGood, &otherGood} {
-		f.view.state.descriptors[d.address] = d
-		f.view.state.names[descriptorNameKey(d)] = d.address
+		f.view.state.setDescriptor(d.address, d)
+		f.view.state.bindName(descriptorNameKey(d), d.address)
 	}
 	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).typ
 	f.leaf.checkConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}

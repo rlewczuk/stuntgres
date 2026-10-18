@@ -22,7 +22,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				f.child.sqlIndex.partitionParent = ids.ObjectAddress{}
 			}
 			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.namespace, Name: partitionReplayStem + "1"}
-			f.view.state.names[reserved] = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700}
+			f.view.state.bindName(reserved, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700})
 			r, c, pi, ci := f.root.address.ObjectID, f.leaf.address.ObjectID, f.parent.address.ObjectID, f.child.address.ObjectID
 			graph := map[dumpEventKey][]dumpEventKey{{oid: r}: nil, {oid: c}: nil, {oid: pi}: {{oid: r}}, {oid: ci}: {{oid: c}}}
 			if !empty {
@@ -102,8 +102,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	definition.constraint = uniqueBacking(&constraint)
 	local.sqlIndex = &definition
 	f.leaf.uniqueConstraints = []uniqueConstraint{constraint}
-	f.view.state.descriptors[local.address] = &local
-	f.view.state.names[descriptorNameKey(&local)] = local.address
+	f.view.state.setDescriptor(local.address, &local)
+	f.view.state.bindName(descriptorNameKey(&local), local.address)
 	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
 		t.Fatal("local origin must be explicit only for this captured replay")
 	}
@@ -112,8 +112,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, owner: f.leaf.owner, name: "unit_local_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
 	consumer.defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}
-	f.view.state.descriptors[consumer.address] = consumer
-	f.view.state.names[descriptorNameKey(consumer)] = consumer.address
+	f.view.state.setDescriptor(consumer.address, consumer)
+	f.view.state.bindName(descriptorNameKey(consumer), consumer.address)
 	provider, err := dumpPredecessor(f.view, consumer.defaults[1].dependencies[0].Address, consumer.address)
 	if err != nil {
 		t.Fatal(err)

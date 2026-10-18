@@ -54,7 +54,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			state := cloneCatalog(e.catalog.state)
 			bad := *proc
 			mutate(&bad)
-			state.descriptors[address] = &bad
+			state.setDescriptor(address, &bad)
 			if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
@@ -107,7 +107,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			state := cloneCatalog(other.catalog.state)
 			bad := *member
 			bad.intagg = stockIntagg
-			state.descriptors[member.address] = &bad
+			state.setDescriptor(member.address, &bad)
 			if err := other.catalog.extensions[name].provider.validate(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}

@@ -162,7 +162,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				next := cloneCatalog(e.catalog.state)
 				copy := *next.MustRelation(target.Address)
 				copy.revision++
-				next.descriptors[target.Address] = &copy
+				next.setDescriptor(target.Address, &copy)
 				e.catalog.state = next
 			case "roles":
 				copy := *e.roles

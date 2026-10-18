@@ -318,7 +318,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "provider":
 				copy := *ext
 				copy.revision++
-				e.catalog.state.descriptors[ext.address] = &copy
+				e.catalog.state.setDescriptor(ext.address, &copy)
 			case "cancel":
 				cancel()
 			case "role":

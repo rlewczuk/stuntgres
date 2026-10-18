@@ -49,8 +49,8 @@ func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range builtinTablespaces {
 		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
-		e.catalog.state.descriptors[d.address] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.address
+		e.catalog.state.setDescriptor(d.address, d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.address)
 	}
 }
 

@@ -118,7 +118,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	}
 	// A reader lacking the exact selected input generation cannot borrow it.
 	state := cloneCatalog(view.state)
-	delete(state.descriptors, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
+	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 	if _, err := bindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}

@@ -133,8 +133,8 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &relationDescriptor{address: relation, attributes: []int32{1, 3}, comment: "whole", columnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
-	oldState.descriptors[namespace] = &namespaceDescriptor{address: namespace, comment: "namespace"}
-	oldState.descriptors[relation] = d
+	oldState.setDescriptor(namespace, &namespaceDescriptor{address: namespace, comment: "namespace"})
+	oldState.setDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)
 	if err != nil {
@@ -161,12 +161,12 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	updated := *d
 	updated.comment = "replacement"
 	updated.columnComments = map[int32]string{3: "replacement third"}
-	newState.descriptors[relation] = &updated
+	newState.setDescriptor(relation, &updated)
 	newRows, err := capturePGDescription(context.Background(), e.catalog.read(&newState), ref, source)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {
 		t.Fatal(err)
 	}
-	delete(newState.descriptors, relation)
+	newState.removeDescriptor(relation)
 	if pgDescriptionUnitBag(t, captured)[relation] != "whole" || descriptorComment(oldState.Get(relation), 3) != "third" {
 		t.Fatal("retained snapshot changed")
 	}

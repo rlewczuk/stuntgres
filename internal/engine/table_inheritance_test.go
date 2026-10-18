@@ -22,8 +22,8 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRead {
 	state := cloneCatalog(e.CatalogRead().state)
 	for _, d := range relations {
-		state.descriptors[d.address] = d
-		state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+		state.setDescriptor(d.address, d)
+		state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
 	}
 	return e.catalog.read(state)
 }

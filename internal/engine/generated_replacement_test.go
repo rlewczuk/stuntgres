@@ -93,8 +93,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	source := []sqltype.Value{base, oldOID}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	next.descriptors[d.address] = d
-	next.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	next.setDescriptor(d.address, d)
+	next.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
 	// Retain a real TEMP namespace and row vector in the target generation.
 	tempNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 27000}
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
@@ -103,8 +103,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	temp.generations, temp.checkConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: e.catalog.domain.Session(99)}
-	e.catalog.state.descriptors[tempAddress] = &temp
+	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: e.catalog.domain.Session(99)})
+	e.catalog.state.setDescriptor(tempAddress, &temp)
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()
 	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
@@ -197,7 +197,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				copy := *next.MustRelation(f.temp)
 				copy.address.ObjectID++
 				copy.name = "concurrent_temp"
-				next.descriptors[copy.address] = &copy
+				next.setDescriptor(copy.address, &copy)
 				f.target.storage[copy.address] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
 				next.epoch++
 				f.target.catalog.state = next

@@ -49,7 +49,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
 			state := cloneCatalog(e.catalog.state)
-			state.descriptors[address] = &next
+			state.setDescriptor(address, &next)
 			e.catalog.state = state
 			return
 		}

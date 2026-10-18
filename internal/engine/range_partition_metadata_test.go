@@ -179,14 +179,14 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 			t.Fatal("valid owned key authority", err)
 		}
 		missing := cloneCatalog(view.state)
-		delete(missing.descriptors, address)
+		missing.removeDescriptor(address)
 		if err := validatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
 		mismatch := cloneCatalog(view.state)
 		changed := *provider
 		changed.semantics = other.semantics
-		mismatch.descriptors[address] = &changed
+		mismatch.setDescriptor(address, &changed)
 		if err := validatePartitionDescriptor(e.catalog.read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
 		}
@@ -267,7 +267,8 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	middleDefinition.children = []ids.ObjectAddress{root.address}
 	middleDefinition.defaultChild = root.address
 	cyclicMiddle.partition = &middleDefinition
-	cyclic.descriptors[root.address], cyclic.descriptors[middle.address] = &cyclicRoot, &cyclicMiddle
+	cyclic.setDescriptor(root.address, &cyclicRoot)
+	cyclic.setDescriptor(middle.address, &cyclicMiddle)
 	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
@@ -277,7 +278,8 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	rootDefinition.defaultChild = ids.ObjectAddress{}
 	overlappingRoot.partition = &rootDefinition
 	overlappingRest.membership = &partitionMembership{parent: root.address, lower: slices.Clone(middle.membership.lower), upper: slices.Clone(middle.membership.upper)}
-	overlapping.descriptors[root.address], overlapping.descriptors[rest.address] = &overlappingRoot, &overlappingRest
+	overlapping.setDescriptor(root.address, &overlappingRoot)
+	overlapping.setDescriptor(rest.address, &overlappingRest)
 	if err := validatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}

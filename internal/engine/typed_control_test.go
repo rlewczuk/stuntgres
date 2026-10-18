@@ -11,23 +11,23 @@ import (
 func typedControlsTemporary(e *Engine, tables ...*relationDescriptor) {
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}, name: "pg_temp_typed_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.catalog.domain.Session(99)}
-	e.catalog.state.descriptors[namespace.address] = namespace
-	e.catalog.state.names[descriptorNameKey(namespace)] = namespace.address
+	e.catalog.state.setDescriptor(namespace.address, namespace)
+	e.catalog.state.bindName(descriptorNameKey(namespace), namespace.address)
 	for _, old := range tables {
 		table := *old
-		delete(e.catalog.state.names, descriptorNameKey(old))
+		e.catalog.state.unbindName(descriptorNameKey(old))
 		table.namespace = namespace.address
-		e.catalog.state.descriptors[table.address] = &table
-		e.catalog.state.names[descriptorNameKey(&table)] = table.address
+		e.catalog.state.setDescriptor(table.address, &table)
+		e.catalog.state.bindName(descriptorNameKey(&table), table.address)
 		rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}
 		row := e.catalog.state.MustType(rowAddress)
 		for _, address := range []ids.ObjectAddress{rowAddress, {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
 			oldType := e.catalog.state.MustType(address)
 			typ := *oldType
-			delete(e.catalog.state.names, descriptorNameKey(oldType))
+			e.catalog.state.unbindName(descriptorNameKey(oldType))
 			typ.namespace = namespace.address
-			e.catalog.state.descriptors[address] = &typ
-			e.catalog.state.names[descriptorNameKey(&typ)] = address
+			e.catalog.state.setDescriptor(address, &typ)
+			e.catalog.state.bindName(descriptorNameKey(&typ), address)
 		}
 	}
 }

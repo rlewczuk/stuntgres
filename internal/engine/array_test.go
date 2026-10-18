@@ -81,7 +81,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	broken := cloneCatalog(e.CatalogRead().state)
 	copied := *domain
 	copied.array = sqltype.NameArray
-	broken.descriptors[domain.Address()] = &copied
+	broken.setDescriptor(domain.Address(), &copied)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), associated); err == nil {
 		t.Fatal("broken reverse association accepted")
 	}
@@ -97,7 +97,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	forged := *associated
 	forged.typ = foreignArray
 	broken = cloneCatalog(e.catalog.state)
-	broken.descriptors[associated.Address()] = &forged
+	broken.setDescriptor(associated.Address(), &forged)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
 		t.Fatal("foreign array element accepted")
 	}
@@ -217,7 +217,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	// principal authority; a foreign descriptor would invalidate its array owner.
 	reboundRegclass := *next.MustType(regclassAddress)
 	reboundRegclass.typ = fresh.catalog.state.MustType(regclassAddress).typ
-	next.descriptors[regclassAddress] = &reboundRegclass
+	next.setDescriptor(regclassAddress, &reboundRegclass)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
 		mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}

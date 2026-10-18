@@ -128,7 +128,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	child.inheritance = cloneInheritance(child.inheritance)
 	child.inheritance.columns[2] = inheritedColumn{origins: []inheritanceOrigin{{parent: refs["q"].Address, attribute: 1}}}
 	changed := cloneCatalog(before)
-	changed.descriptors[child.address] = &child
+	changed.setDescriptor(child.address, &child)
 	e.catalog.state = changed
 	childRaw := statement(t, "ALTER TABLE ONLY public.c ALTER g SET EXPRESSION AS(a+1)").(*parser.AlterTable)
 	if err := e.pairRestoredGeneration(op, childRaw, origins); err == nil || e.catalog.state != changed {

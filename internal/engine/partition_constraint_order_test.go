@@ -18,7 +18,8 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 			state := cloneCatalog(e.catalog.state)
 			one := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, name: "a"}
 			two := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, name: "a.b"}
-			state.descriptors[one.address], state.descriptors[two.address] = one, two
+			state.setDescriptor(one.address, one)
+			state.setDescriptor(two.address, two)
 			names := []string{"b.c", "z", "c"}
 			namespaces := []ids.ObjectAddress{one.address, one.address, two.address}
 			var tables, indexes [3]*relationDescriptor
@@ -28,8 +29,8 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				tables[i] = &relationDescriptor{address: tableAddress, namespace: namespaces[i], name: names[i] + "_table", partition: &partitionDefinition{}, uniqueConstraints: []uniqueConstraint{{Name: names[i], Index: indexAddress}}}
 				indexes[i] = &relationDescriptor{address: indexAddress, namespace: namespaces[i], name: names[i], sqlIndex: &indexDefinition{parent: tableAddress}}
 				for _, d := range []*relationDescriptor{tables[i], indexes[i]} {
-					state.descriptors[d.address] = d
-					state.names[descriptorNameKey(d)] = d.address
+					state.setDescriptor(d.address, d)
+					state.bindName(descriptorNameKey(d), d.address)
 				}
 			}
 			view := e.catalog.read(state)

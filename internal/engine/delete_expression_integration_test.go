@@ -44,8 +44,8 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
 					replacement := *original.(*relationDescriptor)
-					e.catalog.state.descriptors[address] = &replacement
-					restore = func() { e.catalog.state.descriptors[address] = original }
+					e.catalog.state.setDescriptor(address, &replacement)
+					restore = func() { e.catalog.state.setDescriptor(address, original) }
 				case "epoch":
 					original := e.catalog.state.epoch
 					e.catalog.state.epoch++

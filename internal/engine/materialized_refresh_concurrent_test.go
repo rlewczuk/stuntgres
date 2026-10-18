@@ -425,7 +425,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				case "definition":
 					copy := *d
 					copy.owner = authorization.PrincipalRef{}
-					e.catalog.state.descriptors[d.address] = &copy
+					e.catalog.state.setDescriptor(d.address, &copy)
 				case "index_set":
 					materializedConcurrentUnitIndex(t, e, d, "unit_second", "i", "")
 				case "frontier":
@@ -508,7 +508,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	current := cloneCatalog(e.catalog.state)
 	changed := *index
 	changed.revision++
-	current.descriptors[index.address] = &changed
+	current.setDescriptor(index.address, &changed)
 	if err := stage.validateIndexMaintenance(current); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("same-count replacement accepted changed index identity", err)
 	}

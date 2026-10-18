@@ -157,7 +157,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 			altered.uniqueConstraints = []uniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
 		}
 		candidate := cloneCatalog(before)
-		candidate.descriptors[old.address] = &altered
+		candidate.setDescriptor(old.address, &altered)
 		e.catalog.state = candidate
 		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != candidate {
 			t.Fatal("ineligible NN fact published", kind, err)

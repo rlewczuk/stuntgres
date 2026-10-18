@@ -46,19 +46,19 @@ func (e *Engine) initializeDatabase(name string) {
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner}
-	e.catalog.state.descriptors[db.address] = db
-	e.catalog.state.names[descriptorNameKey(db)] = db.address
+	e.catalog.state.setDescriptor(db.address, db)
+	e.catalog.state.bindName(descriptorNameKey(db), db.address)
 }
 
 // Attachment identity and ACLs belong to the destination, not portable state.
 // Retain them before replacement principal validation and publication.
 func (e *Engine) retainDatabaseLocked(next *catalogState) {
 	if old := next.Get(currentDatabaseAddress); old != nil {
-		delete(next.names, descriptorNameKey(old))
+		next.unbindName(descriptorNameKey(old))
 	}
 	database := e.catalog.state.Get(currentDatabaseAddress)
-	next.descriptors[currentDatabaseAddress] = database
-	next.names[descriptorNameKey(database)] = currentDatabaseAddress
+	next.setDescriptor(currentDatabaseAddress, database)
+	next.bindName(descriptorNameKey(database), currentDatabaseAddress)
 }
 func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
 	if count != 0 {

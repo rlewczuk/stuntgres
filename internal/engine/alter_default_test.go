@@ -51,7 +51,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	e.mu.Lock()
 	exhausted := *d
 	exhausted.revision = ids.DefinitionRevision(^uint64(0))
-	e.catalog.state.descriptors[ref.Address] = &exhausted
+	e.catalog.state.setDescriptor(ref.Address, &exhausted)
 	e.mu.Unlock()
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER renamed SET DEFAULT 9"), nil)
 	if err == nil || e.catalog.state.Get(ref.Address) != &exhausted {

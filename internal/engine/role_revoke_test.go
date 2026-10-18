@@ -31,7 +31,7 @@ func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.P
 		}},
 	}
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.descriptors[address] = &next
+	e.catalog.state.setDescriptor(address, &next)
 	return e, op, reader, target, leaf, address
 }
 

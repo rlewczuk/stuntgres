@@ -291,13 +291,13 @@ func TestExtensionProviderPublication(t *testing.T) {
 				next := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 				next.revision++
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.descriptors[currentDatabaseAddress] = &next
+				e.catalog.state.setDescriptor(currentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				next := *e.catalog.state.MustNamespace(a)
 				next.revision++
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.descriptors[a] = &next
+				e.catalog.state.setDescriptor(a, &next)
 			}
 			e.mu.Unlock()
 			committed := e.catalog.state

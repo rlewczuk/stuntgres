@@ -165,7 +165,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	maximum := *survivor
 	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.descriptors[survivor.address] = &maximum
+	e.catalog.state.setDescriptor(survivor.address, &maximum)
 	// Restore the unexhausted setup before its automatic session retirement.
 	t.Cleanup(func() { e.catalog.state = original })
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -194,7 +194,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	maximum := *survivor
 	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.descriptors[survivor.address] = &maximum
+	e.catalog.state.setDescriptor(survivor.address, &maximum)
 	t.Cleanup(func() {
 		if e.catalog.state.Get(sequence.address) != nil {
 			e.catalog.state = original
@@ -256,7 +256,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			maximum := *consumer
 			maximum.revision = ids.DefinitionRevision(^uint64(0))
 			e.catalog.state = cloneCatalog(original)
-			e.catalog.state.descriptors[consumer.address] = &maximum
+			e.catalog.state.setDescriptor(consumer.address, &maximum)
 			t.Cleanup(func() { e.catalog.state = original })
 			for _, terminal := range []bool{false, true} {
 				stage := e.BeginCatalogStage(e.CatalogRead())

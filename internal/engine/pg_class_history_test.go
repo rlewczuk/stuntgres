@@ -11,8 +11,8 @@ import (
 func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
 	state := cloneCatalog(e.CatalogRead().state)
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "history_parent", revision: 1, owner: e.authorizationDomain.Principal(10)}
-	state.descriptors[parent.address] = parent
-	state.names[descriptorNameKey(parent)] = parent.address
+	state.setDescriptor(parent.address, parent)
+	state.bindName(descriptorNameKey(parent), parent.address)
 	return e.catalog.read(state), parent
 }
 
@@ -97,9 +97,9 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	catalog, parent := pgClassHistoryCatalog(e)
 	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
-	catalog.state.descriptors[child.address] = child
+	catalog.state.setDescriptor(child.address, child)
 	history := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, hasSubclasses: true, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-	catalog.state.descriptors[history.address] = history
+	catalog.state.setDescriptor(history.address, history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), catalog); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing := e.catalog.read(cloneCatalog(catalog.state))
-	delete(missing.state.descriptors, parent.address)
+	missing.state.removeDescriptor(parent.address)
 	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")
 	}

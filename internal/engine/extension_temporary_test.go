@@ -251,7 +251,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		maximum.revision = ids.DefinitionRevision(^uint64(0))
 		e.mu.Lock()
 		next := cloneCatalog(e.catalog.state)
-		next.descriptors[survivor.address] = &maximum
+		next.setDescriptor(survivor.address, &maximum)
 		e.catalog.state = next
 		e.mu.Unlock()
 		closeOwner()
@@ -278,7 +278,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		original := e.catalog.state
 		e.mu.Lock()
 		broken := cloneCatalog(original)
-		delete(broken.descriptors, ext.members[4])
+		broken.removeDescriptor(ext.members[4])
 		e.catalog.state = broken
 		e.mu.Unlock()
 		t.Cleanup(func() { e.mu.Lock(); e.catalog.state = original; e.mu.Unlock() })
@@ -527,20 +527,20 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	}
 	procedureCopy := *e.catalog.state.MustProcedure(procedureRef.Address)
 	substituted := cloneCatalog(e.catalog.state)
-	substituted.descriptors[procedureRef.Address] = &procedureCopy
+	substituted.setDescriptor(procedureRef.Address, &procedureCopy)
 	if !storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("compatible COW procedure metadata lost captured view lifetime")
 	}
 	invalidProcedure := procedureCopy
 	invalidProcedure.strict = !invalidProcedure.strict
-	substituted.descriptors[procedureRef.Address] = &invalidProcedure
+	substituted.setDescriptor(procedureRef.Address, &invalidProcedure)
 	if storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
 	foreignNamespace := *e.catalog.state.MustNamespace(ext.targetNamespace)
 	foreignNamespace.temporary = installer.session.token
 	foreign := cloneCatalog(e.catalog.state)
-	foreign.descriptors[ext.targetNamespace] = &foreignNamespace
+	foreign.setDescriptor(ext.targetNamespace, &foreignNamespace)
 	if storedViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
 		t.Fatal("foreign physical namespace token substituted retained procedure authority")
 	}

@@ -173,9 +173,9 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			// seam; exhaustion must not wrap, reuse or publish anything.
 			e.catalog.state = cloneCatalog(e.catalog.state)
 			if class == ids.NamespaceClassID {
-				e.catalog.state.descriptors[address] = &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+				e.catalog.state.setDescriptor(address, &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
-				e.catalog.state.descriptors[address] = &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
+				e.catalog.state.setDescriptor(address, &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
 			}
 			before := e.catalog.state
 			e.catalog.nextOID = last

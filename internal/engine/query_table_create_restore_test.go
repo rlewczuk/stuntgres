@@ -120,7 +120,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	imported := *d
 	imported.columns = append([]ColumnDescriptor(nil), d.columns...)
 	imported.columns[0].Usage = array.Usage()
-	candidate.descriptors[d.address] = &imported
+	candidate.setDescriptor(d.address, &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.address: source.storage[sourceCopy.address]}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.address: targetAnchor.address}
 	if err = reownCatalogScalarTypes(candidate, stores, mapping); err != nil {
@@ -225,7 +225,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	imported := *d
 	imported.columns = append([]ColumnDescriptor(nil), d.columns...)
 	imported.columns[0].Usage = sourceType.Usage()
-	candidate.descriptors[d.address] = &imported
+	candidate.setDescriptor(d.address, &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.address: source.storage[sourceCopy.address]}
 	if err := reownCatalogScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)

@@ -163,7 +163,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.MustProcedure(address)
 	declaration.revision++
-	state.descriptors[address] = &declaration
+	state.setDescriptor(address, &declaration)
 	staleAuth.catalog.state = &state
 	staleEvaluation := newEvaluation(staleAuth)
 	if _, err := evaluatePartitionRecipe(&staleEvaluation, owner, 0, row); err == nil {

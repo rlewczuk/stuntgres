@@ -233,7 +233,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
 			replacement.strict = !captured.strict
-			changed.catalog.state.descriptors[address] = &replacement
+			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {

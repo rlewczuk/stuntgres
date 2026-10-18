@@ -14,8 +14,8 @@ func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ..
 	if e.catalog.state.Get(ns) == nil {
 		e.catalog.state = cloneCatalog(e.catalog.state)
 		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.catalog.domain.Session(99)}
-		e.catalog.state.descriptors[ns] = d
-		e.catalog.state.names[descriptorNameKey(d)] = ns
+		e.catalog.state.setDescriptor(ns, d)
+		e.catalog.state.bindName(descriptorNameKey(d), ns)
 	}
 	table := inheritanceLifecycleTable(e, id, name, parents...)
 	table.namespace = ns
@@ -97,8 +97,8 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	changed := *parent
 	changed.notNullConstraints = []notNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
 	next := cloneCatalog(e.catalog.state)
-	next.descriptors[parent.address] = &changed
-	next.descriptors[child.address] = child
+	next.setDescriptor(parent.address, &changed)
+	next.setDescriptor(child.address, child)
 	if err := remapInheritanceConstraintOrigins(next, old); err != nil {
 		t.Fatal(err)
 	}

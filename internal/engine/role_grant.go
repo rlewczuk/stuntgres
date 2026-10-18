@@ -237,7 +237,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 						changed[address] = objectGrantChange{}
 					}
 				} else {
-					candidate.descriptors[address] = next
+					candidate.setDescriptor(address, next)
 				}
 			}
 			continue
@@ -420,7 +420,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if candidate == nil {
 				candidate = cloneCatalog(v.catalog.state)
 			}
-			candidate.descriptors[address] = next
+			candidate.setDescriptor(address, next)
 		}
 	}
 	if candidate == nil {

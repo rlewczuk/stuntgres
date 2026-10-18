@@ -219,7 +219,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 		}
 		copy := *table
 		copy.inheritance = graph
-		next.descriptors[address] = &copy
+		next.setDescriptor(address, &copy)
 	}
 	return nil
 }

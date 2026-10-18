@@ -387,8 +387,8 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 			array.owningRelation, array.owner = d.address, d.owner
 		}
 	}
-	e.catalog.state.descriptors[d.address] = d
-	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	e.catalog.state.setDescriptor(d.address, d)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {

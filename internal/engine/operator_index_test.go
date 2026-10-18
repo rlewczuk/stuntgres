@@ -69,7 +69,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	first := indexUnitOperator(90001, namespace, "#~#")
 	other := indexUnitOperator(90002, namespace, "#?#")
 	base := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.address: first, other.address: other}, names: map[ids.NameKey]ids.ObjectAddress{descriptorNameKey(first): first.address, descriptorNameKey(other): other.address}}
-	base.operatorNames = rebuildOperatorNames(base.descriptors)
+	base.operatorNames = rebuildOperatorNames(base.Descriptors())
 	key := operatorNameKey{namespace, first.name}
 	// This unpublished fixture deliberately retains capacity and a sentinel
 	// outside its length: append must not overwrite a sibling's backing array.

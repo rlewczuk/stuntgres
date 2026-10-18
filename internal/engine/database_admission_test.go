@@ -40,7 +40,7 @@ func databaseAdmissionPolicyLocked(e *Engine, acl authorization.ACLValue) {
 	db := *candidate.MustDatabase(currentDatabaseAddress)
 	db.revision++
 	db.acl = acl
-	candidate.descriptors[currentDatabaseAddress] = &db
+	candidate.setDescriptor(currentDatabaseAddress, &db)
 	e.catalog.state = candidate
 }
 

@@ -147,8 +147,8 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			index.sqlIndex = &shapedDefinition
 			nextCatalog := *f.e.catalog.state
 			nextCatalog.descriptors = maps.Clone(nextCatalog.descriptors)
-			nextCatalog.descriptors[parent.address] = &parent
-			nextCatalog.descriptors[index.address] = &index
+			nextCatalog.setDescriptor(parent.address, &parent)
+			nextCatalog.setDescriptor(index.address, &index)
 			stores := maps.Clone(f.e.storage)
 			stores[parent.address] = &shaped
 			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)

@@ -101,7 +101,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	nsaddr := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	ns := *replacement.MustNamespace(nsaddr)
 	ns.owner = owner.Ref
-	replacement.descriptors[nsaddr] = &ns
+	replacement.setDescriptor(nsaddr, &ns)
 	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
 	}

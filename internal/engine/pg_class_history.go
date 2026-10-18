@@ -87,7 +87,7 @@ func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRea
 			if !parent.hasSubclasses {
 				next := *parent
 				next.hasSubclasses = true
-				catalog.state.descriptors[address] = &next
+				catalog.state.setDescriptor(address, &next)
 			}
 			return nil
 		}); err != nil {

@@ -23,8 +23,8 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	relation := &relationDescriptor{address: address, namespace: namespace, name: "grant_unit", owner: op.RoleState().CurrentUser, columns: []ColumnDescriptor{{Name: "a"}, {Name: "b"}}, index: map[string]int{"a": 0, "b": 1}, attributes: []int32{1, 3}, attributeHighWater: 3}
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.descriptors[address] = relation
-	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.name}] = address
+	e.catalog.state.setDescriptor(address, relation)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.name}, address)
 	return e, op, reader, address
 }
 func applyObjectGrantUnit(e *Engine, op *Operation, s *parser.ObjectGrant) error {

@@ -236,7 +236,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	catalog := cloneCatalog(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	catalog.descriptors[local] = &relationDescriptor{address: local, comment: "local collision"}
+	catalog.setDescriptor(local, &relationDescriptor{address: local, comment: "local collision"})
 	read := e.catalog.read(catalog)
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
@@ -305,7 +305,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.name, view.relationKind = name, viewRelation
 		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
 		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
-		e.catalog.state.descriptors[view.address] = &view
+		e.catalog.state.setDescriptor(view.address, &view)
 		return viewRef
 	}
 	inner := addView(20010, "shared_inner", ref)

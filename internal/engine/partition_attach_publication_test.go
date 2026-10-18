@@ -131,7 +131,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 				typ := *e.catalog.state.MustType(providerAddress)
 				typ.revision++
 				next := cloneCatalog(e.catalog.state)
-				next.descriptors[providerAddress] = &typ
+				next.setDescriptor(providerAddress, &typ)
 				e.catalog.state = next
 			case "cancel":
 				cancel()

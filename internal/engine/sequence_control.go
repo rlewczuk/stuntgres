@@ -35,13 +35,13 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 		parent, hasParent := view.Namespace(d.Namespace())
 		if isNamespace && ns.temporary != (ids.SessionToken{}) || hasParent && parent.temporary != (ids.SessionToken{}) {
 			operators.replace(d, nil)
-			delete(next.descriptors, a)
+			next.removeDescriptor(a)
 		}
 	}
 	for key, a := range view.Names() {
 		parent, hasParent := view.Namespace(key.Namespace)
 		if view.Get(a) != nil && next.Get(a) == nil || hasParent && parent.temporary != (ids.SessionToken{}) {
-			delete(next.names, key)
+			next.unbindName(key)
 		}
 	}
 	next.operatorNames = operators.index
@@ -161,7 +161,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		if imported, ok := next.Type(address); ok && imported.typ != typ {
 			copy := *imported
 			copy.typ = typ
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 			typesChanged = true
 		}
 		if typ.IsArray() {
@@ -328,9 +328,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	if len(mapping) != 0 {
 		remapDefaultSchemas(next, mapping)
-		originals := next.descriptors
-		next.descriptors = make(map[ids.ObjectAddress]Descriptor, len(originals)+len(temporary))
-		next.names = make(map[ids.NameKey]ids.ObjectAddress, len(originals)+len(temporary))
+		originals := next.resetMaps(next.DescriptorCount() + len(temporary))
 		for a, d := range originals {
 			target := a
 			if dest, ok := mapping[a]; ok {
@@ -494,10 +492,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				d = &n
 			}
 			d = remapExtensionDescriptor(d, mapping)
-			next.descriptors[target] = d
-			next.names[descriptorNameKey(d)] = target
+			next.setDescriptor(target, d)
+			next.bindName(descriptorNameKey(d), target)
 		}
-		next.operatorNames = rebuildOperatorNames(next.descriptors)
+		next.operatorNames = rebuildOperatorNames(next.Descriptors())
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
 		oldStorage := make(map[ids.ObjectAddress]*relationStorage, len(storage))
 		for a, s := range storage {
@@ -535,8 +533,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	operators := operatorIndexEdit{index: next.operatorNames}
 	for a, d := range temporary {
 		operators.replace(next.Get(a), d)
-		next.descriptors[a] = d
-		next.names[descriptorNameKey(d)] = a
+		next.setDescriptor(a, d)
+		next.bindName(descriptorNameKey(d), a)
 		if rows := e.storage[a]; rows != nil {
 			storage[a] = rows
 		}
@@ -570,7 +568,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			relation = replacement
 		}
-		next.descriptors[address] = relation
+		next.setDescriptor(address, relation)
 	}
 	previous := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
 	for address, descriptor := range next.Descriptors() {
@@ -795,8 +793,8 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.owner != other.owner || namespace.temporary != other.temporary || namespace.temporaryToast != other.temporaryToast || namespace.acl.Explicit != other.acl.Explicit || !slices.Equal(namespace.acl.Entries, other.acl.Entries) {
 				return fail()
 			}
-			next.descriptors[address] = old
-			next.descriptors[old.namespace] = namespace
+			next.setDescriptor(address, old)
+			next.setDescriptor(old.namespace, namespace)
 		}
 	}
 	return nil

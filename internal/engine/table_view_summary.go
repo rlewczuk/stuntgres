@@ -68,7 +68,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 		if !parent.hasIndexes {
 			next := *parent
 			next.hasIndexes = true
-			catalog.state.descriptors[parent.address] = &next
+			catalog.state.setDescriptor(parent.address, &next)
 		}
 	}
 	return nil

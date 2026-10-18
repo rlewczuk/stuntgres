@@ -55,8 +55,8 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	namespace := *state.MustNamespace(f.schema)
 	namespace.address.ObjectID = 20012
 	namespace.name = "default_other_schema"
-	state.descriptors[namespace.address] = &namespace
-	state.names[descriptorNameKey(&namespace)] = namespace.address
+	state.setDescriptor(namespace.address, &namespace)
+	state.bindName(descriptorNameKey(&namespace), namespace.address)
 	f.e.catalog.state = state
 	oldRevision := f.e.roles.revision
 	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})

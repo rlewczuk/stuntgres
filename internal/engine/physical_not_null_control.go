@@ -102,7 +102,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 			}
 			copy.physicalNotNull[attribute] = proof
 		}
-		next.descriptors[address] = &copy
+		next.setDescriptor(address, &copy)
 		if err := validatePhysicalNotNull(e.catalog.read(next), &copy, physicalOrdinaryNotNull(&copy)); err != nil {
 			return err
 		}

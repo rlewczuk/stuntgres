@@ -55,7 +55,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer.columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
 		state := *before.state
 		state.descriptors = maps.Clone(state.descriptors)
-		state.descriptors[table.address] = &consumer
+		state.setDescriptor(table.address, &consumer)
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)

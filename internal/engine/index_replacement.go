@@ -36,7 +36,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
 		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {
-			retained.descriptors[address] = descriptor
+			retained.setDescriptor(address, descriptor)
 			continue
 		}
 		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && (!index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live) {

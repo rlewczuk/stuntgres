@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -305,11 +304,11 @@ func (s *StatementScope) partitionCaptureCatalog(catalog CatalogRead) CatalogRea
 		return catalog
 	}
 	state := *catalog.state
-	state.descriptors = maps.Clone(catalog.state.descriptors)
+	state.cloneDescriptors()
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
 		if current != captured && partitionAppendCompatible(captured, current) {
-			state.descriptors[address] = captured
+			state.setDescriptor(address, captured)
 		}
 	}
 	catalog.state = &state

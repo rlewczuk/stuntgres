@@ -217,8 +217,8 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		if _, moved := mapping[address]; !moved {
 			continue
 		}
-		delete(next.names, descriptorNameKey(before.Get(address)))
-		delete(next.descriptors, address)
+		next.unbindName(descriptorNameKey(before.Get(address)))
+		next.removeDescriptor(address)
 	}
 	for address, original := range before.Descriptors() {
 		destination, moved := mapping[address]
@@ -226,8 +226,8 @@ func TestIntaggIdentityRemap(t *testing.T) {
 			continue
 		}
 		descriptor := remapExtensionDescriptor(original, mapping)
-		next.descriptors[destination] = descriptor
-		next.names[descriptorNameKey(descriptor)] = destination
+		next.setDescriptor(destination, descriptor)
+		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	next.epoch++
 	view := e.catalog.read(next)
@@ -266,7 +266,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	if call.procedure != before.Get(call.ref.Address) || enum.ref.Epoch != before.Epoch() {
 		t.Fatal("source authority mutated")
 	}
-	delete(next.descriptors, n.ref.Address)
+	next.removeDescriptor(n.ref.Address)
 	if err := validateIntaggIdentity(view, n.procedure, n.ref, "int_array_enum"); err == nil {
 		t.Fatal("missing destination procedure accepted")
 	}

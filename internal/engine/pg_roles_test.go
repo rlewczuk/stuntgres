@@ -144,7 +144,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
 		attrs := append([]int32(nil), d.attributes...)
 		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.descriptors[view.address] = &view
+		e.catalog.state.setDescriptor(view.address, &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_roles_inner", ref)
@@ -205,7 +205,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	}
 	unknown := *d
 	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.descriptors[unknown.address] = &unknown
+	e.catalog.state.setDescriptor(unknown.address, &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}

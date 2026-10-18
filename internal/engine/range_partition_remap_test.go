@@ -175,7 +175,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	partition := *root.partition
 	partition.children = append(slices.Clone(partition.children), partition.children[0])
 	candidate.partition = &partition
-	state.descriptors[root.address] = &candidate
+	state.setDescriptor(root.address, &candidate)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
 	}
@@ -298,8 +298,8 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	temporary.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
 	temporaryBefore := temporary
 	next := cloneCatalog(view.state)
-	next.descriptors[provider.Address()] = &temporary
-	next.descriptors[imported.Address()] = &imported
+	next.setDescriptor(provider.Address(), &temporary)
+	next.setDescriptor(imported.Address(), &imported)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
 	collation := remappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {

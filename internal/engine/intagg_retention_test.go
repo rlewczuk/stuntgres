@@ -121,7 +121,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			}
 			impostor := *proc
 			state := cloneCatalog(view.state)
-			state.descriptors[ref.Address] = &impostor
+			state.setDescriptor(ref.Address, &impostor)
 			if storedViewReferenceValid(e.catalog.read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}

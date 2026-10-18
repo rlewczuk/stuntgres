@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -31,7 +30,7 @@ func policyDepends(p policyDefinition, target ids.ObjectAddress) bool {
 	return false
 }
 func policyDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
-	return policyDependentLabelsFrom(catalog, targets, path, maps.All(catalog.state.descriptors))
+	return policyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
 }
 
 func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) []supportedDependent {

@@ -75,7 +75,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		if spec.name == "proof_column_only" {
 			d.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
-		state.descriptors[d.address] = d
+		state.setDescriptor(d.address, d)
 	}
 	catalog := f.e.catalog.read(state)
 	f.e.mu.Lock()
@@ -150,7 +150,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	changed := cloneCatalog(state)
 	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
 	named.acl = authorization.ACLValue{Explicit: true}
-	changed.descriptors[named.address] = &named
+	changed.setDescriptor(named.address, &named)
 	actor := cloneRoleFixture(roles)
 	renamed := fixtureRole(actor, f.reader)
 	renamed.Name = "renamed_reader"

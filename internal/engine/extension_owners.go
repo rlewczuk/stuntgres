@@ -286,7 +286,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				if d.owner != owner.Ref {
 					n := *d
 					n.owner = owner.Ref
-					candidate.descriptors[a] = &n
+					candidate.setDescriptor(a, &n)
 					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}
 					array, ok := candidate.Type(arrayAddress)
 					if !ok || !array.typ.IsArray() || array.typ.Element() != d.typ {
@@ -294,21 +294,21 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					}
 					mapped := *array
 					mapped.owner = owner.Ref
-					candidate.descriptors[arrayAddress] = &mapped
+					candidate.setDescriptor(arrayAddress, &mapped)
 					ownersChanged = true
 				}
 			case *procedureDescriptor:
 				if d.owner != owner.Ref {
 					n := *d
 					n.owner = owner.Ref
-					candidate.descriptors[a] = &n
+					candidate.setDescriptor(a, &n)
 					ownersChanged = true
 				}
 			case *tsDictionaryDescriptor:
 				if d.owner != owner.Ref {
 					n := *d
 					n.owner = owner.Ref
-					candidate.descriptors[a] = &n
+					candidate.setDescriptor(a, &n)
 					ownersChanged = true
 				}
 			default:

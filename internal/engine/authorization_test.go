@@ -498,7 +498,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	replacement := cloneCatalog(e.catalog.state)
 	ns := *replacement.MustNamespace(namespace.Address)
 	ns.owner = owner.Ref
-	replacement.descriptors[namespace.Address] = &ns
+	replacement.setDescriptor(namespace.Address, &ns)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
 	}

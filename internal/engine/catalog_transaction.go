@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"maps"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 )
@@ -138,18 +139,18 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	for a, d := range c.descriptors {
 		operators.replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
-			delete(n.names, descriptorNameKey(old))
+			n.unbindName(descriptorNameKey(old))
 		}
 		if d == nil {
-			delete(n.descriptors, a)
+			n.removeDescriptor(a)
 			delete(n.dumpPriorities, a)
 		} else {
-			n.descriptors[a] = d
+			n.setDescriptor(a, d)
 		}
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			n.names[descriptorNameKey(d)] = d.Address()
+			n.bindName(descriptorNameKey(d), d.Address())
 		}
 	}
 	n.operatorNames = operators.index
@@ -213,9 +214,9 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 		return nil, err
 	}
 	e.mu.Unlock()
-	descriptors := c.descriptors
+	descriptors := maps.All(c.descriptors)
 	if c.domainChanged {
-		descriptors = view.state.descriptors
+		descriptors = view.Descriptors()
 	}
 	for a, d := range descriptors {
 		if d == nil {

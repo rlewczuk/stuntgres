@@ -71,13 +71,13 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Timestamptz)}
 	reboundBase := *next.MustType(baseAddress)
 	reboundBase.typ = target.CatalogRead().MustType(baseAddress).typ
-	next.descriptors[baseAddress] = &reboundBase
+	next.setDescriptor(baseAddress, &reboundBase)
 	// Rendering must use the current captured namespace, not inventory spelling.
 	namespace := *next.MustNamespace(d.Namespace())
-	delete(next.names, ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name})
+	next.unbindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name})
 	namespace.name = "renamed_info"
-	next.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}] = namespace.address
-	next.descriptors[namespace.address] = &namespace
+	next.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}, namespace.address)
+	next.setDescriptor(namespace.address, &namespace)
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)

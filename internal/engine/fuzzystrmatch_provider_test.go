@@ -91,7 +91,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		state := cloneCatalog(e.catalog.state)
 		bad := *proc
 		mutate(&bad)
-		state.descriptors[proc.address] = &bad
+		state.setDescriptor(proc.address, &bad)
 		if err := stockFuzzystrmatch.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
@@ -232,7 +232,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	state := cloneCatalog(e.catalog.state)
 	badProcedure := *n.procedure
 	badProcedure.result = 25
-	state.descriptors[n.ref.Address] = &badProcedure
+	state.setDescriptor(n.ref.Address, &badProcedure)
 	if err := validateGenerationProviders(e.catalog.read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}

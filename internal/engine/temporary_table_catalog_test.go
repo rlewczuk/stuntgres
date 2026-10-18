@@ -133,13 +133,13 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	foreign.temporary = e.catalog.domain.Session(op.session.token.ID() + 1)
 	consumer := *table
 	consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	advanced.descriptors[consumer.namespace] = &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token}
-	advanced.descriptors[table.namespace] = &foreign
+	advanced.setDescriptor(consumer.namespace, &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token})
+	advanced.setDescriptor(table.namespace, &foreign)
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
 	}
-	advanced.descriptors[table.namespace] = view.Get(table.namespace)
-	delete(advanced.descriptors, table.address)
+	advanced.setDescriptor(table.namespace, view.Get(table.namespace))
+	advanced.removeDescriptor(table.address)
 	if storedReferenceEpochValid(retained, table, old) {
 		t.Fatal("retired target resurrected")
 	}
@@ -243,8 +243,8 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("foreign-engine regclass admitted")
 	}
 	retired := cloneCatalog(next)
-	delete(retired.descriptors, sequence.address)
-	delete(retired.names, descriptorNameKey(sequence))
+	retired.removeDescriptor(sequence.address)
+	retired.unbindName(descriptorNameKey(sequence))
 	if _, err := renderer.sql(context.Background(), e.catalog.read(retired), literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}

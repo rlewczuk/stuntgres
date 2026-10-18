@@ -190,7 +190,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				auth.catalog.state = cloneCatalog(auth.catalog.state)
 				bad := *captured
 				mutate(&bad)
-				auth.catalog.state.descriptors[ref.Address] = &bad
+				auth.catalog.state.setDescriptor(ref.Address, &bad)
 				if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
@@ -265,13 +265,13 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					state := cloneCatalog(evaluation.catalog.state)
 					for a := range mapping {
-						delete(state.names, descriptorNameKey(state.Get(a)))
-						delete(state.descriptors, a)
+						state.unbindName(descriptorNameKey(state.Get(a)))
+						state.removeDescriptor(a)
 					}
 					for a, dest := range mapping {
 						d := remapExtensionDescriptor(evaluation.catalog.Get(a), mapping)
-						state.descriptors[dest] = d
-						state.names[descriptorNameKey(d)] = dest
+						state.setDescriptor(dest, d)
+						state.bindName(descriptorNameKey(d), dest)
 					}
 					state.epoch++
 					view := e.catalog.read(state)
@@ -410,7 +410,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		for _, a := range ext.members {
 			bad := *state.MustProcedure(a)
 			bad.owner = owner
-			state.descriptors[a] = &bad
+			state.setDescriptor(a, &bad)
 		}
 		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")

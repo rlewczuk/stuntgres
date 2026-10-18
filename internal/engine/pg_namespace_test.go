@@ -254,7 +254,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		next := cloneCatalog(c.state)
 		invalid := *d
 		invalid.columns = make([]ColumnDescriptor, width)
-		next.descriptors[d.address] = &invalid
+		next.setDescriptor(d.address, &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.columns {
@@ -262,7 +262,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid := *d
 		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 		invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.columns[i].Usage.Type.ID())
-		next.descriptors[d.address] = &invalid
+		next.setDescriptor(d.address, &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	ns := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
@@ -270,33 +270,33 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		next := cloneCatalog(c.state)
 		invalid := *ns
 		invalid.owner = owner
-		next.descriptors[ns.address] = &invalid
+		next.setDescriptor(ns.address, &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, d)
 	}
 	next := cloneCatalog(c.state)
 	invalid := *ns
 	invalid.name = "stale_toast"
-	next.descriptors[ns.address] = &invalid
+	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	invalid = *ns
 	invalid.temporaryToast = true
-	next.descriptors[ns.address] = &invalid
+	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
-	next.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}] = ns
+	next.setDescriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ns)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
 	invalid.temporary = foreign.catalog.domain.Session(1)
-	next.descriptors[ns.address] = &invalid
+	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
-	next.descriptors[currentDatabaseAddress] = (*databaseDescriptor)(nil)
+	next.setDescriptor(currentDatabaseAddress, (*databaseDescriptor)(nil))
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	database := *c.MustDatabase(currentDatabaseAddress)
 	database.owner = e.Roles().LookupRef("pg_read_all_data")
 	next = cloneCatalog(c.state)
-	next.descriptors[currentDatabaseAddress] = &database
+	next.setDescriptor(currentDatabaseAddress, &database)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 }
 

@@ -90,10 +90,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	} {
 		bad := *proc
 		mutate(&bad)
-		view.state.descriptors[address] = &bad
+		view.state.setDescriptor(address, &bad)
 		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.validate(view, ext)
-		view.state.descriptors[address] = proc
+		view.state.setDescriptor(address, proc)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
 		}
@@ -116,9 +116,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	original := cryptoView.MustProcedure(cryptoExt.members[0])
 	bad := *original
 	bad.uuidOssp = stockUUIDOssp
-	cryptoView.state.descriptors[bad.address] = &bad
+	cryptoView.state.setDescriptor(bad.address, &bad)
 	failure := stockPgcrypto.validate(cryptoView, cryptoExt)
-	cryptoView.state.descriptors[bad.address] = original
+	cryptoView.state.setDescriptor(bad.address, original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
 	}
@@ -128,10 +128,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		original := intaggView.MustProcedure(address)
 		bad := *original
 		bad.uuidOssp = stockUUIDOssp
-		intaggView.state.descriptors[address] = &bad
+		intaggView.state.setDescriptor(address, &bad)
 		manifestFailure := stockIntagg.validate(intaggView, intaggExt)
 		admissionFailure := intaggEngine.catalog.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
-		intaggView.state.descriptors[address] = original
+		intaggView.state.setDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
 		}

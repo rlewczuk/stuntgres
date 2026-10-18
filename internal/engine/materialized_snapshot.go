@@ -293,7 +293,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return err
 		}
 		d.populated = item.populated
-		next.descriptors[d.address] = &d
+		next.setDescriptor(d.address, &d)
 		e.storage[d.address] = &relationStorage{versions: versions}
 	}
 	e.catalog.state = next

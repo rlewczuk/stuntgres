@@ -68,7 +68,8 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *relationDescr
 	leaf.relationKind = tableRelation
 	leaf.membership = &partitionMembership{parent: root.address, strategy: parser.PartitionHash, modulus: 1}
 	root.partition = &partitionDefinition{strategy: parser.PartitionHash, keys: []partitionKeyEntry{{attribute: 1, usage: typ.Usage(), class: class, hash: provider, label: "k"}}, children: []ids.ObjectAddress{leaf.address}}
-	catalog.descriptors[root.address], catalog.descriptors[leaf.address] = root, &leaf
+	catalog.setDescriptor(root.address, root)
+	catalog.setDescriptor(leaf.address, &leaf)
 	return e, e.catalog.read(catalog), root, &leaf
 }
 
@@ -142,12 +143,12 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	destination.name = "hash_destination"
 	destination.membership = &partitionMembership{parent: root.address, strategy: parser.PartitionHash, modulus: 2, remainder: 1}
 	root.partition.children = append(root.partition.children, destination.address)
-	catalog.state.descriptors[destination.address] = &destination
+	catalog.state.setDescriptor(destination.address, &destination)
 	class, _ := sqltype.DefaultIndexClass(source.columns[0].Usage.Type)
 	makeIndex := func(parent *relationDescriptor, oid ids.OID) *relationDescriptor {
 		index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: parent.name + "_key", relationKind: indexRelation,
 			sqlIndex: &indexDefinition{parent: parent.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, live: true, valid: true}}
-		catalog.state.descriptors[index.address] = index
+		catalog.state.setDescriptor(index.address, index)
 		return index
 	}
 	sourceIndex := makeIndex(source, 25100)

@@ -141,7 +141,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	private := cloneCatalog(catalog.state)
 	for address := range private.Descriptors() {
 		if address.ClassID == ids.RelationClassID {
-			delete(private.descriptors, address)
+			private.removeDescriptor(address)
 		}
 	}
 	isolated := e.catalog.read(private)
@@ -150,7 +150,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	invalidDB := *database
 	invalidDB.owner = foreign.authorizationDomain.Principal(10)
-	private.descriptors[currentDatabaseAddress] = &invalidDB
+	private.setDescriptor(currentDatabaseAddress, &invalidDB)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}

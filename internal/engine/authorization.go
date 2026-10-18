@@ -876,7 +876,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if parameter, ok := next.(*parameterDescriptor); ok {
 		installParameterGrant(state, parameter)
 	} else {
-		state.descriptors[addr] = next
+		state.setDescriptor(addr, next)
 	}
 	roles := advanceRoleRevision(e.roles)
 	if err := ctx.Err(); err != nil {

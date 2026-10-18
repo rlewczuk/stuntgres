@@ -244,7 +244,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	bad := cloneCatalog(source.CatalogRead().state)
 	invalid := *d
 	invalid.handler = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90099}
-	bad.descriptors[d.Address()] = &invalid
+	bad.setDescriptor(d.Address(), &invalid)
 	if err := (conversionProvider{}).Validate(source.catalog.read(bad), &invalid); err == nil {
 		t.Fatal("unavailable imported handler admitted")
 	}

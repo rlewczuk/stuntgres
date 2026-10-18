@@ -61,7 +61,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *foreignDescriptor:
 			n := *d
 			var err error
@@ -83,10 +83,10 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			}
 			if d.address.ClassID == ids.ForeignMappingClassID {
 				n.name = foreignMappingName(n.server, n.mappedRole)
-				delete(state.names, descriptorNameKey(d))
-				state.names[descriptorNameKey(&n)] = n.address
+				state.unbindName(descriptorNameKey(d))
+				state.bindName(descriptorNameKey(&n), n.address)
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *procedureDescriptor:
 			n := *d
 			var err error
@@ -98,7 +98,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *parameterDescriptor:
 			n := *d
 			var err error
@@ -122,7 +122,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *tsDictionaryDescriptor:
 			n := *d
 			var err error
@@ -130,7 +130,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *typeDescriptor:
 			n := *d
 			var err error
@@ -143,7 +143,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *collationDescriptor:
 			n := *d
 			var err error
@@ -151,7 +151,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *conversionDescriptor:
 			n := *d
 			var err error
@@ -159,7 +159,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *operatorDescriptor:
 			n := *d
 			var err error
@@ -167,7 +167,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *namespaceDescriptor:
 			n := *d
 			var err error
@@ -179,7 +179,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *relationDescriptor:
 			n := *d
 			var err error
@@ -216,7 +216,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 					}
 				}
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		default:
 			return nil, fmt.Errorf("stuntgres: catalog provider has no principal remapping contract")
 		}
@@ -293,7 +293,7 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.catalog.state.descriptors[currentDatabaseAddress] = &retainedDatabase
+	stage.catalog.state.setDescriptor(currentDatabaseAddress, &retainedDatabase)
 	stage.roles = &roleCatalog{root: roles, revision: sourceRoles.revision}
 	stage.nextPrincipal = nextPrincipal
 	return stage

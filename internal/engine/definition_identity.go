@@ -391,7 +391,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 		if checks != nil {
 			copy.domainChecks = checks
-			next.descriptors[domain.Address()] = &copy
+			next.setDescriptor(domain.Address(), &copy)
 		}
 	}
 	uniqueMapping := make(map[ids.OID]ids.OID)
@@ -497,7 +497,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			constraint := d.uniqueConstraints[i]
 			definition.constraint = uniqueBacking(&constraint)
 			clone.sqlIndex = &definition
-			next.descriptors[clone.address] = &clone
+			next.setDescriptor(clone.address, &clone)
 			changed = true
 		}
 		for i, def := range old.exclusionConstraints {
@@ -521,7 +521,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			definition := *index.sqlIndex
 			definition.constraint = exclusionBacking(&d.exclusionConstraints[i])
 			clone.sqlIndex = &definition
-			next.descriptors[clone.address] = &clone
+			next.setDescriptor(clone.address, &clone)
 			changed = true
 		}
 		for i, def := range old.foreignKeys {
@@ -580,7 +580,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 		if changed {
 			replacement := d
-			next.descriptors[d.address] = &replacement
+			next.setDescriptor(d.address, &replacement)
 		}
 	}
 	for _, descriptor := range next.Descriptors() {
@@ -616,7 +616,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			changed.exclusionConstraints[i].Parent = parent.ObjectID
 		}
 		if changed != nil {
-			next.descriptors[changed.address] = changed
+			next.setDescriptor(changed.address, changed)
 		}
 	}
 	if len(constraintMapping) != 0 {
@@ -634,7 +634,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				return err
 			}
 			if remapped != parent {
-				next.descriptors[address] = remapped
+				next.setDescriptor(address, remapped)
 			}
 		}
 	}

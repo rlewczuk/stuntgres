@@ -275,7 +275,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		auth.catalog.state = cloneCatalog(auth.catalog.state)
 		bad := *captured
 		mutate(&bad)
-		auth.catalog.state.descriptors[n.ref.Address] = &bad
+		auth.catalog.state.setDescriptor(n.ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -300,13 +300,13 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	state := cloneCatalog(evaluation.catalog.state)
 	for address := range mapping {
-		delete(state.names, descriptorNameKey(state.Get(address)))
-		delete(state.descriptors, address)
+		state.unbindName(descriptorNameKey(state.Get(address)))
+		state.removeDescriptor(address)
 	}
 	for address, dest := range mapping {
 		d := remapExtensionDescriptor(evaluation.catalog.Get(address), mapping)
-		state.descriptors[dest] = d
-		state.names[descriptorNameKey(d)] = dest
+		state.setDescriptor(dest, d)
+		state.bindName(descriptorNameKey(d), dest)
 	}
 	state.epoch++
 	view := e.catalog.read(state)

@@ -175,7 +175,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	peer := cloneCatalog(before)
 	changed := *old
 	changed.revision += 2
-	peer.descriptors[ref.Address] = &changed
+	peer.setDescriptor(ref.Address, &changed)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), peer, nil); err == nil {
 		t.Fatal("changed entry predecessor accepted")
 	}
@@ -242,7 +242,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal("changed namespace intent admitted")
 	}
 	current := cloneCatalog(before)
-	current.descriptors[ns.Address] = &changed
+	current.setDescriptor(ns.Address, &changed)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), current, nil); err == nil {
 		t.Fatal("different current namespace admitted")
 	}
@@ -253,8 +253,8 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal(err)
 	}
 	claim.address.ObjectID = oid
-	claimed.descriptors[claim.address] = &claim
-	claimed.names[key] = claim.address
+	claimed.setDescriptor(claim.address, &claim)
+	claimed.bindName(key, claim.address)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), claimed, nil); err == nil {
 		t.Fatal("already claimed entry namespace name admitted")
 	}

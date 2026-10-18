@@ -38,7 +38,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		candidate := cloneCatalog(base.state)
 		next := *db
 		next.acl = tc.acl
-		candidate.descriptors[currentDatabaseAddress] = &next
+		candidate.setDescriptor(currentDatabaseAddress, &next)
 		catalog := e.catalog.read(candidate)
 		roles := cloneRoleFixture(e.roles)
 		bootstrap := fixtureRole(roles, owner)
@@ -116,7 +116,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	candidate := cloneCatalog(base.state)
 	next := *candidate.MustDatabase(currentDatabaseAddress)
 	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
-	candidate.descriptors[currentDatabaseAddress] = &next
+	candidate.setDescriptor(currentDatabaseAddress, &next)
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))
 	fresh.state.CurrentUser = reader
 	if rights, err := fresh.ownTemporaryPrivileges(); err != nil || rights != authorization.UsagePrivilege {

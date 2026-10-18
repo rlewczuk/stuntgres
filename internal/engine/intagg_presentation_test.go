@@ -71,12 +71,13 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			state := cloneCatalog(e.catalog.state)
 			for address := range mapping {
-				delete(state.names, descriptorNameKey(e.catalog.state.Get(address)))
-				delete(state.descriptors, address)
+				state.unbindName(descriptorNameKey(e.catalog.state.Get(address)))
+				state.removeDescriptor(address)
 			}
 			for address, destination := range mapping {
 				d := remapExtensionDescriptor(e.catalog.state.Get(address), mapping)
-				state.descriptors[destination], state.names[descriptorNameKey(d)] = d, destination
+				state.setDescriptor(destination, d)
+				state.bindName(descriptorNameKey(d), destination)
 			}
 			state.epoch++
 			view := e.catalog.read(state)

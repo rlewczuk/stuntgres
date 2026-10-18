@@ -116,8 +116,8 @@ func (e *Engine) initializeOperators() {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, namespace: ns, revision: 1, name: row.name, left: row.left, right: row.right, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-		e.catalog.state.descriptors[d.address] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.address
+		e.catalog.state.setDescriptor(d.address, d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.address)
 	}
 	for _, row := range supportedOperatorMetadata {
 		d := e.catalog.state.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})

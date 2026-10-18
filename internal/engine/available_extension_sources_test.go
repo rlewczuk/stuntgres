@@ -141,14 +141,14 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := *state.MustExtension(address)
 	ext.version = "available-unknown"
-	state.descriptors[address] = &ext
+	state.setDescriptor(address, &ext)
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 	// A private installed descriptor with no registered package is not a row.
 	unavailable := ext
 	unavailable.address.ObjectID++
 	unavailable.name = "unavailable-component-fixture"
-	state.descriptors[unavailable.address] = &unavailable
-	state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.name}] = unavailable.address
+	state.setDescriptor(unavailable.address, &unavailable)
+	state.bindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.name}, unavailable.address)
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 }
 

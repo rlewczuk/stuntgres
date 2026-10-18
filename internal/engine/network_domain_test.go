@@ -50,7 +50,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			builtinAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)}
 			builtin := *next.MustType(builtinAddress)
 			builtin.typ = physical
-			next.descriptors[builtinAddress] = &builtin
+			next.setDescriptor(builtinAddress, &builtin)
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 				direct.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002},
 				arrays[0].Address(): {ClassID: ids.TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: ids.TypeClassID, ObjectID: 60004},

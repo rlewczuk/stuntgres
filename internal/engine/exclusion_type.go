@@ -142,10 +142,10 @@ func rebindImportedExclusions(next *catalogState) error {
 			indexCopy, definitionCopy := *index, *definition
 			definitionCopy.exclusion = operators
 			indexCopy.sqlIndex = &definitionCopy
-			next.descriptors[index.address] = &indexCopy
+			next.setDescriptor(index.address, &indexCopy)
 		}
 		if replacement != nil {
-			next.descriptors[address] = replacement
+			next.setDescriptor(address, replacement)
 		}
 	}
 	return nil

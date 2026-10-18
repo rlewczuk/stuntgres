@@ -42,10 +42,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 		return view, replay
 	}
 	state := *view.state
-	state.descriptors = make(map[ids.ObjectAddress]Descriptor, view.DescriptorCount())
-	for a, d := range view.Descriptors() {
-		state.descriptors[a] = d
-	}
+	state.cloneDescriptors()
 	ordinal := 0
 	for _, table := range tables {
 		// PARTITION OF binds local declarations before cloning inherited keys,
@@ -82,7 +79,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			index.name = c.Name
 			definition.constraint = uniqueBacking(c)
 			index.sqlIndex = &definition
-			state.descriptors[index.address] = &index
+			state.setDescriptor(index.address, &index)
 		}
 		next.exclusionConstraints = slices.Clone(table.exclusionConstraints)
 		for i := range next.exclusionConstraints {
@@ -93,9 +90,9 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			index.name = c.Name
 			definition.constraint = exclusionBacking(c)
 			index.sqlIndex = &definition
-			state.descriptors[index.address] = &index
+			state.setDescriptor(index.address, &index)
 		}
-		state.descriptors[next.address] = &next
+		state.setDescriptor(next.address, &next)
 	}
 	view.state = &state
 	return view, replay

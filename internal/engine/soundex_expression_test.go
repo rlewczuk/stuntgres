@@ -66,7 +66,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				state := cloneCatalog(e.catalog.state)
 				bad := *n.procedure
 				mutate(&bad)
-				state.descriptors[n.ref.Address] = &bad
+				state.setDescriptor(n.ref.Address, &bad)
 				forged := n
 				forged.procedure = &bad
 				if err := forged.validate(e.catalog.read(state)); err == nil { t.Fatal("forged identity", bad) }
@@ -96,17 +96,17 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			for i, address := range ext.members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
 			next := cloneCatalog(before.state)
 			for address := range mapping {
-				delete(next.names, descriptorNameKey(before.Get(address)))
-				delete(next.descriptors, address)
+				next.unbindName(descriptorNameKey(before.Get(address)))
+				next.removeDescriptor(address)
 			}
 			for address, destination := range mapping {
 				descriptor := remapExtensionDescriptor(before.Get(address), mapping)
-				next.descriptors[destination] = descriptor
-				next.names[descriptorNameKey(descriptor)] = destination
+				next.setDescriptor(destination, descriptor)
+				next.bindName(descriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
 			consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
-			next.descriptors[address] = consumer
+			next.setDescriptor(address, consumer)
 			next.epoch++
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
 			view := e.catalog.read(next)

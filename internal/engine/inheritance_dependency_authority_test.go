@@ -39,11 +39,11 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					}
 					c := inheritanceLifecycleTable(e, 29002, "authority_c", p.address)
 					inheritanceLifecycleInstall(e, p, c)
-					e.catalog.state.descriptors[provider.Address()] = provider
-					e.catalog.state.names[descriptorNameKey(provider)] = provider.Address()
+					e.catalog.state.setDescriptor(provider.Address(), provider)
+					e.catalog.state.bindName(descriptorNameKey(provider), provider.Address())
 					if authority == "standalone" || authority == "staged_child" {
-						delete(e.catalog.state.descriptors, c.address)
-						delete(e.catalog.state.names, descriptorNameKey(c))
+						e.catalog.state.removeDescriptor(c.address)
+						e.catalog.state.unbindName(descriptorNameKey(c))
 					}
 					base := e.CatalogRead()
 					stage := e.BeginCatalogStage(base)

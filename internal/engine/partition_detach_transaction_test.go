@@ -194,9 +194,9 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					changed := *victim
 					changed.revision++
 					changed.name += "_new"
-					delete(next.names, descriptorNameKey(victim))
-					next.names[descriptorNameKey(&changed)] = changed.address
-					next.descriptors[changed.address] = &changed
+					next.unbindName(descriptorNameKey(victim))
+					next.bindName(descriptorNameKey(&changed), changed.address)
+					next.setDescriptor(changed.address, &changed)
 					f.e.catalog.state = next
 					f.e.mu.Unlock()
 					if err := holder.Finish(nil); err != nil {
