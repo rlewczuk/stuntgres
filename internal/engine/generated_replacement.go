@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -37,13 +38,13 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	} else {
 		stage = op.session.Engine()
 	}
-	candidate := cloneCatalog(next)
+	candidate := catalog.CloneState(next)
 	stage.mu.Lock()
 	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(e.catalog.read(next), roles), stage.roleRead(stage.catalog.read(stage.catalog.state), stage.roles), nil)
 	if err == nil {
 		// remapCatalogExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
-		stage.catalog.state = cloneCatalog(stage.catalog.state)
+		stage.catalog.state = catalog.CloneState(stage.catalog.state)
 		stage.catalog.state.SetEpoch(candidate.Epoch() - 1)
 		err = stage.remapCatalogExpressions(candidate, nil)
 	}

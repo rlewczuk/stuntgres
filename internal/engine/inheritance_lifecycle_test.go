@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,10 +23,10 @@ func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...id
 	return table
 }
 func inheritanceLifecycleInstall(e *Engine, tables ...*relationDescriptor) {
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	for _, table := range tables {
 		e.catalog.state.SetDescriptor(table.Address(), table)
-		e.catalog.state.BindName(descriptorNameKey(table), table.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
 		e.storage[table.Address()] = &relationStorage{}
 	}
 }

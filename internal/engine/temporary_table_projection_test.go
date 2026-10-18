@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -151,7 +152,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	maximumStore := *originalStore
 	maximumStore.generation = ^uint64(0)
-	e.catalog.state = cloneCatalog(original)
+	e.catalog.state = catalog.CloneState(original)
 	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 	e.catalog.state.SetDescriptor(index.Address(), &maximumIndex)
 	e.storage[survivor.Address()] = &maximumStore
@@ -254,7 +255,7 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 			maximum := *survivor
 			maximumIndex := *index
 			maximumStore := *store
-			e.catalog.state = cloneCatalog(original)
+			e.catalog.state = catalog.CloneState(original)
 			switch counter {
 			case "Table":
 				maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
@@ -297,7 +298,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			definition := *index.SQLIndex
 			definition.Ready, definition.Valid = ready, false
 			changed.SQLIndex = &definition
-			e.catalog.state = cloneCatalog(e.catalog.state)
+			e.catalog.state = catalog.CloneState(e.catalog.state)
 			e.catalog.state.SetDescriptor(index.Address(), &changed)
 			previous := e.indexRoots[index.Address()]
 			if !ready {

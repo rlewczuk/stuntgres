@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -322,7 +323,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 			options.Increment = 3
 			current.Sequence = &options
 			e.mu.Lock()
-			e.catalog.state = cloneCatalog(base)
+			e.catalog.state = catalog.CloneState(base)
 			e.catalog.state.SetDescriptor(sequence, &current)
 			changes := newCatalogChanges()
 			changes.originals[sequence] = &current
@@ -338,7 +339,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				later := current
 				e.catalog.state.SetDescriptor(sequence, &later)
 			case "new-identity":
-				observationBase = cloneCatalog(base)
+				observationBase = catalog.CloneState(base)
 				observationBase.RemoveDescriptor(sequence)
 				changes.originals[sequence] = nil
 			case "changed-check":

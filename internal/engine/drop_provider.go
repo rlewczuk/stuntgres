@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -355,7 +356,7 @@ func (p *dropProvider) remove(ref ids.ObjectRef) error {
 
 func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	d := p.base.Get(ref.Address)
-	key := descriptorNameKey(d)
+	key := catalog.DescriptorNameKey(d)
 	if p.base.NameAddress(key) != ref.Address {
 		return CatalogConflict{}
 	}
@@ -371,7 +372,7 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	}
 	// Retire private rebound candidates without resurrecting their name slots.
 	if candidate := stage.Descriptors[ref.Address]; candidate != nil {
-		stagedKey := descriptorNameKey(candidate)
+		stagedKey := catalog.DescriptorNameKey(candidate)
 		if stage.Names[stagedKey] == ref.Address {
 			delete(stage.Names, stagedKey)
 		}
@@ -655,7 +656,7 @@ func (prepared *preparedDrop) lookup(key ids.NameKey) ids.ObjectAddress {
 	if address == (ids.ObjectAddress{}) && prepared.base.NameAddress(key) == (ids.ObjectAddress{}) {
 		address = prepared.discovery.NameAddress(key)
 	}
-	if descriptor, present := prepared.descriptor(address); present && descriptorNameKey(descriptor) == key {
+	if descriptor, present := prepared.descriptor(address); present && catalog.DescriptorNameKey(descriptor) == key {
 		return address
 	}
 	return ids.ObjectAddress{}

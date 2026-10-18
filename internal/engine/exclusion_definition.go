@@ -11,16 +11,6 @@ import (
 	"unicode/utf8"
 )
 
-type exclusionConstraint struct {
-	OID                           ids.OID
-	Name                          string
-	Index                         ids.ObjectAddress
-	Parent                        ids.OID
-	IsLocal                       bool
-	Operators                     []sqltype.ExclusionOperator
-	Deferrable, InitiallyDeferred bool
-}
-
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)

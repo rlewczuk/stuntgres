@@ -4,37 +4,12 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-var currentDatabaseAddress = ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 16383}
-
-type databaseDescriptor struct {
-	ObjectAddress  ids.ObjectAddress
-	ObjectRevision ids.DefinitionRevision
-	ObjectName     string
-	Owner          authorization.PrincipalRef
-	ACL            authorization.ACLValue
-}
-
-func (d *databaseDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *databaseDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (*databaseDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *databaseDescriptor) Name() string                     { return d.ObjectName }
-func (*databaseDescriptor) Kind() ids.ObjectKind               { return ids.DatabaseObject }
-
-type databaseProvider struct{}
-
-func (databaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
-func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
-	db, ok := d.(*databaseDescriptor)
-	if !ok || db.Address() != currentDatabaseAddress || db.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) {
-		return fmt.Errorf("stuntgres: invalid current database descriptor")
-	}
-	return nil
-}
 func (e *Engine) initializeDatabase(name string) {
 	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Name)
 	value, err := typ.Input(context.Background(), name, -1)
@@ -45,20 +20,20 @@ func (e *Engine) initializeDatabase(name string) {
 		e.databaseName, _ = value.Text()
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &databaseDescriptor{ObjectAddress: currentDatabaseAddress, ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner}
+	db := &databaseDescriptor{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner}
 	e.catalog.state.SetDescriptor(db.Address(), db)
-	e.catalog.state.BindName(descriptorNameKey(db), db.Address())
+	e.catalog.state.BindName(catalog.DescriptorNameKey(db), db.Address())
 }
 
 // Attachment identity and ACLs belong to the destination, not portable state.
 // Retain them before replacement principal validation and publication.
 func (e *Engine) retainDatabaseLocked(next *catalogState) {
-	if old := next.Get(currentDatabaseAddress); old != nil {
-		next.UnbindName(descriptorNameKey(old))
+	if old := next.Get(catalog.CurrentDatabaseAddress); old != nil {
+		next.UnbindName(catalog.DescriptorNameKey(old))
 	}
-	database := e.catalog.state.Get(currentDatabaseAddress)
-	next.SetDescriptor(currentDatabaseAddress, database)
-	next.BindName(descriptorNameKey(database), currentDatabaseAddress)
+	database := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, database)
+	next.BindName(catalog.DescriptorNameKey(database), catalog.CurrentDatabaseAddress)
 }
 func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
 	if count != 0 {
@@ -124,7 +99,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	db := v.catalog.MustDatabase(currentDatabaseAddress)
+	db := v.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
 	source, available, err := authorization.ObjectGrantSource(op.Context(), db.Owner, db.ACL, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {

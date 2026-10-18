@@ -1,14 +1,5 @@
 package engine
 
-// rulesPayload is a relation's ordered rewrite rules, as
-// relationDescriptor.Rules holds them. Catalog code only validates them; the
-// concrete ruleDefinition, with its condition and action bindings (cuts 8
-// and 9), stays in the engine behind rulesOf.
-type rulesPayload interface {
-	// Validate checks the rules against the relation that owns them.
-	Validate(v CatalogRead, owner *relationDescriptor) error
-}
-
 // ruleList is the engine's rulesPayload. It keeps the slice value semantics
 // the rules always had, so copy-on-write sharing is unchanged.
 type ruleList []ruleDefinition

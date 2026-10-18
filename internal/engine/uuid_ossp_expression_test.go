@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -275,7 +276,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority
-		auth.catalog = auth.catalog.WithState(cloneCatalog(auth.catalog.State()))
+		auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
 		bad := *captured
 		mutate(&bad)
 		auth.catalog.State().SetDescriptor(n.ref.Address, &bad)
@@ -301,15 +302,15 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000},
 		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
 	}
-	state := cloneCatalog(evaluation.catalog.State())
+	state := catalog.CloneState(evaluation.catalog.State())
 	for address := range mapping {
-		state.UnbindName(descriptorNameKey(state.Get(address)))
+		state.UnbindName(catalog.DescriptorNameKey(state.Get(address)))
 		state.RemoveDescriptor(address)
 	}
 	for address, dest := range mapping {
 		d := remapExtensionDescriptor(evaluation.catalog.Get(address), mapping)
 		state.SetDescriptor(dest, d)
-		state.BindName(descriptorNameKey(d), dest)
+		state.BindName(catalog.DescriptorNameKey(d), dest)
 	}
 	state.SetEpoch(state.Epoch() + 1)
 	view := e.catalog.read(state)

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -117,7 +118,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 		}
 	}
 	// A reader lacking the exact selected input generation cannot borrow it.
-	state := cloneCatalog(view.State())
+	state := catalog.CloneState(view.State())
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 	if _, err := bindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")

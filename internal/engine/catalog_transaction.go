@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -133,13 +134,13 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		c.cached = e.catalog.read(e.catalog.state)
 		return c.cached
 	}
-	n := cloneCatalog(e.catalog.state)
+	n := catalog.CloneState(e.catalog.state)
 	n.OverlayDefaultACLs(e.catalog.state, c.defaultACLs)
 	operators := operatorIndexEdit{Index: e.catalog.state.OperatorNames()}
 	for a, d := range c.descriptors {
 		operators.Replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
-			n.UnbindName(descriptorNameKey(old))
+			n.UnbindName(catalog.DescriptorNameKey(old))
 		}
 		if d == nil {
 			n.RemoveDescriptor(a)
@@ -150,7 +151,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			n.BindName(descriptorNameKey(d), d.Address())
+			n.BindName(catalog.DescriptorNameKey(d), d.Address())
 		}
 	}
 	n.SetOperatorNames(operators.Index)
@@ -162,13 +163,13 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d D
 		c.originals[a] = e.catalog.state.Get(a)
 	}
 	if original := c.originals[a]; original != nil {
-		k := descriptorNameKey(original)
+		k := catalog.DescriptorNameKey(original)
 		if _, ok := c.names[k]; !ok {
 			c.names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
 	if d != nil {
-		k := descriptorNameKey(d)
+		k := catalog.DescriptorNameKey(d)
 		if _, ok := c.names[k]; !ok {
 			c.names[k] = e.catalog.state.NameAddress(k)
 		}
@@ -236,7 +237,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.rolesBase != nil && e.roles != c.rolesBase {
 		return CatalogConflict{}
 	}
-	if !defaultRecordsUnchanged(e.catalog.state, c.defaultOriginals) || !defaultRecordsUnchanged(e.catalog.state, c.defaultReads) {
+	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultReads) {
 		return CatalogConflict{}
 	}
 	roles := e.roles
@@ -245,7 +246,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	view := e.privateCatalogLocked(c)
 	read := e.roleRead(view, roles)
-	if err := validateDefaultACLs(read, view); err != nil {
+	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
 		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {

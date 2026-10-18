@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -81,7 +82,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		}
 	}
 	for i := range source.Columns {
-		state := cloneCatalog(view.State())
+		state := catalog.CloneState(view.State())
 		bad := *source
 		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())

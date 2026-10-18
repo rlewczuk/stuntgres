@@ -3,6 +3,7 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -18,11 +19,11 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	// reconstructing the default graph would produce different authority.
 	setFixtureEdges(graph, append(fixtureEdges(graph)[1:], authorization.Membership{Role: source.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true, Inherit: false, Set: true}))
 	e.roles = graph
-	current := cloneCatalog(e.catalog.state)
-	database := *current.MustDatabase(currentDatabaseAddress)
+	current := catalog.CloneState(e.catalog.state)
+	database := *current.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = source.Ref
 	database.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}, {Grantor: member.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
-	current.SetDescriptor(currentDatabaseAddress, &database)
+	current.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	e.catalog.state = current
 	edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
 	entries := append([]authorization.ACLEntry(nil), database.ACL.Entries...)
@@ -38,7 +39,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 			t.Fatal("restore membership provenance/options", fixtureEdges(stage.roles)[i], expected)
 		}
 	}
-	imported := stage.catalog.state.MustDatabase(currentDatabaseAddress)
+	imported := stage.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	if imported.Owner != (stage.authorizationDomain.Principal(source.Ref.ID())) || imported.ACL.Explicit != database.ACL.Explicit || len(imported.ACL.Entries) != len(entries) {
 		t.Fatal("restore isolated database authority")
 	}

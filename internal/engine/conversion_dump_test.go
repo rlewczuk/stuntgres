@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -211,7 +212,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 		}
 		expected[ref] = actual.Ref
 	}
-	candidate := cloneCatalog(source.CatalogRead().State())
+	candidate := catalog.CloneState(source.CatalogRead().State())
 	before := target.CatalogRead()
 	target.mu.Lock()
 	remapped, err := target.remapPreparedCatalog(candidate, sourceRoles, captured, expected)
@@ -231,7 +232,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	if _, err := target.Execute(targetOp, creation, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	candidate = cloneCatalog(source.CatalogRead().State())
+	candidate = catalog.CloneState(source.CatalogRead().State())
 	target.mu.Lock()
 	_, err = target.remapPreparedCatalog(candidate, sourceRoles, captured, expected)
 	target.mu.Unlock()
@@ -241,7 +242,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	if target.CatalogRead().State() != before.State() {
 		t.Fatal("failed principal fence replaced target catalog")
 	}
-	bad := cloneCatalog(source.CatalogRead().State())
+	bad := catalog.CloneState(source.CatalogRead().State())
 	invalid := *d
 	invalid.Handler = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90099}
 	bad.SetDescriptor(d.Address(), &invalid)

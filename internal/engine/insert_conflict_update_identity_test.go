@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -133,7 +134,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				}
 			}
 			replacement := func(shapeChange bool) {
-				catalog := cloneCatalog(e.catalog.state)
+				catalog := catalog.CloneState(e.catalog.state)
 				relation := *catalog.MustRelation(ref.Address)
 				if shapeChange {
 					relation.Columns = relation.Columns[:1]
@@ -158,7 +159,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				}, ids.ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {
-				catalog := cloneCatalog(e.catalog.state)
+				catalog := catalog.CloneState(e.catalog.state)
 				catalog.SetEpoch(catalog.Epoch() + 1)
 				e.catalog.state = catalog
 			}, ids.ErrCatalogReplaced)

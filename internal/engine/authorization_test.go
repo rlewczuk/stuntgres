@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -495,7 +496,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	// genuinely unrepresentable. Normal ALTER OWNER's canonical transform is
 	// accepted and roundtripped by TestSchemaPublicLifecycleControls.
 	owner, _ := e.Roles().Lookup("namespace_owner")
-	replacement := cloneCatalog(e.catalog.state)
+	replacement := catalog.CloneState(e.catalog.state)
 	ns := *replacement.MustNamespace(namespace.Address)
 	ns.Owner = owner.Ref
 	replacement.SetDescriptor(namespace.Address, &ns)

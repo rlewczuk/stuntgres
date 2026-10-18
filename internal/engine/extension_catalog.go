@@ -4,104 +4,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-// Signatures are declared identities, not runtime overload admission. Promoting
-// regdictionary's scalar codec does not enable the two-argument unaccent overload.
-type procedureSignature string
-
-const (
-	unaccentTextSignature       procedureSignature = "25"
-	unaccentDictionarySignature procedureSignature = "3769,25"
-	unaccentInitSignature       procedureSignature = "2281"
-	unaccentLexizeSignature     procedureSignature = "2281,2281,2281,2281"
-	conversionSignature         procedureSignature = "23,23,2275,2281,23,16"
-)
-
-type extensionDescriptor struct {
-	ObjectAddress       ids.ObjectAddress
-	ObjectRevision      ids.DefinitionRevision
-	ObjectName, Version string
-	TargetNamespace     ids.ObjectAddress
-	Owner               authorization.PrincipalRef
-	Members             []ids.ObjectAddress // immutable after detached staging
-}
-
-func (d *extensionDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *extensionDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (d *extensionDescriptor) Namespace() ids.ObjectAddress     { return ids.ObjectAddress{} }
-func (d *extensionDescriptor) Name() string                     { return d.ObjectName }
-func (*extensionDescriptor) Kind() ids.ObjectKind               { return ids.ExtensionObject }
-
-type procedureDescriptor struct {
-	ObjectAddress, ObjectNamespace, Extension ids.ObjectAddress
-	ObjectRevision                            ids.DefinitionRevision
-	ObjectName                                string
-	Signature                                 procedureSignature
-	RoutineKind                               routineKind
-	Builtin                                   *builtinRoutineDeclaration
-	Body                                      []routineBodyEdge
-	Owner                                     authorization.PrincipalRef
-	Result                                    ids.OID
-	Volatility                                expr.Volatility
-	Strict                                    bool
-	// Implementation is the extension implementation that installed this
-	// routine; nil for builtin, conversion and foreign routines.
-	Implementation extensionImplementation
-	Aggregate      *ownedAggregate
-	Conversion     sqltype.EncodingConversionHandler
-	ACL            authorization.ACLValue
-	Dictionary     ids.ObjectAddress
-	Foreign        *foreignProcedure
-}
-
-func (d *procedureDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *procedureDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (d *procedureDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
-func (d *procedureDescriptor) Name() string                     { return d.ObjectName }
-func (*procedureDescriptor) Kind() ids.ObjectKind               { return ids.ProcedureObject }
-
-type tsTemplateDescriptor struct {
-	ObjectAddress, ObjectNamespace, Extension, Init, Lexize ids.ObjectAddress
-	ObjectRevision                                          ids.DefinitionRevision
-	ObjectName                                              string
-	Implementation                                          extensionImplementation
-}
-
-func (d *tsTemplateDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *tsTemplateDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (d *tsTemplateDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
-func (d *tsTemplateDescriptor) Name() string                     { return d.ObjectName }
-func (*tsTemplateDescriptor) Kind() ids.ObjectKind               { return ids.TSTemplateObject }
-
-type tsDictionaryDescriptor struct {
-	ObjectAddress, ObjectNamespace, Extension, Template ids.ObjectAddress
-	ObjectRevision                                      ids.DefinitionRevision
-	ObjectName                                          string
-	Owner                                               authorization.PrincipalRef
-	Implementation                                      extensionImplementation
-}
-
-func (d *tsDictionaryDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *tsDictionaryDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (d *tsDictionaryDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
-func (d *tsDictionaryDescriptor) Name() string                     { return d.ObjectName }
-func (*tsDictionaryDescriptor) Kind() ids.ObjectKind               { return ids.TSDictionaryObject }
-
-func descriptorNameKey(d Descriptor) ids.NameKey {
-	key := ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
-	if p, ok := d.(*procedureDescriptor); ok {
-		key.Signature = string(p.Signature)
-	}
-	if operator, ok := d.(*operatorDescriptor); ok {
-		key.Signature = operator.signature()
-	}
-	return key
-}
 
 type extensionCatalogProvider struct{ class ids.OID }
 
@@ -109,7 +16,7 @@ func (p extensionCatalogProvider) ClassID() ids.OID { return p.class }
 func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid extension provider descriptor") }
 	a := d.Address()
-	if a.ClassID != p.class || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != a {
+	if a.ClassID != p.class || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(d)) != a {
 		return invalid()
 	}
 	namespace := d.Namespace()

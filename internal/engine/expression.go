@@ -1989,10 +1989,7 @@ type expressionPolicy struct {
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
 	operand bool
 }
-type expressionDependency struct {
-	Ref      ids.ObjectRef
-	Revision ids.DefinitionRevision
-}
+
 type expressionBinder struct {
 	engine                *Engine
 	ctx                   context.Context

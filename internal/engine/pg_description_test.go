@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -187,7 +188,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{e.catalog.state, newCatalogState(0)} {
+	for _, state := range []*catalogState{e.catalog.state, catalog.NewState(0)} {
 		captured, err := capturePGDescription(ctx, e.catalog.read(state), ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)

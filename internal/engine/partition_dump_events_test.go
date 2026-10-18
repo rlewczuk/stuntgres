@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -43,7 +44,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	otherDefinition.Parent = other.Address()
 	for _, d := range []*relationDescriptor{&other, &good, &leafGood, &otherGood} {
 		f.view.State().SetDescriptor(d.Address(), d)
-		f.view.State().BindName(descriptorNameKey(d), d.Address())
+		f.view.State().BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).SQLType
 	f.leaf.CheckConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, Expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}

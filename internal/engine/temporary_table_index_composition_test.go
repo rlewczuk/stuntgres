@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -49,7 +50,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 					maximum.ObjectRevision--
 				}
 				index = &maximum
-				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetDescriptor(index.Address(), index)
 				t.Cleanup(func() { e.catalog.state = originalCatalog })
 			}

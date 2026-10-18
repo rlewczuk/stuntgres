@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition := *local.SQLIndex
 			localDefinition.Unique = false
 			local.SQLIndex = &localDefinition
-			current := cloneCatalog(f.e.catalog.state)
+			current := catalog.CloneState(f.e.catalog.state)
 			current.SetDescriptor(local.Address(), &local)
 			f.e.catalog.state = current
 			mapped, err := mapPartitionIndex(context.Background(), f.e.catalog.read(current), f.root, f.leaf, f.parent.SQLIndex)
@@ -38,9 +39,9 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			backing.SQLIndex = mapped
 			backing.Columns = slices.Clone(f.child.Columns)
 			backing.Attributes = slices.Clone(f.child.Attributes)
-			next := cloneCatalog(current)
+			next := catalog.CloneState(current)
 			next.SetDescriptor(backing.Address(), &backing)
-			next.BindName(descriptorNameKey(&backing), backing.Address())
+			next.BindName(catalog.DescriptorNameKey(&backing), backing.Address())
 			// Completing the only child's backing makes the virtual parent
 			// valid in this private candidate, without changing its old head.
 			parentIndex := *f.parent

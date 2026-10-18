@@ -5,46 +5,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
-
-type physicalNotNullCauseKind uint8
-
-const (
-	physicalNotNullTypeCleanup physicalNotNullCauseKind = iota + 1
-	physicalNotNullImportCleanup
-	physicalNotNullImportFlag
-)
-
-// A missing NN row is not a generic alternative to an NN constraint. This
-// immutable cause is issued only by real TYPE cleanup or its exact logical
-// import counterpart. Archived identities are not current provider edges.
-type physicalNotNullCause struct {
-	Self      *physicalNotNullCause
-	Kind      physicalNotNullCauseKind
-	Ref       ids.ObjectRef
-	Origin    ids.ObjectRef // Immutable archive namespace; never resolved as a provider.
-	Attribute int32
-	RemovedNN ids.OID
-	Primary   ids.OID
-	Index     ids.ObjectAddress
-	Usage     sqltype.Usage
-}
-type physicalPrimaryKeyUsage struct {
-	Attribute int32
-	Usage     sqltype.Usage
-}
-type physicalPrimarySupport struct {
-	Constraint ids.OID
-	Index      ids.ObjectAddress
-	Keys       []physicalPrimaryKeyUsage
-}
-type physicalNotNullProof struct {
-	Cause   *physicalNotNullCause
-	Usage   sqltype.Usage
-	Support *physicalPrimarySupport
-	Retired *physicalPrimarySupport // Genuine later key retirement, not a live edge.
-}
 
 func physicalPrimaryForAttribute(table *relationDescriptor, attribute int32) *uniqueConstraint {
 	for i := range table.UniqueConstraints {

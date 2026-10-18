@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -103,7 +104,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	if err != nil || len(refs) != 2 {
 		t.Fatal("own inherited TEMP child omitted", refs, err)
 	}
-	missing := cloneCatalog(catalogView.State())
+	missing := catalog.CloneState(catalogView.State())
 	missing.RemoveDescriptor(foreign.Namespace())
 	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.token)
 	if !errors.Is(err, ids.ErrCatalogReplaced) {

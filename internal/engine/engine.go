@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -229,7 +230,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			return nil, err
 		}
 	}
-	e.catalog.state = newCatalogState(1)
+	e.catalog.state = catalog.NewState(1)
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
@@ -258,26 +259,26 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
 		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	for i := range builtinCollations {
+	for i := range catalog.BuiltinCollations {
 		d := new(collationDescriptor)
-		*d = builtinCollations[i]
+		*d = catalog.BuiltinCollations[i]
 		d.Owner = e.authorizationDomain.Principal(10)
 		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeConversionRoutines()
 	e.initializeBuiltinRoutines()
 	e.initializeTablespaces()
-	for i := range builtinConversions {
+	for i := range catalog.BuiltinConversions {
 		d := new(conversionDescriptor)
-		*d = builtinConversions[i]
+		*d = catalog.BuiltinConversions[i]
 		d.Owner = e.authorizationDomain.Principal(10)
 		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.ObjectRevision = 1
 		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeOperators()
 	e.initializeDatabase(database)

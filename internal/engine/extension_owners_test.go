@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -118,15 +119,15 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
-	next := cloneCatalog(before.State())
+	next := catalog.CloneState(before.State())
 	for address := range mapping {
-		next.UnbindName(descriptorNameKey(before.Get(address)))
+		next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
 		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
 		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
 		next.SetDescriptor(destination, descriptor)
-		next.BindName(descriptorNameKey(descriptor), destination)
+		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	view := e.catalog.read(next)
 	remapped := next.MustExtension(mapping[ext.Address()])

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
@@ -87,7 +88,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				}
 				ownershipUnitPublish(t, e, other)
 			case "database":
-				replacement := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+				replacement := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 				replacement.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.ObjectRevision++
 				other := e.BeginCatalogStage(e.CatalogRead())
@@ -108,7 +109,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.authSession.authorization.revision++
 				stage.authSession.mu.Unlock()
 			case "namespace-headroom":
-				next := cloneCatalog(e.catalog.state)
+				next := catalog.CloneState(e.catalog.state)
 				next.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = next
 			case "role-headroom":

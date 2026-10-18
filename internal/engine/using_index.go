@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -182,9 +183,9 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 	}
 	if stage.Base.Get(index.Address()) == nil {
 		// Preserve the existing TYPE remint's original removal/name observation.
-		delete(stage.Names, descriptorNameKey(index))
+		delete(stage.Names, catalog.DescriptorNameKey(index))
 		stage.Descriptors[index.Address()] = clone
-		key := descriptorNameKey(clone)
+		key := catalog.DescriptorNameKey(clone)
 		stage.Names[key] = clone.Address()
 		stage.Touched[key] = stage.Base.NameAddress(key)
 	} else if err := stage.Replace(clone); err != nil {

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -226,7 +227,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	if stage.initialTables != nil || e.catalog.state != before {
 		t.Fatal("canceled stage published rows/catalog")
 	}
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)

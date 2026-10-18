@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -368,13 +369,13 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
 			return err
 		}
 		if rights&authorization.CreatePrivilege == 0 {
-			database := auth.catalog.MustDatabase(currentDatabaseAddress)
+			database := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 			name := database.Name()
 			if name == "" {
 				name = "stuntgres" // The unnamed native Engine's existing database display.

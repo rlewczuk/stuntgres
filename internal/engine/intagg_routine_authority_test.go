@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -190,7 +191,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 			} {
 				auth := *evaluation.routineAuthority
-				auth.catalog = auth.catalog.WithState(cloneCatalog(auth.catalog.State()))
+				auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
 				bad := *captured
 				mutate(&bad)
 				auth.catalog.State().SetDescriptor(ref.Address, &bad)
@@ -266,15 +267,15 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					for i, a := range ext.Members {
 						mapping[a] = ids.ObjectAddress{ids.ProcedureClassID, ids.OID(900001 + i), 0}
 					}
-					state := cloneCatalog(evaluation.catalog.State())
+					state := catalog.CloneState(evaluation.catalog.State())
 					for a := range mapping {
-						state.UnbindName(descriptorNameKey(state.Get(a)))
+						state.UnbindName(catalog.DescriptorNameKey(state.Get(a)))
 						state.RemoveDescriptor(a)
 					}
 					for a, dest := range mapping {
 						d := remapExtensionDescriptor(evaluation.catalog.Get(a), mapping)
 						state.SetDescriptor(dest, d)
-						state.BindName(descriptorNameKey(d), dest)
+						state.BindName(catalog.DescriptorNameKey(d), dest)
 					}
 					state.SetEpoch(state.Epoch() + 1)
 					view := e.catalog.read(state)
@@ -409,7 +410,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	foreign := New()
 	foreignOwner := foreign.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
-		state := cloneCatalog(e.catalog.state)
+		state := catalog.CloneState(e.catalog.state)
 		for _, a := range ext.Members {
 			bad := *state.MustProcedure(a)
 			bad.Owner = owner
@@ -419,7 +420,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
-	if err := stockIntagg.ValidateExtension(newCatalogRead(nil, e.catalog.state), ext); err == nil {
+	if err := stockIntagg.ValidateExtension(catalog.NewRead(nil, e.catalog.state), ext); err == nil {
 		t.Fatal("missing owning engine accepted")
 	}
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {

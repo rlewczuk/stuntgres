@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -306,7 +307,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
 			case "stale_epoch":
-				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			}
 			op := transactionOperation(t, a)

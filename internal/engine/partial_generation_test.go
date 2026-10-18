@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -57,7 +58,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			beforeDefinition, beforeExecution := predicate.Definition, predicate.Execution
 			beforeDependencies := append([]ids.ObjectRef(nil), predicate.Dependencies...)
 			beforeAttributes := append([]int32(nil), predicate.Attributes...)
-			next := cloneCatalog(oldCatalog)
+			next := catalog.CloneState(oldCatalog)
 			next.SetEpoch(next.Epoch() + 1)
 			next.SetDescriptor(index.Address(), &index)
 			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
@@ -143,7 +144,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 
 func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 	f := newPartialIndexFixture(t)
-	next := cloneCatalog(f.e.catalog.state)
+	next := catalog.CloneState(f.e.catalog.state)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }
 	if catalogExpressionTypesChanged(f.index, typ) {
 		t.Fatal("unchanged partial predicate reported a generation change")

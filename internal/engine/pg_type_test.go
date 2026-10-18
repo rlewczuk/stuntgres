@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -173,7 +174,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	s, err = e.capturePGType(t.Context(), catalogView, roles, badRef, d)
 	ordinary(s, err)
 	for _, badWidth := range []bool{false, true} {
-		root := cloneCatalog(catalogView.State())
+		root := catalog.CloneState(catalogView.State())
 		bad := *d
 		bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		if badWidth {
@@ -187,7 +188,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		ordinary(s, err)
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
-	root := cloneCatalog(catalogView.State())
+	root := catalog.CloneState(catalogView.State())
 	original := catalogView.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	changed := *original
 	changed.ACL = authorization.ACLValue{Explicit: true}
@@ -333,7 +334,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				kind = "missing"
 			}
 			t.Run(name+"/"+kind, func(t *testing.T) {
-				root := cloneCatalog(catalogView.State())
+				root := catalog.CloneState(catalogView.State())
 				original := domainUnitType(t, catalogView, name)
 				if missing {
 					root.RemoveDescriptor(original.Address())

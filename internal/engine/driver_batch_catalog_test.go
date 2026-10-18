@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -172,7 +173,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	if candidate.originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("capture rewrote committed predecessor or published candidate")
 	}
-	peer := cloneCatalog(before)
+	peer := catalog.CloneState(before)
 	changed := *old
 	changed.ObjectRevision += 2
 	peer.SetDescriptor(ref.Address, &changed)
@@ -241,12 +242,12 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, replaced, before, nil); err == nil {
 		t.Fatal("changed namespace intent admitted")
 	}
-	current := cloneCatalog(before)
+	current := catalog.CloneState(before)
 	current.SetDescriptor(ns.Address, &changed)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), current, nil); err == nil {
 		t.Fatal("different current namespace admitted")
 	}
-	claimed := cloneCatalog(before)
+	claimed := catalog.CloneState(before)
 	claim := *namespace
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {

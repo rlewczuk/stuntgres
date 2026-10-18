@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -114,7 +115,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, admin, grant); err != nil {
 		t.Fatal(err)
 	}
-	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
+	db := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	if authorization.ACLRights(db.ACL, db.Owner, []authorization.PrincipalRef{actor.Ref}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege {
 		t.Fatal("grant option missing")
 	}
@@ -123,7 +124,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, delegated); err != nil {
 		t.Fatal(err)
 	}
-	db = e.catalog.state.MustDatabase(currentDatabaseAddress)
+	db = e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	found := false
 	for _, entry := range db.ACL.Entries {
 		if entry.Grantee.Public && entry.Grantor == actor.Ref && entry.Privileges&authorization.CreatePrivilege != 0 {
@@ -149,7 +150,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if _, err := e.replaceCatalog(context.Background(), replacement, replacement.CatalogRead(), admin); err != nil {
 		t.Fatal(err)
 	}
-	retained := e.catalog.state.MustDatabase(currentDatabaseAddress)
+	retained := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	if retained != db || retained.Name() != "ext_authority" {
 		t.Fatal("replacement overwrote destination database")
 	}

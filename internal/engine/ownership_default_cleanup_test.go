@@ -4,12 +4,13 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"testing"
 )
 
 func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	before := cloneCatalog(f.e.catalog.state)
+	before := catalog.CloneState(f.e.catalog.state)
 	before.SetDefaultACLs(make(map[defaultACLKey]*defaultACLRecord))
 	for class := authorization.DefaultTables; class <= authorization.DefaultLargeObjects; class++ {
 		before.SetDefaultACL(defaultACLKey{Creator: f.owner, Class: class}, &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true}})

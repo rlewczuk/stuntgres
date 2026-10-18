@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -66,7 +67,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		putFixtureRole(roles, role)
 	}
 	e.roles = roles
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	original := e.catalog.state.MustRelation(base.Address)
 	right := base
 	right.Address.ObjectID = 1000000
@@ -175,7 +176,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 
 func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e, _, _, base, _, refs := querySetLockAuthorityFixture(t)
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	next := ids.OID(1000100)
 	add := func(name string, definition *viewDefinition, kind relationKind) ids.ObjectRef {
 		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})

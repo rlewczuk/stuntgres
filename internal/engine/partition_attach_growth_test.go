@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -142,12 +143,12 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
-				next := cloneCatalog(e.catalog.state)
+				next := catalog.CloneState(e.catalog.state)
 				changed := *old
 				changed.ObjectName = "replacement_identity"
 				changed.ObjectRevision++
-				next.UnbindName(descriptorNameKey(old))
-				next.BindName(descriptorNameKey(&changed), changed.Address())
+				next.UnbindName(catalog.DescriptorNameKey(old))
+				next.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 				next.SetDescriptor(old.Address(), &changed)
 				e.catalog.state = next
 				// The exact descendant authority was admitted before the wait.

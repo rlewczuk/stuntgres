@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -51,7 +52,7 @@ func (r *domainReplayNames) arrayName(key ids.NameKey) ids.NameKey {
 }
 
 func (r *domainReplayNames) reserve(d *typeDescriptor) error {
-	key := descriptorNameKey(d)
+	key := catalog.DescriptorNameKey(d)
 	if incumbent := r.occupied[key]; incumbent != 0 {
 		element := r.elements[incumbent]
 		if element == 0 || r.arrays[element] != incumbent {

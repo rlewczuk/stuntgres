@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -122,7 +123,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		}
 		for _, original := range []*relationDescriptor{survivor, late} {
 			replacement := e.catalog.state.MustRelation(original.Address())
-			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(descriptorNameKey(original)) != original.Address() {
+			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(catalog.DescriptorNameKey(original)) != original.Address() {
 				t.Fatal("reprepare missed consumer or changed captured definition")
 			}
 		}
@@ -164,7 +165,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	original := e.catalog.state
 	maximum := *survivor
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-	e.catalog.state = cloneCatalog(original)
+	e.catalog.state = catalog.CloneState(original)
 	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 	// Restore the unexhausted setup before its automatic session retirement.
 	t.Cleanup(func() { e.catalog.state = original })
@@ -193,7 +194,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	original := e.catalog.state
 	maximum := *survivor
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-	e.catalog.state = cloneCatalog(original)
+	e.catalog.state = catalog.CloneState(original)
 	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 	t.Cleanup(func() {
 		if e.catalog.state.Get(sequence.Address()) != nil {
@@ -255,7 +256,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			original := e.catalog.state
 			maximum := *consumer
 			maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-			e.catalog.state = cloneCatalog(original)
+			e.catalog.state = catalog.CloneState(original)
 			e.catalog.state.SetDescriptor(consumer.Address(), &maximum)
 			t.Cleanup(func() { e.catalog.state = original })
 			for _, terminal := range []bool{false, true} {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 			}
 		}
 	}
-	next := cloneCatalog(view.State())
+	next := catalog.CloneState(view.State())
 	operators := operatorIndexEdit{Index: view.State().OperatorNames()}
 	for a, d := range view.Descriptors() {
 		ns, isNamespace := d.(*namespaceDescriptor)
@@ -46,7 +47,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 		}
 	}
 	next.SetOperatorNames(operators.Index)
-	pruneNamespaceDefaults(view.State(), next, nil)
+	catalog.PruneNamespaceDefaults(view.State(), next, nil)
 	return view.WithState(next), nil
 }
 
@@ -96,7 +97,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for _, address := range children {
 		descriptor := e.catalog.state.Get(address)
 		if extension, ok := descriptor.(*extensionDescriptor); ok {
-			if imported, exists := next.LookupName(descriptorNameKey(extension)); exists && next.Get(imported) != extension {
+			if imported, exists := next.LookupName(catalog.DescriptorNameKey(extension)); exists && next.Get(imported) != extension {
 				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.Name())
 			}
 		}
@@ -328,7 +329,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 	}
 	if len(mapping) != 0 {
-		remapDefaultSchemas(next, mapping)
+		catalog.RemapDefaultSchemas(next, mapping)
 		originals := next.ResetMaps(next.DescriptorCount() + len(temporary))
 		for a, d := range originals {
 			target := a
@@ -491,9 +492,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			d = remapExtensionDescriptor(d, mapping)
 			next.SetDescriptor(target, d)
-			next.BindName(descriptorNameKey(d), target)
+			next.BindName(catalog.DescriptorNameKey(d), target)
 		}
-		next.SetOperatorNames(rebuildOperatorNames(next.Descriptors()))
+		next.SetOperatorNames(catalog.RebuildOperatorNames(next.Descriptors()))
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
 		oldStorage := make(map[ids.ObjectAddress]*relationStorage, len(storage))
 		for a, s := range storage {
@@ -532,7 +533,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for a, d := range temporary {
 		operators.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
-		next.BindName(descriptorNameKey(d), a)
+		next.BindName(catalog.DescriptorNameKey(d), a)
 		if rows := e.storage[a]; rows != nil {
 			storage[a] = rows
 		}

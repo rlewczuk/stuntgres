@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -32,7 +33,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				// No TEMP object has ever committed in this session: this is a
 				// genuine new namespace descriptor, not another temp relation.
 				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				state.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = state
 			}
@@ -103,7 +104,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				e.commitSeq = healthyFrontier
 			}
 			if phase == "namespace" {
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				state.SetNamespaceGeneration(healthyNamespace)
 				e.catalog.state = state
 			}

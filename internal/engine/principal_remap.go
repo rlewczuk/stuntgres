@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -82,9 +83,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				}
 			}
 			if d.Address().ClassID == ids.ForeignMappingClassID {
-				n.ObjectName = foreignMappingName(n.Server, n.MappedRole)
-				state.UnbindName(descriptorNameKey(d))
-				state.BindName(descriptorNameKey(&n), n.Address())
+				n.ObjectName = catalog.ForeignMappingName(n.Server, n.MappedRole)
+				state.UnbindName(catalog.DescriptorNameKey(d))
+				state.BindName(catalog.DescriptorNameKey(&n), n.Address())
 			}
 			state.SetDescriptor(addr, &n)
 		case *procedureDescriptor:
@@ -237,7 +238,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 		state.SetDefaultACLs(next)
 	}
-	if err := validateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -275,7 +276,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
-	database := e.catalog.state.MustDatabase(currentDatabaseAddress)
+	database := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
@@ -293,7 +294,7 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.catalog.state.SetDescriptor(currentDatabaseAddress, &retainedDatabase)
+	stage.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &retainedDatabase)
 	stage.roles = &roleCatalog{root: roles, revision: sourceRoles.revision}
 	stage.nextPrincipal = nextPrincipal
 	return stage

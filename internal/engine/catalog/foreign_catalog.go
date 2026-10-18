@@ -1,4 +1,4 @@
-package engine
+package catalog
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 // SQL/MED global objects are ordinary immutable catalog descriptors. Mapping
 // names encode exact server/role identities, never role membership or SQL text.
-type foreignDescriptor struct {
+type ForeignObject struct {
 	ObjectAddress                       ids.ObjectAddress
 	ObjectRevision                      ids.DefinitionRevision
 	ObjectName                          string
@@ -23,11 +23,15 @@ type foreignDescriptor struct {
 	ServerType, Version                 *string
 }
 
-func (d *foreignDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *foreignDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (*foreignDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *foreignDescriptor) Name() string                     { return d.ObjectName }
-func (d *foreignDescriptor) Kind() ids.ObjectKind {
+func (d *ForeignObject) Address() ids.ObjectAddress { return d.ObjectAddress }
+
+func (d *ForeignObject) Revision() ids.DefinitionRevision { return d.ObjectRevision }
+
+func (*ForeignObject) Namespace() ids.ObjectAddress { return ids.ObjectAddress{} }
+
+func (d *ForeignObject) Name() string { return d.ObjectName }
+
+func (d *ForeignObject) Kind() ids.ObjectKind {
 	switch d.Address().ClassID {
 	case ids.ForeignWrapperClassID:
 		return ids.ForeignWrapperObject
@@ -38,25 +42,26 @@ func (d *foreignDescriptor) Kind() ids.ObjectKind {
 	}
 }
 
-func foreignMappingName(server ids.ObjectAddress, role authorization.PrincipalRef) string {
+func ForeignMappingName(server ids.ObjectAddress, role authorization.PrincipalRef) string {
 	return strconv.FormatUint(uint64(server.ObjectID), 10) + ":" + strconv.FormatUint(uint64(role.ID()), 10)
 }
 
-type foreignTableDefinition struct {
+type ForeignTableDefinition struct {
 	Server  ids.ObjectAddress
 	Options []ForeignOption
 	Columns map[int32][]ForeignOption
 }
 
-type foreignCatalogProvider struct{ class ids.OID }
+type ForeignCatalogProvider struct{ Class ids.OID }
 
-func (p foreignCatalogProvider) ClassID() ids.OID { return p.class }
-func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) error {
-	d, ok := descriptor.(*foreignDescriptor)
-	if !ok || d.Address().ClassID != p.class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
+func (p ForeignCatalogProvider) ClassID() ids.OID { return p.Class }
+
+func (p ForeignCatalogProvider) Validate(v Read, descriptor Descriptor) error {
+	d, ok := descriptor.(*ForeignObject)
+	if !ok || d.Address().ClassID != p.Class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid SQL/MED descriptor")
 	}
-	switch p.class {
+	switch p.Class {
 	case ids.ForeignWrapperClassID:
 		for _, a := range []ids.ObjectAddress{d.Handler, d.Validator} {
 			if a != (ids.ObjectAddress{}) {
@@ -72,7 +77,7 @@ func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) e
 		}
 	case ids.ForeignMappingClassID:
 		s, ok := v.Foreign(d.Server)
-		if !ok || s.Address().ClassID != ids.ForeignServerClassID || d.Name() != foreignMappingName(d.Server, d.MappedRole) {
+		if !ok || s.Address().ClassID != ids.ForeignServerClassID || d.Name() != ForeignMappingName(d.Server, d.MappedRole) {
 			return fmt.Errorf("stuntgres: invalid user mapping identity")
 		}
 	default:

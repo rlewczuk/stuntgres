@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -77,9 +78,9 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if err != nil || len(rows.anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
 	}
-	removed := cloneCatalog(view.State())
+	removed := catalog.CloneState(view.State())
 	removed.RemoveDescriptor(proc.Address())
-	removed.UnbindName(descriptorNameKey(proc))
+	removed.UnbindName(catalog.DescriptorNameKey(proc))
 	retired := e.catalog.read(removed)
 	for _, helper := range proc.Aggregate.Helpers {
 		if _, ok := routineIdentityByOID(retired, helper.ID); ok {
@@ -118,7 +119,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		owned := *proc.Aggregate
 		mutate(&owned)
 		bad.Aggregate = &owned
-		state := cloneCatalog(view.State())
+		state := catalog.CloneState(view.State())
 		state.SetDescriptor(proc.Address(), &bad)
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
@@ -131,13 +132,13 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		} else {
 			bad.Aggregate = proc.Aggregate
 		}
-		state := cloneCatalog(view.State())
+		state := catalog.CloneState(view.State())
 		state.SetDescriptor(member, &bad)
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
-	collision := cloneCatalog(view.State())
+	collision := catalog.CloneState(view.State())
 	helper := proc.Aggregate.Helpers[0]
 	namespace := *view.MustNamespace(proc.Namespace())
 	namespace.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.ID}
@@ -232,16 +233,16 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	proc := source.catalog.state.MustProcedure(ext.Members[0])
 	original := *proc.Aggregate
 	target := New()
-	target.catalog.state = cloneCatalog(target.catalog.state)
+	target.catalog.state = catalog.CloneState(target.catalog.state)
 	namespace := &namespaceDescriptor{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: original.Helpers[0].ID},
 		ObjectName:    "pg_temp_pga_collision", ObjectRevision: 1, Owner: target.authorizationDomain.Principal(10),
 		Temporary: target.catalog.Domain.Session(99),
 	}
 	target.catalog.state.SetDescriptor(namespace.Address(), namespace)
-	target.catalog.state.BindName(descriptorNameKey(namespace), namespace.Address())
+	target.catalog.state.BindName(catalog.DescriptorNameKey(namespace), namespace.Address())
 	target.catalog.nextOID = 30000
-	next := cloneCatalog(source.catalog.state)
+	next := catalog.CloneState(source.catalog.state)
 	target.mu.Lock()
 	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	target.mu.Unlock()

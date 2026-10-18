@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -211,7 +212,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				state.SetDescriptor(address, &array)
 			},
 		} {
-			candidate := cloneCatalog(e.catalog.state)
+			candidate := catalog.CloneState(e.catalog.state)
 			bad := *ext
 			bad.Members = slices.Clone(ext.Members)
 			candidate.SetDescriptor(bad.Address(), &bad)

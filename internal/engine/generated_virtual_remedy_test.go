@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -117,7 +118,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 
 func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	view = view.WithState(cloneCatalog(view.State()))
+	view = view.WithState(catalog.CloneState(view.State()))
 	view.State().SetDescriptor(d.Address(), d)
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	origin := ref

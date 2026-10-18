@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -14,7 +15,7 @@ import (
 func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	e, owner, _, _, reader := ownershipUnitRoles()
 	base := e.CatalogRead()
-	db := base.MustDatabase(currentDatabaseAddress)
+	db := base.MustDatabase(catalog.CurrentDatabaseAddress)
 	if db.ACL.Explicit || len(db.ACL.Entries) != 0 {
 		t.Fatal("initial descriptor must retain NULL ACL", db.ACL)
 	}
@@ -35,10 +36,10 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		{authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}}}, authorization.CreatePrivilege, 0},
 		{baseline, authorization.DatabasePrivileges, authorization.DatabasePublicPrivileges},
 	} {
-		candidate := cloneCatalog(base.State())
+		candidate := catalog.CloneState(base.State())
 		next := *db
 		next.ACL = tc.acl
-		candidate.SetDescriptor(currentDatabaseAddress, &next)
+		candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 		catalog := e.catalog.read(candidate)
 		roles := cloneRoleFixture(e.roles)
 		bootstrap := fixtureRole(roles, owner)
@@ -70,7 +71,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
-	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
+	db := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
 	roles := e.roleRead(e.CatalogRead(), e.roles)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
@@ -113,10 +114,10 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	if rights, err := auth.ownTemporaryPrivileges(); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
-	candidate := cloneCatalog(base.State())
-	next := *candidate.MustDatabase(currentDatabaseAddress)
+	candidate := catalog.CloneState(base.State())
+	next := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
-	candidate.SetDescriptor(currentDatabaseAddress, &next)
+	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))
 	fresh.state.CurrentUser = reader
 	if rights, err := fresh.ownTemporaryPrivileges(); err != nil || rights != authorization.UsagePrivilege {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -443,7 +444,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				copy := *f.index
 				f.e.catalog.state.SetDescriptor(f.index.Address(), &copy)
 			case "catalog snapshot":
-				data.catalog = data.catalog.WithState(cloneCatalog(f.e.catalog.state))
+				data.catalog = data.catalog.WithState(catalog.CloneState(f.e.catalog.state))
 			case "missing root":
 				delete(f.e.indexRoots, f.index.Address())
 			case "epoch":
@@ -537,7 +538,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 		t.Fatal("replacement transplanted/mutated source")
 	}
 	target := New()
-	next := cloneCatalog(f.e.catalog.state)
+	next := catalog.CloneState(f.e.catalog.state)
 	next.SetEpoch(target.catalog.state.Epoch() + 1)
 	if err := target.remapCatalogExpressions(next, nil); err != nil {
 		t.Fatal(err)

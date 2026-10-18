@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -153,7 +154,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	member := ext.Members[0]
 	procedure := before.Get(member)
 	descriptors, names := before.DescriptorCount(), before.NameCount()
-	key := descriptorNameKey(procedure)
+	key := catalog.DescriptorNameKey(procedure)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
 	e.mu.Lock()

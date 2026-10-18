@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -125,7 +126,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	source, fresh := New(), New()
 	originalView := source.CatalogRead()
 	original := infoYesOrNoUnitCatalog(t, source, originalView)
-	next := cloneCatalog(originalView.State())
+	next := catalog.CloneState(originalView.State())
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
 	base := *next.MustType(baseAddress)
 	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)

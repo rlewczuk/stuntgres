@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, view CatalogRead, roles
 			return nil, fmt.Errorf("stuntgres: foreign namespace source type")
 		}
 	}
-	database, ok := view.Database(currentDatabaseAddress)
+	database, ok := view.Database(catalog.CurrentDatabaseAddress)
 	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}

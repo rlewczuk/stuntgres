@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRe
 	return nil
 }
 func ownershipDatabaseCreate(auth AuthorizationView) error {
-	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress))
+	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress))
 }
 func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -414,7 +415,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	database := auth.catalog.MustDatabase(currentDatabaseAddress)
+	database := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.Name() {
 		return fail(sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[len(s.Name.Parts)-1].Text)))
 	}

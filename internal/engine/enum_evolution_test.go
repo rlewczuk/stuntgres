@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -140,7 +141,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	if id != 80 {
 		t.Fatal("nested import member", id)
 	}
-	importing := newCatalogState(0)
+	importing := catalog.NewState(0)
 	importing.SetScalarImports(imports)
 	view := New().catalog.read(importing)
 	literal := literalExpression{Info: expr.Info{Usage: source.Usage()}, value: v}

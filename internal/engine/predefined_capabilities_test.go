@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -35,7 +36,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, ObjectName: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalogRelation}, authorization.SelectPrivilege},
 		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, ObjectName: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation, VirtualView: true}, authorization.SelectPrivilege},
 	}
-	state := cloneCatalog(e.catalog.state)
+	state := catalog.CloneState(e.catalog.state)
 	for _, tc := range descriptors {
 		state.SetDescriptor(tc.d.Address(), tc.d)
 	}
@@ -68,7 +69,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	table := descriptors[1].d.(*relationDescriptor)
 	withColumn := *table
 	withColumn.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
-	withColumnState := cloneCatalog(state)
+	withColumnState := catalog.CloneState(state)
 	withColumnState.SetDescriptor(table.Address(), &withColumn)
 	v.catalog = e.catalog.read(withColumnState)
 	v.recaptureCatalog(v.catalog)

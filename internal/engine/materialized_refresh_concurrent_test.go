@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -505,7 +506,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}
-	current := cloneCatalog(e.catalog.state)
+	current := catalog.CloneState(e.catalog.state)
 	changed := *index
 	changed.ObjectRevision++
 	current.SetDescriptor(index.Address(), &changed)

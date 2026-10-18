@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,7 +18,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	view := auth.catalog
 	// Corrupt actual routine metadata in an unpublished candidate, preserving
 	// its real six-argument identity/provider, to exercise return-type admission.
-	candidate := cloneCatalog(view.State())
+	candidate := catalog.CloneState(view.State())
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	procedure.Result = 25
 	candidate.SetDescriptor(procedure.Address(), &procedure)

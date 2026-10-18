@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -35,180 +36,6 @@ type relationStorage struct {
 	// Successful concurrent MV publication stamps both incarnations atomically.
 	// It does not share TRUNCATE's current-root/birth-filter semantics.
 	materializedLineage *materializedLineage
-}
-
-type Descriptor interface {
-	Address() ids.ObjectAddress
-	Revision() ids.DefinitionRevision
-	Namespace() ids.ObjectAddress
-	Name() string
-	Kind() ids.ObjectKind
-}
-type namespaceDescriptor struct {
-	ObjectAddress  ids.ObjectAddress
-	ObjectName     string
-	ObjectRevision ids.DefinitionRevision
-	Owner          authorization.PrincipalRef
-	ACL            authorization.ACLValue
-	Comment        string
-	Temporary      ids.SessionToken
-	TemporaryToast bool
-}
-
-func (d *namespaceDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *namespaceDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (*namespaceDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *namespaceDescriptor) Name() string                     { return d.ObjectName }
-func (*namespaceDescriptor) Kind() ids.ObjectKind               { return ids.NamespaceObject }
-
-type relationDescriptor struct {
-	ObjectAddress, ObjectNamespace ids.ObjectAddress
-	ObjectName                     string
-	ObjectRevision                 ids.DefinitionRevision
-	SequencePlanStamp              ids.DefinitionRevision
-	Columns                        []ColumnDescriptor
-	Index                          map[string]int
-	Attributes                     []int32
-	AttributeHighWater             int32
-	DroppedAttributes              map[int32]attributeMetadata
-	CatalogAttributes              []catalogAttribute
-	Owner                          authorization.PrincipalRef
-	ACL                            authorization.ACLValue
-	ColumnACL                      map[int32]authorization.ACLValue
-	Comment                        string
-	ColumnComments                 map[int32]string
-	NotNullConstraints             []notNullConstraint
-	PhysicalNotNull                map[int32]physicalNotNullProof
-	CheckConstraints               []checkConstraint
-	Policies                       []policyDefinition
-	Rules                          rulesPayload
-	RLSEnabled                     bool
-	RLSForced                      bool
-	UniqueConstraints              []uniqueConstraint
-	ExclusionConstraints           []exclusionConstraint
-	ForeignKeys                    []foreignKeyConstraint
-	Defaults                       map[int32]columnDefault
-	Generations                    map[int32]columnGeneration
-	Identities                     map[int32]columnIdentity
-	Inheritance                    *tableInheritance
-	RelationKind                   relationKind
-	HasIndexes                     bool                // Sticky publication history; removing an index does not clear it.
-	HasSubclasses                  bool                // Sticky inheritance/table/index partition publication history.
-	SubclassPredecessor            *relationDescriptor // Exact first-subclass marker publication only.
-	SubclassPublication            ids.DefinitionRevision
-	OnCommit                       parser.OnCommitAction
-	Sequence                       *sequenceOptions
-	View                           viewPayload
-	Populated                      bool                // Independent of stored row count, including populated-empty MVs.
-	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
-	VirtualView                    bool
-	SQLIndex                       *indexDefinition
-	Partition                      *partitionDefinition
-	Membership                     *partitionMembership
-	RowType                        sqltype.ID
-	OfType                         ids.ObjectAddress
-	Foreign                        *foreignTableDefinition
-}
-
-func (d *relationDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *relationDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (d *relationDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
-func (d *relationDescriptor) Name() string                     { return d.ObjectName }
-func (*relationDescriptor) Kind() ids.ObjectKind               { return ids.RelationObject }
-
-func (d *relationDescriptor) HasAttribute(sub int32) bool {
-	for _, live := range d.Attributes {
-		if live == sub {
-			return true
-		}
-	}
-	return false
-}
-
-type notNullConstraint struct {
-	OID            ids.OID
-	Name           string
-	Attribute      int32
-	NotValid       bool
-	NoInherit      bool
-	PartitionLocal bool // Explicit NN declaration merged with an inherited definition.
-}
-
-type catalogState struct {
-	epoch               ids.CatalogEpoch
-	namespaceGeneration uint64
-	descriptors         map[ids.ObjectAddress]Descriptor
-	names               map[ids.NameKey]ids.ObjectAddress
-	operatorNames       *operatorNameIndex
-	defaultACLs         map[defaultACLKey]*defaultACLRecord
-	// Sparse replay identity provenance for collision-remapped declarations.
-	// Absent entries use their current OID; dependencies remain the order authority.
-	dumpPriorities map[ids.ObjectAddress]ids.OID
-	// Replacement-candidate-only translation, cleared before publication.
-	// Keys are exact source codecs, never numeric identity coincidences.
-	scalarImports map[*sqltype.Descriptor]*sqltype.Descriptor
-	aclItemImport func(sqltype.Value) (sqltype.Value, error)
-}
-type CatalogRead struct {
-	owner *catalogOwner
-	state *catalogState
-}
-
-// Domain returns the provenance domain of the view's owner, or nil for a
-// zero view.
-func (r CatalogRead) Domain() *ids.Domain {
-	if r.owner == nil {
-		return nil
-	}
-	return r.owner.Domain
-}
-
-func (r CatalogRead) Epoch() ids.CatalogEpoch {
-	if r.state == nil {
-		return 0
-	}
-	return r.state.epoch
-}
-func (r CatalogRead) Descriptor(a ids.ObjectAddress) (Descriptor, bool) {
-	if r.state == nil {
-		return nil, false
-	}
-	d, ok := r.Find(a)
-	return d, ok
-}
-func (r CatalogRead) Lookup(k ids.NameKey) []ids.ObjectAddress {
-	if r.state == nil {
-		return nil
-	}
-	a, ok := r.LookupName(k)
-	if !ok {
-		return nil
-	}
-	return []ids.ObjectAddress{a}
-}
-
-type CatalogProvider interface {
-	ClassID() ids.OID
-	Validate(CatalogRead, Descriptor) error
-}
-type namespaceProvider struct{}
-
-func (namespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }
-func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
-	ns, ok := d.(*namespaceDescriptor)
-	if !ok || ns == nil || ns.TemporaryToast && ns.Temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.Address()) != ns {
-		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
-	}
-	if ns.Temporary != (ids.SessionToken{}) && (ns.Temporary.Domain() != v.Domain() || ns.Temporary.ID() == 0 || ns.Temporary.Private() != nil) {
-		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
-	}
-	a := d.Address()
-	key := descriptorNameKey(d)
-	found := v.Lookup(key)
-	if d.Kind() != ids.NamespaceObject || a.ClassID != ids.NamespaceClassID || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || d.Namespace() != (ids.ObjectAddress{}) || len(found) != 1 || found[0] != a {
-		return fmt.Errorf("stuntgres: invalid namespace descriptor")
-	}
-	return nil
 }
 
 type relationProvider struct{}
@@ -500,9 +327,6 @@ type ChangeSet struct {
 	Namespaces  []ids.ObjectAddress
 	Replacement bool
 }
-type CatalogConflict struct{}
-
-func (CatalogConflict) Error() string { return "stuntgres: catalog publication conflict" }
 
 type catalogLifecycle uint8
 
@@ -592,7 +416,7 @@ type PreparedCatalogPublication struct {
 }
 
 func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
-	s := &CatalogStage{owner: e, catalogCandidate: newCatalogCandidate(base)}
+	s := &CatalogStage{owner: e, catalogCandidate: catalog.NewCandidate(base)}
 	if base.Owner() != e.catalog.owner() || base.State() == nil {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -603,7 +427,7 @@ func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session) {
 	s.authSession, s.authRevision, s.roleRevision = session, auth.revision, auth.roleRecord.revision
-	s.databaseAuthority = auth.catalog.Get(currentDatabaseAddress)
+	s.databaseAuthority = auth.catalog.Get(catalog.CurrentDatabaseAddress)
 	s.databasePredecessor = auth.databasePredecessor
 }
 
@@ -1124,7 +948,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			disclosure = &auth
 		}
 		e.mu.Unlock()
-		next := cloneCatalog(current)
+		next := catalog.CloneState(current)
 		next.OverlayDefaultACLs(current, s.DefaultACLs)
 		operators := operatorIndexEdit{Index: current.OperatorNames()}
 		storage := make(map[ids.ObjectAddress]*relationStorage, len(currentStorage)+len(s.Descriptors))
@@ -1136,7 +960,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			operators.Replace(current.Get(a), s.Descriptors[a])
 			next.RemoveDescriptor(a)
 			next.RemoveDumpPriority(a)
-			next.UnbindName(descriptorNameKey(d))
+			next.UnbindName(catalog.DescriptorNameKey(d))
 			delete(storage, a)
 		}
 		for k := range s.OldNames {
@@ -1336,7 +1160,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil && s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(e.catalog.state), e.storage) {
 			err = CatalogConflict{}
 		}
-		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(currentDatabaseAddress) != s.databasePredecessor {
+		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
@@ -1349,7 +1173,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			err = publicationOperationLocked(e, op)
 		}
 		if err == nil {
-			err = validateDefaultACLs(s.roleRead(e.roles, e.catalog.read(next)), e.catalog.read(next))
+			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles, e.catalog.read(next)), e.catalog.read(next))
 		}
 		if err == nil {
 			for _, d := range s.Descriptors {
@@ -1584,7 +1408,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if replacement.Epoch() != e.catalog.state.Epoch() {
 			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
-		next = cloneCatalog(replacement.State())
+		next = catalog.CloneState(replacement.State())
 		if err := copyRows(e); err != nil {
 			return ChangeSet{}, err
 		}
@@ -1596,7 +1420,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := validateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
+		if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision := e.catalog.nextRevision
@@ -1713,7 +1537,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := validateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision := e.catalog.nextRevision
@@ -1768,36 +1592,6 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	return nil
 }
 
-func cloneCatalog(s *catalogState) *catalogState {
-	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ids.ObjectAddress]Descriptor, s.DescriptorCount()), names: make(map[ids.NameKey]ids.ObjectAddress, s.NameCount())}
-	n.defaultACLs = s.defaultACLs
-	n.operatorNames = s.operatorNames
-	for k, v := range s.Descriptors() {
-		n.SetDescriptor(k, v)
-	}
-	for k, v := range s.Names() {
-		n.BindName(k, v)
-	}
-	if len(s.dumpPriorities) != 0 {
-		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
-		for address, priority := range s.dumpPriorities {
-			if _, exists := n.Find(address); exists {
-				n.dumpPriorities[address] = priority
-			}
-		}
-	}
-	return n
-}
-
-// Namespace cache invalidation is independent of descriptor revision allocation.
-// Advance only the unpublished catalog so exhaustion cannot publish any effects.
-func (s *catalogState) AdvanceNamespaceGeneration() error {
-	if s.namespaceGeneration == math.MaxUint64 {
-		return fmt.Errorf("stuntgres: namespace invalidation generation exhausted")
-	}
-	s.namespaceGeneration++
-	return nil
-}
 func (e *Engine) RegisterCatalogProvider(p CatalogProvider) error {
 	if p == nil {
 		return fmt.Errorf("stuntgres: nil catalog provider")

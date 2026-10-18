@@ -15,16 +15,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Published definitions contain immutable typed nodes, never evaluated values
-// or caller-owned syntax. Attribute keys survive descriptor replacements.
-type columnDefault struct {
-	OID                    ids.OID
-	Expression             expr.Expr
-	Dependencies           []ids.ObjectRef
-	CatalogSnapshot        bool
-	CatalogAliasReferences bool
-}
-
 // Raw and cooked DEFAULT consumers share the physical TEMP provider boundary.
 // Cooked copies supply no position: their original call token is not in LIKE SQL.
 func validateDefaultTemporaryProvider(provider, consumer ids.SessionToken, position parser.Position) error {

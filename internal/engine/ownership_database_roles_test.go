@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -24,10 +25,10 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: member, Name: "member", Inherit: true})
 	implicit := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	before := e.catalog.read(e.catalog.state)
-	candidate := cloneCatalog(e.catalog.state)
-	database := *candidate.MustDatabase(currentDatabaseAddress)
+	candidate := catalog.CloneState(e.catalog.state)
+	database := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = next
-	candidate.SetDescriptor(currentDatabaseAddress, &database)
+	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	after := e.catalog.read(candidate)
 	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
 	oldView, newView := catalogAuthorization(e, before), catalogAuthorization(e, after)
@@ -72,7 +73,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(currentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
 		t.Fatal("source pair mutated")
 	}
 }
@@ -80,12 +81,12 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	e := New()
 	retained := e.CatalogRead()
 	auth := catalogAuthorization(e, retained)
-	candidate := cloneCatalog(retained.State())
-	database := *candidate.MustDatabase(currentDatabaseAddress)
+	candidate := catalog.CloneState(retained.State())
+	database := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.ObjectRevision++
-	candidate.SetDescriptor(currentDatabaseAddress, &database)
+	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	auth.catalog = e.catalog.read(candidate)
-	ref := e.catalog.Domain.Ref(retained.Epoch(), currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(retained.Epoch(), catalog.CurrentDatabaseAddress)
 	if _, err := auth.object(ref); err == nil {
 		t.Fatal("mixed retained pair accepted")
 	}
@@ -103,13 +104,13 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 
 func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	e, _, _, _, reader := ownershipUnitRoles()
-	candidate := cloneCatalog(e.catalog.state)
-	database := *candidate.MustDatabase(currentDatabaseAddress)
+	candidate := catalog.CloneState(e.catalog.state)
+	database := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.ObjectName = `ownership "odd" database`
-	candidate.SetDescriptor(currentDatabaseAddress, &database)
+	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	auth := catalogAuthorization(e, e.catalog.read(candidate))
 	auth.state.CurrentUser = reader
-	ref := e.catalog.Domain.Ref(candidate.Epoch(), currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(candidate.Epoch(), catalog.CurrentDatabaseAddress)
 	for _, tc := range []struct {
 		requirement AccessRequirement
 		message     string
@@ -123,7 +124,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 			t.Fatal("distinct database diagnostic convention", err, "want", expected)
 		}
 	}
-	if candidate.Get(currentDatabaseAddress) != &database || auth.pairedCatalog.State() != candidate {
+	if candidate.Get(catalog.CurrentDatabaseAddress) != &database || auth.pairedCatalog.State() != candidate {
 		t.Fatal("diagnostic check changed retained descriptor or role/catalog pair")
 	}
 }

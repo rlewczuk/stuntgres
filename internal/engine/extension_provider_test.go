@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -303,20 +304,20 @@ func TestExtensionProviderPublication(t *testing.T) {
 			e.mu.Lock()
 			switch reason {
 			case "epoch":
-				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "roles":
 				e.roles = advanceRoleRevision(e.roles)
 			case "database":
-				next := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+				next := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++
-				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.SetDescriptor(currentDatabaseAddress, &next)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
+				e.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				next := *e.catalog.state.MustNamespace(a)
 				next.ObjectRevision++
-				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetDescriptor(a, &next)
 			}
 			e.mu.Unlock()

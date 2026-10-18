@@ -9,32 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type relationKind uint8
-
-const (
-	tableRelation relationKind = iota
-	sequenceRelation
-	viewRelation
-	catalogRelation
-	indexRelation
-	compositeRelation
-	materializedViewRelation
-	partitionedRelation
-	foreignRelation
-)
-
-func (k relationKind) Stored() bool {
-	return k == tableRelation || k == materializedViewRelation
-}
-
-type sequenceOptions struct {
-	SQLType                           sqltype.ID
-	Increment, Min, Max, Start, Cache int64
-	Cycle                             bool
-	Persistence                       string
-	Owned                             ids.ObjectAddress
-	Identity                          bool
-}
 type sequenceGenerator struct {
 	last       int64
 	called     bool

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -92,7 +93,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				}
 				r.Rows.Close()
 				catalogSnapshot, namespace, cell := e.catalog.state, a.temporaryNamespace, held.sequences
-				retained := cloneCatalog(catalogSnapshot)
+				retained := catalog.CloneState(catalogSnapshot)
 				generators := make(map[ids.ObjectAddress]sequenceGenerator, len(e.sequences))
 				for address, g := range e.sequences {
 					generators[address] = *g

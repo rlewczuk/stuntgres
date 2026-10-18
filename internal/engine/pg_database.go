@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -39,7 +40,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, view CatalogRead, roles 
 			return nil, fmt.Errorf("stuntgres: foreign database source type")
 		}
 	}
-	database, ok := view.Database(currentDatabaseAddress)
+	database, ok := view.Database(catalog.CurrentDatabaseAddress)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}

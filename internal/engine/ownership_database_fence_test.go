@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -20,13 +21,13 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			committed := auth.catalog.Get(currentDatabaseAddress)
+			committed := auth.catalog.Get(catalog.CurrentDatabaseAddress)
 			if private {
-				selected := cloneCatalog(auth.catalog.State())
+				selected := catalog.CloneState(auth.catalog.State())
 				database := *committed.(*databaseDescriptor)
 				database.ACL = authorization.ACLValue{Explicit: true}
 				database.ObjectRevision++
-				selected.SetDescriptor(currentDatabaseAddress, &database)
+				selected.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 				auth.catalog = e.catalog.read(selected)
 				auth.recaptureCatalog(auth.catalog)
 			}
@@ -40,21 +41,21 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.captureCatalogStageLocked(stage, changes, auth.catalog.State(), authority); err != nil {
 				t.Fatal(err)
 			}
-			if changes.originals[currentDatabaseAddress] != committed || authority.databasePredecessor != committed || authority.databaseAuthority != auth.catalog.Get(currentDatabaseAddress) {
+			if changes.originals[catalog.CurrentDatabaseAddress] != committed || authority.databasePredecessor != committed || authority.databaseAuthority != auth.catalog.Get(catalog.CurrentDatabaseAddress) {
 				t.Fatal("entry/private predecessor pairing")
 			}
 			child := cloneCatalogChanges(changes)
 			released := cloneCatalogChanges(child)
-			if child.originals[currentDatabaseAddress] != committed || released.originals[currentDatabaseAddress] != committed {
+			if child.originals[catalog.CurrentDatabaseAddress] != committed || released.originals[catalog.CurrentDatabaseAddress] != committed {
 				t.Fatal("savepoint clone lost predecessor")
 			}
 			if err := e.catalogPreflightLocked(released); err != nil {
 				t.Fatal("unchanged predecessor rejected", err)
 			}
-			next := cloneCatalog(e.catalog.state)
+			next := catalog.CloneState(e.catalog.state)
 			database := *committed.(*databaseDescriptor)
 			database.ObjectRevision++
-			next.SetDescriptor(currentDatabaseAddress, &database)
+			next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 			e.catalog.state = next
 			if err := e.catalogPreflightLocked(released); err == nil {
 				t.Fatal("outer commit accepted changed database predecessor")
@@ -62,7 +63,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.captureCatalogStageLocked(stage, newCatalogChanges(), auth.catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
-			if auth.catalog.Get(currentDatabaseAddress) != stage.databaseAuthority || auth.roleRecord.revision != e.roles.revision {
+			if auth.catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.roleRecord.revision != e.roles.revision {
 				t.Fatal("retained authority mutated or artificial role revision")
 			}
 		})
@@ -77,7 +78,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			f := newDefaultUnitFixture(t)
 			setup := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defaultUnitTable(t, f, setup, "default_fence_sentinel", f.owner)
-			database := *setup.Base.MustDatabase(currentDatabaseAddress)
+			database := *setup.Base.MustDatabase(catalog.CurrentDatabaseAddress)
 			database.Owner = f.owner
 			database.ObjectRevision++
 			if err := setup.Replace(&database); err != nil {
@@ -127,7 +128,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			key := defaultACLKey{Creator: dbRole, Class: authorization.DefaultTypes}
 			policy := retained.catalog.State().DefaultACL(key)
 			pendingRoles := retained.roleRecord
-			if policy == nil || pendingRoles == oldRoles || retained.catalog.State() == oldCatalog || retained.pairedCatalog.State() != retained.catalog.State() || retained.catalog.Get(currentDatabaseAddress) != &database {
+			if policy == nil || pendingRoles == oldRoles || retained.catalog.State() == oldCatalog || retained.pairedCatalog.State() != retained.catalog.State() || retained.catalog.Get(catalog.CurrentDatabaseAddress) != &database {
 				t.Fatal("missing paired private default/role/DB authority")
 			}
 			if f.e.catalog.state != oldCatalog || f.e.roles != oldRoles || oldCatalog.DefaultACLCount() != 0 {
@@ -172,7 +173,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 					t.Fatal("veto published a storage prefix")
 				}
 			}
-			if retained.catalog.State().DefaultACL(key) != policy || retained.catalog.Get(currentDatabaseAddress) != &database || retained.roleRecord != pendingRoles || oldCatalog.Get(currentDatabaseAddress) != &database {
+			if retained.catalog.State().DefaultACL(key) != policy || retained.catalog.Get(catalog.CurrentDatabaseAddress) != &database || retained.roleRecord != pendingRoles || oldCatalog.Get(catalog.CurrentDatabaseAddress) != &database {
 				t.Fatal("final veto mutated retained authority roots")
 			}
 		})

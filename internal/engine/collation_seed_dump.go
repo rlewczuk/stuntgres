@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -22,11 +23,11 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 	}
 	var changes []delta
 	var occupied map[string]bool
-	for i := range builtinCollations {
+	for i := range catalog.BuiltinCollations {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		fixed := &builtinCollations[i]
+		fixed := &catalog.BuiltinCollations[i]
 		d, ok := view.Collation(fixed.Address())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing pinned collation")
@@ -44,8 +45,8 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 						occupied[d.Name()] = true
 					}
 				}
-				for i := range builtinCollations {
-					occupied[builtinCollations[i].Name()] = true
+				for i := range catalog.BuiltinCollations {
+					occupied[catalog.BuiltinCollations[i].Name()] = true
 				}
 			}
 			base := "__stuntgres_collation_" + strconv.FormatUint(uint64(d.OID), 10)

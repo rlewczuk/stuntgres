@@ -1,4 +1,4 @@
-package engine
+package catalog
 
 import (
 	"iter"
@@ -10,61 +10,61 @@ import (
 // Access to the non-descriptor fields of a catalog state and view.
 //
 // Readers use the getters on any state. The setters, like the write API in
-// catalog_state_write.go, are only for a state that is still being built: the
+// state_write.go, are only for a state that is still being built: the
 // bootstrap seed, a clone, a stage candidate or a replacement before
 // publication. A published state is never written again.
 
 // newCatalogState returns an empty state at epoch with empty descriptor and
 // name maps.
-func newCatalogState(epoch ids.CatalogEpoch) *catalogState {
-	return &catalogState{epoch: epoch, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
+func NewState(epoch ids.CatalogEpoch) *State {
+	return &State{epoch: epoch, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
 }
 
 // newCatalogRead returns the view of state owned by owner.
-func newCatalogRead(owner *catalogOwner, state *catalogState) CatalogRead {
-	return CatalogRead{owner: owner, state: state}
+func NewRead(owner *Owner, state *State) Read {
+	return Read{owner: owner, state: state}
 }
 
 // Owner returns the owner record of the view, or nil for a zero view.
-func (r CatalogRead) Owner() *catalogOwner { return r.owner }
+func (r Read) Owner() *Owner { return r.owner }
 
 // State returns the state the view reads, or nil for a zero view.
-func (r CatalogRead) State() *catalogState { return r.state }
+func (r Read) State() *State { return r.state }
 
 // WithState returns a view of state with the same owner.
-func (r CatalogRead) WithState(state *catalogState) CatalogRead {
-	return CatalogRead{owner: r.owner, state: state}
+func (r Read) WithState(state *State) Read {
+	return Read{owner: r.owner, state: state}
 }
 
 // Epoch returns the catalog epoch of the state.
-func (s *catalogState) Epoch() ids.CatalogEpoch { return s.epoch }
+func (s *State) Epoch() ids.CatalogEpoch { return s.epoch }
 
 // SetEpoch sets the epoch of an unpublished state.
-func (s *catalogState) SetEpoch(epoch ids.CatalogEpoch) { s.epoch = epoch }
+func (s *State) SetEpoch(epoch ids.CatalogEpoch) { s.epoch = epoch }
 
 // NamespaceGeneration returns the namespace generation of the state.
-func (s *catalogState) NamespaceGeneration() uint64 { return s.namespaceGeneration }
+func (s *State) NamespaceGeneration() uint64 { return s.namespaceGeneration }
 
 // SetNamespaceGeneration sets the namespace generation of an unpublished
 // state.
-func (s *catalogState) SetNamespaceGeneration(generation uint64) {
+func (s *State) SetNamespaceGeneration(generation uint64) {
 	s.namespaceGeneration = generation
 }
 
 // OperatorNames returns the operator name index of the state.
-func (s *catalogState) OperatorNames() *operatorNameIndex { return s.operatorNames }
+func (s *State) OperatorNames() *OperatorNameIndex { return s.operatorNames }
 
 // SetOperatorNames sets the operator name index of an unpublished state.
-func (s *catalogState) SetOperatorNames(index *operatorNameIndex) { s.operatorNames = index }
+func (s *State) SetOperatorNames(index *OperatorNameIndex) { s.operatorNames = index }
 
 // DefaultACL returns the default ACL record at key, or nil.
-func (s *catalogState) DefaultACL(key defaultACLKey) *defaultACLRecord {
+func (s *State) DefaultACL(key DefaultACLKey) *DefaultACLRecord {
 	return s.defaultACLs[key]
 }
 
 // DefaultACLs iterates every default ACL record in unspecified order.
-func (s *catalogState) DefaultACLs() iter.Seq2[defaultACLKey, *defaultACLRecord] {
-	return func(yield func(defaultACLKey, *defaultACLRecord) bool) {
+func (s *State) DefaultACLs() iter.Seq2[DefaultACLKey, *DefaultACLRecord] {
+	return func(yield func(DefaultACLKey, *DefaultACLRecord) bool) {
 		for key, record := range s.defaultACLs {
 			if !yield(key, record) {
 				return
@@ -74,19 +74,19 @@ func (s *catalogState) DefaultACLs() iter.Seq2[defaultACLKey, *defaultACLRecord]
 }
 
 // DefaultACLCount returns the number of default ACL records.
-func (s *catalogState) DefaultACLCount() int { return len(s.defaultACLs) }
+func (s *State) DefaultACLCount() int { return len(s.defaultACLs) }
 
 // SetDefaultACLs replaces the default ACL records of an unpublished state
 // with records, which the state then owns.
-func (s *catalogState) SetDefaultACLs(records map[defaultACLKey]*defaultACLRecord) {
+func (s *State) SetDefaultACLs(records map[DefaultACLKey]*DefaultACLRecord) {
 	s.defaultACLs = records
 }
 
 // SetDefaultACL stores record at key in an unpublished state that owns its
 // default ACL map.
-func (s *catalogState) SetDefaultACL(key defaultACLKey, record *defaultACLRecord) {
+func (s *State) SetDefaultACL(key DefaultACLKey, record *DefaultACLRecord) {
 	if s.defaultACLs == nil {
-		s.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+		s.defaultACLs = make(map[DefaultACLKey]*DefaultACLRecord)
 	}
 	s.defaultACLs[key] = record
 }
@@ -94,26 +94,26 @@ func (s *catalogState) SetDefaultACL(key defaultACLKey, record *defaultACLRecord
 // OverlayDefaultACLs gives an unpublished state the default ACL records of
 // source with changes applied. A nil change removes its key. Without changes
 // the state shares source's records.
-func (s *catalogState) OverlayDefaultACLs(source *catalogState, changes map[defaultACLKey]*defaultACLRecord) {
+func (s *State) OverlayDefaultACLs(source *State, changes map[DefaultACLKey]*DefaultACLRecord) {
 	s.defaultACLs = overlayDefaultACLs(source.defaultACLs, changes)
 }
 
 // DumpPriority returns the dump priority recorded for a, or zero.
-func (s *catalogState) DumpPriority(a ids.ObjectAddress) ids.OID { return s.dumpPriorities[a] }
+func (s *State) DumpPriority(a ids.ObjectAddress) ids.OID { return s.dumpPriorities[a] }
 
 // LookupDumpPriority returns the dump priority recorded for a and whether one
 // is recorded.
-func (s *catalogState) LookupDumpPriority(a ids.ObjectAddress) (ids.OID, bool) {
+func (s *State) LookupDumpPriority(a ids.ObjectAddress) (ids.OID, bool) {
 	priority, ok := s.dumpPriorities[a]
 	return priority, ok
 }
 
 // HasDumpPriorities reports whether the state holds a dump priority map. The
 // map is allocated only when a priority is recorded.
-func (s *catalogState) HasDumpPriorities() bool { return s.dumpPriorities != nil }
+func (s *State) HasDumpPriorities() bool { return s.dumpPriorities != nil }
 
 // DumpPriorities iterates every recorded dump priority in unspecified order.
-func (s *catalogState) DumpPriorities() iter.Seq2[ids.ObjectAddress, ids.OID] {
+func (s *State) DumpPriorities() iter.Seq2[ids.ObjectAddress, ids.OID] {
 	return func(yield func(ids.ObjectAddress, ids.OID) bool) {
 		for a, priority := range s.dumpPriorities {
 			if !yield(a, priority) {
@@ -124,11 +124,11 @@ func (s *catalogState) DumpPriorities() iter.Seq2[ids.ObjectAddress, ids.OID] {
 }
 
 // DumpPriorityCount returns the number of recorded dump priorities.
-func (s *catalogState) DumpPriorityCount() int { return len(s.dumpPriorities) }
+func (s *State) DumpPriorityCount() int { return len(s.dumpPriorities) }
 
 // SetDumpPriority records the dump priority of a in an unpublished state
 // that owns its priority map.
-func (s *catalogState) SetDumpPriority(a ids.ObjectAddress, priority ids.OID) {
+func (s *State) SetDumpPriority(a ids.ObjectAddress, priority ids.OID) {
 	if s.dumpPriorities == nil {
 		s.dumpPriorities = make(map[ids.ObjectAddress]ids.OID)
 	}
@@ -137,28 +137,28 @@ func (s *catalogState) SetDumpPriority(a ids.ObjectAddress, priority ids.OID) {
 
 // RemoveDumpPriority deletes the dump priority of a from an unpublished state
 // that owns its priority map.
-func (s *catalogState) RemoveDumpPriority(a ids.ObjectAddress) { delete(s.dumpPriorities, a) }
+func (s *State) RemoveDumpPriority(a ids.ObjectAddress) { delete(s.dumpPriorities, a) }
 
 // SetDumpPriorities replaces the dump priorities of an unpublished state with
 // priorities, which the state then owns.
-func (s *catalogState) SetDumpPriorities(priorities map[ids.ObjectAddress]ids.OID) {
+func (s *State) SetDumpPriorities(priorities map[ids.ObjectAddress]ids.OID) {
 	s.dumpPriorities = priorities
 }
 
 // ScalarImports returns the replacement candidate's scalar type translation:
 // exact source codecs to their destination codecs. Only replacement code
 // reads or writes it, and it is cleared before publication.
-func (s *catalogState) ScalarImports() map[*sqltype.Descriptor]*sqltype.Descriptor {
+func (s *State) ScalarImports() map[*sqltype.Descriptor]*sqltype.Descriptor {
 	return s.scalarImports
 }
 
 // SetScalarImports replaces the scalar type translation.
-func (s *catalogState) SetScalarImports(imports map[*sqltype.Descriptor]*sqltype.Descriptor) {
+func (s *State) SetScalarImports(imports map[*sqltype.Descriptor]*sqltype.Descriptor) {
 	s.scalarImports = imports
 }
 
 // SetScalarImport records the translation of source to destination.
-func (s *catalogState) SetScalarImport(source, destination *sqltype.Descriptor) {
+func (s *State) SetScalarImport(source, destination *sqltype.Descriptor) {
 	if s.scalarImports == nil {
 		s.scalarImports = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
 	}
@@ -167,11 +167,11 @@ func (s *catalogState) SetScalarImport(source, destination *sqltype.Descriptor) 
 
 // ACLItemImport returns the replacement candidate's aclitem translation, or
 // nil.
-func (s *catalogState) ACLItemImport() func(sqltype.Value) (sqltype.Value, error) {
+func (s *State) ACLItemImport() func(sqltype.Value) (sqltype.Value, error) {
 	return s.aclItemImport
 }
 
 // SetACLItemImport sets the aclitem translation of a replacement candidate.
-func (s *catalogState) SetACLItemImport(importer func(sqltype.Value) (sqltype.Value, error)) {
+func (s *State) SetACLItemImport(importer func(sqltype.Value) (sqltype.Value, error)) {
 	s.aclItemImport = importer
 }

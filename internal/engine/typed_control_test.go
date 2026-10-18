@@ -3,31 +3,32 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
 // Provider-only fixture: this does not enable CREATE TYPE in a TEMP schema.
 func typedControlsTemporary(e *Engine, tables ...*relationDescriptor) {
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	namespace := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}, ObjectName: "pg_temp_typed_unit", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.catalog.Domain.Session(99)}
 	e.catalog.state.SetDescriptor(namespace.Address(), namespace)
-	e.catalog.state.BindName(descriptorNameKey(namespace), namespace.Address())
+	e.catalog.state.BindName(catalog.DescriptorNameKey(namespace), namespace.Address())
 	for _, old := range tables {
 		table := *old
-		e.catalog.state.UnbindName(descriptorNameKey(old))
+		e.catalog.state.UnbindName(catalog.DescriptorNameKey(old))
 		table.ObjectNamespace = namespace.Address()
 		e.catalog.state.SetDescriptor(table.Address(), &table)
-		e.catalog.state.BindName(descriptorNameKey(&table), table.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(&table), table.Address())
 		rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}
 		row := e.catalog.state.MustType(rowAddress)
 		for _, address := range []ids.ObjectAddress{rowAddress, {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}} {
 			oldType := e.catalog.state.MustType(address)
 			typ := *oldType
-			e.catalog.state.UnbindName(descriptorNameKey(oldType))
+			e.catalog.state.UnbindName(catalog.DescriptorNameKey(oldType))
 			typ.ObjectNamespace = namespace.Address()
 			e.catalog.state.SetDescriptor(address, &typ)
-			e.catalog.state.BindName(descriptorNameKey(&typ), address)
+			e.catalog.state.BindName(catalog.DescriptorNameKey(&typ), address)
 		}
 	}
 }
@@ -37,7 +38,7 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	typedControlsTemporary(e, table)
 	e.storage[table.Address()] = &relationStorage{}
 	state, oid, revision, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.storage[table.Address()]
-	next := cloneCatalog(New().catalog.state)
+	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
@@ -59,7 +60,7 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, source, table)
 	e.storage[table.Address()] = &relationStorage{}
-	next := cloneCatalog(New().catalog.state)
+	next := catalog.CloneState(New().catalog.state)
 	storage := map[ids.ObjectAddress]*relationStorage{}
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)

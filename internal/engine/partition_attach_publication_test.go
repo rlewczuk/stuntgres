@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -130,7 +131,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			case "provider":
 				typ := *e.catalog.state.MustType(providerAddress)
 				typ.ObjectRevision++
-				next := cloneCatalog(e.catalog.state)
+				next := catalog.CloneState(e.catalog.state)
 				next.SetDescriptor(providerAddress, &typ)
 				e.catalog.state = next
 			case "cancel":

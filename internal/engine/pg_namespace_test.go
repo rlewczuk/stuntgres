@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -251,14 +252,14 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(c, e.Roles(), forged, d)
 	reject(c, e.Roles(), ref, nil)
 	for _, width := range []int{0, 3, 5} {
-		next := cloneCatalog(c.State())
+		next := catalog.CloneState(c.State())
 		invalid := *d
 		invalid.Columns = make([]ColumnDescriptor, width)
 		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.Columns {
-		next := cloneCatalog(c.State())
+		next := catalog.CloneState(c.State())
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
@@ -267,13 +268,13 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	}
 	ns := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
 	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
-		next := cloneCatalog(c.State())
+		next := catalog.CloneState(c.State())
 		invalid := *ns
 		invalid.Owner = owner
 		next.SetDescriptor(ns.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, d)
 	}
-	next := cloneCatalog(c.State())
+	next := catalog.CloneState(c.State())
 	invalid := *ns
 	invalid.ObjectName = "stale_toast"
 	next.SetDescriptor(ns.Address(), &invalid)
@@ -282,21 +283,21 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	invalid.TemporaryToast = true
 	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	next = cloneCatalog(c.State())
+	next = catalog.CloneState(c.State())
 	next.SetDescriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ns)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	next = cloneCatalog(c.State())
+	next = catalog.CloneState(c.State())
 	invalid = *ns
 	invalid.Temporary = foreign.catalog.Domain.Session(1)
 	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	next = cloneCatalog(c.State())
-	next.SetDescriptor(currentDatabaseAddress, (*databaseDescriptor)(nil))
+	next = catalog.CloneState(c.State())
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*databaseDescriptor)(nil))
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	database := *c.MustDatabase(currentDatabaseAddress)
+	database := *c.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = e.Roles().LookupRef("pg_read_all_data")
-	next = cloneCatalog(c.State())
-	next.SetDescriptor(currentDatabaseAddress, &database)
+	next = catalog.CloneState(c.State())
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 }
 

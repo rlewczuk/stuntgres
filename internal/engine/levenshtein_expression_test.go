@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	nonmember := *n.procedure
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
-	foreignState := cloneCatalog(e.catalog.state)
+	foreignState := catalog.CloneState(e.catalog.state)
 	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
 	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
@@ -86,7 +87,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		},
 		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 	} {
-		state := cloneCatalog(e.catalog.state)
+		state := catalog.CloneState(e.catalog.state)
 		bad := *n.procedure
 		mutate(&bad)
 		state.SetDescriptor(n.ref.Address, &bad)
@@ -161,15 +162,15 @@ func TestLevenshteinRemap(t *testing.T) {
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
-	next := cloneCatalog(before.State())
+	next := catalog.CloneState(before.State())
 	for address := range mapping {
-		next.UnbindName(descriptorNameKey(before.Get(address)))
+		next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
 		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
 		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
 		next.SetDescriptor(destination, descriptor)
-		next.BindName(descriptorNameKey(descriptor), destination)
+		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}

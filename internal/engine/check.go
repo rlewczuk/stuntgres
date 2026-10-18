@@ -15,21 +15,6 @@ import (
 	"unicode/utf8"
 )
 
-// A CHECK is a typed immutable current-row expression. Its dependencies retain
-// stable attribute and provider identities, never a name-keyed SQL cache.
-type checkConstraint struct {
-	OID       ids.OID
-	Name      string
-	NoInherit bool
-	NotValid  bool
-	// Declaration order is independent of alphabetical enforcement order.
-	Ordinal            int
-	Expression         expr.Expr
-	Dependencies       []expressionDependency
-	CommentSnapshot    bool
-	VisibilitySnapshot bool
-}
-
 func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment, inherited map[string]checkConstraint) error {
 	var raw []*parser.CheckConstraint
 	for _, element := range syntax.Elements {

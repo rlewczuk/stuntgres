@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -425,7 +426,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 						copyDescriptor := *original
 						copyDescriptor.ObjectRevision++
 						copyDescriptor.Comment = "concurrent replacement"
-						state := cloneCatalog(e.catalog.state)
+						state := catalog.CloneState(e.catalog.state)
 						state.SetDescriptor(original.Address(), &copyDescriptor)
 						e.catalog.state = state
 						e.mu.Unlock()

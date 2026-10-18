@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -225,7 +226,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if err = foreignMappingAuthority(auth, server, role); err != nil {
 			return nil, nil, err
 		}
-		name = foreignMappingName(server.Address(), role)
+		name = catalog.ForeignMappingName(server.Address(), role)
 		stage.domainBases = append(stage.domainBases, server)
 		wrapper, _ = auth.catalog.Foreign(server.Wrapper)
 	}
@@ -383,7 +384,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		next.ACL = authorization.SchemaACLOwner(next.ACL, next.Owner, target)
 		next.Owner = target
 	}
-	if a := stage.LookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
+	if a := stage.LookupName(catalog.DescriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
 		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), next.Name()))
 	}
 	stage.domainBases = append(stage.domainBases, wrapper)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -14,9 +15,9 @@ func collationName(view CatalogRead, id uint32) string {
 			return d.Name()
 		}
 	}
-	for i := range builtinCollations {
-		if uint32(builtinCollations[i].OID) == id {
-			return builtinCollations[i].Name()
+	for i := range catalog.BuiltinCollations {
+		if uint32(catalog.BuiltinCollations[i].OID) == id {
+			return catalog.BuiltinCollations[i].Name()
 		}
 	}
 	return ""

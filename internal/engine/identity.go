@@ -12,11 +12,6 @@ import (
 	"unicode/utf8"
 )
 
-type columnIdentity struct {
-	Mode     parser.IdentityMode
-	Sequence ids.ObjectAddress
-}
-
 func identityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }

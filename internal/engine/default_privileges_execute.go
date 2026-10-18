@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -133,7 +134,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	candidate.OverlayDefaultACLs(v.catalog.State(), updates)
 	candidateCatalog := e.catalog.read(&candidate)
 	candidateRoles := e.roleRead(candidateCatalog, v.roleRecord)
-	if err := validateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
+	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
 	if v.roleRecord.revision == ^uint64(0) {

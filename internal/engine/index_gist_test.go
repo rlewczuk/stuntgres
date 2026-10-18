@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -121,7 +122,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// All stored values and bound operators use the same descriptor
 			// authority; mixing a fresh Builtins set with engine-owned values
 			// would fail equality before reaching collection validation.
-			e.catalog.state = cloneCatalog(e.catalog.state)
+			e.catalog.state = catalog.CloneState(e.catalog.state)
 			e.catalog.state.SetDescriptor(parent.Address(), parent)
 			e.catalog.state.SetDescriptor(index.Address(), index)
 			store := &relationStorage{versions: []rowVersion{

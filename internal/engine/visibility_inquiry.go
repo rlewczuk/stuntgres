@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -187,7 +188,7 @@ func namedObjectVisible(view CatalogRead, path []ids.ObjectAddress, d Descriptor
 
 func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ids.ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
-		key := descriptorNameKey(d)
+		key := catalog.DescriptorNameKey(d)
 		key.Namespace = namespace
 		if found := definitionLookupAt(view, reader, key); found != (ids.ObjectAddress{}) {
 			return found == d.Address()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -27,7 +28,7 @@ func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	}
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 	proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: "uuid_generate_v4", Signature: "", Owner: owner, RoutineKind: functionRoutine, Result: 2950, Volatility: expr.Volatile, Strict: true, Implementation: p}
-	if stage.LookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
+	if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 	}
 	ext.Members = []ids.ObjectAddress{address}
@@ -41,7 +42,7 @@ func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 	}
 	address := ext.Members[0]
 	proc, ok := v.Procedure(address)
-	if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Implementation != p || proc.Aggregate != nil || proc.Foreign != nil || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || proc.Name() != "uuid_generate_v4" || proc.Signature != "" || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+	if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Implementation != p || proc.Aggregate != nil || proc.Foreign != nil || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || proc.Name() != "uuid_generate_v4" || proc.Signature != "" || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
 		return invalid()
 	}
 	return nil

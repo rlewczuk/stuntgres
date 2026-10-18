@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -69,7 +70,7 @@ func TestPGSequencesCTEStoredGraphAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	root := &sourceNode{ref: catalogRef(t, e, view, "nested")}
 	v := catalogRef(t, e, view, "v")
-	broken := cloneCatalog(view.State())
+	broken := catalog.CloneState(view.State())
 	broken.RemoveDescriptor(v.Address)
 	if _, err := cteStoredViewVolatile(e.catalog.read(broken), root); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("invalid stored identity err=%v want ErrCatalogReplaced", err)

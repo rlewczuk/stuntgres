@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -100,13 +101,13 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		return nil
 	}
 	if s.databasePredecessor != nil {
-		if current.Get(currentDatabaseAddress) != s.databaseAuthority || e.catalog.state.Get(currentDatabaseAddress) != s.databasePredecessor {
+		if current.Get(catalog.CurrentDatabaseAddress) != s.databaseAuthority || e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
 			return ids.ErrCatalogReplaced
 		}
-		if original, ok := c.originals[currentDatabaseAddress]; ok && original != s.databasePredecessor {
+		if original, ok := c.originals[catalog.CurrentDatabaseAddress]; ok && original != s.databasePredecessor {
 			return CatalogConflict{}
 		}
-		c.originals[currentDatabaseAddress] = s.databasePredecessor
+		c.originals[catalog.CurrentDatabaseAddress] = s.databasePredecessor
 		if authority != nil {
 			authority.databaseAuthority = s.databaseAuthority
 			authority.databasePredecessor = s.databasePredecessor

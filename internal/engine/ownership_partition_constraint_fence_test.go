@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -31,13 +32,13 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		}
 	}
 	if !private {
-		if err := stageOwnership(setup, setup.Base.Get(currentDatabaseAddress), actor); err != nil {
+		if err := stageOwnership(setup, setup.Base.Get(catalog.CurrentDatabaseAddress), actor); err != nil {
 			t.Fatal(err)
 		}
 	}
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
-	committed := e.catalog.state.Get(currentDatabaseAddress)
+	committed := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
 	var changes *catalogChanges
 	if private {
 		// Honest predecessor plus a different selected private descriptor. This
@@ -45,8 +46,8 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		changes = newCatalogChanges()
 		database := *committed.(*databaseDescriptor)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
-		changes.descriptors[currentDatabaseAddress] = &database
-		changes.originals[currentDatabaseAddress] = committed
+		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
+		changes.originals[catalog.CurrentDatabaseAddress] = committed
 	}
 	session, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
 	if err != nil {
@@ -85,7 +86,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if table.Owner != dbRole || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture did not capture canonical paired DB authority")
 				}
-				if private && auth.catalog.Get(currentDatabaseAddress) == committed {
+				if private && auth.catalog.Get(catalog.CurrentDatabaseAddress) == committed {
 					t.Fatal("private authority is not distinct from committed predecessor")
 				}
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
@@ -113,7 +114,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				}
 				replaceDatabase := func() {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+					database := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 					if private {
 						database.Owner = actor.Ref
 					} else {
@@ -129,7 +130,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 						t.Fatal("DB-only replacement changed unrelated authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
-						if address != currentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
+						if address != catalog.CurrentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
 							t.Fatal("DB-only replacement changed target or associated identities")
 						}
 					}

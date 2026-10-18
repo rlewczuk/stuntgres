@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -213,7 +214,7 @@ func TestRLSBaseControls(t *testing.T) {
 	for _, state := range []struct{ enabled, forced bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
 		next := *d
 		next.RLSEnabled, next.RLSForced = state.enabled, state.forced
-		catalog := cloneCatalog(base.State())
+		catalog := catalog.CloneState(base.State())
 		catalog.SetDescriptor(d.Address(), &next)
 		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
 		if err != nil {

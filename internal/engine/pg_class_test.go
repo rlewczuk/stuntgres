@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -106,7 +107,7 @@ func TestPgClassKinds(t *testing.T) {
 		}
 	}
 	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200010}
-	state := cloneCatalog(view.State())
+	state := catalog.CloneState(view.State())
 	state.SetDescriptor(parentAddress, &relationDescriptor{ObjectAddress: parentAddress, Partition: &partitionDefinition{}})
 	index := &relationDescriptor{RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: parentAddress}}
 	if got := pgClassKind(e.catalog.read(state), index); got != "I" {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -109,7 +110,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
 	view := e.privateCatalogLocked(c)
 	old := e.catalog.Domain.Ref(view.Epoch(), table.Address())
-	advanced := cloneCatalog(view.State())
+	advanced := catalog.CloneState(view.State())
 	advanced.SetEpoch(advanced.Epoch() + 1)
 	retained := e.catalog.read(advanced)
 	if !storedReferenceEpochValid(retained, table, old) {
@@ -214,7 +215,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), sequence.Address())
 	typeRef := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
 	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
-	next := cloneCatalog(view.State())
+	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	var manifest []ids.ObjectRef
@@ -243,9 +244,9 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	if _, err := renderer.sql(context.Background(), retained, foreign); err == nil {
 		t.Fatal("foreign-engine regclass admitted")
 	}
-	retired := cloneCatalog(next)
+	retired := catalog.CloneState(next)
 	retired.RemoveDescriptor(sequence.Address())
-	retired.UnbindName(descriptorNameKey(sequence))
+	retired.UnbindName(catalog.DescriptorNameKey(sequence))
 	if _, err := renderer.sql(context.Background(), e.catalog.read(retired), literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}

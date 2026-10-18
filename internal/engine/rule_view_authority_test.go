@@ -3,6 +3,7 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				outer.ObjectName = "outer_view"
 				outer.View = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
 				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.Columns), ref: ruleUnitRef(e, inner)}}
-				next := cloneCatalog(e.catalog.state)
+				next := catalog.CloneState(e.catalog.state)
 				next.SetDescriptor(outer.Address(), &outer)
 				e.catalog.state = next
 				root = &outer
@@ -94,7 +95,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			// that snapshot, while an already paired snapshot remains unchanged.
 			revoked := *base
 			revoked.ACL = grant(other)
-			next := cloneCatalog(e.catalog.state)
+			next := catalog.CloneState(e.catalog.state)
 			next.SetDescriptor(base.Address(), &revoked)
 			current := auth
 			current.recaptureCatalog(e.catalog.read(next))

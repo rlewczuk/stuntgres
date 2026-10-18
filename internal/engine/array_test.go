@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -78,7 +79,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 		t.Fatal("staged collision", stagedArray)
 	}
 	// A foreign element generation or broken reverse ID cannot publish.
-	broken := cloneCatalog(e.CatalogRead().State())
+	broken := catalog.CloneState(e.CatalogRead().State())
 	copied := *domain
 	copied.Array = sqltype.NameArray
 	broken.SetDescriptor(domain.Address(), &copied)
@@ -96,7 +97,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	}
 	forged := *associated
 	forged.SQLType = foreignArray
-	broken = cloneCatalog(e.catalog.state)
+	broken = catalog.CloneState(e.catalog.state)
 	broken.SetDescriptor(associated.Address(), &forged)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
 		t.Fatal("foreign array element accepted")
@@ -210,7 +211,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{value}}}}
 	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
-	next := cloneCatalog(e.catalog.state)
+	next := catalog.CloneState(e.catalog.state)
 	fresh := New()
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
 	// Replace only the builtin scalar generation, retaining this catalog's
@@ -262,7 +263,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 			descriptor = &copy
 		}
 		descriptors[target] = descriptor
-		names[descriptorNameKey(descriptor)] = target
+		names[catalog.DescriptorNameKey(descriptor)] = target
 	}
 	next.ResetMaps(len(descriptors))
 	for address, descriptor := range descriptors {

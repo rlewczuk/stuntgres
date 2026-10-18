@@ -9,23 +9,6 @@ import (
 
 const pgAggregateOID ids.OID = 2600
 
-// An aggregate definition belongs to its implemented routine. Optional seeds
-// distinguish SQL NULL from an empty string without allocating seed pointers.
-type aggregateDefinition struct {
-	Function                       ids.OID
-	Kind                           string
-	DirectArgs                     int16
-	Functions                      [8]ids.OID // transition, final, combine, serialize, deserialize, moving, inverse, moving-final
-	FinalExtra, MovingFinalExtra   bool
-	FinalModify, MovingFinalModify string
-	SortOperator, TransitionType   ids.OID
-	TransitionSpace                int32
-	MovingType                     ids.OID
-	MovingSpace                    int32
-	Initial, MovingInitial         string
-	HasInitial, HasMovingInitial   bool
-}
-
 var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Regproc, sqltype.Char, sqltype.Int2, sqltype.Regproc, sqltype.Regproc,
 	sqltype.Regproc, sqltype.Regproc, sqltype.Regproc, sqltype.Regproc, sqltype.Regproc,

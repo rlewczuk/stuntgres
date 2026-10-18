@@ -15,17 +15,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Own recipes are immutable and alphabetically ordered. Ancestors remain on
-// their own descriptors; conversion preparation and evaluation traverse them first.
-type domainCheckConstraint struct {
-	OID          ids.OID
-	Name         string
-	NotValid     bool
-	Ordinal      int
-	Expression   expr.Expr
-	Dependencies []expressionDependency
-}
-
 type domainValueExpression struct{ expr.Info }
 
 func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {

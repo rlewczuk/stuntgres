@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -126,7 +127,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{value}}}}
 	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
-	next := cloneCatalog(e.CatalogRead().State())
+	next := catalog.CloneState(e.CatalogRead().State())
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
 	next.SetDescriptor(builtin, &typeDescriptor{SQLType: physical})

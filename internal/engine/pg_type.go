@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -104,7 +105,7 @@ func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles auth
 			return nil, fmt.Errorf("stuntgres: foreign type source type")
 		}
 	}
-	database, ok := view.Database(currentDatabaseAddress)
+	database, ok := view.Database(catalog.CurrentDatabaseAddress)
 	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign type owner authority")
 	}

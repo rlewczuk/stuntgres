@@ -1,24 +1,15 @@
 package engine
 
 import (
-	"context"
 	"reflect"
 	"strings"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
-
-const foreignHandlerSignature procedureSignature = ""
-const foreignValidatorSignature procedureSignature = "1009,26"
-
-type foreignProcedure struct {
-	Name      ForeignFunctionName
-	Wrapper   ForeignDataWrapper
-	Validator func(context.Context, ForeignObjectKind, []ForeignOption) error
-}
 
 func foreignFunctionName(name ForeignFunctionName) (ForeignFunctionName, error) {
 	if name.Schema == "" {
@@ -81,7 +72,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 			namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}
 			ns := &namespaceDescriptor{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
 			e.catalog.state.SetDescriptor(namespace, ns)
-			e.catalog.state.BindName(descriptorNameKey(ns), namespace)
+			e.catalog.state.BindName(catalog.DescriptorNameKey(ns), namespace)
 			if e.foreignNamespaces == nil {
 				e.foreignNamespaces = make(map[ids.ObjectAddress]string)
 			}

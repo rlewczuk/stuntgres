@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -78,7 +79,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	if stage.Base.Get(address) == nil {
 		delete(stage.Names, key)
 		stage.Descriptors[address] = &next
-		nextKey := descriptorNameKey(&next)
+		nextKey := catalog.DescriptorNameKey(&next)
 		nextKey.Namespace = namespace
 		stage.Names[nextKey] = address
 		stage.Touched[nextKey] = stage.Base.NameAddress(nextKey)

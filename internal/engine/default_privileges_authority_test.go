@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -87,7 +88,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_authority_seed(v INT)")
 	f.schema = f.op.session.temporaryNamespace
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
 	namespace.ACL = authorization.ACLValue{Explicit: true}
@@ -124,7 +125,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	// Even an exact namespace token cannot elevate zero/foreign/private
 	// maintenance identities into a physical backend.
 	for _, token := range []ids.SessionToken{{}, New().catalog.Domain.Session(1), f.e.catalog.Domain.PrivateSession(f.op.session)} {
-		candidate := cloneCatalog(state)
+		candidate := catalog.CloneState(state)
 		invalidNamespace := namespace
 		invalidNamespace.Temporary = token
 		candidate.SetDescriptor(f.schema, &invalidNamespace)
@@ -137,7 +138,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	withoutSession := auth
 	withoutSession.session = nil
 	defaultUnitDiagnostic(t, withoutSession.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
-	ordinary := cloneCatalog(state)
+	ordinary := catalog.CloneState(state)
 	permanent := namespace
 	permanent.Temporary = ids.SessionToken{}
 	ordinary.SetDescriptor(f.schema, &permanent)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -169,7 +170,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := cloneCatalog(before.State())
+	next := catalog.CloneState(before.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	ref := viewOf(view).sources[0].ref
@@ -214,7 +215,7 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := cloneCatalog(before.State())
+	next := catalog.CloneState(before.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	ref := viewOf(view).sources[0].ref

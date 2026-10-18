@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -367,7 +368,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	default:
 	}
 	e.mu.Lock()
-	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.State()), sourceRoles, targetRoles, nil)
+	next, err := e.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
 		for _, descriptor := range next.Descriptors() {

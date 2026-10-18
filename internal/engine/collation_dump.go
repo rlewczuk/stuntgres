@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 )
 
 func collationDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*collationDescriptor) ([]dumpDomain, error) {
@@ -18,7 +19,7 @@ func collationDumpStatements(ctx context.Context, view CatalogRead, roles author
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		mode, providerErr := collationSemantics(d)
+		mode, providerErr := catalog.CollationSemantics(d)
 		if providerErr != nil || mode != d.Semantics {
 			return nil, fmt.Errorf("stuntgres: invalid dump collation provider")
 		}

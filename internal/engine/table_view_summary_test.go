@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -67,7 +68,7 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			run(t, e, "CREATE INDEX summary_history_index ON summary_history(n)")
 			run(t, e, "DROP INDEX summary_history_index")
 			base := e.CatalogRead()
-			state := cloneCatalog(base.State())
+			state := catalog.CloneState(base.State())
 			address := roleTableRef(t, e, "summary_active").Address
 			historyAddress := roleTableRef(t, e, "summary_history").Address
 			parent := *state.MustRelation(address)

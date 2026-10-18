@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -215,7 +216,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	own.descriptors[added] = &addition
 	want := map[uint32][]any{20000: {uint32(20000), uint32(21), int64(-4), int64(-3), int64(-1), int64(-32768), int64(1), false}, 20002: {uint32(20002), uint32(21), int64(-1), int64(-3), int64(-1), int64(-32768), int64(1), false}}
 	// Latest publication has none of the retained base's sequence definitions.
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	owner := op.session.transactions
@@ -232,7 +233,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{&base, newCatalogState(0)} {
+	for _, state := range []*catalogState{&base, catalog.NewState(0)} {
 		rows, err := capturePGSequence(ctx, state, own, ref, source)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)
@@ -265,7 +266,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}
 			e.mu.Lock()
-			e.catalog.state = cloneCatalog(e.catalog.state)
+			e.catalog.state = catalog.CloneState(e.catalog.state)
 			e.mu.Unlock()
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
@@ -310,7 +311,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 			}
 			if unsafe {
 				e.mu.Lock()
-				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
 				next := e.catalog.state
 				e.commitSeq++
 				e.serializableCommittedLocked(writer.ref, e.commitSeq)

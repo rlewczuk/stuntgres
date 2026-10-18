@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -37,7 +38,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal("replacement changed source or target role catalog")
 		}
 		// Exact target incarnation, not just a recycled name, is fenced by remap.
-		candidate := cloneCatalog(retained.State())
+		candidate := catalog.CloneState(retained.State())
 		snapshot := target.e.Roles()
 		roles := cloneRoleFixture(target.e.roles)
 		replacement := target.reader
@@ -105,13 +106,13 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		source.grant(t, "tables", "select", []string{"default_schema"})
 		source.grant(t, "sequences", "usage", nil)
 		// Target has a live TEMP namespace at exactly the imported schema identity.
-		state := cloneCatalog(target.e.catalog.state)
+		state := catalog.CloneState(target.e.catalog.state)
 		ns := *state.MustNamespace(target.schema)
 		ns.ObjectName = "pg_temp_collision"
 		ns.Temporary = target.op.session.token
-		state.UnbindName(descriptorNameKey(state.Get(target.schema)))
+		state.UnbindName(catalog.DescriptorNameKey(state.Get(target.schema)))
 		state.SetDescriptor(target.schema, &ns)
-		state.BindName(descriptorNameKey(&ns), target.schema)
+		state.BindName(catalog.DescriptorNameKey(&ns), target.schema)
 		target.e.catalog.state = state
 		target.op.session.temporaryNamespace = target.schema
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e, source.e.CatalogRead()); err != nil {
@@ -125,13 +126,13 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal("foreign global policy lost")
 		}
 		// A source TEMP-only record is projected out even on a foreign import.
-		tempSource := cloneCatalog(source.e.catalog.state)
+		tempSource := catalog.CloneState(source.e.catalog.state)
 		tempNS := *tempSource.MustNamespace(source.schema)
 		tempNS.ObjectName = "pg_temp_source"
 		tempNS.Temporary = source.op.session.token
-		tempSource.UnbindName(descriptorNameKey(tempSource.Get(source.schema)))
+		tempSource.UnbindName(catalog.DescriptorNameKey(tempSource.Get(source.schema)))
 		tempSource.SetDescriptor(source.schema, &tempNS)
-		tempSource.BindName(descriptorNameKey(&tempNS), source.schema)
+		tempSource.BindName(catalog.DescriptorNameKey(&tempNS), source.schema)
 		fresh := newDefaultUnitFixture(t)
 		if _, err := fresh.e.ReplaceCatalog(context.Background(), source.e, source.e.catalog.read(tempSource)); err != nil {
 			t.Fatal(err)

@@ -5,40 +5,12 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func collationSemantics(d *collationDescriptor) (uint32, error) {
-	switch d.Provider {
-	case "c":
-		if d.Collate == nil || d.CType == nil || d.Locale != nil {
-			return 0, expr.ErrorAt("42P17", "invalid libc collation properties", parser.Position{})
-		}
-		if (*d.Collate != "C" && *d.Collate != "POSIX") || (*d.CType != "C" && *d.CType != "POSIX") {
-			return 0, expr.ErrorAt("0A000", "libc locale provider data is not available in this engine", parser.Position{})
-		}
-		return 950, nil
-	case "b":
-		if d.Locale == nil || d.Collate != nil || d.CType != nil {
-			return 0, expr.ErrorAt("42P17", "invalid builtin collation properties", parser.Position{})
-		}
-		switch *d.Locale {
-		case "C":
-			return 950, nil
-		case "C.UTF-8", "C.UTF8":
-			return 811, nil
-		case "PG_UNICODE_FAST":
-			return 6411, nil
-		}
-		return 0, expr.ErrorAt("42809", fmt.Sprintf(`invalid locale name "%s" for builtin provider`, *d.Locale), parser.Position{})
-	case "i":
-		return 0, expr.ErrorAt("0A000", "ICU is not supported in this build", parser.Position{})
-	}
-	return 0, expr.ErrorAt("42P17", "unrecognized collation provider: "+d.Provider, parser.Position{})
-}
 
 var builtinCollationVersion = "1"
 
@@ -46,7 +18,7 @@ func collationActualVersion(d *collationDescriptor) (*string, error) {
 	if d.Provider == "d" {
 		return databaseCollationActualVersion()
 	}
-	if _, err := collationSemantics(d); err != nil {
+	if _, err := catalog.CollationSemantics(d); err != nil {
 		return nil, err
 	}
 	if d.Provider == "b" {
@@ -162,7 +134,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 		textOption := func(name string) *string {
 			if o := options[name]; o != nil {
-				return collationText(o.Value)
+				return catalog.CollationText(o.Value)
 			}
 			return nil
 		}
@@ -187,14 +159,14 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 			}
 			d.Locale = locale
 			if d.Provider == "b" && *locale == "C.UTF8" {
-				d.Locale = collationText("C.UTF-8")
+				d.Locale = catalog.CollationText("C.UTF-8")
 			}
 			d.Encoding = -1
 			if d.Provider == "b" {
 				if *d.Locale != "C" {
 					d.Encoding = 6
 				}
-				if _, err = collationSemantics(&d); err != nil {
+				if _, err = catalog.CollationSemantics(&d); err != nil {
 					return err
 				}
 			}
@@ -218,7 +190,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 		return sqlError("42710", message)
 	}
-	d.Semantics, err = collationSemantics(&d)
+	d.Semantics, err = catalog.CollationSemantics(&d)
 	if err != nil {
 		return err
 	}
@@ -309,7 +281,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.Owner = ownerTarget
 	}
-	key := descriptorNameKey(&next)
+	key := catalog.DescriptorNameKey(&next)
 	if a := stage.LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}

@@ -14,35 +14,6 @@ import (
 	"unicode/utf8"
 )
 
-// Definitions use stable parent attributes; roots own current live identities.
-// Hash equality uses captured immutable buckets; all other reads retain scans.
-type indexKey struct {
-	Attribute        int32
-	Desc, NullsFirst bool
-	Derived          *derivedIndexKey
-	Collation        uint32
-	CollationRef     sqltype.CollationRef
-	Class            sqltype.IndexClass
-	ExplicitClass    bool
-}
-type indexDefinition struct {
-	Method             indexMethod
-	Parent             ids.ObjectAddress
-	PartitionParent    ids.ObjectAddress
-	Keys               []indexKey
-	Include            []int32
-	Unique             bool
-	NullsNotDistinct   bool
-	Constraint         *backingConstraint
-	Ready, Valid, Live bool
-	Predicate          *indexPredicate
-	Exclusion          []sqltype.ExclusionOperator
-}
-
-func (d *indexDefinition) PublicationState() (ready, valid, live bool) {
-	return d.Ready, d.Valid, d.Live
-}
-
 type logicalIndexEntry struct {
 	keys     []sqltype.Value
 	row      ids.RowID

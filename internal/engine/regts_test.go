@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -19,7 +20,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	t.Helper()
 	e, op, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
-	view = view.WithState(cloneCatalog(view.State()))
+	view = view.WithState(catalog.CloneState(view.State()))
 	var installed *tsDictionaryDescriptor
 	for _, address := range ext.Members {
 		if d, ok := view.TSDictionary(address); ok {
@@ -38,13 +39,13 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 			ns.Temporary = e.catalog.Domain.Session(99)
 		}
 		view.State().SetDescriptor(ns.Address(), &ns)
-		view.State().BindName(descriptorNameKey(&ns), ns.Address())
+		view.State().BindName(catalog.DescriptorNameKey(&ns), ns.Address())
 		namespaces[i] = ns.Address()
 		d := *installed
 		d.ObjectAddress = ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(91000 + i)}
 		d.ObjectNamespace = ns.Address()
 		view.State().SetDescriptor(d.Address(), &d)
-		view.State().BindName(descriptorNameKey(&d), d.Address())
+		view.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -114,7 +115,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	}
 	// Mutating the private successor snapshot cannot change returned output.
 	next := view
-	next = next.WithState(cloneCatalog(view.State()))
+	next = next.WithState(catalog.CloneState(view.State()))
 	ns := *next.MustNamespace(namespaces[0])
 	ns.ObjectName = "renamed"
 	next.State().SetDescriptor(ns.Address(), &ns)
@@ -125,13 +126,13 @@ func TestRegTSProviderResolution(t *testing.T) {
 		t.Fatal("retained output changed", got, err)
 	}
 	quoted := view
-	quoted = quoted.WithState(cloneCatalog(view.State()))
+	quoted = quoted.WithState(catalog.CloneState(view.State()))
 	for i, name := range []string{`Odd".TS`, strings.Repeat("x", 63), "select"} {
 		d := *view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
 		d.ObjectAddress.ObjectID = ids.OID(92001 + i)
 		d.ObjectName = name
 		quoted.State().SetDescriptor(d.Address(), &d)
-		quoted.State().BindName(descriptorNameKey(&d), d.Address())
+		quoted.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
 	quotedInput := input
 	quotedInput.auth.recaptureCatalog(quoted)

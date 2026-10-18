@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -19,7 +20,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				sessionSQL(t, a, q)
 			}
 			if scenario == "Exhaustion" {
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				state.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = state
 			}
@@ -100,7 +101,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	}
 	sessionSQL(t, b, "CREATE TEMP SEQUENCE owned_temp START 30")
 	sessionSQL(t, c, "CREATE TEMP SEQUENCE peer_temp START 40")
-	state := cloneCatalog(e.catalog.state)
+	state := catalog.CloneState(e.catalog.state)
 	state.SetNamespaceGeneration(^uint64(0))
 	state.SetEpoch(ids.CatalogEpoch(^uint64(0)))
 	e.catalog.state = state

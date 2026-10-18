@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -71,7 +72,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			case "late_use":
 				domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.d)")
 			case "stale_domain", "owner":
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				changed := *d
 				changed.ObjectRevision++
 				if kind == "owner" {
@@ -92,12 +93,12 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				}
 				e.storage[table.Address()] = &store
 			case "replacement":
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				state.SetEpoch(state.Epoch() + 1)
 				e.catalog.state = state
 			case "provider":
 				stage.domainBases = append(stage.domainBases, e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}))
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				provider := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 				provider.ObjectRevision++
 				state.SetDescriptor(provider.Address(), &provider)

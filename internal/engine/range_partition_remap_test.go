@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -170,7 +171,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO root VALUES(1)")
 	before := e.CatalogRead()
 	root := rangePartitionRelation(t, e, "root")
-	state := cloneCatalog(before.State())
+	state := catalog.CloneState(before.State())
 	candidate := *root
 	partition := *root.Partition
 	partition.Children = append(slices.Clone(partition.Children), partition.Children[0])
@@ -297,7 +298,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	temporary.ObjectName = "retained_temp_provider"
 	temporary.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
 	temporaryBefore := temporary
-	next := cloneCatalog(view.State())
+	next := catalog.CloneState(view.State())
 	next.SetDescriptor(provider.Address(), &temporary)
 	next.SetDescriptor(imported.Address(), &imported)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	base := f.e.CatalogRead()
 	key := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	record := base.State().DefaultACL(key)
-	next := cloneCatalog(base.State())
+	next := catalog.CloneState(base.State())
 	next.OverlayDefaultACLs(next, map[defaultACLKey]*defaultACLRecord{key: nil})
 	if next.DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("clone overlay mutated source")
@@ -151,7 +152,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.state); err != nil {
 		t.Fatal("reversed default still blocked retirement", err)
 	}
-	candidate := cloneCatalog(f.e.catalog.state)
+	candidate := catalog.CloneState(f.e.catalog.state)
 	candidate.SetDescriptor(table.Address(), table)
 	if err := f.e.roleRetirementPreflightLocked(changes, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("materialized dependency omitted from final retirement", err)
@@ -223,7 +224,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := defaultUnitPublish(t, f.e, fresh); err != nil {
 		t.Fatal(err)
 	}
-	acl := creationDefaultACL(f.e.CatalogRead(), f.owner, namespace.Address(), authorization.DefaultTables)
+	acl := catalog.CreationDefaultACL(f.e.CatalogRead(), f.owner, namespace.Address(), authorization.DefaultTables)
 	rights := authorization.ACLRights(acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
 	if rights&authorization.InsertPrivilege != 0 || rights&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("recreated namespace resurrected scoped defaults", acl)

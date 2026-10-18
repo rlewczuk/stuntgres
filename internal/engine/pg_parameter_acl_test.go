@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -178,7 +179,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	address := view.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
 	corrupt := *view.MustParameter(address)
 	corrupt.Owner = authorization.PrincipalRef{}
-	broken := cloneCatalog(view.State())
+	broken := catalog.CloneState(view.State())
 	broken.SetDescriptor(address, &corrupt)
 	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)

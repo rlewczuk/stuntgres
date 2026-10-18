@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -48,7 +49,7 @@ func hashPartitionUnitDescriptor(t *testing.T) (CatalogRead, *relationDescriptor
 func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *relationDescriptor, *relationDescriptor) {
 	t.Helper()
 	e := New()
-	catalog := cloneCatalog(e.catalog.state)
+	catalog := catalog.CloneState(e.catalog.state)
 	var typ *sqltype.Descriptor
 	for _, candidate := range sqltype.Builtins() {
 		if candidate.ID() == sqltype.Int4 {

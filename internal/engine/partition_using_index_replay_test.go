@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -65,7 +66,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
 	op.restorePartitionUsingIndex = origin
-	next := cloneCatalog(e.catalog.state)
+	next := catalog.CloneState(e.catalog.state)
 	changed := *index
 	changed.ObjectRevision++
 	next.SetDescriptor(index.Address(), &changed)

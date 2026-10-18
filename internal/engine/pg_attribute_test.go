@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -133,7 +134,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified := *d
 	modified.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	modified.Columns[24].Usage.Typmod = 0
-	privateState := cloneCatalog(view.State())
+	privateState := catalog.CloneState(view.State())
 	privateState.SetDescriptor(d.Address(), &modified)
 	if got, err := e.capturePGAttribute(context.Background(), e.catalog.read(privateState), e.Roles(), ref, &modified); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)

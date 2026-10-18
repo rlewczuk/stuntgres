@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)})
 	holder := inheritanceUnitRelation(e, "holder", 22003, "v")
 	holder.Columns[0].Usage = array.SQLType.Usage()
-	state := cloneCatalog(view.State())
+	state := catalog.CloneState(view.State())
 	state.SetDescriptor(holder.Address(), holder)
 	var diagnostic *sqlstate.Error
 	if err := rowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -91,7 +92,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
 		func(p *procedureDescriptor) { p.Dictionary = ext.Address() }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
 	} {
-		state := cloneCatalog(e.catalog.state)
+		state := catalog.CloneState(e.catalog.state)
 		bad := *proc
 		mutate(&bad)
 		state.SetDescriptor(proc.Address(), &bad)
@@ -232,7 +233,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
 	}
-	state := cloneCatalog(e.catalog.state)
+	state := catalog.CloneState(e.catalog.state)
 	badProcedure := *n.procedure
 	badProcedure.Result = 25
 	state.SetDescriptor(n.ref.Address, &badProcedure)

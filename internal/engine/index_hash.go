@@ -9,51 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type indexMethod uint8
-
-const (
-	btreeMethod indexMethod = iota
-	hashMethod
-	gistMethod
-)
-
-func (m indexMethod) String() string {
-	if m == gistMethod {
-		return "gist"
-	}
-	if m == hashMethod {
-		return "hash"
-	}
-	return "btree"
-}
-func (m indexMethod) DefaultClass(t *sqltype.Descriptor) (sqltype.IndexClass, bool) {
-	if m == gistMethod {
-		return sqltype.DefaultGiSTIndexClass(t)
-	}
-	if m == hashMethod {
-		return sqltype.DefaultHashIndexClass(t)
-	}
-	return sqltype.DefaultIndexClass(t)
-}
-func (m indexMethod) DefaultClassID(id sqltype.ID) (sqltype.IndexClass, bool) {
-	if m == gistMethod {
-		return sqltype.DefaultGiSTIndexClassID(id)
-	}
-	if m == hashMethod {
-		return sqltype.DefaultHashIndexClassID(id)
-	}
-	return sqltype.DefaultIndexClassID(id)
-}
-func (m indexMethod) LookupClass(name string) (sqltype.IndexClass, bool) {
-	if m == gistMethod {
-		return sqltype.LookupGiSTIndexClass(name)
-	}
-	if m == hashMethod {
-		return sqltype.LookupHashIndexClass(name)
-	}
-	return sqltype.LookupIndexClass(name)
-}
-
 func bindIndexProvider(parent *relationDescriptor, d *indexDefinition) error {
 	switch d.Method {
 	case btreeMethod:

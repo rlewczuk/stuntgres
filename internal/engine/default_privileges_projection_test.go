@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -48,7 +49,7 @@ func defaultUnitSortRows(rows [][]string) {
 
 func TestDefaultPrivilegesProjection(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	ownerSelect := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege}
 	publicInsert := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.InsertPrivilege}
 	memberUpdate := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.member}, Privileges: authorization.UpdatePrivilege}
@@ -147,7 +148,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	for i, row := range held.anonymous {
 		before[i] = append([]sqltype.Value(nil), row...)
 	}
-	changed := cloneCatalog(state)
+	changed := catalog.CloneState(state)
 	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
 	named.ACL = authorization.ACLValue{Explicit: true}
 	changed.SetDescriptor(named.Address(), &named)

@@ -7,6 +7,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -96,7 +97,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 		t.Fatal(err)
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil || actor.Superuser || !actor.Login || auth.pairedCatalog != auth.catalog || auth.catalog.MustDatabase(currentDatabaseAddress).Owner != actor.Ref {
+	if err != nil || actor.Superuser || !actor.Login || auth.pairedCatalog != auth.catalog || auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner != actor.Ref {
 		t.Fatal("manual utility fixture lacks ordinary paired selected DB authority", err)
 	}
 	result, err := message.step(statement(t, "SELECT nextval('ownership_fence_seq')"))
@@ -121,7 +122,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, before *ownershipManualSnapshot, private bool) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+	database := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	if private {
 		database.Owner = session.authorization.state.CurrentUser
 	} else {
@@ -137,7 +138,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 		t.Fatal("database replacement changed role/session/epoch authority")
 	}
 	for address, descriptor := range before.roots.catalog.Descriptors() {
-		if address != currentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
+		if address != catalog.CurrentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
 			t.Fatal("database replacement changed unrelated descriptor", address)
 		}
 	}
@@ -196,7 +197,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					ownershipUnitPublish(t, e, setup)
 					e.DiscardCatalogStage(setup)
 					message, auth, before := ownershipManualStart(t, e, session, sequence, changes)
-					selectedDB := auth.catalog.Get(currentDatabaseAddress)
+					selectedDB := auth.catalog.Get(catalog.CurrentDatabaseAddress)
 					if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 						t.Fatal("dishonest selected/committed DB pair")
 					}
@@ -309,11 +310,11 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						}
 						switch utility {
 						case "create-sequence":
-							if e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(descriptorNameKey(created)) != created.Address() || e.sequences[created.Address()] != candidate.generators[created.Address()] {
+							if e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != created.Address() || e.sequences[created.Address()] != candidate.generators[created.Address()] {
 								t.Fatal("healthy CREATE lost installed descriptor/name/generator")
 							}
 						case "drop-sequence":
-							if e.catalog.state.Get(sequence.Address) != nil || e.catalog.state.NameAddress(descriptorNameKey(&old)) != (ids.ObjectAddress{}) {
+							if e.catalog.state.Get(sequence.Address) != nil || e.catalog.state.NameAddress(catalog.DescriptorNameKey(&old)) != (ids.ObjectAddress{}) {
 								t.Fatal("healthy DROP retained sequence descriptor/name")
 							}
 						case "comment-sequence":
@@ -321,16 +322,16 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 								t.Fatal("healthy COMMENT lost changed comment descriptor")
 							}
 						case "create-enum":
-							if e.catalog.state.Get(enum.Address()) != enum || e.catalog.state.Get(array.Address()) != array || e.catalog.state.NameAddress(descriptorNameKey(enum)) != enum.Address() || e.catalog.state.NameAddress(descriptorNameKey(array)) != array.Address() {
+							if e.catalog.state.Get(enum.Address()) != enum || e.catalog.state.Get(array.Address()) != array || e.catalog.state.NameAddress(catalog.DescriptorNameKey(enum)) != enum.Address() || e.catalog.state.NameAddress(catalog.DescriptorNameKey(array)) != array.Address() {
 								t.Fatal("healthy CREATE ENUM lost enum/array/name installation")
 							}
 						}
-						if private && e.catalog.state.Get(currentDatabaseAddress) != selectedDB {
+						if private && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != selectedDB {
 							t.Fatal("healthy private utility lost selected DB descriptor")
 						}
 					}
 					ownershipManualRetainedUnchanged(t, e, session, sequence, auth, committed, &old, retainedACL, retainedOptions, before, utility == "drop-sequence" && phase == "healthy")
-					if auth.catalog.Get(currentDatabaseAddress) != selectedDB {
+					if auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB {
 						t.Fatal("manual utility followed live DB instead of retained selected root")
 					}
 				})
@@ -360,7 +361,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				ownershipUnitPublish(t, e, setup)
 				e.DiscardCatalogStage(setup)
 				message, auth, before := ownershipManualStart(t, e, session, sequence, changes)
-				selectedDB := auth.catalog.Get(currentDatabaseAddress)
+				selectedDB := auth.catalog.Get(catalog.CurrentDatabaseAddress)
 				if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 					t.Fatal("OWNED fixture lacks honest selected/predecessor pair")
 				}
@@ -457,7 +458,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 						t.Fatal("missing original pre-OWNED-wait CREATE authority veto", err)
 					}
 					indexMaintenanceUnchanged(t, e, before.roots)
-					if e.catalog.state.NameAddress(descriptorNameKey(created)) != (ids.ObjectAddress{}) || e.sequences[created.Address()] != nil || len(e.sequences) != len(before.generators) {
+					if e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != (ids.ObjectAddress{}) || e.sequences[created.Address()] != nil || len(e.sequences) != len(before.generators) {
 						t.Fatal("OWNED veto installed name/generator prefix")
 					}
 					for address, rows := range before.rows {
@@ -465,12 +466,12 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 							t.Fatal("OWNED veto installed retained INSERT prefix")
 						}
 					}
-				} else if err != nil || e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(descriptorNameKey(created)) != created.Address() || e.sequences[created.Address()] != candidate.generators[created.Address()] || len(e.storage[roleTableRef(t, e, "ownership_fence_sentinel").Address].versions) != 2 {
+				} else if err != nil || e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != created.Address() || e.sequences[created.Address()] != candidate.generators[created.Address()] || len(e.storage[roleTableRef(t, e, "ownership_fence_sentinel").Address].versions) != 2 {
 					t.Fatal("healthy actual OWNED wait did not publish association/counter/prefix", err)
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.ACL.Entries...)}
 				ownershipManualRetainedUnchanged(t, e, session, sequence, auth, committed, &old, retainedACL, *old.Sequence, before, false)
-				if auth.catalog.Get(currentDatabaseAddress) != selectedDB {
+				if auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB {
 					t.Fatal("OWNED wait mutated retained selected authority")
 				}
 			})

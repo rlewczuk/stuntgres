@@ -10,29 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Graph addresses are immutable identities, not definition revision pins.
-type inheritanceOrigin struct {
-	Parent     ids.ObjectAddress
-	Attribute  int32
-	Constraint ids.OID
-}
-type inheritedColumn struct {
-	Local              bool
-	ExplicitDefault    bool
-	ExplicitGeneration bool
-	Origins            []inheritanceOrigin
-}
-type inheritedConstraint struct {
-	Local   bool
-	Origins []inheritanceOrigin
-	Retired []retiredInheritanceOrigin
-}
-type tableInheritance struct {
-	Parents []ids.ObjectAddress
-	Columns map[int32]inheritedColumn
-	Checks  map[string]inheritedConstraint
-	NotNull map[int32]inheritedConstraint
-}
 type createInheritanceInput struct {
 	ref    ids.ObjectRef
 	source *relationDescriptor

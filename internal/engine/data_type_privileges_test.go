@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -88,7 +89,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	}
 	// A real staged user domain cannot inherit the seeded builtin exemption.
 	domainUnitPublish(t, f.e, domainUnitStage(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer"))
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	domain := *domainUnitType(t, f.e.catalog.read(state), "dtp_ownerless")
 	domain.Owner = authorization.PrincipalRef{}
 	state.SetDescriptor(domain.Address(), &domain)
@@ -100,7 +101,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 
 func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	typ, _ := (f.e.catalog.read(state)).LookupType(sqltype.Int4)
 	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, ObjectNamespace: f.schema, ObjectName: "dtp_unit", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
 	state.SetDescriptor(relation.Address(), relation)
@@ -129,7 +130,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	for i, row := range held.anonymous {
 		before[i] = append([]sqltype.Value(nil), row...)
 	}
-	changed := cloneCatalog(state)
+	changed := catalog.CloneState(state)
 	revoked := *relation
 	revoked.ColumnACL = nil
 	changed.SetDescriptor(relation.Address(), &revoked)

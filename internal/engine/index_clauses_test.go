@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -30,7 +31,7 @@ func indexClausesFixture(t *testing.T) (*relationDescriptor, *relationDescriptor
 	def := &indexDefinition{Parent: parent.Address(), Keys: []indexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: indexRelation, SQLIndex: def, Columns: append([]ColumnDescriptor(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	catalogSnapshot := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{parent.Address(): parent, index.Address(): index}, nil)
-	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
+	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	return parent, index, catalogSnapshot, types
@@ -114,7 +115,7 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	index.Columns = []ColumnDescriptor{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
 	index.AttributeHighWater = 2
-	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
+	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
@@ -150,10 +151,10 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	index.Columns = []ColumnDescriptor{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
 	index.AttributeHighWater = 2
-	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
+	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateUniques(newCatalogRead(nil, catalogSnapshot), parent, map[string]bool{}); err != nil {
+	if err := validateUniques(catalog.NewRead(nil, catalogSnapshot), parent, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
@@ -182,7 +183,7 @@ func TestIndexClausesEvolution(t *testing.T) {
 	index.SQLIndex.Include = []int32{20}
 	index.Columns = []ColumnDescriptor{parent.Columns[0], parent.Columns[2], parent.Columns[1]}
 	index.Columns[1].Usage = indexKeyCollation(parent.Columns[2].Usage, index.SQLIndex.Keys[1])
-	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
+	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	// Included TYPE normalizes every OLD default, not only the changed key.
@@ -251,7 +252,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			index.SQLIndex.Keys[1].ExplicitClass = true
 			index.SQLIndex.Keys[1].Collation = parent.Columns[1].Usage.Collation.ID
 			index.Columns[1].Usage = indexKeyCollation(parent.Columns[1].Usage, index.SQLIndex.Keys[1])
-			if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
+			if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 				t.Fatal(err)
 			}
 			definition := index.SQLIndex
@@ -279,7 +280,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			if index.SQLIndex != definition || !reflect.DeepEqual(definition.Keys, keys) || !reflect.DeepEqual(index.Columns, columns) || !reflect.DeepEqual(parent.Columns, parentColumns) {
 				t.Fatal("TYPE evolution mutated original descriptor")
 			}
-			if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), evolved); err != nil {
+			if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), evolved); err != nil {
 				t.Fatal(err)
 			}
 			for _, changes := range [][]columnTransformation{nil, {{attribute: 99}}} {

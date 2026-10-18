@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -115,6 +116,6 @@ func (e *Engine) initializeConversionRoutines() {
 		}
 		d := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: conversionSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 23, Volatility: expr.Immutable, Strict: true, Conversion: provider}
 		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 }

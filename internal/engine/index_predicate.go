@@ -7,14 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// A persisted predicate keeps original dependencies even when planning removes
-// an arm. Both trees use the immutable parent attribute layout.
-type indexPredicate struct {
-	Definition, Execution expr.Expr
-	Dependencies          []ids.ObjectRef
-	Attributes            []int32
-}
-
 // A build or command owns this value. It is never part of a published index
 // descriptor, logical root, hash binding, lock key or prepared statement.
 // These bits describe executable preparation, not a retained rights decision.

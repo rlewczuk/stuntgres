@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -40,10 +41,10 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					c := inheritanceLifecycleTable(e, 29002, "authority_c", p.Address())
 					inheritanceLifecycleInstall(e, p, c)
 					e.catalog.state.SetDescriptor(provider.Address(), provider)
-					e.catalog.state.BindName(descriptorNameKey(provider), provider.Address())
+					e.catalog.state.BindName(catalog.DescriptorNameKey(provider), provider.Address())
 					if authority == "standalone" || authority == "staged_child" {
 						e.catalog.state.RemoveDescriptor(c.Address())
-						e.catalog.state.UnbindName(descriptorNameKey(c))
+						e.catalog.state.UnbindName(catalog.DescriptorNameKey(c))
 					}
 					base := e.CatalogRead()
 					stage := e.BeginCatalogStage(base)

@@ -1,0 +1,33 @@
+package catalog
+
+// ExtensionControl is a registered extension's control-file metadata.
+type ExtensionControl struct {
+	Version                         string
+	Trusted, Superuser, Relocatable bool
+	Comment, Schema                 *string
+	Requires                        []string
+}
+
+// Detached returns a copy that shares no storage with c.
+func (c ExtensionControl) Detached() ExtensionControl {
+	if c.Comment != nil {
+		value := *c.Comment
+		c.Comment = &value
+	}
+	if c.Schema != nil {
+		value := *c.Schema
+		c.Schema = &value
+	}
+	c.Requires = append([]string(nil), c.Requires...)
+	return c
+}
+
+// ExtensionImplementation is one registered extension. The catalog owner
+// record and every member descriptor hold the same instance, so pointer
+// identity proves which implementation installed a member.
+type ExtensionImplementation interface {
+	// Control returns the extension's control metadata as a detached copy.
+	Control() ExtensionControl
+	// ValidateExtension checks an installed extension's manifest.
+	ValidateExtension(Read, *Extension) error
+}

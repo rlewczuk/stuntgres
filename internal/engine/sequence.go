@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -452,7 +453,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if rewrite || d.Name() != old.Name() || d.Namespace() != old.Namespace() || d.Owner != old.Owner || persistenceChanged {
 			d.SequencePlanStamp = rev
 		}
-		key := descriptorNameKey(&d)
+		key := catalog.DescriptorNameKey(&d)
 		if a, exists := auth.catalog.LookupName(key); exists && a != d.Address() {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
 		}

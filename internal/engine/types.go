@@ -5,21 +5,13 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type ColumnDescriptor struct {
-	Name                       string
-	Usage                      sqltype.Usage
-	DeclaredDimensions         int16
-	Nullable, NullabilityKnown bool
-	OriginTable                uint32
-	OriginAttribute            int16
-}
 
 type StatementDescription struct {
 	Parameters ParameterInfo
@@ -72,43 +64,6 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 	return false
 }
 
-// Catalog wrappers retain the existing class/namespace/revision/epoch ownership
-// seam. A sqltype ID is a projection, not an authorization token.
-type typeDescriptor struct {
-	SQLType         *sqltype.Descriptor
-	Comment         string
-	ObjectNamespace ids.ObjectAddress
-	ObjectRevision  ids.DefinitionRevision
-	Owner           authorization.PrincipalRef
-	Extension       ids.ObjectAddress
-	ACL             authorization.ACLValue
-	// ACLSyntheticDefault distinguishes effective baseline USAGE from raw NULL
-	// typacl. Copies/owner remaps retain it; genuine ACL replacement clears it.
-	ACLSyntheticDefault bool
-	Dimensions          int32
-	Array               sqltype.ID
-	OwningRelation      ids.ObjectAddress
-	DomainChecks        []domainCheckConstraint
-}
-
-func (d *typeDescriptor) Address() ids.ObjectAddress {
-	return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.ID())}
-}
-func (d *typeDescriptor) Revision() ids.DefinitionRevision {
-	if d.ObjectRevision == 0 {
-		return 1
-	}
-	return d.ObjectRevision
-}
-func (d *typeDescriptor) Namespace() ids.ObjectAddress {
-	if d.ObjectNamespace != (ids.ObjectAddress{}) {
-		return d.ObjectNamespace
-	}
-	return ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-}
-func (d *typeDescriptor) Name() string       { return d.SQLType.Name() }
-func (*typeDescriptor) Kind() ids.ObjectKind { return ids.TypeObject }
-
 type typeProvider struct{}
 
 func (typeProvider) ClassID() ids.OID { return ids.TypeClassID }
@@ -124,7 +79,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: type namespace is missing")
 	}
-	found := view.Lookup(descriptorNameKey(descriptor))
+	found := view.Lookup(catalog.DescriptorNameKey(descriptor))
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
@@ -200,30 +155,6 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		}
 	}
 	return nil
-}
-
-func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	d, ok := r.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-	if !ok {
-		return nil, false
-	}
-	t, ok := d.(*typeDescriptor)
-	if !ok {
-		return nil, false
-	}
-	return t.SQLType, true
-}
-
-func (r CatalogRead) LookupArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
-	if element == nil {
-		return nil, false
-	}
-	owner, ok := r.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-	if !ok || owner.(*typeDescriptor).SQLType != element {
-		return nil, false
-	}
-	array, ok := r.LookupType(owner.(*typeDescriptor).Array)
-	return array, ok && array.IsArray() && array.Element() == element
 }
 
 // Called only by the existing binder against its current coherent catalog.

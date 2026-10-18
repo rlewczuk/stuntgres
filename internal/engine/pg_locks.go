@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -61,7 +62,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 // Consumes Engine.mu. Only scalar SSI/database facts are captured before the
 // manager is entered. Captured sources own values; prepared handles own recipes.
 func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor) (*querySource, error) {
-	database, ok := e.catalog.state.Database(currentDatabaseAddress)
+	database, ok := e.catalog.state.Database(catalog.CurrentDatabaseAddress)
 	if !ok {
 		e.mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")

@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
 
 // catalogStore owns the engine's catalog state: the provenance domain, the
@@ -26,28 +25,12 @@ type catalogStore struct {
 	nextEnumMember int64
 }
 
-// catalogOwner is the identity every CatalogRead of one engine carries: the
-// provenance domain, the identities that stored principal and ACL values must
-// belong to, and the provider registries. The store embeds it, and Engine
-// never copies or replaces the store, so its address identifies the engine's
-// catalog without reaching the engine. It holds no engine services: code that needs roles,
-// paths or engine state takes them from its AuthorizationView or caller.
-type catalogOwner struct {
-	Domain       *ids.Domain
-	Principals   *authorization.Domain
-	ACLAuthority *sqltype.ACLAuthority
-	Providers    map[ids.OID]CatalogProvider
-	// Extensions is the registry of extension implementations. Like
-	// providers, it closes when construction ends.
-	Extensions map[string]extensionImplementation
-}
-
 // owner returns the store's owner record.
 func (s *catalogStore) owner() *catalogOwner { return &s.catalogOwner }
 
 // read returns a view of state owned by this store.
 func (s *catalogStore) read(state *catalogState) CatalogRead {
-	return newCatalogRead(s.owner(), state)
+	return catalog.NewRead(s.owner(), state)
 }
 
 // registerProviderLocked adds a provider before the builtin catalog is
@@ -64,12 +47,6 @@ func (s *catalogStore) registerProviderLocked(id ids.OID, p CatalogProvider) err
 	}
 	s.Providers[id] = p
 	return nil
-}
-
-// Provider returns the registered provider of a catalog class, or nil. The
-// registry is immutable after construction.
-func (s *catalogOwner) Provider(class ids.OID) CatalogProvider {
-	return s.Providers[class]
 }
 
 // allocateOIDLocked returns the next unused object identifier, skipping

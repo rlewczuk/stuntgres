@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -110,7 +111,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
-	remapped, err := other.remapPreparedCatalog(cloneCatalog(view.State()), e.roles.root.Read(authorization.PrincipalRef{}), other.roles.root.Read(authorization.PrincipalRef{}), nil)
+	remapped, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.root.Read(authorization.PrincipalRef{}), other.roles.root.Read(authorization.PrincipalRef{}), nil)
 	if err != nil {
 		t.Fatal("principal remap", err)
 	}

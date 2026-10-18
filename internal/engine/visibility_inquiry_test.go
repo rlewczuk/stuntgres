@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -41,7 +42,7 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
 	})
-	view := newCatalogRead(nil, state)
+	view := catalog.NewRead(nil, state)
 	if !visibleCollation(view, []ids.ObjectAddress{a, b}, first) || visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("later exact beat earlier fallback")
 	}
@@ -58,7 +59,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	view := e.CatalogRead()
-	if len(builtinConversions) != 128 || len(builtinCollations) != 7 {
+	if len(catalog.BuiltinConversions) != 128 || len(catalog.BuiltinCollations) != 7 {
 		t.Fatal("fixed inventory cardinality")
 	}
 	for _, d := range view.Descriptors() {

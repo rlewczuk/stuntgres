@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -178,12 +179,12 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		if err := validatePartitionDescriptor(view, relation); err != nil {
 			t.Fatal("valid owned key authority", err)
 		}
-		missing := cloneCatalog(view.State())
+		missing := catalog.CloneState(view.State())
 		missing.RemoveDescriptor(address)
 		if err := validatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
-		mismatch := cloneCatalog(view.State())
+		mismatch := catalog.CloneState(view.State())
 		changed := *provider
 		changed.Semantics = other.Semantics
 		mismatch.SetDescriptor(address, &changed)
@@ -260,7 +261,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	if err := validatePartitionDescriptor(e.CatalogRead(), &badDefault); err == nil {
 		t.Fatal("DEFAULT retained explicit tuple")
 	}
-	cyclic := cloneCatalog(e.CatalogRead().State())
+	cyclic := catalog.CloneState(e.CatalogRead().State())
 	cyclicRoot, cyclicMiddle := *root, *middle
 	cyclicRoot.Membership = &partitionMembership{Parent: middle.Address(), DefaultBound: true}
 	middleDefinition := *middle.Partition
@@ -272,7 +273,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
-	overlapping := cloneCatalog(e.CatalogRead().State())
+	overlapping := catalog.CloneState(e.CatalogRead().State())
 	overlappingRoot, overlappingRest := *root, *rest
 	rootDefinition := *root.Partition
 	rootDefinition.DefaultChild = ids.ObjectAddress{}

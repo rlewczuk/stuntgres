@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -90,7 +91,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		ext := private.MustExtension(a)
 		for _, a := range ext.Members {
 			d := private.Get(a)
-			if private.NameAddress(descriptorNameKey(d)) != a {
+			if private.NameAddress(catalog.DescriptorNameKey(d)) != a {
 				t.Fatal("private signature identity lost")
 			}
 		}
@@ -118,7 +119,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		}
 		for _, a := range installed.Members {
 			d := e.catalog.state.Get(a)
-			if e.catalog.state.NameAddress(descriptorNameKey(d)) != a {
+			if e.catalog.state.NameAddress(catalog.DescriptorNameKey(d)) != a {
 				t.Fatal("committed signature identity lost")
 			}
 		}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -63,7 +64,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 		t.Fatal("drop retained definition/storage")
 	}
 	for _, typ := range []*typeDescriptor{row, array} {
-		if _, exists := now.Descriptor(typ.Address()); exists || len(now.Lookup(descriptorNameKey(typ))) != 0 {
+		if _, exists := now.Descriptor(typ.Address()); exists || len(now.Lookup(catalog.DescriptorNameKey(typ))) != 0 {
 			t.Fatal("drop retained row/array identity", typ.Address())
 		}
 		if retained, exists := base.Descriptor(typ.Address()); !exists || retained != typ {

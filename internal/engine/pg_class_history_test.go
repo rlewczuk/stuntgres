@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
 func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
-	state := cloneCatalog(e.CatalogRead().State())
+	state := catalog.CloneState(e.CatalogRead().State())
 	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)
-	state.BindName(descriptorNameKey(parent), parent.Address())
+	state.BindName(catalog.DescriptorNameKey(parent), parent.Address())
 	return e.catalog.read(state), parent
 }
 
@@ -107,7 +108,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if !got.HasSubclasses || got == parent || parent.HasSubclasses || !history.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := e.catalog.read(cloneCatalog(view.State()))
+	base := e.catalog.read(catalog.CloneState(view.State()))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -120,7 +121,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := normalizeReplacementSubclassHistory(canceled, view); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := e.catalog.read(cloneCatalog(view.State()))
+	missing := e.catalog.read(catalog.CloneState(view.State()))
 	missing.State().RemoveDescriptor(parent.Address())
 	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")

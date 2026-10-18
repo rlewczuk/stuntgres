@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"sync"
@@ -51,12 +52,12 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 
 func TestDefaultPrivilegesRevision(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
 	namespace.ObjectAddress.ObjectID = 20012
 	namespace.ObjectName = "default_other_schema"
 	state.SetDescriptor(namespace.Address(), &namespace)
-	state.BindName(descriptorNameKey(&namespace), namespace.Address())
+	state.BindName(catalog.DescriptorNameKey(&namespace), namespace.Address())
 	f.e.catalog.state = state
 	oldRevision := f.e.roles.revision
 	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})

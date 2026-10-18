@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -74,7 +75,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	child.Attributes = slices.Clone(index.Attributes)
 	state.SetDescriptor(child.Address(), &child)
 	for _, d := range []*relationDescriptor{root, &leaf, index, &child} {
-		state.BindName(descriptorNameKey(d), d.Address())
+		state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.catalog.state = &state
 	return partitionConstraintUnit{e: e, root: root, leaf: &leaf, parent: index, child: &child, view: view}
@@ -213,7 +214,7 @@ func TestPartitionConstraintsVirtualPublication(t *testing.T) {
 			next.SetDescriptor(a, d)
 		}
 	}
-	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, newCatalogState(0), &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, catalog.NewState(0), &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.Address()] != nil {
 		t.Fatal("virtual root required physical storage", roots, err)
 	}
@@ -326,12 +327,12 @@ func TestPartitionConstraintsDumpLogicalOrder(t *testing.T) {
 
 func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	if f.e.catalog.state.HasDumpPriorities() || cloneCatalog(f.e.catalog.state).HasDumpPriorities() {
+	if f.e.catalog.state.HasDumpPriorities() || catalog.CloneState(f.e.catalog.state).HasDumpPriorities() {
 		t.Fatal("ordinary catalog allocated replay provenance")
 	}
 	source := f.root.Address()
 	f.view.State().SetDumpPriorities(map[ids.ObjectAddress]ids.OID{source: 10})
-	next := cloneCatalog(f.view.State())
+	next := catalog.CloneState(f.view.State())
 	next.SetDumpPriority(source, 11)
 	if f.view.State().DumpPriority(source) != 10 {
 		t.Fatal("candidate mutated retained ordering provenance")
@@ -347,7 +348,7 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 		t.Fatal("private removal retained obsolete priority")
 	}
 	next.RemoveDescriptor(source)
-	if _, exists := cloneCatalog(next).LookupDumpPriority(source); exists {
+	if _, exists := catalog.CloneState(next).LookupDumpPriority(source); exists {
 		t.Fatal("retired address retained replay provenance")
 	}
 	graph := map[dumpEventKey][]dumpEventKey{{oid: 90}: nil, {oid: 20}: nil, {oid: 30}: {{oid: 90}}}
@@ -371,7 +372,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 	inheritanceLifecycleInstall(source, parent, child, manual)
 	e.catalog.nextOID = 30000
 	for range 2 {
-		next := cloneCatalog(source.catalog.state)
+		next := catalog.CloneState(source.catalog.state)
 		storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
 		err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
@@ -492,7 +493,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	// not a descriptor address. It must be reserved in the same identity space.
 	destination.catalog.nextOID = childKey.OID
 	old := destination.catalog.state
-	next := cloneCatalog(f.view.State())
+	next := catalog.CloneState(f.view.State())
 	storage := map[ids.ObjectAddress]*relationStorage{f.leaf.Address(): {}}
 	destination.mu.Lock()
 	err := destination.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
@@ -521,7 +522,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	f.view.State().RemoveDescriptor(f.child.Address())
-	f.view.State().UnbindName(descriptorNameKey(f.child))
+	f.view.State().UnbindName(catalog.DescriptorNameKey(f.child))
 	op, done := roleOperation(t, f.e, "postgres")
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)

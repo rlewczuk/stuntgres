@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -60,11 +61,11 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, CatalogRead, *relationDes
 	t.Helper()
 	e := New()
 	view := e.CatalogRead()
-	view = view.WithState(cloneCatalog(view.State()))
+	view = view.WithState(catalog.CloneState(view.State()))
 	integer, _ := view.LookupType(sqltype.Int4)
 	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{1259, 48001, 0}, ObjectNamespace: ids.ObjectAddress{2615, 2200, 0}, ObjectName: "address_unit", ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]attributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
 	view.State().SetDescriptor(d.Address(), d)
-	view.State().BindName(descriptorNameKey(d), d.Address())
+	view.State().BindName(catalog.DescriptorNameKey(d), d.Address())
 	return e, view, d
 }
 func TestObjectAddressIdentity(t *testing.T) {
@@ -190,7 +191,7 @@ func TestObjectAddressSnapshot(t *testing.T) {
 	e, old, d := objectAddressUnitRelation(t)
 	roles := e.roles.root.Read(authorization.PrincipalRef{})
 	fresh := old
-	fresh = fresh.WithState(cloneCatalog(old.State()))
+	fresh = fresh.WithState(catalog.CloneState(old.State()))
 	renamed := *d
 	renamed.ObjectName = "address_renamed"
 	fresh.State().SetDescriptor(d.Address(), &renamed)

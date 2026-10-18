@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -171,7 +172,7 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			address := ids.ObjectAddress{ClassID: class, ObjectID: last}
 			// Exercise terminal occupancy through the allocator's actual catalog
 			// seam; exhaustion must not wrap, reuse or publish anything.
-			e.catalog.state = cloneCatalog(e.catalog.state)
+			e.catalog.state = catalog.CloneState(e.catalog.state)
 			if class == ids.NamespaceClassID {
 				e.catalog.state.SetDescriptor(address, &namespaceDescriptor{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
@@ -259,7 +260,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	}
 	setEpoch := func(epoch ids.CatalogEpoch) {
 		e.mu.Lock()
-		next := cloneCatalog(e.catalog.state)
+		next := catalog.CloneState(e.catalog.state)
 		next.SetEpoch(epoch)
 		err := e.reownCatalogExpressions(next, nil, false)
 		if err == nil {

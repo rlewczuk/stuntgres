@@ -11,31 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Generation definitions have stable attribute identities, separate from defaults.
-type columnGeneration struct {
-	OID        ids.OID
-	Kind       generationKind
-	Expression expr.Expr
-	// Retain analyzed syntax for dependencies/deparse and its physical plan for writes.
-	Planned         expr.Expr
-	Dependencies    []ids.ObjectRef
-	CatalogSnapshot bool
-}
-
-type generationKind uint8
-
-const (
-	generationStored generationKind = iota + 1
-	generationVirtual
-)
-
-func (k generationKind) SQL() string {
-	if k == generationVirtual {
-		return "VIRTUAL"
-	}
-	return "STORED"
-}
-
 type tableOIDExpression struct {
 	expr.Info
 	owner ids.ObjectRef
@@ -379,15 +354,6 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 		row[slot] = value
 	}
 	return ctx.Err()
-}
-
-func (d *relationDescriptor) IndexForAttribute(attribute int32) int {
-	for slot, live := range d.Attributes {
-		if live == attribute {
-			return slot
-		}
-	}
-	return -1
 }
 
 func generationHasTableOID(node expr.Expr) bool {

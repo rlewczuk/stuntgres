@@ -3,6 +3,7 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 	return d
 }
 func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRead {
-	state := cloneCatalog(e.CatalogRead().State())
+	state := catalog.CloneState(e.CatalogRead().State())
 	for _, d := range relations {
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
@@ -251,7 +252,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	oldRef := e.catalog.Domain.Ref(v.Epoch(), d.Address())
 	oldRef.Address.SubID = 1
 	old := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
-	state := cloneCatalog(v.State())
+	state := catalog.CloneState(v.State())
 	state.SetEpoch(state.Epoch() + 1)
 	current := e.catalog.read(state)
 	mapper := createLikeInput{source: d}

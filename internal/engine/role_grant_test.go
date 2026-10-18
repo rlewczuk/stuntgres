@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
 	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	relation := &relationDescriptor{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", Owner: op.RoleState().CurrentUser, Columns: []ColumnDescriptor{{Name: "a"}, {Name: "b"}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, AttributeHighWater: 3}
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(address, relation)
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
 	return e, op, reader, address

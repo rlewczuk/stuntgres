@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -227,7 +228,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			e, _, event, parent := ruleNamedDependencyFixture(t, modifier, false)
 			oldRule, oldConflict := ruleNamedDependencyAction(t, event, modifier)
 			oldConstraint := oldConflict.constraint
-			unchanged := cloneCatalog(e.catalog.state)
+			unchanged := catalog.CloneState(e.catalog.state)
 			e.mu.Lock()
 			err := e.remapDefinitionOIDsLocked(unchanged)
 			e.mu.Unlock()
@@ -242,7 +243,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}); allocations != 0 {
 				t.Fatal("no-change constraint visitor allocated", allocations)
 			}
-			next := cloneCatalog(e.catalog.state)
+			next := catalog.CloneState(e.catalog.state)
 			// Model an imported attached definition colliding with a descriptor
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.

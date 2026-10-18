@@ -1,9 +1,11 @@
 // PostgreSQL REL_18_0 pg_conversion.dat registered identity/capability inventory.
-package engine
+package catalog
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+)
 
-var builtinConversions = [...]conversionDescriptor{
+var BuiltinConversions = [...]Conversion{
 	{OID: 4402, ObjectName: "koi8_r_to_mic", Source: 22, Destination: 7, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4302}, DefaultConversion: true},
 	{OID: 4403, ObjectName: "mic_to_koi8_r", Source: 7, Destination: 22, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4303}, DefaultConversion: true},
 	{OID: 4404, ObjectName: "iso_8859_5_to_mic", Source: 25, Destination: 7, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4304}, DefaultConversion: true},
@@ -134,7 +136,7 @@ var builtinConversions = [...]conversionDescriptor{
 	{OID: 4531, ObjectName: "shift_jis_2004_to_euc_jis_2004", Source: 41, Destination: 5, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4387}, DefaultConversion: true},
 }
 
-func conversionSeed(oid ids.OID) *conversionDescriptor {
+func conversionSeed(oid ids.OID) *Conversion {
 	if oid < 4402 || oid > 4531 || oid == 4450 || oid == 4451 {
 		return nil
 	}
@@ -142,7 +144,7 @@ func conversionSeed(oid ids.OID) *conversionDescriptor {
 	if oid >= 4452 {
 		index -= 2
 	}
-	return &builtinConversions[index]
+	return &BuiltinConversions[index]
 }
 
-func (d *conversionDescriptor) Seeded() bool { return conversionSeed(d.OID) != nil }
+func (d *Conversion) Seeded() bool { return conversionSeed(d.OID) != nil }

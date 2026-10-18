@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -25,7 +26,7 @@ func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 
 func collationUnitDefinition(e *Engine, id ids.OID, name string) *collationDescriptor {
 	owner, _ := e.Roles().Lookup("postgres")
-	return &collationDescriptor{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: collationText("C"), CType: collationText("C"), Semantics: 950}
+	return &collationDescriptor{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: catalog.CollationText("C"), CType: catalog.CollationText("C"), Semantics: 950}
 }
 
 func TestCollationCatalogAuthority(t *testing.T) {
@@ -50,8 +51,8 @@ func TestCollationCatalogAuthority(t *testing.T) {
 	}
 	for _, corrupt := range []func(*collationDescriptor){
 		func(d *collationDescriptor) { d.Semantics = 6411 }, func(d *collationDescriptor) { d.Provider = "i" },
-		func(d *collationDescriptor) { d.Encoding = 8 }, func(d *collationDescriptor) { d.Rules = collationText("") },
-		func(d *collationDescriptor) { d.Version = collationText("1") },
+		func(d *collationDescriptor) { d.Encoding = 8 }, func(d *collationDescriptor) { d.Rules = catalog.CollationText("") },
+		func(d *collationDescriptor) { d.Version = catalog.CollationText("1") },
 	} {
 		bad := *d
 		corrupt(&bad)
@@ -113,19 +114,19 @@ func TestCollationDumpLosslessBootstrapSelection(t *testing.T) {
 		{"c", "", "C", -1, 950, nil, `FROM "pg_catalog"."C"`},
 		{"c", "", "POSIX", -1, 950, nil, `FROM "pg_catalog"."POSIX"`},
 		{"c", "", "C", 6, 950, nil, "PROVIDER = libc"},
-		{"b", "C", "", 6, 950, collationText("1"), `FROM "pg_catalog"."ucs_basic"`},
-		{"b", "C", "", -1, 950, collationText("future!?"), "VERSION = 'future!?'"},
-		{"b", "C.UTF-8", "", 6, 811, collationText("1"), "LOCALE = 'C.UTF-8'"},
-		{"b", "PG_UNICODE_FAST", "", 6, 6411, collationText("1"), "LOCALE = 'PG_UNICODE_FAST'"},
-		{"b", "PG_UNICODE_FAST", "", 6, 6411, collationText("future!?"), "VERSION = 'future!?'"},
+		{"b", "C", "", 6, 950, catalog.CollationText("1"), `FROM "pg_catalog"."ucs_basic"`},
+		{"b", "C", "", -1, 950, catalog.CollationText("future!?"), "VERSION = 'future!?'"},
+		{"b", "C.UTF-8", "", 6, 811, catalog.CollationText("1"), "LOCALE = 'C.UTF-8'"},
+		{"b", "PG_UNICODE_FAST", "", 6, 6411, catalog.CollationText("1"), "LOCALE = 'PG_UNICODE_FAST'"},
+		{"b", "PG_UNICODE_FAST", "", 6, 6411, catalog.CollationText("future!?"), "VERSION = 'future!?'"},
 	} {
 		d := collationUnitDefinition(e, 90000, "dumped")
 		d.Provider, d.Encoding, d.Semantics, d.Version = tc.provider, tc.encoding, tc.mode, tc.version
 		if tc.provider == "b" {
 			d.Collate, d.CType = nil, nil
-			d.Locale = collationText(tc.locale)
+			d.Locale = catalog.CollationText(tc.locale)
 		} else {
-			d.Collate, d.CType = collationText(tc.category), collationText(tc.category)
+			d.Collate, d.CType = catalog.CollationText(tc.category), catalog.CollationText(tc.category)
 		}
 		stage := e.BeginCatalogStage(view)
 		if err := stage.Create(d); err != nil {

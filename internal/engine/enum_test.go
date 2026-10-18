@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -117,7 +118,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.wrapped AS public.mood"))
 	wrapped := domainUnitType(t, e.CatalogRead(), "wrapped")
-	next := cloneCatalog(e.CatalogRead().State())
+	next := catalog.CloneState(e.CatalogRead().State())
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 60000}
 	changed, err := reownDomainTypes(next, map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}, false)
 	if err != nil || !changed {

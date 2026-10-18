@@ -2,6 +2,7 @@ package engine
 
 import (
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +13,7 @@ import (
 func TestInheritanceGuards(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	catalog := e.catalog.read(cloneCatalog(base.State()))
+	catalog := e.catalog.read(catalog.CloneState(base.State()))
 	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, ObjectName: "p", RelationKind: tableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
 	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectName: "c", RelationKind: tableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, NotNullConstraints: []notNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, Inheritance: &tableInheritance{
 		Parents: []ids.ObjectAddress{parent.Address()},

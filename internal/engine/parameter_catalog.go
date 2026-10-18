@@ -4,24 +4,9 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
-
-// A parameter descriptor represents an ACL, not a setting value or provider.
-// Baseline-equivalent ACLs have no catalog row.
-type parameterDescriptor struct {
-	ObjectAddress  ids.ObjectAddress
-	ObjectRevision ids.DefinitionRevision
-	ObjectName     string
-	Owner          authorization.PrincipalRef
-	ACL            authorization.ACLValue
-}
-
-func (d *parameterDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *parameterDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (*parameterDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *parameterDescriptor) Name() string                     { return d.ObjectName }
-func (*parameterDescriptor) Kind() ids.ObjectKind               { return ids.ParameterObject }
 
 // parameterProvider validates parameter ACL identities against the engine's
 // setting definitions, which close at construction.
@@ -34,7 +19,7 @@ func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error 
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
 	name, err := canonicalGrantParameter(p.definitions, d.Name())
-	if err != nil || name != d.Name() || d.Address().ClassID != ids.ParameterClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
+	if err != nil || name != d.Name() || d.Address().ClassID != ids.ParameterClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
 	return nil
@@ -90,9 +75,9 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
 	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
 		candidate.RemoveDescriptor(d.Address())
-		candidate.UnbindName(descriptorNameKey(d))
+		candidate.UnbindName(catalog.DescriptorNameKey(d))
 		return
 	}
 	candidate.SetDescriptor(d.Address(), d)
-	candidate.BindName(descriptorNameKey(d), d.Address())
+	candidate.BindName(catalog.DescriptorNameKey(d), d.Address())
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -37,7 +38,7 @@ type sequencePathCache struct {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
-	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.State().NamespaceGeneration(), epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.Get(currentDatabaseAddress)}
+	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.State().NamespaceGeneration(), epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.Get(catalog.CurrentDatabaseAddress)}
 	if auth.session != nil && auth.session.transactions != nil {
 		key.private = auth.session.transactions.catalog
 	}

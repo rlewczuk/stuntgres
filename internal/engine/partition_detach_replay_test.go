@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -104,7 +105,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	local.SQLIndex = &definition
 	f.leaf.UniqueConstraints = []uniqueConstraint{constraint}
 	f.view.State().SetDescriptor(local.Address(), &local)
-	f.view.State().BindName(descriptorNameKey(&local), local.Address())
+	f.view.State().BindName(catalog.DescriptorNameKey(&local), local.Address())
 	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
 		t.Fatal("local origin must be explicit only for this captured replay")
 	}
@@ -114,7 +115,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
 	f.view.State().SetDescriptor(consumer.Address(), consumer)
-	f.view.State().BindName(descriptorNameKey(consumer), consumer.Address())
+	f.view.State().BindName(catalog.DescriptorNameKey(consumer), consumer.Address())
 	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].Dependencies[0].Address, consumer.Address())
 	if err != nil {
 		t.Fatal(err)

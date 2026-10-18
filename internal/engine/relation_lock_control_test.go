@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -131,7 +132,7 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 		runtime.Gosched()
 	}
 	e.mu.Lock()
-	next := cloneCatalog(e.catalog.state)
+	next := catalog.CloneState(e.catalog.state)
 	next.SetEpoch(next.Epoch() + 1)
 	e.catalog.state = next
 	epoch := next.Epoch()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -181,7 +182,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := newCatalogState(stage.Base.Epoch())
+		next := catalog.NewState(stage.Base.Epoch())
 		for address, descriptor := range stage.Base.Descriptors() {
 			next.SetDescriptor(address, descriptor)
 		}

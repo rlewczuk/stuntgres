@@ -9,36 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type partitionKeyEntry struct {
-	Attribute     int32
-	Derived       *derivedIndexKey
-	Usage         sqltype.Usage
-	Class         sqltype.IndexClass
-	Comparison    sqltype.IndexComparison
-	Hash          sqltype.PartitionHash
-	Collation     uint32
-	ExplicitClass bool
-	Label         string
-}
-type partitionDefinition struct {
-	Strategy     parser.PartitionStrategy
-	Keys         []partitionKeyEntry
-	Children     []ids.ObjectAddress
-	DefaultChild ids.ObjectAddress
-}
-type partitionDatum struct {
-	Kind  int8
-	Value sqltype.Value
-	Pos   parser.Position
-}
-type partitionMembership struct {
-	Parent             ids.ObjectAddress
-	Strategy           parser.PartitionStrategy
-	Modulus, Remainder int32
-	DefaultBound       bool
-	Lower, Upper       []partitionDatum
-}
-
 func hierarchyRelation(d *relationDescriptor) bool { return d.Partition != nil || d.Membership != nil }
 
 func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) error {

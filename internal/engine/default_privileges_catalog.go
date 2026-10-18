@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -19,7 +19,7 @@ func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.
 			break
 		}
 	}
-	return creationDefaultACL(s.Base, owner, schema, class)
+	return catalog.CreationDefaultACL(s.Base, owner, schema, class)
 }
 
 // CreationDefaultACL normalizes baseline-equal defaults. Types retain a
@@ -43,11 +43,11 @@ func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key defaultACLKey, re
 }
 func cloneDefaultChanges(source *catalogChanges, next *catalogChanges) {
 	if len(source.defaultACLs) != 0 {
-		next.defaultACLs = cloneDefaultACLs(source.defaultACLs)
-		next.defaultOriginals = cloneDefaultACLs(source.defaultOriginals)
+		next.defaultACLs = catalog.CloneDefaultACLs(source.defaultACLs)
+		next.defaultOriginals = catalog.CloneDefaultACLs(source.defaultOriginals)
 	}
 	if len(source.defaultReads) != 0 {
-		next.defaultReads = cloneDefaultACLs(source.defaultReads)
+		next.defaultReads = catalog.CloneDefaultACLs(source.defaultReads)
 	}
 }
 func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
@@ -66,16 +66,9 @@ func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
 		e.defaultACLChangeLocked(c, key, record)
 	}
 }
-func defaultRecordsUnchanged(current *catalogState, reads map[defaultACLKey]*defaultACLRecord) bool {
-	for key, record := range reads {
-		if current.defaultACLs[key] != record {
-			return false
-		}
-	}
-	return true
-}
+
 func (s *CatalogStage) defaultPreflight(current *catalogState) error {
-	if !defaultRecordsUnchanged(current, s.DefaultReads) {
+	if !catalog.DefaultRecordsUnchanged(current, s.DefaultReads) {
 		return CatalogConflict{}
 	}
 	for key := range current.DefaultACLs() {
@@ -152,40 +145,5 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 			break
 		}
 	}
-	return creationDefaultACL(view, owner, schema, class)
-}
-
-// Projection removes namespace-owned directives with their namespaces. Physical
-// retirement removes their directives while retaining empty namespace metadata.
-// Invalid already-orphaned keys remain for validation.
-func pruneNamespaceDefaults(source, next *catalogState, retired []ids.ObjectAddress) {
-	copied := false
-	for key := range next.defaultACLs {
-		if key.Schema == (ids.ObjectAddress{}) || source.Get(key.Schema) == nil || next.Get(key.Schema) != nil && !slices.Contains(retired, key.Schema) {
-			continue
-		}
-		if !copied {
-			next.defaultACLs = cloneDefaultACLs(next.defaultACLs)
-			copied = true
-		}
-		delete(next.defaultACLs, key)
-	}
-}
-
-func remapDefaultSchemas(state *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) {
-	original := state.defaultACLs
-	copied := false
-	for key, record := range original {
-		destination, changed := mapping[key.Schema]
-		if !changed {
-			continue
-		}
-		if !copied {
-			state.defaultACLs = cloneDefaultACLs(original)
-			copied = true
-		}
-		delete(state.defaultACLs, key)
-		key.Schema = destination
-		state.defaultACLs[key] = record
-	}
+	return catalog.CreationDefaultACL(view, owner, schema, class)
 }

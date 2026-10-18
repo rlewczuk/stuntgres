@@ -3,6 +3,7 @@ package engine
 import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"testing"
@@ -40,7 +41,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					input := *src
 					input.ObjectAddress.ObjectID += 2
 					input.ObjectName, input.Rules = "input", nil
-					next := cloneCatalog(e.catalog.state)
+					next := catalog.CloneState(e.catalog.state)
 					next.SetDescriptor(input.Address(), &input)
 					e.catalog.state = next
 					auth.catalog = e.catalog.read(next)

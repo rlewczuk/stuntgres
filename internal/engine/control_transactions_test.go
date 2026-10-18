@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -145,7 +146,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				defer target.replacementMu.Unlock()
 				target.mu.Lock()
 				defer target.mu.Unlock()
-				next, err := target.remapPreparedCatalog(cloneCatalog(replacement.State()), sourceRoles, targetRoles, nil)
+				next, err := target.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
 				}

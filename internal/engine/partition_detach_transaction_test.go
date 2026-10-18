@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -192,12 +193,12 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					}
 				case "revision":
 					f.e.mu.Lock()
-					next := cloneCatalog(f.e.catalog.state)
+					next := catalog.CloneState(f.e.catalog.state)
 					changed := *victim
 					changed.ObjectRevision++
 					changed.ObjectName += "_new"
-					next.UnbindName(descriptorNameKey(victim))
-					next.BindName(descriptorNameKey(&changed), changed.Address())
+					next.UnbindName(catalog.DescriptorNameKey(victim))
+					next.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 					next.SetDescriptor(changed.Address(), &changed)
 					f.e.catalog.state = next
 					f.e.mu.Unlock()

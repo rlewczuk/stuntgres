@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -238,7 +239,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 	}
 	index := view.MustRelation(original.Index)
 	for _, phase := range []string{"nonunique", "nonready", "invalid", "notlive"} {
-		state := cloneCatalog(view.State())
+		state := catalog.CloneState(view.State())
 		copy := *index
 		definition := *index.SQLIndex
 		switch phase {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -73,7 +74,7 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	if record == nil || !record.ACL.Explicit || len(record.ACL.Entries) != 0 {
 		t.Fatal("stored empty lost", record)
 	}
-	if err := validateDefaultACLs(f.e.Roles(), f.e.CatalogRead()); err != nil {
+	if err := catalog.ValidateDefaultACLs(f.e.Roles(), f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -83,10 +84,10 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 	f.actor(f.member)
 	f.grant(t, "tables", "select", nil)
 	view := f.e.CatalogRead()
-	if creationDefaultACL(view, f.member, f.schema, authorization.DefaultTables).Explicit {
+	if catalog.CreationDefaultACL(view, f.member, f.schema, authorization.DefaultTables).Explicit {
 		t.Fatal("inherited creator defaults applied")
 	}
-	ownerACL := creationDefaultACL(view, f.owner, f.schema, authorization.DefaultTables)
+	ownerACL := catalog.CreationDefaultACL(view, f.owner, f.schema, authorization.DefaultTables)
 	if !ownerACL.Explicit || authorization.ACLRights(ownerACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("selected owner defaults missing")
 	}

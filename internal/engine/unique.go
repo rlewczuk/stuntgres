@@ -12,18 +12,6 @@ import (
 	"unicode/utf8"
 )
 
-// Constraint and backing relation are separate identities published together.
-type uniqueConstraint struct {
-	OID              ids.OID
-	Name             string
-	Attributes       []int32
-	Primary          bool
-	NullsNotDistinct bool
-	Index            ids.ObjectAddress
-	Parent           ids.OID
-	IsLocal          bool
-}
-
 func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	primary := false
 	var physicalSupport *physicalPrimarySupport

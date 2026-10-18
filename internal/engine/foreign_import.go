@@ -5,13 +5,14 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
-		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: foreignMappingName(server.Address(), role)}
+		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
 		if d, ok := auth.catalog.Foreign(auth.catalog.NameAddress(key)); ok {
 			return d, nil
 		}

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -212,7 +213,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			changed := *evaluation.routineAuthority
-			changed.catalog = changed.catalog.WithState(cloneCatalog(changed.catalog.State()))
+			changed.catalog = changed.catalog.WithState(catalog.CloneState(changed.catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict
 			changed.catalog.State().SetDescriptor(address, &replacement)

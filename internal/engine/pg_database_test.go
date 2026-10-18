@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -86,7 +87,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			t.Fatal("OID", i, got, want, err)
 		}
 	}
-	database := view.MustDatabase(currentDatabaseAddress)
+	database := view.MustDatabase(catalog.CurrentDatabaseAddress)
 	for i, want := range map[int]string{1: database.Name(), 4: "c", 12: "C", 13: "C"} {
 		if got, err := row[i].Text(); err != nil || got != want {
 			t.Fatal("text", i, got, want, err)
@@ -138,7 +139,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			t.Fatal("invalid source width", width, got, err)
 		}
 	}
-	private := cloneCatalog(view.State())
+	private := catalog.CloneState(view.State())
 	for address := range private.Descriptors() {
 		if address.ClassID == ids.RelationClassID {
 			private.RemoveDescriptor(address)
@@ -150,7 +151,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	invalidDB := *database
 	invalidDB.Owner = foreign.authorizationDomain.Principal(10)
-	private.SetDescriptor(currentDatabaseAddress, &invalidDB)
+	private.SetDescriptor(catalog.CurrentDatabaseAddress, &invalidDB)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
@@ -166,7 +167,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	base := e.CatalogRead()
 	old := pgDatabaseUnitCapture(t, e, base)
 	d, ref := pgDatabaseUnitSource(t, e, base)
-	original := base.MustDatabase(currentDatabaseAddress)
+	original := base.MustDatabase(catalog.CurrentDatabaseAddress)
 	successor, ok := e.Roles().Lookup("pg_read_all_data")
 	if !ok {
 		t.Fatal("missing predefined principal")

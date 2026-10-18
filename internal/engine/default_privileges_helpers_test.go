@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -32,10 +33,10 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
 	e.roles = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
-	next := cloneCatalog(e.catalog.state)
+	next := catalog.CloneState(e.catalog.state)
 	namespace := &namespaceDescriptor{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
 	next.SetDescriptor(schema, namespace)
-	next.BindName(descriptorNameKey(namespace), schema)
+	next.BindName(catalog.DescriptorNameKey(namespace), schema)
 	e.catalog.state = next
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -41,7 +42,7 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 			seen[address] = true
 		}
 	}
-	groups := collectOperatorGroups(CatalogRead{state: state})
+	groups := collectOperatorGroups(catalog.NewRead(nil, state))
 	seen := make(map[ids.ObjectAddress]bool)
 	for name, operators := range groups {
 		for _, operator := range operators {
@@ -68,8 +69,8 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}
 	first := indexUnitOperator(90001, namespace, "#~#")
 	other := indexUnitOperator(90002, namespace, "#?#")
-	base := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.Address(): first, other.Address(): other}, names: map[ids.NameKey]ids.ObjectAddress{descriptorNameKey(first): first.Address(), descriptorNameKey(other): other.Address()}}
-	base.SetOperatorNames(rebuildOperatorNames(base.Descriptors()))
+	base := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{first.Address(): first, other.Address(): other}, map[ids.NameKey]ids.ObjectAddress{catalog.DescriptorNameKey(first): first.Address(), catalog.DescriptorNameKey(other): other.Address()})
+	base.SetOperatorNames(catalog.RebuildOperatorNames(base.Descriptors()))
 	key := operatorNameKey{namespace, first.Name()}
 	// This unpublished fixture deliberately retains capacity and a sentinel
 	// outside its length: append must not overwrite a sibling's backing array.
@@ -84,7 +85,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := e.stageRead(stage).State()
-	sibling := cloneCatalog(base)
+	sibling := catalog.CloneState(base)
 	third := indexUnitOperator(90004, namespace, first.Name())
 	third.Left, third.Right = 20, 20
 	stage = e.BeginCatalogStage(e.catalog.read(sibling))
@@ -271,7 +272,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	if left == right || left.Owner == right.Owner {
 		t.Fatal("engine-owned seed descriptors/principals shared")
 	}
-	candidate := cloneCatalog(source.catalog.state)
+	candidate := catalog.CloneState(source.catalog.state)
 	sourceRoles, targetRoles := source.Roles(), target.Roles()
 	target.mu.Lock()
 	remapped, err := target.remapPreparedCatalog(candidate, sourceRoles, targetRoles, nil)
@@ -328,7 +329,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	if projectedSource.State().OperatorNames() != source.catalog.state.OperatorNames() {
 		t.Fatal("TEMP-free projection copied membership")
 	}
-	next := cloneCatalog(source.catalog.state)
+	next := catalog.CloneState(source.catalog.state)
 	target.catalog.nextOID = 100000
 	target.mu.Lock()
 	err = target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
@@ -339,7 +340,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	if next.Get(temp.Address()) != temp || next.Get(tempNamespace.Address()) != tempNamespace {
 		t.Fatal("replacement changed retained TEMP identities")
 	}
-	groups := collectOperatorGroups(CatalogRead{state: next})
+	groups := collectOperatorGroups(catalog.NewRead(nil, next))
 	imported := groups[operator.Name()]
 	if len(imported) != 1 || imported[0].Address() == operator.Address() || imported[0].Namespace() == namespace.Address() || next.Get(imported[0].Namespace()).Name() != namespace.Name() {
 		t.Fatal("imported operator/namespace collision not remapped", imported)

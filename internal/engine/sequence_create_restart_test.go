@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -356,7 +357,7 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 					e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
 					want = "stuntgres: catalog definition revision exhausted"
 				case "Namespace":
-					state := cloneCatalog(e.catalog.state)
+					state := catalog.CloneState(e.catalog.state)
 					state.SetNamespaceGeneration(^uint64(0))
 					e.catalog.state = state
 					query = "CREATE TEMP SEQUENCE failed START 5 RESTART 9"

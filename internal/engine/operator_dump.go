@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -200,7 +201,7 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 			left, right = shell.Left, shell.Right
 		}
 		key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: shell.Namespace(), ObjectName: symbol, Left: left, Right: right}
-		if _, exists := view.LookupName(descriptorNameKey(&key)); !exists {
+		if _, exists := view.LookupName(catalog.DescriptorNameKey(&key)); !exists {
 			name = symbol
 			break
 		}

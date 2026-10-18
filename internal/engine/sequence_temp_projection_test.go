@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal("invalid published descriptor", a, err)
 		}
-		found := view.Lookup(descriptorNameKey(d))
+		found := view.Lookup(catalog.DescriptorNameKey(d))
 		if len(found) != 1 || found[0] != a {
 			t.Fatal("descriptor lost its unique name binding", a, found)
 		}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	current.Attributes = []int32{2, 1}
 	current.Columns = []ColumnDescriptor{sink.Columns[1], sink.Columns[0]}
 	current.Index = map[string]int{"v": 0, "id": 1}
-	catalog := cloneCatalog(auth.catalog.State())
+	catalog := catalog.CloneState(auth.catalog.State())
 	catalog.SetDescriptor(sink.Address(), &current)
 	view := e.catalog.read(catalog)
 	check := func(next binding) {

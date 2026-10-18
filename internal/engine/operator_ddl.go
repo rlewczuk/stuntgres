@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -130,7 +131,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, Left: left, Right: right, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	for i := range path.count() {
 		key.ObjectNamespace = path.at(i)
-		a := auth.catalog.NameAddress(descriptorNameKey(&key))
+		a := auth.catalog.NameAddress(catalog.DescriptorNameKey(&key))
 		if d, ok := auth.catalog.Operator(a); ok {
 			return d, nil
 		}
@@ -460,7 +461,7 @@ func stageOperatorDescriptor(stage *CatalogStage, d *operatorDescriptor) error {
 		return stage.Replace(d)
 	}
 	if old := stage.Descriptors[d.Address()]; old != nil {
-		if descriptorNameKey(old) != descriptorNameKey(d) {
+		if catalog.DescriptorNameKey(old) != catalog.DescriptorNameKey(d) {
 			return CatalogConflict{}
 		}
 		stage.Descriptors[d.Address()] = d
@@ -499,7 +500,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectName: symbol, Left: left, Right: right}
 	for i := range path.count() {
 		key.ObjectNamespace = path.at(i)
-		if found, ok := view.Operator(view.NameAddress(descriptorNameKey(&key))); ok {
+		if found, ok := view.Operator(view.NameAddress(catalog.DescriptorNameKey(&key))); ok {
 			peer = found
 			break
 		}
@@ -692,7 +693,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err = validateOperatorOptions(&next, comm, neg); err != nil {
 		return err
 	}
-	old, _ := auth.catalog.Operator(auth.catalog.NameAddress(descriptorNameKey(&next)))
+	old, _ := auth.catalog.Operator(auth.catalog.NameAddress(catalog.DescriptorNameKey(&next)))
 	if old != nil {
 		if old.Function != 0 {
 			return sqlError("42723", "operator "+symbol+" already exists")
@@ -787,7 +788,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		}
 		next.Owner = target
 	case "schema":
-		if a := stage.LookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && a != d.Address() {
+		if a := stage.LookupName(catalog.DescriptorNameKey(&next)); a != (ids.ObjectAddress{}) && a != d.Address() {
 			return sqlError("42723", "operator "+d.Name()+" already exists in schema \""+s.Target.Text+"\"")
 		}
 	case "options":

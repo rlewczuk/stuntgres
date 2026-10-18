@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -235,7 +236,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	d, ref := pgShDescriptionUnitSource(t, e)
 	old := cloneRoleFixture(e.roles)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
-	catalog := cloneCatalog(e.catalog.state)
+	catalog := catalog.CloneState(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	catalog.SetDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
 	read := e.catalog.read(catalog)

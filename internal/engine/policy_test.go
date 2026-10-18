@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -88,7 +89,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 				sql = redump
 			}
 			original := expression.presentation
-			next := cloneCatalog(e.CatalogRead().State())
+			next := catalog.CloneState(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
 			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
@@ -253,7 +254,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			base := e.CatalogRead()
-			state := cloneCatalog(base.State())
+			state := catalog.CloneState(base.State())
 			attached := *owner
 			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 			state.SetDescriptor(owner.Address(), &attached)

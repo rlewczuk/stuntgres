@@ -13,21 +13,6 @@ const pgAttributeOID ids.OID = 1249
 
 var pgAttributeTypeIDs = [...]sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
 
-// Scalar-only history survives removal of the original type and its dependency.
-// Published maps and entries are immutable; no live query or codec sees them.
-type attributeMetadata struct {
-	Name                                string
-	TypeID                              uint32
-	Number                              int32
-	Facts                               sqltype.PostgreSQLAttributeFacts
-	Typmod                              int32
-	Dimensions                          int16
-	Collation                           uint32
-	NotNull, HasDefault, Dropped, Local bool
-	Inheritance                         int64
-	Identity, Generated                 string
-}
-
 func relationAttributeMetadata(relation *relationDescriptor, slot int) attributeMetadata {
 	column := relation.Columns[slot]
 	attribute := relation.Attributes[slot]

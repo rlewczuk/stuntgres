@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -97,7 +98,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	_, err := e.Execute(op, statement(t, "DROP ROLE acl_reader"), 0, nil)
 	state(t, err, "2BP01")
 	owner, _ := e.Roles().Lookup("schema_owner")
-	replacement := cloneCatalog(e.CatalogRead().State())
+	replacement := catalog.CloneState(e.CatalogRead().State())
 	nsaddr := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	ns := *replacement.MustNamespace(nsaddr)
 	ns.Owner = owner.Ref

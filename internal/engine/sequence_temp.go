@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -72,7 +73,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
-		db := auth.catalog.MustDatabase(currentDatabaseAddress)
+		db := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
 	}
 	oid, err := e.catalog.allocateOIDLocked()
@@ -301,7 +302,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		delete(storage, a)
 		delete(roots, a)
 	}
-	pruneNamespaceDefaults(stage.Base.State(), next, namespaces)
+	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
 	nextRevision := e.catalog.nextRevision
 	for _, descriptor := range stage.Descriptors {
 		if revision := descriptorRevisionFrontier(descriptor); revision >= nextRevision {

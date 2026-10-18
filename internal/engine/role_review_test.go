@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -182,7 +183,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	unchanged()
 	namespaceDescriptor := *e.catalog.state.MustNamespace(namespace.Address)
 	namespaceDescriptor.ACL = namespaceACL
-	namespaceView := cloneCatalog(e.catalog.state)
+	namespaceView := catalog.CloneState(e.catalog.state)
 	namespaceView.SetDescriptor(namespace.Address, &namespaceDescriptor)
 	if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(namespaceView)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 		t.Fatal("namespace replacement accepted PUBLIC grant options", err)
@@ -203,7 +204,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		} else {
 			bad.ACL = invalid
 		}
-		view := cloneCatalog(e.catalog.state)
+		view := catalog.CloneState(e.catalog.state)
 		view.SetDescriptor(ref.Address, &bad)
 		if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(view)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 			t.Fatal("replacement accepted PUBLIC grant options", err)
@@ -234,7 +235,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		} else {
 			foreign.ACL = foreignACL
 		}
-		foreignView := cloneCatalog(source.catalog.state)
+		foreignView := catalog.CloneState(source.catalog.state)
 		foreignView.SetDescriptor(foreignRef.Address, &foreign)
 		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(foreignView))
 		sourceDone()

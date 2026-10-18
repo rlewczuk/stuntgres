@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"unicode/utf8"
@@ -235,7 +236,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 		return fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
 	seen := map[ids.ObjectAddress]bool{}
-	candidate := cloneCatalog(e.catalog.state)
+	candidate := catalog.CloneState(e.catalog.state)
 	roles := e.roleRead(e.catalog.read(candidate), e.roles)
 	ownersChanged := false
 	for _, record := range records {

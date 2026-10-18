@@ -1,4 +1,4 @@
-package engine
+package catalog
 
 import (
 	"maps"
@@ -20,13 +20,13 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 		t.Fatal("removal did not apply to the clone")
 	}
 
-	other := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 902}, ObjectNamespace: ns.Address(), ObjectName: "u", ObjectRevision: 1}
+	other := &Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 902}, ObjectNamespace: ns.Address(), ObjectName: "u", ObjectRevision: 1}
 	copied.SetDescriptor(other.Address(), other)
 	if base.Get(other.Address()) != nil || copied.Get(other.Address()) != other {
 		t.Fatal("setDescriptor did not stay on the clone")
 	}
 
-	key := descriptorNameKey(rel)
+	key := DescriptorNameKey(rel)
 	copied.UnbindName(key)
 	if _, ok := copied.LookupName(key); ok {
 		t.Fatal("unbindName kept the binding")

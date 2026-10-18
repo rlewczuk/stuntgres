@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -213,12 +214,12 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	for i, helper := range aggregate.Aggregate.Helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
-	next := cloneCatalog(before.State())
+	next := catalog.CloneState(before.State())
 	for address := range before.Descriptors() {
 		if _, moved := mapping[address]; !moved {
 			continue
 		}
-		next.UnbindName(descriptorNameKey(before.Get(address)))
+		next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
 		next.RemoveDescriptor(address)
 	}
 	for address, original := range before.Descriptors() {
@@ -228,7 +229,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		}
 		descriptor := remapExtensionDescriptor(original, mapping)
 		next.SetDescriptor(destination, descriptor)
-		next.BindName(descriptorNameKey(descriptor), destination)
+		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	next.SetEpoch(next.Epoch() + 1)
 	view := e.catalog.read(next)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -152,7 +153,7 @@ func TestPGCollationCapture(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	c := collationUnitDefinition(e, 90000, "pgc_capture")
 	b := collationUnitDefinition(e, 90001, "pgc_empty_version")
-	b.Provider, b.Encoding, b.Collate, b.CType, b.Locale, b.Version, b.Semantics = "b", 6, nil, nil, collationText("C.UTF-8"), collationText(""), 811
+	b.Provider, b.Encoding, b.Collate, b.CType, b.Locale, b.Version, b.Semantics = "b", 6, nil, nil, catalog.CollationText("C.UTF-8"), catalog.CollationText(""), 811
 	for _, d := range []*collationDescriptor{c, b} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)

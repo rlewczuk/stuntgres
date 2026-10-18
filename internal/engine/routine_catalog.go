@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -59,7 +60,7 @@ func (e *Engine) initializeBuiltinRoutines() {
 			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 		}
 		e.catalog.state.SetDescriptor(d.Address(), d)
-		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeBuiltinRoutineBodies()
 }

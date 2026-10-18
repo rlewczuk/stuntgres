@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -175,7 +176,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 	default:
 		return fmt.Errorf("stuntgres: invalid conversion alteration")
 	}
-	if address := stage.LookupName(descriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
+	if address := stage.LookupName(catalog.DescriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}
 	// CREATE alone checks default-pair uniqueness; legal schema moves may leave

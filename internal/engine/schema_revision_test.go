@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -48,7 +49,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				}
 				run(t, source, "CREATE SCHEMA imported CREATE TABLE t(id INT)")
 				view := source.CatalogRead()
-				next := cloneCatalog(view.State())
+				next := catalog.CloneState(view.State())
 				ns := schemaRef(t, source, "imported").Address
 				n := *next.MustNamespace(ns)
 				n.ObjectRevision = 100
@@ -87,7 +88,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			e, source := New(), New()
 			run(t, source, "CREATE SCHEMA terminal")
 			view := source.CatalogRead()
-			next := cloneCatalog(view.State())
+			next := catalog.CloneState(view.State())
 			addr := schemaRef(t, source, "terminal").Address
 			n := *next.MustNamespace(addr)
 			n.ObjectRevision = revision
@@ -123,7 +124,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		e, source := New(), New()
 		run(t, source, "CREATE SCHEMA canceled")
 		view := source.CatalogRead()
-		next := cloneCatalog(view.State())
+		next := catalog.CloneState(view.State())
 		addr := schemaRef(t, source, "canceled").Address
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
@@ -141,7 +142,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		run(t, source, "CREATE USER unavailable_owner")
 		run(t, source, "CREATE SCHEMA invalid AUTHORIZATION unavailable_owner")
 		view := source.CatalogRead()
-		next := cloneCatalog(view.State())
+		next := catalog.CloneState(view.State())
 		addr := schemaRef(t, source, "invalid").Address
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
