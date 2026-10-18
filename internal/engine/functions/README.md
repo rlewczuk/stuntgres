@@ -35,7 +35,8 @@ engine's `expressionBinder` implements it with thin adapters
 - `BuiltinRoutineInfo` / `BuiltinRoutineReference`: the selected builtin
   routine identity, keyed by `RoutineProvider`, name and declared formals.
   `RoutineProvider` (`routine_provider.go`) is the family vocabulary of the
-  engine's routine declarations.
+  engine's routine declarations; the type is an alias of
+  `expr.RoutineProvider`, which catalog routine declarations hold.
 - `DiagnosticTypeName`: PostgreSQL's diagnostic spelling, including qualified
   user-defined types.
 - `SignatureError`: the 42883 missing-function error. The engine also notes it

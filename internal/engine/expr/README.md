@@ -26,6 +26,9 @@ It owns types and small pure helpers; it has no state and no mutex.
 - **`RoutineReference`** and **`RoutineRecipeReference`** are opaque identity
   tokens for the selected routine and for the stored recipe a grafted node
   came from. They carry no catalog or permission authority.
+- **`RoutineProvider`** is the bit set of builtin bind families that may
+  select a builtin routine declaration. `functions` defines the family
+  constants (through an alias); catalog routine declarations hold the set.
 - **Positioned errors.** `ErrorAt` builds a SQLSTATE ERROR positioned at a
   source position (a zero position leaves it unpositioned). `WithPosition`
   copies an existing SQLSTATE error with a new position.
