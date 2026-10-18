@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/functions"
@@ -45,5 +47,33 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 	}
 	if _, err := node.Rebuild(info, nil); err == nil {
 		t.Fatal("Rebuild accepted a missing child")
+	}
+}
+
+// The lexical walk reaches protocol nodes' children through the Composite
+// branch, including through an installed-routine wrapper.
+func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
+	var text *sqltype.Descriptor
+	for _, d := range sqltype.Builtins() {
+		if d.ID() == sqltype.Text {
+			text = d
+		}
+	}
+	info := expressionInfo{Usage: text.Usage()}
+	leaf := literalExpression{expressionInfo: info, value: sqltype.String(text, "x")}
+	inner, err := functions.NewSoundex(info, "soundex", []BoundExpr{leaf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper := installedSoundexFunctionExpression{Soundex: inner}
+	outer, err := functions.NewSoundex(info, "soundex", []BoundExpr{wrapper})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var visited []string
+	walkBoundExpression(outer, func(node BoundExpr) { visited = append(visited, fmt.Sprintf("%T", node)) })
+	want := []string{"functions.Soundex", "engine.installedSoundexFunctionExpression", "engine.literalExpression"}
+	if !reflect.DeepEqual(visited, want) {
+		t.Fatalf("walk visited %v, want %v", visited, want)
 	}
 }
