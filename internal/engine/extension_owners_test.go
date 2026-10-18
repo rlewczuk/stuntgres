@@ -151,7 +151,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	literal := func(s string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
-	bound, err := binder.bindInstalledCrypto(parser.FunctionExpr{
+	bound, err := binder.bindFunctionProvider(parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "hmac"}}},
 		Args: []parser.Expr{literal("what do ya want for nothing?"), literal("Jefe"), literal("sha256")},
 	})
@@ -229,7 +229,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		if name == "gen_random_bytes" {
 			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 16}}}
 		}
-		node, err := binder.bindInstalledCrypto(raw)
+		node, err := binder.bindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(name, err)
 		}

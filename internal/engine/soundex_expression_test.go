@@ -17,7 +17,7 @@ func soundexUnitExpression(t *testing.T, e *Engine, name string) installedSounde
 	if name == "difference" {
 		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Anne"}})
 	}
-	node, err := binder.bindInstalledSoundex(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args})
+	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}

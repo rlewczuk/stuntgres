@@ -19,7 +19,7 @@ func metaphoneUnitExpression(t *testing.T, e *Engine) installedMetaphoneFunction
 		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "gumbo"}},
 		parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 4}},
 	}
-	node, err := binder.bindInstalledMetaphone(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "metaphone"}}}, Args: args})
+	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "metaphone"}}}, Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		member     int
 	}{{"dmetaphone", "SM0", 6}, {"dmetaphone_alt", "XMT", 7}} {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		node, err := binder.bindInstalledMetaphone(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Smith"}}}})
+		node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Smith"}}}})
 		if err != nil {
 			t.Fatal(err)
 		}

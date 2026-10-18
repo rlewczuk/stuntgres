@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,100 +35,4 @@ func (n installedFunctionExpression) Eval(ctx ExprContext) (sqltype.Value, error
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed function expression")
 	}
 	return n.InstalledText.Eval(ctx)
-}
-
-func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (BoundExpr, error) {
-	// Transform operands once before namespace/signature resolution, retaining
-	// actual diagnostic types for unknown and wrong-signature inputs.
-	operands := make([]comparisonOperand, len(raw.Args))
-	names := make([]string, len(raw.Args))
-	for i, arg := range raw.Args {
-		o, err := b.stringOperand(arg, true)
-		if err != nil {
-			return nil, err
-		}
-		operands[i] = o
-		names[i] = "unknown"
-		if typ := o.descriptor(); typ != nil {
-			names[i] = b.diagnosticTypeName(typ)
-		}
-		names[i] = functions.NamedArgumentType(raw, i, names[i])
-	}
-	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	auth, err := b.bindingAuthorization()
-	if err != nil {
-		return nil, err
-	}
-	path, err := b.engine.lookupNamespacesSnapshot(auth, raw.Name, installedFunctionLookup)
-	if err != nil {
-		return nil, err
-	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	proc := procedureInNamespaces(auth.catalog, path, name, unaccentTextSignature)
-	failure := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	if proc == nil || len(operands) != 1 || raw.Variadic || len(raw.ArgNames) != 0 || raw.Star {
-		return failure()
-	}
-	if proc.fuzzy == nil && (raw.Distinct || raw.All || raw.Window != nil || raw.Filter != nil || len(raw.Order) != 0) {
-		return failure()
-	}
-	text := b.typ(sqltype.Text)
-	arg, err := b.finalizeOperand(operands[0], text)
-	if err != nil {
-		return nil, err
-	}
-	plan, err := sqltype.PlanCoercion(arg.ResultUsage(), text.Usage(), sqltype.Implicit)
-	if err != nil {
-		return failure()
-	}
-	if proc.fuzzy != nil {
-		switch {
-		case raw.Distinct:
-			return nil, expressionError("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-		case len(raw.Order) != 0:
-			return nil, expressionError("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-		case raw.Filter != nil:
-			return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-		case raw.Window != nil:
-			return nil, expressionError("42809", "OVER specified, but "+objectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
-		}
-	}
-	if arg.ResultUsage().Type != text {
-		arg = coercionExpression{b.info(text.Usage(), arg.SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
-	}
-	var dict *tsDictionaryDescriptor
-	var tmpl *tsTemplateDescriptor
-	if proc.provider != nil {
-		var ok bool
-		dict, ok = auth.catalog.state.descriptors[proc.dictionary].(*tsDictionaryDescriptor)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing installed unaccent dictionary")
-		}
-		tmpl, ok = auth.catalog.state.descriptors[dict.template].(*tsTemplateDescriptor)
-		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing installed unaccent template")
-		}
-	}
-	properties := arg.Properties()
-	properties.Volatility = max(properties.Volatility, proc.volatility)
-	info, err := b.collatedInfo(b.info(b.typ(sqltype.ID(proc.result)).Usage(), raw.Pos, properties), arg)
-	if err != nil {
-		return nil, err
-	}
-	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
-	b.dependency(ref, proc.revision)
-	info.RoutineReference = proc
-	call := functions.InstalledText{Info: info, Arg: arg, Function: "unaccent"}
-	if proc.fuzzy != nil {
-		call.Function = "daitch_mokotoff"
-	} else if dict != nil {
-		call.Matcher = dict.provider.matcher
-	}
-	node := installedFunctionExpression{InstalledText: call, procedure: proc, dictionary: dict, template: tmpl, ref: ref}
-	if !node.validProvider() {
-		return nil, fmt.Errorf("stuntgres: invalid installed function binding")
-	}
-	return node, nil
 }
