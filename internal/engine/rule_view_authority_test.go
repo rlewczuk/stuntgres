@@ -56,7 +56,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				reader, other = actor.Ref, owner.Ref
 			}
 			base.acl = grant(reader)
-			auth.recaptureCatalog(CatalogRead{owner: e, state: e.catalog.state})
+			auth.recaptureCatalog(e.catalog.read(e.catalog.state))
 			auth.state.CurrentUser = owner.Ref
 			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
 			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ids.ObjectRef, error) {
@@ -97,7 +97,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			next := cloneCatalog(e.catalog.state)
 			next.descriptors[base.address] = &revoked
 			current := auth
-			current.recaptureCatalog(CatalogRead{owner: e, state: next})
+			current.recaptureCatalog(e.catalog.read(next))
 			refs, err := collect(current, owner.Ref, leaf)
 			defaultUnitDiagnostic(t, err, "42501", "permission denied for table src")
 			if len(refs) != 0 {

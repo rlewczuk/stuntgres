@@ -59,7 +59,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 		state.descriptors[a] = d
 	}
 	state.descriptors[leaf.address] = &leaf
-	view := CatalogRead{owner: e, state: &state}
+	view := e.catalog.read(&state)
 	mapped, err := mapPartitionIndex(context.Background(), view, root, &leaf, index.sqlIndex)
 	if err != nil {
 		t.Fatal(err)
@@ -566,7 +566,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 	for a, d := range f.view.state.descriptors {
 		replacement.descriptors[a] = d
 	}
-	if err := normalizeReplacementIndexHistory(context.Background(), CatalogRead{owner: f.e, state: &replacement}); err != nil {
+	if err := normalizeReplacementIndexHistory(context.Background(), f.e.catalog.read(&replacement)); err != nil {
 		t.Fatal(err)
 	}
 	if !replacement.descriptors[f.root.address].(*relationDescriptor).hasIndexes || !replacement.descriptors[f.leaf.address].(*relationDescriptor).hasIndexes || f.root.hasIndexes || f.leaf.hasIndexes {
@@ -949,7 +949,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 		return out
 	}
 	before := indexMaintenanceCapture(e)
-	snapshot, err := captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage, e.indexRoots, e.commitSeq)
+	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage, e.indexRoots, e.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1036,7 +1036,7 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 				leaf.membership = nil
 			}
 			next.descriptors[parent.address], next.descriptors[child.address] = &parent, &child
-			view := CatalogRead{owner: e, state: &next}
+			view := e.catalog.read(&next)
 			before := indexMaintenanceCapture(e)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()

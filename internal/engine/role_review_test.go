@@ -184,7 +184,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	namespaceDescriptor.acl = namespaceACL
 	namespaceView := cloneCatalog(e.catalog.state)
 	namespaceView.descriptors[namespace.Address] = &namespaceDescriptor
-	if _, err := e.ReplaceCatalog(ctx, CatalogRead{e, namespaceView}); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
+	if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(namespaceView)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 		t.Fatal("namespace replacement accepted PUBLIC grant options", err)
 	}
 	unchanged()
@@ -205,7 +205,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		}
 		view := cloneCatalog(e.catalog.state)
 		view.descriptors[ref.Address] = &bad
-		if _, err := e.ReplaceCatalog(ctx, CatalogRead{e, view}); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
+		if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(view)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 			t.Fatal("replacement accepted PUBLIC grant options", err)
 		}
 		unchanged()
@@ -236,7 +236,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		}
 		foreignView := cloneCatalog(source.catalog.state)
 		foreignView.descriptors[foreignRef.Address] = &foreign
-		_, err := e.ReplaceCatalog(ctx, CatalogRead{source, foreignView})
+		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(foreignView))
 		sourceDone()
 		if err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 			t.Fatal("import accepted PUBLIC grant options", err)

@@ -145,7 +145,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 	}
 	for {
 		e.mu.Lock()
-		base := CatalogRead{e, e.catalog.state}
+		base := e.catalog.read(e.catalog.state)
 		for _, d := range base.state.descriptors {
 			if _, ok := d.(*collationDescriptor); !ok {
 				continue
@@ -368,7 +368,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	e.mu.Unlock()
 	changes := newCatalogChanges()
-	evaluation := EvalContext{Context: context.Background(), catalog: CatalogRead{owner: e, state: next}}
+	evaluation := EvalContext{Context: context.Background(), catalog: e.catalog.read(next)}
 	for address, shape := range stage.rowShapes {
 		parent, ok := next.descriptors[address].(*relationDescriptor)
 		if !ok {

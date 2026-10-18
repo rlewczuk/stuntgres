@@ -98,7 +98,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = CatalogRead{f.e, state}
+	auth.catalog = f.e.catalog.read(state)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = f.reader
 	ref := f.e.catalog.domain.Ref(state.epoch, f.schema)
@@ -129,7 +129,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		invalidNamespace.temporary = token
 		candidate.descriptors[f.schema] = &invalidNamespace
 		invalid := auth
-		invalid.catalog = CatalogRead{f.e, candidate}
+		invalid.catalog = f.e.catalog.read(candidate)
 		invalid.recaptureCatalog(invalid.catalog)
 		invalid.session = &Session{token: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
@@ -142,7 +142,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	permanent.temporary = ids.SessionToken{}
 	ordinary.descriptors[f.schema] = &permanent
 	ordinaryAuth := auth
-	ordinaryAuth.catalog = CatalogRead{f.e, ordinary}
+	ordinaryAuth.catalog = f.e.catalog.read(ordinary)
 	ordinaryAuth.recaptureCatalog(ordinaryAuth.catalog)
 	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	foreign := ref

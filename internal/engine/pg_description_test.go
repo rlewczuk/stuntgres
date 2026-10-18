@@ -102,7 +102,7 @@ func TestPGDescriptionShape(t *testing.T) {
 		})
 	}
 	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), ids.ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	d := &relationDescriptor{address: relation, attributes: []int32{1, 3}, comment: "whole", columnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
 	oldState.descriptors[namespace] = &namespaceDescriptor{address: namespace, comment: "namespace"}
 	oldState.descriptors[relation] = d
-	old := CatalogRead{owner: e, state: &oldState}
+	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	updated.comment = "replacement"
 	updated.columnComments = map[int32]string{3: "replacement third"}
 	newState.descriptors[relation] = &updated
-	newRows, err := capturePGDescription(context.Background(), CatalogRead{owner: e, state: &newState}, ref, source)
+	newRows, err := capturePGDescription(context.Background(), e.catalog.read(&newState), ref, source)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, state := range []*catalogState{e.catalog.state, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
-		captured, err := capturePGDescription(ctx, CatalogRead{owner: e, state: state}, ref, source)
+		captured, err := capturePGDescription(ctx, e.catalog.read(state), ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
 		}

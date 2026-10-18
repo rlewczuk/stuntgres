@@ -208,7 +208,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	// immutable rows, but neither it nor the separate finished statement's grant
 	// can authorize the old physical identity in the replacement catalog.
 	e.mu.Lock()
-	_, err = currentQuerySourceLocked(e, CatalogRead{e, e.catalog.state}, nil, grant)
+	_, err = currentQuerySourceLocked(e, e.catalog.read(e.catalog.state), nil, grant)
 	e.mu.Unlock()
 	if !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(old, err)

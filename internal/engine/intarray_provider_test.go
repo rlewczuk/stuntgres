@@ -216,7 +216,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 			bad.members = slices.Clone(ext.members)
 			candidate.descriptors[bad.address] = &bad
 			corrupt(candidate, &bad)
-			if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(CatalogRead{owner: e, state: candidate}, &bad); err == nil {
+			if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.read(candidate), &bad); err == nil {
 				t.Fatal("invalid manifest accepted")
 			}
 			if !slices.Equal(original, ext.members) {
@@ -302,7 +302,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.name))
 		unaccent := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]]
 		closeInstaller()
-		if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+		if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		ext := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)

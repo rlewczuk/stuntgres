@@ -249,7 +249,7 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 	sessionSQL(t, b, "INSERT INTO sentinel VALUES(9)")
 	sourceState, targetState := source.CatalogRead().state, target.CatalogRead().state
 	oldOID, oldRevision, oldRow, oldVersion := target.catalog.nextOID, target.catalog.nextRevision, target.nextRow, target.nextVersion
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("invalid source was imported/healed")
 	}
 	if target.CatalogRead().state != targetState || source.CatalogRead().state != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {

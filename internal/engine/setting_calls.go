@@ -42,7 +42,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 		return settingCallBinding{}, binder.functionSignatureError(parser.FunctionExpr{Name: name, Args: s.Args, Pos: name.Parts[0].Pos})
 	}
 	bound := make([]BoundExpr, len(s.Args))
-	view := CatalogRead{owner: e, state: e.catalog.state}
+	view := e.catalog.read(e.catalog.state)
 	for i, v := range s.Args {
 		id := sqltype.Text
 		if i == 2 {
@@ -71,8 +71,8 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
 	binding, err := e.describeSettingCall(op.ctx, s, &input, op)
-	typ, typeOK := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(sqltype.Text)
-	catalog := CatalogRead{owner: e, state: e.catalog.state}
+	typ, typeOK := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
+	catalog := e.catalog.read(e.catalog.state)
 	auth, authErr := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {

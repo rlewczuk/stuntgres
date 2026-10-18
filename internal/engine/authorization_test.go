@@ -27,7 +27,7 @@ func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	ref, err := e.resolveReference(catalogAuthorization(e, CatalogRead{e, e.catalog.state}), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
+	ref, err := e.resolveReference(catalogAuthorization(e, e.catalog.read(e.catalog.state)), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	if err := source.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	targetRef := roleTableRef(t, target, "secret")
@@ -169,7 +169,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	roleError(t, target, b, "DROP ROLE reader", "2BP01", `role "reader" cannot be dropped because some objects depend on it`, "privileges for table secret")
 	unknown := New()
 	before := unknown.catalog.state
-	if _, err := unknown.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil {
+	if _, err := unknown.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("unknown owner import")
 	}
 	if unknown.catalog.state != before {
@@ -499,7 +499,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	ns := *replacement.descriptors[namespace.Address].(*namespaceDescriptor)
 	ns.owner = owner.Ref
 	replacement.descriptors[namespace.Address] = &ns
-	if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{e, replacement}); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {

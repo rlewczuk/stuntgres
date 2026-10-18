@@ -27,7 +27,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 				sessionSQL(t, peer, script)
 				ref := catalogRef(t, source, source.CatalogRead(), "imported")
 				old := source.catalog.state.descriptors[ref.Address]
-				if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+				if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
 				if source.catalog.state.descriptors[ref.Address] != old {

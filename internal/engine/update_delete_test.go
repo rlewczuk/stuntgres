@@ -377,7 +377,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				if failure == "canceled" {
 					cancel()
 				}
-				_, err := target.ReplaceCatalog(ctx, source.CatalogRead())
+				_, err := target.ReplaceCatalog(ctx, source, source.CatalogRead())
 				if failure != "success" {
 					if err == nil {
 						t.Fatal("failed import accepted")

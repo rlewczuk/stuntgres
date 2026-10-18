@@ -45,7 +45,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		if _, err := targetSnapshot.Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
-		if _, err := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles).Descriptor(target); err != nil {
+		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles).Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
 		return target, nil
@@ -237,7 +237,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 		state.defaultACLs = next
 	}
-	if err := validateDefaultACLs(e.roleRead(CatalogRead{e, state}, e.roles), CatalogRead{e, state}); err != nil {
+	if err := validateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -259,7 +259,7 @@ func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization
 		if !ok {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
 		}
-		if _, err := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles).Descriptor(target.Ref); err != nil {
+		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles).Descriptor(target.Ref); err != nil {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
 		}
 		if expected != nil && expected[ref] != target.Ref {

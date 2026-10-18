@@ -21,7 +21,7 @@ func (e *Engine) Reset(ctx context.Context) error {
 	if err := fresh.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
 		return err
 	}
-	_, err := e.ReplaceCatalog(ctx, fresh.CatalogRead())
+	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 	return err
 }
 func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
@@ -112,7 +112,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", quoteIdentifier(invalidSchema), quoteIdentifier(invalid.name))
 	}
 	tables := make([]dumpRelation, 0)
-	catalog := CatalogRead{owner: e, state: e.catalog.state}
+	catalog := e.catalog.read(e.catalog.state)
 	originalCatalog := catalog
 	originalRoles := e.roleRead(originalCatalog, e.roles)
 	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
@@ -566,7 +566,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			// references depend on their parent relation, not its column OID.
 			predecessors := make(map[ids.OID]bool)
 			addPredecessor := func(address ids.ObjectAddress) error {
-				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.catalog.state}, address, r.address)
+				predecessor, err := dumpPredecessor(e.catalog.read(e.catalog.state), address, r.address)
 				if err != nil {
 					return err
 				}
@@ -600,7 +600,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, literal := range r.view.literals {
-				if err := regclassReplayReferences(CatalogRead{owner: e, state: e.catalog.state}, literal, addPredecessor); err != nil {
+				if err := regclassReplayReferences(e.catalog.read(e.catalog.state), literal, addPredecessor); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -2210,7 +2210,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err := stage.importMaterializedSnapshots(ctx, op, snapshots); err != nil {
 		return err
 	}
-	_, err = e.replaceCatalog(ctx, stage.CatalogRead(), op)
+	_, err = e.replaceCatalog(ctx, stage, stage.CatalogRead(), op)
 	return err
 }
 

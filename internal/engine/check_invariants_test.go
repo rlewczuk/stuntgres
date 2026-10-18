@@ -103,7 +103,7 @@ func TestCheckNativeCatalogReplacementOrigins(t *testing.T) {
 			if !self {
 				target = New()
 			}
-			if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+			if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			actor, finish := roleOperation(t, target, "postgres")

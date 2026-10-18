@@ -56,7 +56,7 @@ func TestExpressionFloatingArithmeticCanceledRestoreInstallationFence(t *testing
 	staged.Rows.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := target.ReplaceCatalog(ctx, source.CatalogRead())
+	_, err := target.ReplaceCatalog(ctx, source, source.CatalogRead())
 	if !errors.Is(err, context.Canceled) || target.CatalogRead().Epoch() != before.Epoch() {
 		t.Fatal(err)
 	}

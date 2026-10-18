@@ -260,9 +260,9 @@ func preparedBoundaryUnchanged(t *testing.T, e *Engine, entry *preparedTransacti
 func TestPreparedPopulatedReplaceCatalogGuards(t *testing.T) {
 	e, _, entry, _ := preparedBoundaryFixture(t)
 	peer := sessionStart(t, e, nil)
-	for _, replacement := range []CatalogRead{e.CatalogRead(), New().CatalogRead()} {
+	for _, source := range []*Engine{e, New()} {
 		before := preparedBoundaryCapture(e, entry)
-		changes, err := e.ReplaceCatalog(context.Background(), replacement)
+		changes, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead())
 		if err == nil || !strings.Contains(err.Error(), "cannot replace catalog while prepared transactions exist") || changes.Replacement {
 			t.Fatal(changes, err)
 		}

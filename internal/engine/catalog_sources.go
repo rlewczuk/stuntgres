@@ -259,7 +259,7 @@ func (e *Engine) initializeCatalogSources() error {
 		}
 		d.virtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
-			typ, ok := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(column.typ)
+			typ, ok := (e.catalog.read(e.catalog.state)).LookupType(column.typ)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}

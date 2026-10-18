@@ -45,7 +45,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				if _, err := dest.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+				if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
 			}

@@ -21,7 +21,7 @@ func (e *Engine) initializeDataTypePrivileges() error {
 		if i == 3 {
 			id = sqltype.VarChar
 		}
-		typ, ok := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(id)
+		typ, ok := (e.catalog.read(e.catalog.state)).LookupType(id)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing data type privilege carrier")
 		}
@@ -43,7 +43,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog != catalog || auth.roleRecord == nil || source == nil || source.address != ref.Address || source.address.ObjectID != dataTypePrivilegesOID || catalog.state.descriptors[ref.Address] != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog != catalog || auth.roleRecord == nil || source == nil || source.address != ref.Address || source.address.ObjectID != dataTypePrivilegesOID || catalog.state.descriptors[ref.Address] != source {
 		return nil, fmt.Errorf("stuntgres: invalid data_type_privileges capture")
 	}
 	// Validate paired roles/catalog/ref even if the inventory contains only

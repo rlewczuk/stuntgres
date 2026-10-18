@@ -39,7 +39,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, tc := range descriptors {
 		state.descriptors[tc.d.Address()] = tc.d
 	}
-	v := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, state}, roleRecord: e.roles, catalog: CatalogRead{e, state}, roles: e.roleRead(CatalogRead{e, state}, e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
+	v := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(state), roleRecord: e.roles, catalog: e.catalog.read(state), roles: e.roleRead(e.catalog.read(state), e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
 		ref := e.catalog.domain.Ref(state.epoch, tc.d.Address())
 		got, err := v.Effective(ref, false)
@@ -70,7 +70,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	withColumn.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := cloneCatalog(state)
 	withColumnState.descriptors[table.address] = &withColumn
-	v.catalog = CatalogRead{e, withColumnState}
+	v.catalog = e.catalog.read(withColumnState)
 	v.recaptureCatalog(v.catalog)
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
 		t.Fatal("ACL plus capability", got, err)
@@ -206,7 +206,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 		}
 	}
 	target := New()
-	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	public := target.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)

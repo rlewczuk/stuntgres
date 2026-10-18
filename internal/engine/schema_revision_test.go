@@ -58,7 +58,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				r.revision = 200
 				next.descriptors[addr] = &r
 				e.catalog.nextRevision = frontier
-				if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next}); err != nil {
+				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 					t.Fatal(err)
 				}
 				before := e.CatalogRead()
@@ -92,7 +92,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			n := *next.descriptors[addr].(*namespaceDescriptor)
 			n.revision = revision
 			next.descriptors[addr] = &n
-			if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next}); err != nil {
+			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 				t.Fatal(err)
 			}
 			name := "terminal"
@@ -131,7 +131,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := e.ReplaceCatalog(ctx, CatalogRead{owner: source, state: next})
+		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(next))
 		if !errors.Is(err, context.Canceled) || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
 			t.Fatal("canceled import advanced allocator/catalog", err)
 		}
@@ -147,7 +147,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n.revision = 1000
 		next.descriptors[addr] = &n
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
-		_, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next})
+		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next))
 		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
 			t.Fatal("failed principal remap advanced allocator/catalog", err)
 		}

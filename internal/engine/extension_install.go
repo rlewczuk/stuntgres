@@ -32,10 +32,10 @@ func (e *Engine) registerExtension(name string, registration registeredExtension
 	if name == "" || registration.version == "" || registration.provider == nil {
 		return fmt.Errorf("stuntgres: invalid extension registration")
 	}
-	if e.extensions == nil {
-		e.extensions = make(map[string]registeredExtension)
+	if e.catalog.extensions == nil {
+		e.catalog.extensions = make(map[string]registeredExtension)
 	}
-	if _, exists := e.extensions[name]; exists {
+	if _, exists := e.catalog.extensions[name]; exists {
 		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
 	}
 	// Detach caller-owned control metadata before publishing the registry.
@@ -48,7 +48,7 @@ func (e *Engine) registerExtension(name string, registration registeredExtension
 		registration.schema = &value
 	}
 	registration.requires = append([]string(nil), registration.requires...)
-	e.extensions[name] = registration
+	e.catalog.extensions[name] = registration
 	return nil
 }
 
@@ -95,7 +95,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		}
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))
 	}
-	registration, ok := e.extensions[s.Name.Text]
+	registration, ok := e.catalog.extensions[s.Name.Text]
 	if !ok {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, s.Name.Text)}
 	}

@@ -323,7 +323,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
 	sequences, sequenceErr := copySequenceState(source, replacement)
-	indexes, indexErr := captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if sequenceErr != nil {
 		t.Fatal(sequenceErr)
@@ -370,7 +370,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
 		for _, descriptor := range next.descriptors {
-			if err = validateACL(e.roleRead(CatalogRead{e, next}, e.roles), descriptor); err != nil {
+			if err = validateACL(e.roleRead(e.catalog.read(next), e.roles), descriptor); err != nil {
 				break
 			}
 			if revision := descriptor.Revision(); revision >= nextRevision {

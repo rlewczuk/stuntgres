@@ -32,7 +32,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 				sessionSQL(t, peer, script)
 				ref := catalogRef(t, source, source.CatalogRead(), "imported")
 				sourceDefinition = source.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-				if _, err := e.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+				if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
 			}

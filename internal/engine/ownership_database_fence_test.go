@@ -27,7 +27,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 				database.acl = authorization.ACLValue{Explicit: true}
 				database.revision++
 				selected.descriptors[currentDatabaseAddress] = &database
-				auth.catalog = CatalogRead{e, selected}
+				auth.catalog = e.catalog.read(selected)
 				auth.recaptureCatalog(auth.catalog)
 			}
 			stage := e.BeginCatalogStage(auth.catalog)

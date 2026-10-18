@@ -78,7 +78,7 @@ func TestUpdateCoreSelfImportRemintsWithoutMutatingViews(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	root := e.storage[ref.Address].versions
 	before := root[0]
-	if _, err := e.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	current := e.storage[ref.Address].versions[0]

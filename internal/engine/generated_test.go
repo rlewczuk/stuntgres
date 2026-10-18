@@ -181,7 +181,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	candidate := cloneCatalog(view.state)
 	candidate.descriptors[d.address] = d
 	candidate.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
-	read := CatalogRead{owner: e, state: candidate}
+	read := e.catalog.read(candidate)
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
 	}

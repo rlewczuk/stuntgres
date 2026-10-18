@@ -113,7 +113,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	fresh := *f.context.statementScope
-	fresh.commentCatalog = CatalogRead{owner: f.engine, state: f.engine.catalog.state}
+	fresh.commentCatalog = f.engine.catalog.read(f.engine.catalog.state)
 	fresh.deparseAuth.catalog = fresh.commentCatalog
 	fresh.deparseAuth.pairedCatalog = fresh.deparseAuth.catalog
 	value, err = f.node.Eval(&EvalContext{Context: context.Background(), statementScope: &fresh})

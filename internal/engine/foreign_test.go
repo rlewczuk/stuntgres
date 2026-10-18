@@ -95,7 +95,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
 	}
 	e.mu.Lock()
-	auth := catalogAuthorization(e, CatalogRead{e, e.catalog.state})
+	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	e.mu.Unlock()
 	for _, d := range []*foreignDescriptor{wrapper, server} {
 		ref := foreignRef(auth, d)
@@ -245,7 +245,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	copy.address.ObjectID = 40010
 	replacement.descriptors[copy.address] = &copy
 	replacement.names[key] = copy.address
-	_, err := foreignHandlerFor(CatalogRead{e, replacement}, wrapper)
+	_, err := foreignHandlerFor(e.catalog.read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -255,7 +255,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	procedure := *uncallable.descriptors[oldAddress].(*procedureDescriptor)
 	procedure.foreign = nil
 	uncallable.descriptors[oldAddress] = &procedure
-	_, err = foreignHandlerFor(CatalogRead{e, uncallable}, wrapper)
+	_, err = foreignHandlerFor(e.catalog.read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
 	}

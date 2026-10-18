@@ -72,7 +72,7 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	if retained.ofType != table.ofType || retained.rowType != table.rowType || backing.rowType != source.rowType || storage[table.address] != e.storage[table.address] {
 		t.Fatal("retained TEMP providers were retargeted")
 	}
-	if err := validateTypedAttachment(CatalogRead{owner: e, state: next}, retained); err != nil {
+	if err := validateTypedAttachment(e.catalog.read(next), retained); err != nil {
 		t.Fatal(err)
 	}
 }

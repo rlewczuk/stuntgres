@@ -503,7 +503,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ErrCatalogReplaced
 	}
 	if _, present := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); !present {
@@ -543,7 +543,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog CatalogRead) error {
-	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.owner.catalog.domain || prepared.ref.Epoch != catalog.Epoch() {
+	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.owner.domain || prepared.ref.Epoch != catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {

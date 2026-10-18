@@ -115,7 +115,7 @@ func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtin
 	if !ok || d.builtin != declaration {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
 	}
-	ref := view.owner.catalog.domain.Ref(view.Epoch(), address)
+	ref := view.owner.domain.Ref(view.Epoch(), address)
 	b.dependency(ref, d.revision)
 	if err := b.captureRoutineBody(d); err != nil {
 		return nil, ids.ObjectRef{}, err

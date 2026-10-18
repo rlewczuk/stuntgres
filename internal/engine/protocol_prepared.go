@@ -166,7 +166,7 @@ func (s *StatementScope) describeProtocolBody(body parser.Statement) (StatementD
 	if !copyBody && !executeBody {
 		return s.Describe(body)
 	}
-	description := StatementDescription{catalogOwner: s.op.session.Engine(), catalogEpoch: s.txRef.Epoch()}
+	description := StatementDescription{catalogOwner: s.op.session.Engine().catalog.owner(), catalogEpoch: s.txRef.Epoch()}
 	if executeBody {
 		var err error
 		description, err = s.Describe(body)

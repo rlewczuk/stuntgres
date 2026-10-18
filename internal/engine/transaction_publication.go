@@ -224,7 +224,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if err == nil {
 			disclosure, err = e.authorizationLocked(op)
 			if nextCatalog != nil {
-				disclosure.catalog = CatalogRead{e, nextCatalog}
+				disclosure.catalog = e.catalog.read(nextCatalog)
 				disclosure.recaptureCatalog(disclosure.catalog)
 				if c != nil && c.roles != nil {
 					disclosure.roleRecord = c.roles

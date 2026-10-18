@@ -108,7 +108,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				if err := dest.Restore(context.Background(), bytes.NewReader(initial.Bytes())); err != nil {
 					t.Fatal(err)
 				}
-			} else if _, err := dest.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			owner = roleTableRef(t, dest, "portable.i").Address
@@ -182,7 +182,7 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	cancel()
 	lockAwait(t, waiting, context.Canceled)
 	e.mu.Lock()
-	read := CatalogRead{owner: e, state: e.catalog.state}
+	read := e.catalog.read(e.catalog.state)
 	leaked := len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}], Name: "i"})) != 0 || len(e.sequences) != 1
 	e.mu.Unlock()
 	if leaked {

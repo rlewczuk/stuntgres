@@ -106,7 +106,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 	sequenceRows := sessionSQL(t, s, "SELECT last_value,is_called FROM local_s")
 	tableRows := sessionSQL(t, s, "SELECT v FROM public.anchor")
 	for _, want := range []int64{2, 3} {
-		if _, err := e.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+		if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 			t.Fatal("repeated self replacement", err)
 		}
 		if s.token != token || s.temporaryNamespace != namespace || e.catalog.state.descriptors[address] != descriptor || e.catalog.state.descriptors[namespace] != nsDescriptor || e.sequences[address] != generator || s.sequences[address] != memory || *generator != generatorState || *memory != memoryState {
@@ -191,7 +191,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	oldRows := sessionSQL(t, b, "SELECT v FROM public.old_table")
 	sourceRows := sessionSQL(t, a, "SELECT v FROM portable.owner_table")
-	if _, err := dest.ReplaceCatalog(context.Background(), sourceBefore.view); err != nil {
+	if _, err := dest.ReplaceCatalog(context.Background(), source, sourceBefore.view); err != nil {
 		t.Fatal(err)
 	}
 	if b.token != token || b.temporaryNamespace != namespace || dest.catalog.state.descriptors[address] != descriptor || dest.catalog.state.descriptors[namespace] != nsDescriptor || dest.sequences[address] != generator || b.sequences[address] != memory || *generator != generatorState || *memory != memoryState {
@@ -370,7 +370,7 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 			if !self {
 				dest = New()
 			}
-			if _, err := dest.ReplaceCatalog(context.Background(), captured.view); err != nil {
+			if _, err := dest.ReplaceCatalog(context.Background(), source, captured.view); err != nil {
 				t.Fatal("excluded retired TEMP required a deleted generator", err)
 			}
 			for _, d := range dest.catalog.state.descriptors {

@@ -274,7 +274,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						state.names[descriptorNameKey(d)] = dest
 					}
 					state.epoch++
-					view := CatalogRead{owner: e, state: state}
+					view := e.catalog.read(state)
 					remap := func(r ids.ObjectRef) ids.ObjectRef {
 						r.Epoch = state.epoch
 						if a, ok := mapping[r.Address]; ok {
@@ -412,7 +412,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 			bad.owner = owner
 			state.descriptors[a] = &bad
 		}
-		if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}

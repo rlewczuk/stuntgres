@@ -282,7 +282,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 				}
 				e.DiscardCatalogStage(stage)
 			}
-			stage := e.BeginCatalogStage(CatalogRead{owner: e, state: original})
+			stage := e.BeginCatalogStage(e.catalog.read(original))
 			stage.terminalCleanup = true
 			var err error
 			if kind == "CHECK" {

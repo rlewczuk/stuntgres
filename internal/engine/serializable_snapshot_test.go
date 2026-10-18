@@ -203,13 +203,13 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			if mode == "cancel" {
 				cancel()
 			} else {
-				replacement := e.CatalogRead()
+				replacement, replacementSource := e.CatalogRead(), e
 				if mode == "foreign_owner" {
 					other := New()
 					otherSession := sessionStart(t, other, nil)
 					sessionSQL(t, otherSession, "CREATE TABLE replacement_rows(v INT UNIQUE)")
 					sessionSQL(t, otherSession, "INSERT INTO replacement_rows VALUES(22)")
-					replacement = other.CatalogRead()
+					replacement, replacementSource = other.CatalogRead(), other
 				}
 				// Reach a real post-copy capacity failure, not a fabricated
 				// cancellation or invalid input. Failed preparation must leave
@@ -218,7 +218,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				nextRow := e.nextRow
 				e.nextRow = ^uint64(0)
 				e.mu.Unlock()
-				changes, err := e.ReplaceCatalog(context.Background(), replacement)
+				changes, err := e.ReplaceCatalog(context.Background(), replacementSource, replacement)
 				e.mu.Lock()
 				e.nextRow = nextRow
 				e.mu.Unlock()
@@ -241,7 +241,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 					t.Fatal("failed replacement woke unresolved candidate")
 				default:
 				}
-				changes, err = e.ReplaceCatalog(context.Background(), replacement)
+				changes, err = e.ReplaceCatalog(context.Background(), replacementSource, replacement)
 				if err != nil || !changes.Replacement {
 					t.Fatal("successful replacement", changes, err)
 				}

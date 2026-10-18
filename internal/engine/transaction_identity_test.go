@@ -128,11 +128,11 @@ func TestTransactionIdentityHistory(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.ReplaceCatalog(ctx, e.CatalogRead()); !errors.Is(err, context.Canceled) {
+	if _, err := e.ReplaceCatalog(ctx, e, e.CatalogRead()); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	identityUnitStatus(t, e, id, "committed", true)
-	if _, err := e.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	identityUnitStatus(t, e, id, "", false)

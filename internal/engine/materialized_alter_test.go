@@ -404,7 +404,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if temporary.Address().ObjectID != ext.address.ObjectID {
 		t.Fatal("fixture did not create a genuine cross-class retained TEMP collision")
 	}
-	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	importedExt := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)

@@ -85,13 +85,13 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	cursor := roleExecute(t, e, op, "SELECT k,payload FROM root")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.ReplaceCatalog(canceled, retained); !errors.Is(err, context.Canceled) {
+	if _, err := e.ReplaceCatalog(canceled, e, retained); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().state != retained.state {
 		t.Fatal("canceled remap installed a candidate")
 	}
-	changes, err := e.ReplaceCatalog(context.Background(), retained)
+	changes, err := e.ReplaceCatalog(context.Background(), e, retained)
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
@@ -176,7 +176,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	partition.children = append(slices.Clone(partition.children), partition.children[0])
 	candidate.partition = &partition
 	state.descriptors[root.address] = &candidate
-	if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{e, state}); err == nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
 	}
 	if e.CatalogRead().state != before.state {
@@ -303,7 +303,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
 	collation := remappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {
-		mapped, err := remapPartitionDescriptor(CatalogRead{e, next}, source,
+		mapped, err := remapPartitionDescriptor(e.catalog.read(next), source,
 			func(ref ids.ObjectRef) ids.ObjectRef { return ref },
 			func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ },
 			mapping, typesOnly, collation)

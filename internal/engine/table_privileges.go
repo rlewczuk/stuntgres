@@ -20,7 +20,7 @@ func (e *Engine) initializeTablePrivileges() error {
 		if i >= 5 {
 			id = sqltype.VarChar
 		}
-		typ, ok := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(id)
+		typ, ok := (e.catalog.read(e.catalog.state)).LookupType(id)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing privilege source type")
 		}
@@ -46,7 +46,7 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog.state != catalog.state || auth.roleRecord == nil || ref.Domain() != catalog.owner.catalog.domain || ref.Epoch != catalog.Epoch() || source == nil || source.address != ref.Address || source.address.ObjectID != tablePrivilegesOID || catalog.state.descriptors[ref.Address] != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.roleRecord == nil || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || source == nil || source.address != ref.Address || source.address.ObjectID != tablePrivilegesOID || catalog.state.descriptors[ref.Address] != source {
 		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
 	}
 	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {

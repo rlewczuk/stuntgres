@@ -413,7 +413,7 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility catalog")
 	}
-	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.catalog.domain || ref.Epoch != data.catalog.Epoch() {
+	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}

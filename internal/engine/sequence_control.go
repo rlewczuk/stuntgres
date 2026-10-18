@@ -88,7 +88,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for address := range temporary {
 		namespaces[address] = true
 	}
-	children, err := namespaceChildren(CatalogRead{owner: e, state: e.catalog.state}, namespaces)
+	children, err := namespaceChildren(e.catalog.read(e.catalog.state), namespaces)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					case *typeDescriptor:
 						retainBuiltin(provider.typ)
 					case *relationDescriptor:
-						if ref.Address.SubID != 0 || provider != captured || provider.relationKind != catalogRelation || !pgDependPinned(CatalogRead{e, e.catalog.state}, address) {
+						if ref.Address.SubID != 0 || provider != captured || provider.relationKind != catalogRelation || !pgDependPinned(e.catalog.read(e.catalog.state), address) {
 							continue
 						}
 						// The exact immutable catalog provider includes unused columns.
@@ -347,7 +347,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			switch r := d.(type) {
 			case *namespaceDescriptor:
-				if target == a && d == e.catalog.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.catalog.state}, a) {
+				if target == a && d == e.catalog.state.descriptors[a] && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					// Preflight retained this exact immutable namespace authority.
 					break
 				}
@@ -397,7 +397,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					d = &n
 				}
 			case *relationDescriptor:
-				if target == a && r.relationKind == catalogRelation && d == e.catalog.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.catalog.state}, a) {
+				if target == a && r.relationKind == catalogRelation && d == e.catalog.state.descriptors[a] && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					if _, moved := mapping[r.namespace]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
@@ -550,7 +550,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		if !ok || len(relation.policies) == 0 && len(relation.rules) == 0 {
 			continue
 		}
-		view := CatalogRead{owner: e, state: next}
+		view := e.catalog.read(next)
 		remap := func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch = next.epoch; return ref }
 		typ := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 		// Replacement preflight certified these exact TEMP providers. They
@@ -590,22 +590,22 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	for _, descriptor := range next.descriptors {
 		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
-			if err := validatePolicies(CatalogRead{owner: e, state: next}, relation); err != nil {
+			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok {
-			if err := validateTypedAttachment(CatalogRead{owner: e, state: next}, relation); err != nil {
+			if err := validateTypedAttachment(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.inheritance != nil {
-			if err := validateInheritance(CatalogRead{owner: e, state: next}, relation); err != nil {
+			if err := validateInheritance(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.view != nil {
-			if err := validateViewDefinition(CatalogRead{owner: e, state: next}, relation); err != nil {
+			if err := validateViewDefinition(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
@@ -749,7 +749,7 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 // Retain the predecessor itself, after checking the candidate's full provider
 // shape and namespace/ACL authority; a compatible-looking user table is not it.
 func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
-	catalog := CatalogRead{e, e.catalog.state}
+	catalog := e.catalog.read(e.catalog.state)
 	for _, descriptor := range temporary {
 		consumer, ok := descriptor.(*relationDescriptor)
 		if !ok || consumer.view == nil {

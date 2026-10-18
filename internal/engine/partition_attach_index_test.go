@@ -26,7 +26,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			current := cloneCatalog(f.e.catalog.state)
 			current.descriptors[local.address] = &local
 			f.e.catalog.state = current
-			mapped, err := mapPartitionIndex(context.Background(), CatalogRead{owner: f.e, state: current}, f.root, f.leaf, f.parent.sqlIndex)
+			mapped, err := mapPartitionIndex(context.Background(), f.e.catalog.read(current), f.root, f.leaf, f.parent.sqlIndex)
 			if err != nil {
 				t.Fatal(err)
 			}

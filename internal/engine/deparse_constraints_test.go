@@ -383,7 +383,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
 	copy.checkConstraints[0].OID = d.defaults[1].OID
 	bad.descriptors[d.address] = &copy
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: bad}); err == nil {
+	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}
 	e.mu.Lock()
@@ -392,7 +392,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: bad}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(bad)); err != nil {
 		t.Fatal(err)
 	}
 	if d.checkConstraints[0].OID == d.defaults[1].OID {

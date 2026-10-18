@@ -266,7 +266,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.catalog.domain.Ref(old.Epoch, old.Address)
+			old = view.owner.domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}
@@ -398,7 +398,7 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 }
 
 func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
-	view := CatalogRead{owner: e, state: e.catalog.state}
+	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range e.catalog.state.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || len(d.rules) == 0 {

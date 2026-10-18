@@ -110,7 +110,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 				if err := dest.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
-			} else if _, err := dest.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			if dest.catalog.state.descriptors[temp] != definition || dest.sequences[temp] != generator || b.sequences[temp] != memory {

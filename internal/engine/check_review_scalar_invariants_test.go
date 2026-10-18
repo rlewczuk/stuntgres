@@ -92,7 +92,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				_, description := sequencePreparedDescription(t, target, peer, "SELECT nextval('kept')")
 				tempRef := description.sequences.constants[0].ref
 				temp := target.catalog.state.descriptors[tempRef.Address]
-				if _, err := target.ReplaceCatalog(ctx, before); err != nil {
+				if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 					t.Fatal(err)
 				}
 				if target.catalog.state.descriptors[tempRef.Address] != temp {

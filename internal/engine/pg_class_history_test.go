@@ -13,7 +13,7 @@ func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "history_parent", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	state.descriptors[parent.address] = parent
 	state.names[descriptorNameKey(parent)] = parent.address
-	return CatalogRead{e, state}, parent
+	return e.catalog.read(state), parent
 }
 
 func TestPgClassSubclassPublication(t *testing.T) {
@@ -107,7 +107,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if !got.hasSubclasses || got == parent || parent.hasSubclasses || !history.hasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := CatalogRead{e, cloneCatalog(catalog.state)}
+	base := e.catalog.read(cloneCatalog(catalog.state))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -120,7 +120,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := normalizeReplacementSubclassHistory(canceled, catalog); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := CatalogRead{e, cloneCatalog(catalog.state)}
+	missing := e.catalog.read(cloneCatalog(catalog.state))
 	delete(missing.state.descriptors, parent.address)
 	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")

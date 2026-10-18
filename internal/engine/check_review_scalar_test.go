@@ -32,7 +32,7 @@ func TestCheckReviewScalarInquiryCatalogReplacement(t *testing.T) {
 				if self {
 					target, peer = source, s
 				}
-				if _, err := target.ReplaceCatalog(ctx, before); err != nil {
+				if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 					t.Fatal(err)
 				}
 				if !self && source.CatalogRead().state.descriptors[ref.Address] != descriptor {

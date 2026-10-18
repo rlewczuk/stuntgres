@@ -2159,7 +2159,7 @@ func (b *expressionBinder) bindingCatalog() CatalogRead {
 	if b.queryAuth != nil {
 		return b.queryAuth.catalog
 	}
-	return CatalogRead{owner: b.engine, state: b.engine.catalog.state}
+	return b.engine.catalog.read(b.engine.catalog.state)
 }
 
 func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {

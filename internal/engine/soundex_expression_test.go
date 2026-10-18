@@ -69,7 +69,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				state.descriptors[n.ref.Address] = &bad
 				forged := n
 				forged.procedure = &bad
-				if err := forged.validate(CatalogRead{owner: e, state: state}); err == nil { t.Fatal("forged identity", bad) }
+				if err := forged.validate(e.catalog.read(state)); err == nil { t.Fatal("forged identity", bad) }
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
@@ -109,7 +109,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			next.descriptors[address] = consumer
 			next.epoch++
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
-			view := CatalogRead{owner: e, state: next}
+			view := e.catalog.read(next)
 			relocated := next.descriptors[address].(*relationDescriptor)
 			for _, node := range []BoundExpr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
 				n := node.(installedSoundexFunctionExpression)

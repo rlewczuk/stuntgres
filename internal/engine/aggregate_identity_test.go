@@ -80,7 +80,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	removed := cloneCatalog(view.state)
 	delete(removed.descriptors, proc.address)
 	delete(removed.names, descriptorNameKey(proc))
-	retired := CatalogRead{owner: e, state: removed}
+	retired := e.catalog.read(removed)
 	for _, helper := range proc.aggregate.helpers {
 		if _, ok := routineIdentityByOID(retired, helper.id); ok {
 			t.Fatal("retired helper still resolves")
@@ -120,7 +120,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		bad.aggregate = &owned
 		state := cloneCatalog(view.state)
 		state.descriptors[proc.address] = &bad
-		if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
 	}
@@ -133,7 +133,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		}
 		state := cloneCatalog(view.state)
 		state.descriptors[member] = &bad
-		if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
@@ -142,10 +142,10 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	namespace := *view.state.descriptors[proc.namespace].(*namespaceDescriptor)
 	namespace.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.id}
 	collision.descriptors[namespace.address] = &namespace
-	if err := stockIntagg.validate(CatalogRead{owner: e, state: collision}, ext); err == nil {
+	if err := stockIntagg.validate(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: collision}); err == nil {
+	if err := validateDefinitionOIDs(e.catalog.read(collision)); err == nil {
 		t.Fatal("global definition collision omitted helper")
 	}
 }
@@ -260,7 +260,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 			t.Fatal("mapping-only helper became a descriptor")
 		}
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: target, state: next}); err != nil {
+	if err := validateDefinitionOIDs(target.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
 }

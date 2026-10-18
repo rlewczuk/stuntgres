@@ -91,7 +91,7 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 		if !found {
 			return invalid()
 		}
-		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
+		if proc.owner.ID() == 0 || proc.owner != v.owner.principals.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 	}

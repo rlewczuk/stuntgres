@@ -71,7 +71,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *relati
 			if event.action.Action != parser.DropColumn {
 				continue
 			}
-			parentRef := view.owner.catalog.domain.Ref(view.Epoch(), parent)
+			parentRef := view.owner.domain.Ref(view.Epoch(), parent)
 			for _, source := range event.retiredNotNull {
 				for _, own := range child.notNullConstraints {
 					if own.Attribute != attribute {

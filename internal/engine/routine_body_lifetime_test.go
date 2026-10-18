@@ -140,7 +140,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	target := New()
 	retired := target.CatalogRead()
 	retiredRef := target.catalog.domain.Ref(retired.Epoch(), sourceCall.address)
-	change, err := target.ReplaceCatalog(ctx, before)
+	change, err := target.ReplaceCatalog(ctx, source, before)
 	if err != nil || !change.Replacement {
 		t.Fatal("replace genuine stored catalog", change, err)
 	}

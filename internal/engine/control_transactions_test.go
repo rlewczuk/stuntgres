@@ -132,7 +132,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				preparedStorage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 			}
 			preparedSequences, sequenceErr := copySequenceState(source, replacement)
-			indexes, indexErr := captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
+			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
 			source.mu.Unlock()
 			if sequenceErr != nil {
 				t.Fatal(sequenceErr)
@@ -151,7 +151,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				}
 				nextRevision := target.catalog.nextRevision
 				for _, descriptor := range next.descriptors {
-					if err := validateACL(target.roleRead(CatalogRead{target, next}, target.roles), descriptor); err != nil {
+					if err := validateACL(target.roleRead(target.catalog.read(next), target.roles), descriptor); err != nil {
 						return err
 					}
 					if revision := descriptor.Revision(); revision >= nextRevision {

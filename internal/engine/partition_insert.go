@@ -130,7 +130,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 		destination = selected
 	}
-	ref := state.catalog.owner.catalog.domain.Ref(state.catalog.Epoch(), destination.address)
+	ref := state.catalog.owner.domain.Ref(state.catalog.Epoch(), destination.address)
 	if state.groups[destination.address] == nil {
 		if err := s.acquirePartitionLock(ref, rowExclusive); err != nil {
 			return err
@@ -177,7 +177,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 }
 
 func (state *partitionInsertState) missingPartition(ctx context.Context, parent *relationDescriptor, key []partitionDatum, output sqltype.OutputEnvironment) error {
-	ref := state.catalog.owner.catalog.domain.Ref(state.catalog.Epoch(), parent.address)
+	ref := state.catalog.owner.domain.Ref(state.catalog.Epoch(), parent.address)
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.name)).(*sqlstate.Error)
 	err.Schema, err.Table = state.catalog.state.descriptors[parent.namespace].Name(), parent.name
 	// Routing/integrity errors remain real, but an actor subject to RLS must
@@ -219,7 +219,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 		label := entry.label
 		if entry.derived != nil {
 			if renderer.path == nil {
-				path, pathErr := state.catalog.owner.referencePath(state.auth)
+				path, pathErr := state.auth.engine.referencePath(state.auth)
 				if pathErr != nil {
 					return pathErr
 				}

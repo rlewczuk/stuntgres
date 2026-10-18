@@ -15,10 +15,10 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		for _, use := range fence.uses {
 			stores[use.relation.address] = e.stageStorageLocked(stage, use.relation.address)
 		}
-		if !fence.current(CatalogRead{e, current}, stores) {
+		if !fence.current(e.catalog.read(current), stores) {
 			return CatalogConflict{}
 		}
-		committed, err := domainUsesAt(CatalogRead{e, e.catalog.state}, fence.target, fence.path)
+		committed, err := domainUsesAt(e.catalog.read(e.catalog.state), fence.target, fence.path)
 		if committed == nil {
 			return err
 		}

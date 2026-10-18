@@ -131,7 +131,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	candidate := *v.catalog.state
 	candidate.defaultACLs = overlayDefaultACLs(v.catalog.state.defaultACLs, updates)
-	candidateCatalog := CatalogRead{e, &candidate}
+	candidateCatalog := e.catalog.read(&candidate)
 	candidateRoles := e.roleRead(candidateCatalog, v.roleRecord)
 	if err := validateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err

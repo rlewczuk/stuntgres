@@ -82,7 +82,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	view := CatalogRead{owner: source, state: next}
+	view := source.catalog.read(next)
 	rebound := infoTimeStampCatalogType(t, view)
 	base, _ := view.LookupType(sqltype.Timestamptz)
 	if rebound.typ == d.typ || rebound.typ.DomainBase().Type != base || base == d.typ.DomainBase().Type || rebound.typ.DomainBase().Typmod != 2 || !rebound.typ.IsBuiltin() || rebound.typ.IsUserDefined() || rebound.revision != 1 || rebound.typ.AssociatedArray() != d.array || rebound.typ.NamespaceName() != "information_schema" {

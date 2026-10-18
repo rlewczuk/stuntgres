@@ -92,7 +92,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		bad := *proc
 		mutate(&bad)
 		state.descriptors[proc.address] = &bad
-		if err := stockFuzzystrmatch.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		if err := stockFuzzystrmatch.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
 	}
@@ -233,7 +233,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	badProcedure := *n.procedure
 	badProcedure.result = 25
 	state.descriptors[n.ref.Address] = &badProcedure
-	if err := validateGenerationProviders(CatalogRead{owner: e, state: state}, consumer); err == nil {
+	if err := validateGenerationProviders(e.catalog.read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
 	children := 0
@@ -301,7 +301,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	sourceRef, sourceUsage := old.ref, old.ResultUsage()
 	sourceDimensions := oldValue.ArrayDimensions()
 	target := New()
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	imported := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)

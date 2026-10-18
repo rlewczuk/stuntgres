@@ -155,7 +155,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	defer e.mu.Unlock()
 	before := e.catalog.state
 	old := before.descriptors[ref.Address].(*relationDescriptor)
-	stage := e.BeginCatalogStage(CatalogRead{e, before})
+	stage := e.BeginCatalogStage(e.catalog.read(before))
 	defer e.DiscardCatalogStage(stage)
 	next := *old
 	next.revision++

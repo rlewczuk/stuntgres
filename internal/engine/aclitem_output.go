@@ -53,10 +53,10 @@ func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id
 // Validation checks immutable datum provenance without a role-liveness lookup:
 // dropped role IDs remain valid stored ACL data. Its text is discarded and is
 // never used for SQL replay, Dump, deparse or result presentation.
-type aclItemValidationOutput struct{ owner *Engine }
+type aclItemValidationOutput struct{ owner *catalogOwner }
 
 func (r aclItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
-	if r.owner == nil || authority != &r.owner.aclAuthority {
+	if r.owner == nil || authority != r.owner.aclAuthority {
 		return "", fmt.Errorf("stuntgres: foreign ACL validation identity")
 	}
 	return strconv.FormatUint(uint64(id), 10), nil
@@ -66,7 +66,7 @@ func (s *StatementScope) FormatACLRole(authority *sqltype.ACLAuthority, id uint3
 	if s == nil || s.commentCatalog.owner == nil {
 		return "", fmt.Errorf("stuntgres: missing ACL output snapshot")
 	}
-	return (capturedACLItemOutput{owner: s.commentCatalog.owner, roles: s.commentRoles}).FormatACLRole(authority, id)
+	return (capturedACLItemOutput{owner: s.commentEngine(), roles: s.commentRoles}).FormatACLRole(authority, id)
 }
 
 func (r *finalRows) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {

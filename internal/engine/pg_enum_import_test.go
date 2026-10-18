@@ -74,7 +74,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	targetOp, targetDone := roleOperation(t, target, "postgres")
 	domainUnitPublish(t, target, domainUnitStage(t, target, targetOp, "CREATE TYPE reserved AS ENUM ('a','b','c')"))
 	targetDone()
-	if _, err := target.ReplaceCatalog(ctx, original); err != nil {
+	if _, err := target.ReplaceCatalog(ctx, source, original); err != nil {
 		t.Fatal(err)
 	}
 	imported := domainUnitType(t, target.CatalogRead(), "mood").typ

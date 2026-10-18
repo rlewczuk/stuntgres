@@ -137,7 +137,7 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	sourceRole.Name = r.Name
 	putFixtureRole(sourceRoles, sourceRole)
 	source.roles = sourceRoles
-	if _, err := e.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	d, renamed = pgTablespaceUnitCapture(t, e)

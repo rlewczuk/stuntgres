@@ -258,7 +258,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			columns := append([]ColumnDescriptor(nil), index.columns...)
 			parentColumns := append([]ColumnDescriptor(nil), parent.columns...)
 			e := New()
-			stage := e.BeginCatalogStage(CatalogRead{owner: e, state: catalog})
+			stage := e.BeginCatalogStage(e.catalog.read(catalog))
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -289,7 +289,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			}
 			other := parent.address
 			other.ObjectID += 2
-			unrelated := e.BeginCatalogStage(CatalogRead{owner: e, state: catalog})
+			unrelated := e.BeginCatalogStage(e.catalog.read(catalog))
 			if err := unrelated.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -303,7 +303,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 func TestIndexClausesUntouchedStage(t *testing.T) {
 	parent, index, catalog, _ := indexClausesFixture(t)
 	e := New()
-	stage := e.BeginCatalogStage(CatalogRead{owner: e, state: catalog})
+	stage := e.BeginCatalogStage(e.catalog.read(catalog))
 	transforms := []columnTransformation{{attribute: parent.attributes[0]}}
 	var err error
 	allocations := testing.AllocsPerRun(100, func() {
@@ -331,7 +331,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e.storage[parent.address] = source
 	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}
 	e.commitSeq = 1
-	snapshot, err := captureIndexSnapshot(ctx, CatalogRead{owner: e, state: catalog}, map[ids.ObjectAddress]*relationStorage{parent.address: source}, map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}, 1)
+	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*relationStorage{parent.address: source}, map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

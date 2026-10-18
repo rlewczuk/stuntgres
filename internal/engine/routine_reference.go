@@ -35,6 +35,21 @@ func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captu
 	if err := roles.ValidatePrincipal(captured.owner); err != nil {
 		return nil, err
 	}
+	return currentRoutineDeclaration(view, captured)
+}
+
+// validateStoredRoutineDescriptor is validateRoutineDescriptor for stored SQL
+// validation, which holds no role snapshot: the owner's provenance is checked
+// against the principal domain of view's own engine, which is what the
+// engine's committed role root would check.
+func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
+	if _, ok := view.Database(currentDatabaseAddress); !ok || view.owner == nil || captured.owner.ID() == 0 || captured.owner != view.owner.principals.Principal(captured.owner.ID()) {
+		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
+	}
+	return currentRoutineDeclaration(view, captured)
+}
+
+func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
 	current, ok := view.state.descriptors[captured.address].(*procedureDescriptor)
 	if !ok || !sameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")

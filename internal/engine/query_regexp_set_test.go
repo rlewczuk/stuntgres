@@ -12,12 +12,21 @@ import (
 
 func regexpSetUnitTypes(t *testing.T) (CatalogRead, *sqltype.Descriptor) {
 	t.Helper()
-	view := New().CatalogRead()
+	_, view, text := regexpSetUnitEngineTypes(t)
+	return view, text
+}
+
+// regexpSetUnitEngineTypes is regexpSetUnitTypes with the engine that owns the
+// returned view.
+func regexpSetUnitEngineTypes(t *testing.T) (*Engine, CatalogRead, *sqltype.Descriptor) {
+	t.Helper()
+	engine := New()
+	view := engine.CatalogRead()
 	text, ok := view.LookupType(sqltype.Text)
 	if !ok {
 		t.Fatal("missing TEXT")
 	}
-	return view, text
+	return engine, view, text
 }
 func regexpSetUnitLiteral(text *sqltype.Descriptor, s string) BoundExpr {
 	return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
@@ -77,7 +86,7 @@ func regexpSetUnitLayout(n *setProjectNode) *setProjectNode {
 	}
 	return n
 }
-func regexpSetUnitLower(view CatalogRead, root LogicalNode, expressions []BoundExpr, frame uint32) (LogicalNode, []BoundExpr, error) {
+func regexpSetUnitLower(engine *Engine, root LogicalNode, expressions []BoundExpr, frame uint32) (LogicalNode, []BoundExpr, error) {
 	found := false
 	for _, expression := range expressions {
 		found = found || querySetDepth(expression) != 0
@@ -86,7 +95,7 @@ func regexpSetUnitLower(view CatalogRead, root LogicalNode, expressions []BoundE
 		return root, expressions, nil
 	}
 	outputs := append([]BoundExpr(nil), expressions...)
-	b := &expressionBinder{engine: view.owner, ctx: context.Background(), queryFrame: frame}
+	b := &expressionBinder{engine: engine, ctx: context.Background(), queryFrame: frame}
 	root, err := b.lowerQuerySets(root, outputs, nil, false)
 	return root, outputs, err
 }
@@ -249,10 +258,10 @@ func TestRegexpSetProjection(t *testing.T) {
 	})
 }
 func TestRegexpSetNested(t *testing.T) {
-	view, text := regexpSetUnitTypes(t)
+	engine, _, text := regexpSetUnitEngineTypes(t)
 	inner := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b,c d"), ",")}
 	outer := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, inner, " ")}
-	root, outputs, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{outer}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{outer}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +289,7 @@ func TestRegexpSetNested(t *testing.T) {
 			t.Fatal(err)
 		}
 		wrapper := functions.String{Info: expressionInfo{Usage: text.Usage()}, Plan: plan, Args: []BoundExpr{outer}, Textual: [4]bool{true}}
-		root, outputs, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{wrapper}, 1)
+		root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{wrapper}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -395,11 +404,11 @@ func TestRegexpSetOwnership(t *testing.T) {
 	}
 }
 func TestRegexpSetWalks(t *testing.T) {
-	view, text := regexpSetUnitTypes(t)
+	engine, view, text := regexpSetUnitEngineTypes(t)
 	column := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, scope: 1, frame: 1, slot: 0}
 	set := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, column, " ")}
 	input := &valuesNode{querySchema: querySchema{{Usage: text.Usage()}}, rows: [][]BoundExpr{{regexpSetUnitLiteral(text, "a b")}}}
-	root, _, err := regexpSetUnitLower(view, input, []BoundExpr{set}, 1)
+	root, _, err := regexpSetUnitLower(engine, input, []BoundExpr{set}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,8 +520,8 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 }
 
 func TestFunctionSourceMixedRows(t *testing.T) {
-	view, text := regexpSetUnitTypes(t)
-	b := &expressionBinder{engine: view.owner, ctx: context.Background(), queryFrame: 1}
+	engine, view, text := regexpSetUnitEngineTypes(t)
+	b := &expressionBinder{engine: engine, ctx: context.Background(), queryFrame: 1}
 	integer, _ := view.LookupType(sqltype.Int4)
 	bigint, _ := view.LookupType(sqltype.Int8)
 	for _, tc := range []struct {
@@ -572,10 +581,10 @@ func regexpCallForNull(plan sqltype.RegexpPlan, result *sqltype.Descriptor, sour
 }
 
 func TestQuerySetMixedAttemptOwnership(t *testing.T) {
-	view, text := regexpSetUnitTypes(t)
+	engine, _, text := regexpSetUnitEngineTypes(t)
 	for _, upper := range []bool{false, true} {
 		t.Run(map[bool]string{false: "bare-terminal-attempt", true: "upper-wrapper-emitted-only"}[upper], func(t *testing.T) {
-			b := &expressionBinder{engine: view.owner, ctx: context.Background(), queryFrame: 1}
+			b := &expressionBinder{engine: engine, ctx: context.Background(), queryFrame: 1}
 			stringCall := stringSplitMarker(t, b, 40, regexpSetUnitLiteral(text, "a,b"), regexpSetUnitLiteral(text, ","))
 			regexpCall := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x_y_z"), "_")}
 			draws := 0

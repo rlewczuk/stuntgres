@@ -29,7 +29,7 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relat
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	for _, fence := range c.domainValidations {
-		if !fence.current(CatalogRead{e, e.catalog.state}, e.storage) {
+		if !fence.current(e.catalog.read(e.catalog.state), e.storage) {
 			return CatalogConflict{}
 		}
 	}

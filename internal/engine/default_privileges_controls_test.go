@@ -17,7 +17,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		source.grant(t, "types", "usage", []string{"default_schema"})
 		retained := source.e.CatalogRead()
 		oldRolesPublication := target.e.roles
-		if _, err := target.e.ReplaceCatalog(context.Background(), retained); err != nil {
+		if _, err := target.e.ReplaceCatalog(context.Background(), source.e, retained); err != nil {
 			t.Fatal(err)
 		}
 		global := defaultACLKey{creator: target.owner, class: authorization.DefaultTables}
@@ -73,7 +73,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if projection.state.defaultACLs[scoped] != nil || projection.state.defaultACLs[global] == nil || source.state.defaultACLs[scoped] == nil {
 			t.Fatal("TEMP default projection/source immutability")
 		}
-		if _, err = f.e.ReplaceCatalog(context.Background(), source); err != nil {
+		if _, err = f.e.ReplaceCatalog(context.Background(), f.e, source); err != nil {
 			t.Fatal(err)
 		}
 		rights := authorization.ACLRights(table.acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
@@ -114,7 +114,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		state.names[descriptorNameKey(&ns)] = target.schema
 		target.e.catalog.state = state
 		target.op.session.temporaryNamespace = target.schema
-		if _, err := target.e.ReplaceCatalog(context.Background(), source.e.CatalogRead()); err != nil {
+		if _, err := target.e.ReplaceCatalog(context.Background(), source.e, source.e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		imported := target.e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "default_schema"}]
@@ -133,7 +133,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		tempSource.descriptors[source.schema] = &tempNS
 		tempSource.names[descriptorNameKey(&tempNS)] = source.schema
 		fresh := newDefaultUnitFixture(t)
-		if _, err := fresh.e.ReplaceCatalog(context.Background(), CatalogRead{source.e, tempSource}); err != nil {
+		if _, err := fresh.e.ReplaceCatalog(context.Background(), source.e, source.e.catalog.read(tempSource)); err != nil {
 			t.Fatal(err)
 		}
 		if len(fresh.e.catalog.state.defaultACLs) != 1 || fresh.e.catalog.state.defaultACLs[defaultACLKey{creator: fresh.owner, class: authorization.DefaultSequences}] == nil || tempSource.defaultACLs[defaultACLKey{creator: source.owner, schema: source.schema, class: authorization.DefaultTables}] == nil {

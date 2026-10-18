@@ -21,7 +21,7 @@ func pgDependUnitCatalog(t *testing.T) (*Engine, CatalogRead, *sqltype.Descripto
 	}
 	state := *base.state
 	state.descriptors = maps.Clone(base.state.descriptors)
-	return e, CatalogRead{owner: e, state: &state}, typ
+	return e, e.catalog.read(&state), typ
 }
 func pgDependUnitAddress(class, id ids.OID, sub int32) ids.ObjectAddress {
 	return ids.ObjectAddress{ClassID: class, ObjectID: id, SubID: sub}

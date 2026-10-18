@@ -134,7 +134,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified.columns[24].Usage.Typmod = 0
 	privateState := cloneCatalog(catalog.state)
 	privateState.descriptors[d.address] = &modified
-	if got, err := e.capturePGAttribute(context.Background(), CatalogRead{owner: e, state: privateState}, e.Roles(), ref, &modified); got != nil || err == nil {
+	if got, err := e.capturePGAttribute(context.Background(), e.catalog.read(privateState), e.Roles(), ref, &modified); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
 	if e.catalog.state != before || !maps.Equal(descriptors, e.catalog.state.descriptors) {

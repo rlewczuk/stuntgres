@@ -22,7 +22,7 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 			}
 			old := authorization.ACLValue{Explicit: true, Entries: entries}
 			retained := append([]authorization.ACLEntry(nil), entries...)
-			got, changed, err := authorization.OwnedACL(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true})
+			got, changed, err := authorization.OwnedACL(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true})
 			if err != nil || !changed || !reflect.DeepEqual(old.Entries, retained) {
 				t.Fatal("cleanup/error/immutable source", got, changed, err)
 			}
@@ -38,7 +38,7 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			if _, _, err := authorization.OwnedACL(ctx, e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
+			if _, _, err := authorization.OwnedACL(ctx, e.roleRead(e.catalog.read(e.catalog.state), e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 		}
@@ -63,7 +63,7 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, authorization.Membership{Role: target, Member: owner, Grantor: reader, Inherit: true}))
 	old := e.roles
 	retained := append([]authorization.Membership(nil), fixtureEdges(old)...)
-	next, err := ownedMembershipCandidate(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, old), old.revision, map[authorization.PrincipalRef]bool{source: true})
+	next, err := ownedMembershipCandidate(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), old), old.revision, map[authorization.PrincipalRef]bool{source: true})
 	if err != nil || next == nil || next.revision != old.revision+1 || !reflect.DeepEqual(fixtureEdges(old), retained) {
 		t.Fatal(next, err)
 	}
@@ -75,7 +75,7 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 	if next.root.Read(authorization.PrincipalRef{}).RoleCount() != old.root.Read(authorization.PrincipalRef{}).RoleCount() || fixtureRole(next, source) != fixtureRole(old, source) {
 		t.Fatal("DROP OWNED removed role endpoint")
 	}
-	if noChange, err := ownedMembershipCandidate(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, old), old.revision, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
+	if noChange, err := ownedMembershipCandidate(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), old), old.revision, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
 		t.Fatal("unchanged membership cloned/revised", noChange, err)
 	}
 }

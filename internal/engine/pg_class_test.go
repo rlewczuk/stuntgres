@@ -109,11 +109,11 @@ func TestPgClassKinds(t *testing.T) {
 	state := cloneCatalog(catalog.state)
 	state.descriptors[parentAddress] = &relationDescriptor{address: parentAddress, partition: &partitionDefinition{}}
 	index := &relationDescriptor{relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress}}
-	if got := pgClassKind(CatalogRead{e, state}, index); got != "I" {
+	if got := pgClassKind(e.catalog.read(state), index); got != "I" {
 		t.Fatal(got)
 	}
 	delete(state.descriptors, parentAddress)
-	if got := pgClassKind(CatalogRead{e, state}, index); got != "i" {
+	if got := pgClassKind(e.catalog.read(state), index); got != "i" {
 		t.Fatal(got)
 	}
 }

@@ -341,7 +341,7 @@ func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *cat
 func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*logicalIndexRoot
-	catalog := CatalogRead{owner: e, state: next}
+	catalog := e.catalog.read(next)
 	evaluation.catalog, evaluation.Output = catalog, output
 	if auth == nil {
 		// Trusted replacement has catalog identity but no SQL principal.
@@ -457,7 +457,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		if index.sqlIndex.method == hashMethod {
 			var err error
 			if rebuild {
-				if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
+				if err := validateIndexDefinition(e.catalog.read(next), index); err != nil {
 					return nil, err
 				}
 				root, err = buildHashIndexRoot(evaluation, parent, index.sqlIndex, storage[parent.address], materialize || index.sqlIndex.isExclusion(), nil)

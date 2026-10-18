@@ -32,7 +32,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 					state.names[descriptorNameKey(d)] = d.address
 				}
 			}
-			view := CatalogRead{owner: e, state: state}
+			view := e.catalog.read(state)
 			_, replay := partitionConstraintDumpCatalog(view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {

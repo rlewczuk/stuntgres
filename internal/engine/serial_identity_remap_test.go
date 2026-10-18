@@ -35,7 +35,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 				if err := dest.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
-			} else if _, err := dest.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			consumer := dest.catalog.state.descriptors[roleTableRef(t, dest, "portable.consumer").Address].(*relationDescriptor)

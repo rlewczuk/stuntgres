@@ -127,7 +127,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		next.descriptors[destination] = descriptor
 		next.names[descriptorNameKey(descriptor)] = destination
 	}
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	remapped := next.descriptors[mapping[ext.address]].(*extensionDescriptor)
 	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)

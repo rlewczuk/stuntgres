@@ -230,7 +230,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		next.names[descriptorNameKey(descriptor)] = destination
 	}
 	next.epoch++
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		old.Epoch = next.epoch
 		if address, ok := mapping[old.Address]; ok {

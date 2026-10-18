@@ -44,7 +44,7 @@ func TestTableSummaryReplacementHistory(t *testing.T) {
 	run(t, source, "DROP INDEX summary_old")
 	for _, target := range []*Engine{source, New()} {
 		before := source.CatalogRead()
-		if _, err := target.ReplaceCatalog(context.Background(), before); err != nil {
+		if _, err := target.ReplaceCatalog(context.Background(), source, before); err != nil {
 			t.Fatal(err)
 		}
 		parent := target.CatalogRead().state.descriptors[roleTableRef(t, target, "summary_former").Address].(*relationDescriptor)
@@ -81,7 +81,7 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			if same {
 				target = e
 			}
-			if _, err := target.ReplaceCatalog(context.Background(), CatalogRead{owner: e, state: state}); err != nil {
+			if _, err := target.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err != nil {
 				t.Fatal(err)
 			}
 			current := target.CatalogRead()

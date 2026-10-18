@@ -51,7 +51,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	var maintenance *Session
 	for {
 		e.mu.Lock()
-		base := CatalogRead{e, e.catalog.state}
+		base := e.catalog.read(e.catalog.state)
 		var namespaces []*namespaceDescriptor
 		for _, d := range base.state.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {

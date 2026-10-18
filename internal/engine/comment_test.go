@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-func commentWant(t *testing.T, read CatalogRead, ref ids.ObjectRef, want string) {
+func commentWant(t *testing.T, e *Engine, read CatalogRead, ref ids.ObjectRef, want string) {
 	t.Helper()
-	got, present, err := read.Comment(ref)
+	got, present, err := e.Comment(read, ref)
 	if err != nil || got != want || present != (want != "") {
 		t.Fatalf("comment: %q %v %v want %q", got, present, err, want)
 	}
@@ -51,8 +51,8 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 		ref  ids.ObjectRef
 		text string
 	}{{table, "table"}, {a, "first"}, {b, "second"}, {ns, "schema"}} {
-		commentWant(t, e.CatalogRead(), tc.ref, tc.text)
-		commentWant(t, old, tc.ref, "")
+		commentWant(t, e, e.CatalogRead(), tc.ref, tc.text)
+		commentWant(t, e, old, tc.ref, "")
 	}
 	if d, _ := oldRoles.Lookup("owner"); d.Comment != "" {
 		t.Fatal("mutated retained role")
@@ -69,27 +69,27 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 	}
 	retained := e.CatalogRead()
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.a IS 'replacement'")
-	commentWant(t, retained, a, "first")
+	commentWant(t, e, retained, a, "first")
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.a IS NULL")
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.b IS ''")
-	commentWant(t, e.CatalogRead(), a, "")
-	commentWant(t, e.CatalogRead(), b, "")
+	commentWant(t, e, e.CatalogRead(), a, "")
+	commentWant(t, e, e.CatalogRead(), b, "")
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.b IS ' '")
-	commentWant(t, e.CatalogRead(), b, " ")
+	commentWant(t, e, e.CatalogRead(), b, " ")
 	for _, bad := range []ids.ObjectRef{{}, New().catalog.domain.Ref(table.Epoch, table.Address), e.catalog.domain.Ref(table.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.catalog.domain.Ref(ns.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
-		if _, _, err := e.CatalogRead().Comment(bad); err == nil {
+		if _, _, err := e.Comment(e.CatalogRead(), bad); err == nil {
 			t.Fatal("accepted invalid comment reference", bad)
 		}
 	}
 	roleExecute(t, e, op, "CREATE TABLE s.copy(LIKE s.t)")
-	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "s.copy"), "")
+	commentWant(t, e, e.CatalogRead(), roleTableRef(t, e, "s.copy"), "")
 	roleExecute(t, e, op, "ALTER SCHEMA s RENAME TO renamed")
 	roleExecute(t, e, op, "ALTER SCHEMA renamed OWNER TO owner")
-	commentWant(t, e.CatalogRead(), ns, "schema")
-	commentWant(t, e.CatalogRead(), table, "table")
+	commentWant(t, e, e.CatalogRead(), ns, "schema")
+	commentWant(t, e, e.CatalogRead(), table, "table")
 	roleExecute(t, e, op, "DROP SCHEMA renamed CASCADE")
 	roleExecute(t, e, op, "CREATE SCHEMA renamed CREATE TABLE t(a INT,b TEXT)")
-	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "renamed.t"), "")
+	commentWant(t, e, e.CatalogRead(), roleTableRef(t, e, "renamed.t"), "")
 	roleExecute(t, e, op, "DROP ROLE owner")
 	roleExecute(t, e, op, "CREATE USER owner")
 	if d, _ := e.Roles().Lookup("owner"); d.Comment != "" {
@@ -103,8 +103,8 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 	if d, _ := e.Roles().Lookup("owner"); d.Comment != "retained" {
 		t.Fatal(d)
 	}
-	commentWant(t, e.CatalogRead(), schemaRef(t, e, "public"), "standard public schema")
-	if _, _, err := old.Comment(table); !errors.Is(err, ErrCatalogReplaced) {
+	commentWant(t, e, e.CatalogRead(), schemaRef(t, e, "public"), "standard public schema")
+	if _, _, err := e.Comment(old, table); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("old epoch survived reset", err)
 	}
 }
@@ -141,7 +141,7 @@ func TestCommentAuthorizationAndLookup(t *testing.T) {
 	} {
 		commentFailure(t, e, other, tc.q, tc.code, tc.message, tc.detail)
 	}
-	commentWant(t, e.CatalogRead(), table, "old")
+	commentWant(t, e, e.CatalogRead(), table, "old")
 	held := statement(t, "COMMENT ON TABLE s.t IS 'prepared'")
 	if _, err := e.Describe(admin, held); err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestCommentAuthorizationAndLookup(t *testing.T) {
 	if _, err := e.Execute(admin, held, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "s.t"), "prepared")
+	commentWant(t, e, e.CatalogRead(), roleTableRef(t, e, "s.t"), "prepared")
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}

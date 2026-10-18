@@ -122,14 +122,14 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 // Caller holds Engine.mu and the session's statement admission.
 func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	if c == nil {
-		return CatalogRead{e, e.catalog.state}
+		return e.catalog.read(e.catalog.state)
 	}
 	if c.cachedBase == e.catalog.state && c.cached.state != nil {
 		return c.cached
 	}
 	if len(c.descriptors) == 0 && len(c.defaultACLs) == 0 {
 		c.cachedBase = e.catalog.state
-		c.cached = CatalogRead{e, e.catalog.state}
+		c.cached = e.catalog.read(e.catalog.state)
 		return c.cached
 	}
 	n := cloneCatalog(e.catalog.state)
@@ -153,7 +153,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		}
 	}
 	n.operatorNames = operators.index
-	c.cachedBase, c.cached = e.catalog.state, CatalogRead{e, n}
+	c.cachedBase, c.cached = e.catalog.state, e.catalog.read(n)
 	return c.cached
 }
 func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d Descriptor) {

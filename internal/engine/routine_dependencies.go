@@ -39,12 +39,11 @@ func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node BoundExpr) er
 }
 
 func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) error {
-	roles := view.owner.roleRead(view, view.owner.roles)
-	current, err := validateRoutineDescriptor(view, roles, captured)
+	current, err := validateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return err
 	}
-	ref := view.owner.catalog.domain.Ref(view.Epoch(), current.address)
+	ref := view.owner.domain.Ref(view.Epoch(), current.address)
 	for _, old := range r.capturedManifest {
 		if old.Address == ref.Address {
 			if !storedReferenceEpochValid(view, r.retainedConsumer(), old) {

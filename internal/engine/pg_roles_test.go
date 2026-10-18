@@ -184,7 +184,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	pgRolesUnitRole(e, state, 20001, "second")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []authorization.Read{e.roleRead(CatalogRead{e, e.catalog.state}, emptyRoleFixture(e)), e.roleRead(CatalogRead{e, e.catalog.state}, state)} {
+	for _, roles := range []authorization.Read{e.roleRead(e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roleRead(e.catalog.read(e.catalog.state), state)} {
 		source, err := capturePGRoles(canceled, roles, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
@@ -192,7 +192,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	}
 	for _, at := range []int{2, 3, state.root.Read(authorization.PrincipalRef{}).RoleCount() + 2} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := capturePGRoles(ctx, e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
+		source, err := capturePGRoles(ctx, e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -200,7 +200,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	invalid := *d
 	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 	invalid.columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := capturePGRoles(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
@@ -241,7 +241,7 @@ func TestPGRolesProjection(t *testing.T) {
 			role.ConnectionLimit = 9
 			role.HasValidUntil, role.ValidUntil, role.Password = expiry.has, expiry.stamp, password
 			putFixtureRole(state, role)
-			source, err := capturePGRoles(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
+			source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -299,7 +299,7 @@ func TestPGRolesProjection(t *testing.T) {
 				t.Fatal("retained role changed")
 			}
 			retireFixtureRole(updated, low)
-			fresh, err := capturePGRoles(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, updated), ref, d)
+			fresh, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), updated), ref, d)
 			if err != nil || pgRolesUnitRows(t, fresh)[20000] != nil {
 				t.Fatal("high identity aliased removed role", err)
 			}

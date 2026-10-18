@@ -125,7 +125,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	run(t, target, "CREATE TABLE unrelated(n INT)")
 	run(t, target, "INSERT INTO unrelated VALUES(99),(99),(99),(99),(99)")
 	epoch := target.CatalogRead().Epoch()
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	if target.catalog.state.descriptors[temporary] != descriptor || target.sequences[temporary] != generator || session.sequences[temporary] != memory || *generator != generatorState || *memory != memoryState {

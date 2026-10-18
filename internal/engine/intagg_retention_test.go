@@ -122,10 +122,10 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			impostor := *proc
 			state := cloneCatalog(view.state)
 			state.descriptors[ref.Address] = &impostor
-			if storedViewReferenceValid(CatalogRead{owner: e, state: state}, consumer, ref) {
+			if storedViewReferenceValid(e.catalog.read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}
-			if _, err := consumer.view.intaggRecipeProcedure(CatalogRead{owner: e, state: state}, path, proc.name); err == nil {
+			if _, err := consumer.view.intaggRecipeProcedure(e.catalog.read(state), path, proc.name); err == nil {
 				t.Fatal("recipe accepted substituted procedure descriptor")
 			}
 			unretained := *consumer

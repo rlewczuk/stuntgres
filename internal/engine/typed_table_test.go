@@ -203,7 +203,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			late.ofType = ids.ObjectAddress{}
 			next.descriptors[late.address] = &late
 		}
-		valid := typedObservationValid(stage, CatalogRead{owner: e, state: next})
+		valid := typedObservationValid(stage, e.catalog.read(next))
 		if valid != (kind == "unrelated") {
 			t.Fatal("incorrect dependency-set fence", kind, valid)
 		}

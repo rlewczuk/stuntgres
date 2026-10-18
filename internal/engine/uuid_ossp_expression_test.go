@@ -309,7 +309,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		state.names[descriptorNameKey(d)] = dest
 	}
 	state.epoch++
-	view := CatalogRead{owner: e, state: state}
+	view := e.catalog.read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
 		ref.Epoch = state.epoch
 		if dest, ok := mapping[ref.Address]; ok {

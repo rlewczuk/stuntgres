@@ -196,13 +196,12 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 	if err := validateColumnDefaultProviders(view, parent, definition); err != nil {
 		return err
 	}
-	roles := view.owner.roleRead(view, view.owner.roles)
 	var failure error
 	record := func(captured *procedureDescriptor) {
 		if failure != nil || captured == nil {
 			return
 		}
-		current, err := validateRoutineDescriptor(view, roles, captured)
+		current, err := validateStoredRoutineDescriptor(view, captured)
 		if err != nil {
 			failure = err
 			return

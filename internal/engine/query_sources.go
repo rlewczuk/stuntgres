@@ -207,6 +207,15 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, queryRowMark{}, scope.queryLocks)
 }
 
+// commentEngine returns the engine whose catalog the comment snapshot was
+// captured from, or nil before capture.
+func (s *StatementScope) commentEngine() *Engine {
+	if s.commentCatalog.owner == nil {
+		return nil
+	}
+	return s.op.session.Engine()
+}
+
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across
 // query providers and completed-row CHECK evaluation. The caller holds e.mu.
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {

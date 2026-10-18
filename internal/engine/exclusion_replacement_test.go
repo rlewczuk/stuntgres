@@ -36,7 +36,7 @@ func TestExclusionReplacement(t *testing.T) {
 			if !self && tempRef.Address.ObjectID != original.address.ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
-			if _, err := target.ReplaceCatalog(ctx, before); err != nil {
+			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
 			if target.catalog.state.descriptors[tempRef.Address] != temp || target.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {

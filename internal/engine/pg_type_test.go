@@ -182,7 +182,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 			bad.columns[0].Usage.Type, _ = foreign.LookupType(sqltype.Oid)
 		}
 		root.descriptors[d.address] = &bad
-		view := CatalogRead{owner: e, state: root}
+		view := e.catalog.read(root)
 		s, err = e.capturePGType(t.Context(), view, roles, ref, &bad)
 		ordinary(s, err)
 	}
@@ -193,7 +193,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	changed.acl = authorization.ACLValue{Explicit: true}
 	changed.aclSyntheticDefault = false
 	root.descriptors[changed.Address()] = &changed
-	s, err = e.capturePGType(t.Context(), CatalogRead{owner: e, state: root}, roles, ref, d)
+	s, err = e.capturePGType(t.Context(), e.catalog.read(root), roles, ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 					replacement.typ = &foreign
 					root.descriptors[original.Address()] = &replacement
 				}
-				bad := CatalogRead{owner: e, state: root}
+				bad := e.catalog.read(root)
 				for _, d := range []*typeDescriptor{nested, array(t, catalog, nested)} {
 					facts, err := pgTypeFacts(bad, d)
 					if err == nil || facts != (sqltype.PGTypeMetadata{}) {

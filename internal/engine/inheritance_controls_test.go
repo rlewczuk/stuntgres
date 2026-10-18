@@ -77,7 +77,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	if child.inheritance.parents[0] != parent.address || imported == child {
 		t.Fatal("source graph mutated")
 	}
-	predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: next}, mapped, child.address)
+	predecessor, err := dumpPredecessor(e.catalog.read(next), mapped, child.address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	if next.descriptors[temp.address] != temp || temp.notNullConstraints[0].OID != 22000 {
 		t.Fatal("retained definition or descriptor changed")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: next}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined identities remain colliding", err)
 	}
 }
@@ -189,11 +189,11 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	if imported.inheritance.notNull[1].origins[0].constraint != mappedParent.notNullConstraints[0].OID || imported.inheritance.checks["ck"].origins[0].constraint != mappedParent.checkConstraints[0].OID {
 		t.Fatal("imported provenance retained old definition IDs")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: next}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*relationDescriptor{tempChild, imported} {
-		if err := validateInheritance(CatalogRead{owner: e, state: next}, table); err != nil {
+		if err := validateInheritance(e.catalog.read(next), table); err != nil {
 			t.Fatal(table.name, err)
 		}
 	}
@@ -279,11 +279,11 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if source.catalog.state.descriptors[parent.address] != parent || source.catalog.state.descriptors[child.address] != child || child.inheritance.parents[0] != parent.address || child.inheritance.columns[1].origins[0].parent != parent.address || parent.columns[0].OriginTable != uint32(parent.address.ObjectID) || child.inheritance.notNull[1].origins[0].constraint != 23000 {
 		t.Fatal("imported source authority mutated")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: next}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined definition identities invalid", err)
 	}
 	for _, table := range []*relationDescriptor{tempChild, imported} {
-		if err := validateInheritance(CatalogRead{owner: e, state: next}, table); err != nil {
+		if err := validateInheritance(e.catalog.read(next), table); err != nil {
 			t.Fatal(table.name, err)
 		}
 	}

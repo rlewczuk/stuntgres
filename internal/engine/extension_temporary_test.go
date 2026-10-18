@@ -433,7 +433,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if err := extensionUnitExecute(t, target, admin, grant); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := target.ReplaceCatalog(context.Background(), New().CatalogRead()); err != nil {
+		if _, err := replaceWithFreshCatalog(context.Background(), target); err != nil {
 			t.Fatal(err)
 		}
 		if target.catalog.state.descriptors[installed.address] != installed || installed.owner != actor.Ref {
@@ -490,13 +490,13 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	}
 	destination := New()
 	destinationOriginal := destination.catalog.state
-	if _, err := destination.ReplaceCatalog(context.Background(), e.CatalogRead()); err == nil || err.Error() != "stuntgres: temporary extension installation is not portable" {
+	if _, err := destination.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err == nil || err.Error() != "stuntgres: temporary extension installation is not portable" {
 		t.Fatal("actual foreign replacement transferred a TEMP provider", err)
 	}
 	if destination.catalog.state != destinationOriginal || e.catalog.state != original {
 		t.Fatal("foreign portability failure changed source or target")
 	}
-	if _, err := e.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal("destination TEMP overlay", err)
 	}
 	for _, address := range append([]ids.ObjectAddress{ext.address, ext.targetNamespace}, ext.members[:]...) {
@@ -528,23 +528,23 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	procedureCopy := *e.catalog.state.descriptors[procedureRef.Address].(*procedureDescriptor)
 	substituted := cloneCatalog(e.catalog.state)
 	substituted.descriptors[procedureRef.Address] = &procedureCopy
-	if !storedViewReferenceValid(CatalogRead{owner: e, state: substituted}, retainedView, procedureRef) {
+	if !storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("compatible COW procedure metadata lost captured view lifetime")
 	}
 	invalidProcedure := procedureCopy
 	invalidProcedure.strict = !invalidProcedure.strict
 	substituted.descriptors[procedureRef.Address] = &invalidProcedure
-	if storedViewReferenceValid(CatalogRead{owner: e, state: substituted}, retainedView, procedureRef) {
+	if storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
 	foreignNamespace := *e.catalog.state.descriptors[ext.targetNamespace].(*namespaceDescriptor)
 	foreignNamespace.temporary = installer.session.token
 	foreign := cloneCatalog(e.catalog.state)
 	foreign.descriptors[ext.targetNamespace] = &foreignNamespace
-	if storedViewReferenceValid(CatalogRead{owner: e, state: foreign}, retainedView, procedureRef) {
+	if storedViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
 		t.Fatal("foreign physical namespace token substituted retained procedure authority")
 	}
-	if err := e.validateObjectRefLocked(e.CatalogRead(), procedureRef); err == nil {
+	if err := e.catalog.validateObjectRefLocked(e.CatalogRead(), procedureRef); err == nil {
 		t.Fatal("retained manifest exception widened ordinary stale ObjectRef validity")
 	}
 	roleExecute(t, e, owner, "INSERT INTO ext_retained_local DEFAULT VALUES")
@@ -566,7 +566,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.catalog.state
-	if _, err := e.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil || !strings.Contains(err.Error(), "conflicts with live temporary extension") {
+	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil || !strings.Contains(err.Error(), "conflicts with live temporary extension") {
 		t.Fatal("imported global name conflict", err)
 	}
 	if e.catalog.state != before {
@@ -574,7 +574,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.ReplaceCatalog(canceled, source.CatalogRead()); !errors.Is(err, context.Canceled) {
+	if _, err := e.ReplaceCatalog(canceled, source, source.CatalogRead()); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled replacement", err)
 	}
 	if e.catalog.state != before {

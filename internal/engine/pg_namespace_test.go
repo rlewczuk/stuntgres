@@ -255,7 +255,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid := *d
 		invalid.columns = make([]ColumnDescriptor, width)
 		next.descriptors[d.address] = &invalid
-		reject(CatalogRead{e, next}, e.Roles(), ref, &invalid)
+		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.columns {
 		next := cloneCatalog(c.state)
@@ -263,7 +263,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 		invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.columns[i].Usage.Type.ID())
 		next.descriptors[d.address] = &invalid
-		reject(CatalogRead{e, next}, e.Roles(), ref, &invalid)
+		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	ns := c.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
 	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
@@ -271,33 +271,33 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid := *ns
 		invalid.owner = owner
 		next.descriptors[ns.address] = &invalid
-		reject(CatalogRead{e, next}, e.Roles(), ref, d)
+		reject(e.catalog.read(next), e.Roles(), ref, d)
 	}
 	next := cloneCatalog(c.state)
 	invalid := *ns
 	invalid.name = "stale_toast"
 	next.descriptors[ns.address] = &invalid
-	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	reject(e.catalog.read(next), e.Roles(), ref, d)
 	invalid = *ns
 	invalid.temporaryToast = true
 	next.descriptors[ns.address] = &invalid
-	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	next.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}] = ns
-	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
 	invalid.temporary = foreign.catalog.domain.Session(1)
 	next.descriptors[ns.address] = &invalid
-	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	next.descriptors[currentDatabaseAddress] = (*databaseDescriptor)(nil)
-	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	reject(e.catalog.read(next), e.Roles(), ref, d)
 	database := *c.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	database.owner = e.Roles().LookupRef("pg_read_all_data")
 	next = cloneCatalog(c.state)
 	next.descriptors[currentDatabaseAddress] = &database
-	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	reject(e.catalog.read(next), e.Roles(), ref, d)
 }
 
 type namespaceCancelContext struct {

@@ -93,7 +93,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			owner.columns = append([]ColumnDescriptor(nil), d.columns...)
 			owner.columns[0].Name = "key"
 			next.descriptors[d.address] = &owner
-			text, err := policyExpressionSQL(context.Background(), CatalogRead{owner: e, state: next}, expression)
+			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -193,7 +193,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := New()
-	if _, err = imported.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err = imported.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	view := imported.CatalogRead()

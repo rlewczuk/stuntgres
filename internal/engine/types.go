@@ -24,7 +24,7 @@ type StatementDescription struct {
 	Parameters ParameterInfo
 	Results    []ColumnDescriptor
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
-	catalogOwner *Engine
+	catalogOwner *catalogOwner
 	catalogEpoch ids.CatalogEpoch
 	// Public signatures stay immutable. Invalidation refreshes temporal-now and
 	// specialized groups atomically, preserving native logical literal identity.

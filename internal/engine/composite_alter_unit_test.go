@@ -159,7 +159,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 	domainUnitPublish(t, e, typedRenameStage(t, e, source, table))
 	evolved := e.CatalogRead()
 	destination := New()
-	if _, err := destination.ReplaceCatalog(context.Background(), evolved); err != nil {
+	if _, err := destination.ReplaceCatalog(context.Background(), e, evolved); err != nil {
 		t.Fatal(err)
 	}
 	var evolvedArray *sqltype.Descriptor

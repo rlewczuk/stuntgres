@@ -146,7 +146,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 				child = ancestor
 			}
 		}
-		ref := catalog.owner.catalog.domain.Ref(catalog.Epoch(), job.leaf.address)
+		ref := catalog.owner.domain.Ref(catalog.Epoch(), job.leaf.address)
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err

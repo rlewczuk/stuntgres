@@ -46,7 +46,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return capturePGCursors(ctx, ref, d, cursors)
 		case 12081, 12085:
-			catalog, registry := scope.commentCatalog, e.extensions
+			catalog, registry := scope.commentCatalog, e.catalog.extensions
 			e.mu.Unlock()
 			return captureAvailableExtensions(ctx, registry, catalog, ref, d)
 		case 12048:

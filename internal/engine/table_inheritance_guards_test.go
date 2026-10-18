@@ -12,7 +12,7 @@ import (
 func TestInheritanceGuards(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	catalog := CatalogRead{e, cloneCatalog(base.state)}
+	catalog := e.catalog.read(cloneCatalog(base.state))
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, name: "p", relationKind: tableRelation, index: map[string]int{"a": 0}, attributes: []int32{3}}
 	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, name: "c", relationKind: tableRelation, index: map[string]int{"a": 0, "local": 1}, attributes: []int32{5, 8}, notNullConstraints: []notNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, inheritance: &tableInheritance{
 		parents: []ids.ObjectAddress{parent.address},

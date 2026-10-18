@@ -110,7 +110,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	old := e.catalog.domain.Ref(view.Epoch(), table.address)
 	advanced := cloneCatalog(view.state)
 	advanced.epoch++
-	retained := CatalogRead{e, advanced}
+	retained := e.catalog.read(advanced)
 	if !storedReferenceEpochValid(retained, table, old) {
 		t.Fatal("exact retained owner rejected")
 	}
@@ -215,7 +215,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	retained := CatalogRead{owner: e, state: next}
+	retained := e.catalog.read(next)
 	var manifest []ids.ObjectRef
 	renderer := scalarRenderer{owner: table, dependencies: &manifest, capturedManifest: []ids.ObjectRef{typeRef, ref}}
 	if text, err := renderer.sql(context.Background(), retained, literal); err != nil || text == "" {
@@ -245,7 +245,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	retired := cloneCatalog(next)
 	delete(retired.descriptors, sequence.address)
 	delete(retired.names, descriptorNameKey(sequence))
-	if _, err := renderer.sql(context.Background(), CatalogRead{owner: e, state: retired}, literal); err == nil {
+	if _, err := renderer.sql(context.Background(), e.catalog.read(retired), literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}
 }
@@ -294,7 +294,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	for attribute, definition := range consumer.generations {
 		dependencies[attribute] = slices.Clone(definition.dependencies)
 	}
-	if _, err := e.ReplaceCatalog(context.Background(), New().CatalogRead()); err != nil {
+	if _, err := replaceWithFreshCatalog(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
@@ -357,7 +357,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("missing actual domain array")
 	}
 	arrayRef := e.catalog.domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
-	if _, err := e.ReplaceCatalog(context.Background(), domainView); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, domainView); err != nil {
 		t.Fatal(err)
 	}
 	retained = e.CatalogRead()

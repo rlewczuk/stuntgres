@@ -86,7 +86,7 @@ func TestExpressionNumericArithmeticCanceledRestoreInstallationFence(t *testing.
 	// does not claim to interrupt an in-flight Restore or indivisible big.Int op.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := target.ReplaceCatalog(ctx, source.CatalogRead())
+	_, err := target.ReplaceCatalog(ctx, source, source.CatalogRead())
 	if !errors.Is(err, context.Canceled) || target.CatalogRead().Epoch() != before.Epoch() {
 		t.Fatal(err)
 	}

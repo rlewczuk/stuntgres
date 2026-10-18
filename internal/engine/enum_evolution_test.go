@@ -139,7 +139,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	if id != 80 {
 		t.Fatal("nested import member", id)
 	}
-	view := CatalogRead{owner: New(), state: &catalogState{scalarImports: imports}}
+	view := New().catalog.read(&catalogState{scalarImports: imports})
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: source.Usage()}, value: v}
 	rebound, changed, err := retagBoundTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {

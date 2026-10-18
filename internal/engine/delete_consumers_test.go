@@ -174,7 +174,7 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 	ref := catalogRef(t, source, source.CatalogRead(), "t")
 	oldStore := source.storage[ref.Address]
 	oldLive := oldStore.versions[2]
-	if _, err := source.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := source.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	self := source.storage[ref.Address]
@@ -187,7 +187,7 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 	target := New()
 	run(t, target, "CREATE TABLE sentinel(v INT)")
 	run(t, target, "INSERT INTO sentinel VALUES(99)")
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	imported := catalogRef(t, target, target.CatalogRead(), "t")

@@ -14,7 +14,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, err
 	}
 	e.mu.Lock()
-	catalog := CatalogRead{owner: e, state: e.catalog.state}
+	catalog := e.catalog.read(e.catalog.state)
 	namespace, ok := catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema}]
 	if !ok {
 		e.mu.Unlock()

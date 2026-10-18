@@ -96,7 +96,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 	infoYesOrNoUnitEvaluate(t, before, original)
 	originalRecipe := original.domainChecks[0]
 	target := New()
-	if _, err := target.ReplaceCatalog(context.Background(), before); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
 	}
 	for range 2 {
@@ -109,7 +109,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 		if mapped == original {
 			t.Fatal("replacement retained source catalog wrapper")
 		}
-		if _, err := target.ReplaceCatalog(context.Background(), view); err != nil {
+		if _, err := target.ReplaceCatalog(context.Background(), target, view); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -136,7 +136,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	if err := source.reownCatalogExpressions(next, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	view := CatalogRead{owner: source, state: next}
+	view := source.catalog.read(next)
 	mapped := infoYesOrNoUnitCatalog(t, source, view)
 	if mapped == original || mapped.typ == original.typ || mapped.typ.DomainBase().Type != base.typ || mapped.typ.DomainBase().Type == original.typ.DomainBase().Type {
 		t.Fatal("changed base did not rebuild logical domain authority")

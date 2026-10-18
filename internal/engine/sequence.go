@@ -122,7 +122,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode relationLockMod
 	return nil
 }
 func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
-	view := CatalogRead{e, e.catalog.state}
+	view := e.catalog.read(e.catalog.state)
 	i, _ := view.LookupType(sqltype.Int8)
 	b, _ := view.LookupType(sqltype.Bool)
 	return []ColumnDescriptor{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}

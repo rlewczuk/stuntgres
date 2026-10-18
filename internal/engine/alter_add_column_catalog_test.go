@@ -126,7 +126,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	}
 	before := source.CatalogRead()
 	destination := New()
-	if _, err := destination.ReplaceCatalog(context.Background(), before); err != nil {
+	if _, err := destination.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
 	}
 	imported := destination.CatalogRead().state.descriptors[next.address].(*relationDescriptor)

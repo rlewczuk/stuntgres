@@ -146,7 +146,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	replacement := NewWithSettings(nil, "different_attachment", false)
-	if _, err := e.replaceCatalog(context.Background(), replacement.CatalogRead(), admin); err != nil {
+	if _, err := e.replaceCatalog(context.Background(), replacement, replacement.CatalogRead(), admin); err != nil {
 		t.Fatal(err)
 	}
 	retained := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)

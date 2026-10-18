@@ -29,7 +29,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	next.descriptors[src.address] = src
 	next.descriptors[sink.address] = sink
 	e.catalog.state = next
-	return e, AuthorizationView{engine: e, catalog: CatalogRead{owner: e, state: next}}, src, sink
+	return e, AuthorizationView{engine: e, catalog: e.catalog.read(next)}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
@@ -528,7 +528,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 		old.Epoch = next.epoch
 		return old
 	}
-	mapped, err := remapRules(CatalogRead{owner: e, state: next}, src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+	mapped, err := remapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

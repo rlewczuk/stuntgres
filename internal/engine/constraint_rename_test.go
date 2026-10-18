@@ -71,7 +71,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			candidate.revision = ids.DefinitionRevision(^uint64(0))
 			exhaustedBase := cloneCatalog(e.catalog.state)
 			exhaustedBase.descriptors[ref.Address] = &candidate
-			failed := e.BeginCatalogStage(CatalogRead{e, exhaustedBase})
+			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
 			attempt.name = "again"
 			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.descriptors) != 0 || backing.name != "new" {

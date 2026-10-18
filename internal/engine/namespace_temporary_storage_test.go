@@ -105,7 +105,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	}
 	missing := cloneCatalog(catalog.state)
 	delete(missing.descriptors, foreign.namespace)
-	_, err = collect(CatalogRead{owner: e, state: missing}, foreign, true, false, owner.token)
+	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.token)
 	if !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("missing captured namespace accepted", err)
 	}

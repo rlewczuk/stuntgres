@@ -180,13 +180,13 @@ func TestPGParameterACLCapture(t *testing.T) {
 	corrupt.owner = authorization.PrincipalRef{}
 	broken := cloneCatalog(catalog.state)
 	broken.descriptors[address] = &corrupt
-	if rows, err := e.capturePGParameterACL(context.Background(), CatalogRead{e, broken}, roles, ref, d); err == nil || rows != nil {
+	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
 	corrupt.owner = e.authorizationDomain.Principal(10)
 	corrupt.acl.Entries = append([]authorization.ACLEntry(nil), corrupt.acl.Entries...)
 	corrupt.acl.Entries[0].Grantor = New().authorizationDomain.Principal(10)
-	if rows, err := e.capturePGParameterACL(context.Background(), CatalogRead{e, broken}, roles, ref, d); err == nil || rows != nil {
+	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("foreign grantor accepted", err)
 	}
 	// Real owner operations, not synthetic parameter rows, produce explicit {}.

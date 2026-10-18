@@ -79,7 +79,7 @@ func intaggUnitRecipes(t *testing.T) {
 				state.descriptors[destination], state.names[descriptorNameKey(d)] = d, destination
 			}
 			state.epoch++
-			view := CatalogRead{owner: e, state: state}
+			view := e.catalog.read(state)
 			mapRef := func(old ids.ObjectRef) ids.ObjectRef {
 				old.Epoch = state.epoch
 				if destination, ok := mapping[old.Address]; ok {

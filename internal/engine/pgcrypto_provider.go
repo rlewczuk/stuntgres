@@ -53,7 +53,7 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 		}
 		// Extension membership fixes provider semantics, not independently
 		// transferable member ownership. Each owner still has real provenance.
-		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
+		if proc.owner.ID() == 0 || proc.owner != v.owner.principals.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 		seen[member] = true

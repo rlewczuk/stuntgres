@@ -256,7 +256,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			view := CatalogRead{owner: e, state: next}
+			view := e.catalog.read(next)
 			mappedParent := next.descriptors[parent.address].(*relationDescriptor)
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.uniqueConstraints[0].OID}
 			if provider == oldConstraint {

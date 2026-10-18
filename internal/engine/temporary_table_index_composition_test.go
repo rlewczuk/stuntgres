@@ -294,7 +294,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	rows, ends, generation := store.versions, store.ends, store.generation
 	// Real foreign-engine replacement manufactures fresh builtin generations;
 	// exact TEMP trees/rows/roots must retain theirs, not be rebound to new types.
-	if _, err := e.ReplaceCatalog(context.Background(), New().CatalogRead()); err != nil {
+	if _, err := replaceWithFreshCatalog(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()

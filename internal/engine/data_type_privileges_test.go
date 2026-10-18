@@ -25,7 +25,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 
 func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
 	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
-	ref := catalog.owner.catalog.domain.Ref(catalog.Epoch(), source.address)
+	ref := catalog.owner.domain.Ref(catalog.Epoch(), source.address)
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
 }
 
@@ -89,10 +89,10 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	// A real staged user domain cannot inherit the seeded builtin exemption.
 	domainUnitPublish(t, f.e, domainUnitStage(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer"))
 	state := cloneCatalog(f.e.catalog.state)
-	domain := *domainUnitType(t, CatalogRead{f.e, state}, "dtp_ownerless")
+	domain := *domainUnitType(t, f.e.catalog.read(state), "dtp_ownerless")
 	domain.owner = authorization.PrincipalRef{}
 	state.descriptors[domain.Address()] = &domain
-	badCatalog := CatalogRead{f.e, state}
+	badCatalog := f.e.catalog.read(state)
 	if rows, err := dtpUnitCapture(context.Background(), badCatalog, dtpUnitAuthority(t, f, badCatalog)); rows != nil || err == nil {
 		t.Fatal("ownerless user domain disclosed", rows, err)
 	}
@@ -101,10 +101,10 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := cloneCatalog(f.e.catalog.state)
-	typ, _ := (CatalogRead{f.e, state}).LookupType(sqltype.Int4)
+	typ, _ := (f.e.catalog.read(state)).LookupType(sqltype.Int4)
 	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, namespace: f.schema, name: "dtp_unit", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}, attributes: []int32{1, 3, 4}, columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, columnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
 	state.descriptors[relation.address] = relation
-	catalog := CatalogRead{f.e, state}
+	catalog := f.e.catalog.read(state)
 	auth := dtpUnitAuthority(t, f, catalog)
 	auth.state.CurrentUser = f.reader
 	held, err := dtpUnitCapture(context.Background(), catalog, auth)
@@ -133,7 +133,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	revoked := *relation
 	revoked.columnACL = nil
 	changed.descriptors[relation.address] = &revoked
-	auth.recaptureCatalog(CatalogRead{f.e, changed})
+	auth.recaptureCatalog(f.e.catalog.read(changed))
 	fresh, err := dtpUnitCapture(context.Background(), auth.catalog, auth)
 	if err != nil || len(selectIDs(fresh)) != 0 || !reflect.DeepEqual(before, held.anonymous) {
 		t.Fatal("capture lifetime", err)

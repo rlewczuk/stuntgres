@@ -87,7 +87,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	}
 	target := New()
 	run(t, target, "CREATE TABLE sentinel(id INT)")
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	result := run(t, target, "SELECT (instant AT TIME ZONE 'UTC')::TEXT,(local_value AT TIME ZONE 'UTC')::TEXT FROM tz_at")

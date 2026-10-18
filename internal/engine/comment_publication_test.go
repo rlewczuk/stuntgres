@@ -36,7 +36,7 @@ func TestCommentPublicationFailures(t *testing.T) {
 		t.Fatal("revision exhaustion accepted")
 	}
 	e.catalog.nextRevision = original
-	commentWant(t, e.CatalogRead(), ref, "old")
+	commentWant(t, e, e.CatalogRead(), ref, "old")
 	roleExecute(t, e, op, "CREATE ROLE free")
 	roles := e.roles
 	e.roles = &roleCatalog{revision: ^uint64(0), root: roles.root}
@@ -64,7 +64,7 @@ func TestCommentRestoreRetainsLiveSharedMetadata(t *testing.T) {
 	if d, _ := e.Roles().Lookup("free"); d.Comment != "peer" {
 		t.Fatal("restore overwrote live shared metadata", d)
 	}
-	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "t"), "local")
+	commentWant(t, e, e.CatalogRead(), roleTableRef(t, e, "t"), "local")
 	run(t, e, "CREATE USER transient")
 	r = &commentGateReader{input: strings.NewReader("SET SESSION AUTHORIZATION transient; CREATE TABLE public.u(v INT); COMMENT ON TABLE public.u IS 'private';"), entered: make(chan struct{}), release: make(chan struct{})}
 	before := e.CatalogRead()

@@ -144,7 +144,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			delete(private.descriptors, address)
 		}
 	}
-	isolated := CatalogRead{owner: e, state: private}
+	isolated := e.catalog.read(private)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got == nil || err != nil || got.count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}

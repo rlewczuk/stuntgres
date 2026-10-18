@@ -36,7 +36,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 					if self {
 						target = source
 					}
-					if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+					if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 						t.Fatal(err)
 					}
 					importedSequence := roleTableRef(t, target, "steps").Address
@@ -85,7 +85,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	ctx := context.Background()
-	if _, err := captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, nil, f.e.commitSeq); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, nil, f.e.commitSeq); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("missing root accepted", err)
 	}
 	original := f.e.indexRoots[f.index.address]
@@ -95,7 +95,7 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	roots := map[ids.ObjectAddress]*logicalIndexRoot{f.index.address: &malformed}
 	previous := f.e.indexRoots
 	f.e.indexRoots = roots
-	if _, err := captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, roots, f.e.commitSeq); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, roots, f.e.commitSeq); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("malformed source provenance accepted", err)
 	}
 	f.e.indexRoots = previous
@@ -104,7 +104,7 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq); !errors.Is(err, context.Canceled) {
+	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost", err)
 	}
 }

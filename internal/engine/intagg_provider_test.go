@@ -19,7 +19,7 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestIntaggProviderManifest(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	registration := e.extensions["intagg"]
+	registration := e.catalog.extensions["intagg"]
 	if registration.version != "1.1" || registration.trusted || !registration.superuser || !registration.relocatable || registration.comment == nil || *registration.comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
@@ -55,7 +55,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			bad := *proc
 			mutate(&bad)
 			state.descriptors[address] = &bad
-			if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+			if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
 		}
@@ -108,7 +108,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			bad := *member
 			bad.intagg = stockIntagg
 			state.descriptors[member.address] = &bad
-			if err := other.extensions[name].provider.validate(CatalogRead{owner: other, state: state}, installed); err == nil {
+			if err := other.catalog.extensions[name].provider.validate(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}
 		})

@@ -67,7 +67,7 @@ func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 	}
 	broken := *next
 	broken.owner = authorization.PrincipalRef{}
-	if err := validateACL(e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), &broken); err == nil {
+	if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles), &broken); err == nil {
 		t.Fatal("builtin zero owner bypassed validation")
 	}
 	request.Relations[0].Parts[0].Text = "_int4"

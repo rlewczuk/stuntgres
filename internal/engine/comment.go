@@ -7,14 +7,15 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Comment reads immutable metadata without applying an ACL to its text.
-func (r CatalogRead) Comment(ref ids.ObjectRef) (string, bool, error) {
+// Comment reads immutable metadata from r, a view e owns, without applying an
+// ACL to its text.
+func (e *Engine) Comment(r CatalogRead, ref ids.ObjectRef) (string, bool, error) {
 	if r.owner == nil {
 		return "", false, fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	r.owner.mu.Lock()
-	defer r.owner.mu.Unlock()
-	if err := r.owner.validateObjectRefLocked(r, ref); err != nil {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.catalog.validateObjectRefLocked(r, ref); err != nil {
 		return "", false, err
 	}
 	a := ref.Address

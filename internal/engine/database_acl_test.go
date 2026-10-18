@@ -39,7 +39,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		next := *db
 		next.acl = tc.acl
 		candidate.descriptors[currentDatabaseAddress] = &next
-		catalog := CatalogRead{e, candidate}
+		catalog := e.catalog.read(candidate)
 		roles := cloneRoleFixture(e.roles)
 		bootstrap := fixtureRole(roles, owner)
 		bootstrap.Superuser = false
@@ -117,7 +117,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	next := *candidate.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.descriptors[currentDatabaseAddress] = &next
-	fresh := catalogAuthorization(e, CatalogRead{e, candidate})
+	fresh := catalogAuthorization(e, e.catalog.read(candidate))
 	fresh.state.CurrentUser = reader
 	if rights, err := fresh.ownTemporaryPrivileges(); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)

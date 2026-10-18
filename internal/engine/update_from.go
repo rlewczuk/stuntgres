@@ -43,7 +43,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 // any already-required target refs, preserving a single statement frontier.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
 	catalog := auth.catalog
-	if auth.engine != e || catalog.owner != e || catalog.state == nil {
+	if auth.engine != e || catalog.owner != e.catalog.owner() || catalog.state == nil {
 		return nil, ErrCatalogReplaced
 	}
 	// Authorize every executable view occurrence before admitting any physical

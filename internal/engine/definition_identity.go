@@ -620,7 +620,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	if len(constraintMapping) != 0 {
-		view := CatalogRead{owner: e, state: next}
+		view := e.catalog.read(next)
 		for address, descriptor := range next.descriptors {
 			parent, ok := descriptor.(*relationDescriptor)
 			if !ok || len(parent.rules) == 0 {

@@ -77,7 +77,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	next := cloneCatalog(source.catalog.state)
 	next.aclItemImport = importer
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
-	rebound, changed, err := retagBoundTypes(CatalogRead{target, next}, literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	rebound, changed, err := retagBoundTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed || rebound.(literalExpression).value == value {
 		t.Fatal("constant principal import skipped", changed, err)
 	}
@@ -89,7 +89,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison := comparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
-	rebound, changed, err = retagBoundTypes(CatalogRead{target, next}, comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	rebound, changed, err = retagBoundTypes(target.catalog.read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed {
 		t.Fatal("enclosing principal import skipped", changed, err)
 	}
@@ -97,10 +97,10 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if imported.left.(literalExpression).value != sameDescriptor || imported.right.(literalExpression).value != sameDescriptor || comparison.left.(literalExpression).value != value {
 		t.Fatal("enclosing import lost mapped carriers or mutated source")
 	}
-	if _, err := (scalarRenderer{validation: true}).sql(context.Background(), CatalogRead{target, next}, imported); err != nil {
+	if _, err := (scalarRenderer{validation: true}).sql(context.Background(), target.catalog.read(next), imported); err != nil {
 		t.Fatal("target validation ran with source CHECK carriers", err)
 	}
-	retained, changed, err := retagBoundTypes(CatalogRead{target, next}, imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	retained, changed, err := retagBoundTypes(target.catalog.read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || changed || retained.(comparisonExpression).left.(literalExpression).value != sameDescriptor {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
@@ -142,7 +142,7 @@ func TestACLItemRestoreFence(t *testing.T) {
 		t.Fatal("expected target incarnation ignored")
 	}
 	freshSource, freshTarget := New(), New()
-	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource.CatalogRead(), nil); err != nil {
+	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if freshTarget.catalog.state.aclItemImport != nil || freshSource.catalog.state.aclItemImport != nil {
@@ -152,13 +152,13 @@ func TestACLItemRestoreFence(t *testing.T) {
 	freshSource.mu.Lock()
 	public := freshSource.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
 	copy := *public
-	role, _ := freshSource.roleRead(CatalogRead{freshSource, freshSource.catalog.state}, freshSource.roles).Lookup("acl_missing_target")
+	role, _ := freshSource.roleRead(freshSource.catalog.read(freshSource.catalog.state), freshSource.roles).Lookup("acl_missing_target")
 	copy.owner = role.Ref
 	freshSource.catalog.state = cloneCatalog(freshSource.catalog.state)
 	freshSource.catalog.state.descriptors[copy.address] = &copy
 	freshSource.mu.Unlock()
 	before := freshTarget.catalog.state
-	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource.CatalogRead(), nil); err == nil {
+	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err == nil {
 		t.Fatal("missing target principal admitted")
 	}
 	if freshTarget.catalog.state != before || freshTarget.catalog.state.aclItemImport != nil || freshSource.catalog.state.aclItemImport != nil {

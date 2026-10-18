@@ -237,7 +237,7 @@ func (p namespaceSelection) at(i int) ids.ObjectAddress {
 // Relations retain missing-object diagnostics; other named providers diagnose
 // a missing explicit namespace before considering signatures or type names.
 func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
-	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
+	if err := e.catalog.validateCatalogViewLocked(auth.catalog); err != nil {
 		return namespaceSelection{}, err
 	}
 	return e.lookupNamespacesSnapshot(auth, name, kind)
@@ -317,7 +317,7 @@ func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser
 // Resolve creation without establishing a deferred temporary namespace.
 // Callers requiring an existing namespace retain the rejecting policy above.
 func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parser.ObjectName, system bool) (ids.ObjectRef, bool, error) {
-	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
+	if err := e.catalog.validateCatalogViewLocked(auth.catalog); err != nil {
 		return ids.ObjectRef{}, false, err
 	}
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {

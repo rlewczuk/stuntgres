@@ -244,7 +244,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 		return err
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
-	evaluation.catalog = CatalogRead{owner: s.op.session.Engine(), state: binding.catalog}
+	evaluation.catalog = s.op.session.Engine().catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
@@ -353,12 +353,12 @@ retry:
 	e := s.op.session.Engine()
 	ctx := s.op.Context()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
-	evaluation.catalog = CatalogRead{owner: e, state: binding.catalog}
+	evaluation.catalog = e.catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
 	if action != nil && action.catalog != binding.catalog {
-		view := CatalogRead{owner: e, state: binding.catalog}
+		view := e.catalog.read(binding.catalog)
 		if err := action.selectArbiters(&evaluation, parent, view); err != nil {
 			return uniqueConflict{}, err
 		}

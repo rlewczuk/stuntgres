@@ -88,7 +88,7 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 		}
 		// Membership fixes the exact provider, not separately transferable
 		// function ownership. Every member retains real typed provenance.
-		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
+		if proc.owner.ID() == 0 || proc.owner != v.owner.principals.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 	}

@@ -82,7 +82,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	copied := *domain
 	copied.array = sqltype.NameArray
 	broken.descriptors[domain.Address()] = &copied
-	if err := (typeProvider{}).Validate(CatalogRead{owner: e, state: broken}, associated); err == nil {
+	if err := (typeProvider{}).Validate(e.catalog.read(broken), associated); err == nil {
 		t.Fatal("broken reverse association accepted")
 	}
 	foreignBase, _ := New().CatalogRead().LookupType(sqltype.Int4)
@@ -98,7 +98,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	forged.typ = foreignArray
 	broken = cloneCatalog(e.catalog.state)
 	broken.descriptors[associated.Address()] = &forged
-	if err := (typeProvider{}).Validate(CatalogRead{owner: e, state: broken}, &forged); err == nil {
+	if err := (typeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
 		t.Fatal("foreign array element accepted")
 	}
 }
@@ -265,7 +265,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		names[descriptorNameKey(descriptor)] = target
 	}
 	next.descriptors, next.names = descriptors, names
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	for _, descriptor := range next.descriptors {
 		if typ, ok := descriptor.(*typeDescriptor); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
@@ -396,7 +396,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 			importedTypes[address] = typ
 		}
 	}
-	if _, err := e.ReplaceCatalog(ctx, replacement.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(ctx, replacement, replacement.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
@@ -486,7 +486,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	held := newFinalRows(table.columns, 1)
 	held.values = store.versions[0].values
 	defer held.Close()
-	if _, err := e.ReplaceCatalog(ctx, e.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(ctx, e, e.CatalogRead()); err != nil {
 		t.Fatal("compatible exact self replacement", err)
 	}
 	before := e.CatalogRead()
@@ -502,7 +502,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		func() error {
 			return e.Restore(ctx, strings.NewReader("CREATE DOMAIN public.array_temp_di AS INT; CREATE TABLE public.array_component(a public.array_temp_di[]);"))
 		},
-		func() error { _, err := e.ReplaceCatalog(ctx, unrelated.CatalogRead()); return err },
+		func() error { _, err := e.ReplaceCatalog(ctx, unrelated, unrelated.CatalogRead()); return err },
 	} {
 		err := replace()
 		var diagnostic *sqlstate.Error

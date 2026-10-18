@@ -236,7 +236,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	wrongAddress := mood.Address()
 	wrongAddress.ObjectID++
 	invalidOwner.descriptors[wrongAddress] = mood
-	if rows, err := capturePGEnum(context.Background(), CatalogRead{owner: e, state: &invalidOwner}, ref, d); err == nil || rows != nil {
+	if rows, err := capturePGEnum(context.Background(), e.catalog.read(&invalidOwner), ref, d); err == nil || rows != nil {
 		t.Fatal("mismatched owner identity", rows, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())

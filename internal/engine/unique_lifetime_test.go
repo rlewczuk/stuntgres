@@ -170,7 +170,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			if !self && tempRef.Address.ObjectID != original.address.ObjectID {
 				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.address)
 			}
-			if _, err := target.ReplaceCatalog(ctx, before); err != nil {
+			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
 			if target.catalog.state.descriptors[tempRef.Address] != temp || target.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {

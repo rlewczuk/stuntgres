@@ -252,7 +252,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 		}
 		copy.sqlIndex = &definition
 		state.descriptors[index.address] = &copy
-		if err := validateForeignKeys(CatalogRead{e, state}, child, map[string]bool{}); err == nil {
+		if err := validateForeignKeys(e.catalog.read(state), child, map[string]bool{}); err == nil {
 			t.Fatal("invalid selected index authority", phase)
 		}
 	}

@@ -77,7 +77,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	backing[0], backing[1] = first.address, other.address
 	base.operatorNames.buckets[key] = backing[:1]
 	e := &Engine{catalog: catalogStore{state: base}}
-	stage := e.BeginCatalogStage(CatalogRead{owner: e, state: base})
+	stage := e.BeginCatalogStage(e.catalog.read(base))
 	second := indexUnitOperator(90003, namespace, first.name)
 	second.left = 0
 	if err := stage.Create(second); err != nil {
@@ -87,7 +87,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	sibling := cloneCatalog(base)
 	third := indexUnitOperator(90004, namespace, first.name)
 	third.left, third.right = 20, 20
-	stage = e.BeginCatalogStage(CatalogRead{owner: e, state: sibling})
+	stage = e.BeginCatalogStage(e.catalog.read(sibling))
 	if err := stage.Create(third); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	}
 	// Multiple removals/inserts in one bucket must neither duplicate members
 	// nor mutate either predecessor, regardless of map iteration order.
-	stage = e.BeginCatalogStage(CatalogRead{owner: e, state: child})
+	stage = e.BeginCatalogStage(e.catalog.read(child))
 	moved := *first
 	moved.namespace.ObjectID++
 	moved.name, moved.revision = "#@#", 2

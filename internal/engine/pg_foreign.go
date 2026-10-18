@@ -35,7 +35,7 @@ func (e *Engine) initializeForeignCatalogSources() error {
 		}
 		d.virtualView = spec.oid == pgUserMappingsOID
 		for i, column := range spec.columns {
-			typ, ok := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(column.typ)
+			typ, ok := (e.catalog.read(e.catalog.state)).LookupType(column.typ)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing SQL/MED catalog type %d", column.typ)
 			}

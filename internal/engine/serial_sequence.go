@@ -36,7 +36,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		// These offsets belong to TEXT input, not the outer SQL statement.
 		name.Parts[i].Pos = parser.Position{}
 	}
-	ref, err := catalog.owner.resolveRelationSnapshot(scope.deparseAuth, name, true)
+	ref, err := scope.deparseAuth.engine.resolveRelationSnapshot(scope.deparseAuth, name, true)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

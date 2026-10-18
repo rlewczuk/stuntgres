@@ -180,14 +180,14 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		}
 		missing := cloneCatalog(view.state)
 		delete(missing.descriptors, address)
-		if err := validatePartitionDescriptor(CatalogRead{e, missing}, relation); err == nil {
+		if err := validatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
 		mismatch := cloneCatalog(view.state)
 		changed := *provider
 		changed.semantics = other.semantics
 		mismatch.descriptors[address] = &changed
-		if err := validatePartitionDescriptor(CatalogRead{e, mismatch}, relation); err == nil {
+		if err := validatePartitionDescriptor(e.catalog.read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
 		}
 		candidate := *relation
@@ -268,7 +268,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	middleDefinition.defaultChild = root.address
 	cyclicMiddle.partition = &middleDefinition
 	cyclic.descriptors[root.address], cyclic.descriptors[middle.address] = &cyclicRoot, &cyclicMiddle
-	if err := validatePartitionDescriptor(CatalogRead{e, cyclic}, &cyclicRoot); err == nil {
+	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
 	overlapping := cloneCatalog(e.CatalogRead().state)
@@ -278,7 +278,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	overlappingRoot.partition = &rootDefinition
 	overlappingRest.membership = &partitionMembership{parent: root.address, lower: slices.Clone(middle.membership.lower), upper: slices.Clone(middle.membership.upper)}
 	overlapping.descriptors[root.address], overlapping.descriptors[rest.address] = &overlappingRoot, &overlappingRest
-	if err := validatePartitionDescriptor(CatalogRead{e, overlapping}, &overlappingRoot); err == nil {
+	if err := validatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}
 	if len(root.partition.children) != 2 || root.partition.defaultChild != rest.address || middle.membership.lower[1].kind != -1 {

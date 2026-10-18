@@ -386,7 +386,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	// Exercise a genuine foreign replacement lifecycle as the coherent
 	// rowtype/attribute replacement complement; no hybrid stage is published.
 	target := New()
-	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	imported := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)

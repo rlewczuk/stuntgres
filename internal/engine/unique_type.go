@@ -223,7 +223,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 		var capture *indexBuildCapture
 		if index.sqlIndex.hasRuntimeDomainConversion() && !named {
 			var err error
-			evaluation.Input.TypeDiagnosticName, err = candidate.owner.captureTypeDiagnosticName(auth)
+			evaluation.Input.TypeDiagnosticName, err = auth.engine.captureTypeDiagnosticName(auth)
 			if err != nil {
 				return nil, err
 			}

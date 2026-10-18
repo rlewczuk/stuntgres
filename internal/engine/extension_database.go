@@ -36,7 +36,7 @@ func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
 	return nil
 }
 func (e *Engine) initializeDatabase(name string) {
-	typ, _ := (CatalogRead{e, e.catalog.state}).LookupType(sqltype.Name)
+	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Name)
 	value, err := typ.Input(context.Background(), name, -1)
 	// Opaque host keys may be invalid NAME inputs. Preserve connector creation;
 	// reject physical session admission with the original typed input error.

@@ -520,7 +520,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	old := f.e.indexRoots[f.index.address]
 	destination := &relationStorage{versions: append([]rowVersion(nil), f.store.versions...)}
 	f.e.nextRow, f.e.nextVersion = 100, 200
-	snapshot, err := captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq)
+	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}

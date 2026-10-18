@@ -139,7 +139,7 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
-	return scope.commentCatalog.owner.lookupNamespacesSnapshot(auth, name, functionLookup)
+	return auth.engine.lookupNamespacesSnapshot(auth, name, functionLookup)
 }
 func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (Descriptor, error) {
 	path, err := objectLookupPath(scope, names)

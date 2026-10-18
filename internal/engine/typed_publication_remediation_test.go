@@ -52,7 +52,7 @@ func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	state := cloneCatalog(view.state)
 	state.descriptors[holder.address] = holder
 	var diagnostic *sqlstate.Error
-	if err := rowRewriteError(CatalogRead{owner: e, state: state}, source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
+	if err := rowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
 		t.Fatal("real associated-array provider escaped guard", err)
 	}
 }

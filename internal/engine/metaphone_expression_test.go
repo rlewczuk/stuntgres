@@ -64,7 +64,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	nonmember.address = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := cloneCatalog(e.catalog.state)
 	foreignState.descriptors[nonmember.address] = &nonmember
-	if err := stockFuzzystrmatch.validateProcedure(CatalogRead{owner: e, state: foreignState}, &nonmember); err == nil {
+	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
@@ -102,7 +102,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		state.descriptors[n.ref.Address] = &bad
 		forged := n
 		forged.procedure = &bad
-		if err := forged.validate(CatalogRead{owner: e, state: state}); err == nil {
+		if err := forged.validate(e.catalog.read(state)); err == nil {
 			t.Fatal("forged installed call admitted", bad)
 		}
 	}
@@ -195,7 +195,7 @@ func TestMetaphoneRemap(t *testing.T) {
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal(err)
 	}
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	relocated := next.descriptors[address].(*relationDescriptor)
 	for _, node := range []BoundExpr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
 		n := node.(installedMetaphoneFunctionExpression)

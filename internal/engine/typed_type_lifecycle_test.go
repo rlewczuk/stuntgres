@@ -76,7 +76,7 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	source, original, table := typedUnitCatalog(t, false)
 	before := source.CatalogRead()
 	destination := New()
-	if _, err := destination.ReplaceCatalog(context.Background(), before); err != nil {
+	if _, err := destination.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
 	}
 	view := destination.CatalogRead()
@@ -118,12 +118,12 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	changed := *root
 	changed.columns, changed.attributes, changed.index = root.columns[1:], root.attributes[1:], map[string]int{"note": 0}
 	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{root.address: &changed, other.address: &other}}
-	actions, renames, graph, err := typedInheritedActions(CatalogRead{owner: e, state: state}, &child, nil)
+	actions, renames, graph, err := typedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.columns[3].origins, []inheritanceOrigin{{parent: other.address, attribute: 1}}) || len(child.inheritance.columns[3].origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)
 	}
 	other.columns, other.attributes, other.index = nil, nil, map[string]int{}
-	actions, _, graph, err = typedInheritedActions(CatalogRead{owner: e, state: state}, &child, nil)
+	actions, _, graph, err = typedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 1 || actions[0].action.Column.Text != "id" || !graph.columns[8].local {
 		t.Fatal("local column or retired origin lost", actions, graph, err)
 	}

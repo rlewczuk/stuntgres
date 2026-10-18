@@ -137,7 +137,7 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 		t.Fatal("indexed column left orphan")
 	}
 	old := e.indexRoots[index.address]
-	if _, err := e.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	_, fresh := btreeRoot(t, e, "moved.ni")
@@ -194,7 +194,7 @@ func TestBtreeIndexForeignReplacement(t *testing.T) {
 	run(t, target, "CREATE TABLE old(n INT)")
 	run(t, target, "INSERT INTO old VALUES(99),(99),(99),(99),(99)")
 	epoch := target.CatalogRead().Epoch()
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	destination := btreeWantKeys(t, target, "idx", "1", "2", "2", "NULL")

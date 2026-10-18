@@ -8,7 +8,7 @@ import (
 )
 
 func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	collation := remappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old == (ids.ObjectRef{}) || typesOnly {

@@ -445,7 +445,7 @@ func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address id
 			// Capture the authentic committed predecessor, where the late
 			// server's wrapper still exists. The common overlay publisher then
 			// merges this valid removal/rewire with our earlier retirement.
-			stage = e.BeginCatalogStage(CatalogRead{owner: e, state: e.catalog.state})
+			stage = e.BeginCatalogStage(e.catalog.read(e.catalog.state))
 			stage.authorizeLocked(auth, scope.op.session)
 			err = edit(stage, stage.base.state.descriptors[address].(*foreignDescriptor))
 		}

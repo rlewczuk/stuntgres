@@ -145,7 +145,7 @@ func TestPGGroupProjection(t *testing.T) {
 	putFixtureRole(state, role)
 	capture := func(root *roleCatalog) map[uint32][]sqltype.Value {
 		t.Helper()
-		source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, root), ref, d)
+		source, err := capturePGGroup(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), root), ref, d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,7 +182,7 @@ func TestPGGroupProjection(t *testing.T) {
 		invalid := *d
 		invalid.columns = slices.Clone(d.columns)
 		invalid.columns[slot].Usage.Type = testUsage(e, sqltype.Int4).Type
-		if source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, &invalid); err == nil || source != nil {
+		if source, err := capturePGGroup(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 			t.Fatal("constructor failure published partial source", slot)
 		}
 	}
@@ -190,7 +190,7 @@ func TestPGGroupProjection(t *testing.T) {
 	invalid := *d
 	invalid.columns = slices.Clone(d.columns)
 	invalid.columns[2].Usage.Type = testUsage(e, sqltype.ID(1007)).Type
-	if source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGGroup(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("wrong element descriptor accepted")
 	}
 }
@@ -273,7 +273,7 @@ func TestPGGroupCancellation(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, root := range []*roleCatalog{state, emptyRoleFixture(e)} {
-		if source, err := capturePGGroup(canceled, e.roleRead(CatalogRead{e, e.catalog.state}, root), ref, d); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := capturePGGroup(canceled, e.roleRead(e.catalog.read(e.catalog.state), root), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("precancellation published source", err)
 		}
 	}
@@ -281,14 +281,14 @@ func TestPGGroupCancellation(t *testing.T) {
 	// emission, final. Cancel deterministically within each meaningful pass.
 	for _, at := range []int{2, 12, 20, 21, 29, 30} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		if source, err := capturePGGroup(ctx, e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := capturePGGroup(ctx, e.roleRead(e.catalog.read(e.catalog.state), state), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("mid-pass cancellation published partial source", at, err)
 		}
 		if len(fixtureEdges(state)) != 8 || state.root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
 			t.Fatal("cancellation mutated role root")
 		}
 	}
-	source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
+	source, err := capturePGGroup(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
