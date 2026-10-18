@@ -99,7 +99,7 @@ func FormatFirstCoercion(source, text sqltype.Usage) (CoercionRequest, bool) {
 	}
 	return CoercionRequest{Intent: TextFormalArgument, Target: target}, true
 }
-func FormatIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+func FormatIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 
 // Format implements expr.Composite. It has no provider to revalidate, so Rebuild
 // only takes the new metadata and children.

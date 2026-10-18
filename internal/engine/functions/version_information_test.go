@@ -16,7 +16,7 @@ type versionInformationUnitContext struct {
 }
 
 func (c versionInformationUnitContext) FunctionContext() context.Context { return c.ctx }
-func (c versionInformationUnitContext) FunctionPropertiesMatch(p expr.Properties, rule IntrinsicPropertyRule) bool {
+func (c versionInformationUnitContext) FunctionPropertiesMatch(p expr.Properties, rule expr.IntrinsicPropertyRule) bool {
 	return expr.PropertiesMatch(p, rule)
 }
 
@@ -69,7 +69,7 @@ func TestVersionInformationCarrier(t *testing.T) {
 				},
 				func(n *VersionInformation) { n.Usage.Typmod = 7 },
 				func(n *VersionInformation) {
-					n.Property = expr.IntrinsicProperties(ExactVolatile)
+					n.Property = expr.IntrinsicProperties(expr.ExactVolatile)
 				},
 			} {
 				bad := e

@@ -91,7 +91,7 @@ func TestRangeInspectCarrierReconstruct(t *testing.T) {
 	if _, err := NewRangeInspect(expr.Info{Usage: source[sqltype.Int4Range].Usage()}, sqltype.RangeMerge, nil); err == nil {
 		t.Fatal("invalid arity")
 	}
-	if RangeInspectIntrinsicRule() != ExactImmutable {
+	if RangeInspectIntrinsicRule() != expr.ExactImmutable {
 		t.Fatal("not immutable")
 	}
 }

@@ -46,11 +46,11 @@ func VersionInformationKindForName(name string) VersionInformationKind {
 	return 0
 }
 
-func (kind VersionInformationKind) IntrinsicRule() IntrinsicPropertyRule {
+func (kind VersionInformationKind) IntrinsicRule() expr.IntrinsicPropertyRule {
 	if kind == VersionInformationServer {
-		return ExactStable
+		return expr.ExactStable
 	}
-	return ExactImmutable
+	return expr.ExactImmutable
 }
 
 type VersionInformation struct {
