@@ -8,9 +8,27 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// BindStringVariadic binds concat, concat_ws, quote_* and pg_client_encoding
-// within the given query frame, which keys the quote capture cache.
-func BindStringVariadic(b Binder, raw parser.FunctionExpr, frame uint32) (StringVariadic, error) {
+// stringVariadicNames are claimed through the chain's
+// StringVariadicFunctionName predicate (Claims), before the shared gates;
+// bindStringVariadic resolves the exact spelling itself.
+var stringVariadicNames = [...]string{"concat", "concat_ws", "quote_ident", "quote_literal", "quote_nullable", "pg_client_encoding"}
+
+// bindStringVariadic binds concat, concat_ws, quote_* and pg_client_encoding,
+// then captures the routines a SQL-bodied overload's body selects.
+func bindStringVariadic(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	node, err := bindStringVariadicNode(b, raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.CapturePolymorphicBody(node); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+// bindStringVariadicNode binds within the current query frame, which keys
+// the quote capture cache.
+func bindStringVariadicNode(b Binder, raw parser.FunctionExpr) (StringVariadic, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	concatenation, textInput := StringVariadicRoles(name)
 	var args []expr.Expr
@@ -77,7 +95,7 @@ func BindStringVariadic(b Binder, raw parser.FunctionExpr, frame uint32) (String
 		return StringVariadic{}, ResolutionError(raw.Name, raw.Pos, names(), true)
 	}
 	text := b.Type(sqltype.Text).Usage()
-	node := StringVariadic{Name: name, Args: args, Variadic: raw.Variadic && concatenation, Stable: StringVariadicIntrinsicStable(name), Frame: frame}
+	node := StringVariadic{Name: name, Args: args, Variadic: raw.Variadic && concatenation, Stable: StringVariadicIntrinsicStable(name), Frame: b.Frame()}
 	if textInput && len(args) > 0 {
 		args[0], err = CoerceStringVariadicFirst(b, first, text)
 		if err != nil {

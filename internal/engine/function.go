@@ -74,9 +74,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.TransactionIdentityFunctionName(name) {
 		return b.bindTransactionIdentity(raw)
 	}
-	if functions.StringVariadicFunctionName(name) {
-		return b.bindStringVariadic(raw)
-	}
 	if strings.EqualFold(name, "generate_series") {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
