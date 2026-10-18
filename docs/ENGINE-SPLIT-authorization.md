@@ -136,13 +136,43 @@ Remove them with a tool aware of `go/types` (§8 on broad rewrites).
 
 ## Status
 
-- [ ] A1 — Pure helpers moved, README rewritten
+- [x] A1 — Pure helpers moved, README rewritten (`e932fc381`, `96ee8d96b`,
+  docs in the following commit)
 - [ ] B0 — `access` refined and approved
 - [ ] B1 — Authorization state grouped
 - [ ] B2 — Checks ported to functions over catalog and authorization reads
 - [ ] B3 — `access` created and code moved
 - [ ] B4 — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (Part A added none).
 
-Notes for later steps: none yet.
+A1 outcome. The re-measure (`go/types`, free declarations) found that most
+listed candidates are not authorization algorithms, and found others that are:
+
+- Moved: `validateInitialRole` (`ValidateInitialRole`); the `pg_has_role`
+  check `rolePrivilege`, `parseRolePrivileges` and `accessRoleCheck`
+  (`RolePrivileges`, `ParseRolePrivileges`, `HasRole`); `pgClassACLMask`
+  (`ACLItemBits`); and the database baseline `databasePrivileges`,
+  `databasePublicPrivileges` and `databaseACL` (`DatabasePrivileges`,
+  `DatabasePublicPrivileges`, `MaterializeDatabaseACL`).
+- Not moved: see the notes below.
+- Tests moved: `TestAccessInquiryPrivileges` became `TestRolePrivilegesParse`;
+  `TestObjectGrantParameterACLTransport` and the unknown-bit check of
+  `TestPgClassACLTranslation` became `TestACLItemBits`. Adapted:
+  `TestAccessInquiryRoleOIDs` and the `TestDatabase*` ACL tests.
+
+Notes for later steps:
+
+- **Step 3 Tier C:** `aclPrivilegeNames`, `aclPrivilegeEqual`,
+  `aclPrivilegeLabels` and `aclDefaultMasks` serve only the ACL SQL function
+  nodes and use raw `aclitem` bits. Move them with those nodes. `functions`
+  cannot import `authorization`, so `aclDefaultMasks` keeps its own copy of the
+  default masks in `aclitem` layout.
+- **Step 5:** `overlayDefaultACLs`, `cloneDefaultACLs` and the default-ACL
+  record keys are catalog storage keyed by `ObjectAddress`.
+- **Dump/deparse owner:** `containsEmptyACL` walks `sqltype` values; it is not
+  an authorization algorithm.
+- **B0:** `ownershipRoleOperand` adapts parser role specs for the engine's
+  `schemaOwner`; move it with that function into `access`.
+  `capturedRegroleInput` belongs to `regrole` input, not `access`. The
+  `pg_has_role` node now only gathers arguments and authority.
