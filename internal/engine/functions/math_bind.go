@@ -22,7 +22,7 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.DefaultConsumer() && !SelectedLogPower(name) {
+	if b.DefaultConsumer() && !selectedLogPower(name) {
 		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	if name == "width_bucket" && len(raw.Args) == 2 {
@@ -62,7 +62,7 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if resolution != Resolved {
 		return nil, DirectResolutionError(b, raw, args, unknown, resolution == Ambiguous)
 	}
-	if SelectedLogPower(name) {
+	if selectedLogPower(name) {
 		if err := mathModifiers(raw, name); err != nil {
 			return nil, err
 		}
@@ -85,14 +85,14 @@ func bindMath(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	node.Info = info
-	node.WrapperContext = MathWrapperContext(name, args)
+	node.WrapperContext = mathWrapperContext(name, args)
 	return node, nil
 }
 
-// MathWrapperContext is the PostgreSQL SQL-function wrapper context that
+// mathWrapperContext is the PostgreSQL SQL-function wrapper context that
 // numeric log/log10 report for a non-row-dependent argument; retag recomputes
 // it after rebuilding a call.
-func MathWrapperContext(name string, args []expr.Expr) string {
+func mathWrapperContext(name string, args []expr.Expr) string {
 	if (name == "log" || name == "log10") && len(args) == 1 && args[0].ResultUsage().Type.BaseType().ID() == sqltype.Numeric && !args[0].Properties().RowDependent {
 		return "SQL function \"" + name + "\" statement 1"
 	}

@@ -126,3 +126,33 @@ func (e DatetimeBin) Reconstruct(info expr.Info, args [3]expr.Expr, retain func(
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, changed, nil
 }
+
+// DatetimeBin implements expr.Composite. Rebuild keeps the retained plan descriptors
+// and any argument slots beyond Children.
+var _ expr.Composite = DatetimeBin{}
+
+func (e DatetimeBin) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeBin) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeBin", children, len(e.Arguments())); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, _, err := e.Reconstruct(info, args, keepDescriptor)
+	return rebuilt(node, err)
+}
+
+func (e DatetimeBin) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e DatetimeBin) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e DatetimeBin) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeBin) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, planChanged, err := e.Reconstruct(info, args, env.Type)
+	return retagged(node, changed || planChanged, err)
+}

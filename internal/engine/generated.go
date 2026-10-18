@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -206,8 +206,6 @@ func generationImmutable(node BoundExpr) bool {
 		return args(subscriptChildren(n, &storage))
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
-	case functions.UUIDGeneration:
-		return false
 	case collationExpression:
 		return one(n.child)
 	case coercionExpression:
@@ -239,20 +237,6 @@ func generationImmutable(node BoundExpr) bool {
 		return one(n.child)
 	case likeExpression:
 		return both(n.left, n.right)
-	case functions.LikeEscape:
-		return both(n.Pattern, n.Escape)
-	case functions.Posix:
-		return both(n.Left, n.Right)
-	case functions.Similar:
-		return both(n.Left, n.Right)
-	case functions.SimilarEscape:
-		return both(n.Pattern, n.Escape)
-	case functions.PosixSubstring:
-		return args(n.Args[:])
-	case functions.SimilarSubstring:
-		return args(n.Args[:])
-	case functions.Regexp:
-		return args(n.Args)
 	case conditionalExpression:
 		return !n.comparison.SessionDependent() && args(n.args)
 	case caseExpression:
@@ -265,54 +249,8 @@ func generationImmutable(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.Binary:
-		return n.Plan.Immutable() && args(n.Args)
-	case functions.DatetimeJustify:
-		return args(n.Arguments())
-	case functions.DatetimeExtract:
-		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeOverlaps:
-		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeBin:
-		return args(n.Arguments())
-	case functions.DatetimeTrunc:
-		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeZoneCalendar:
-		return !n.IntrinsicStable() && args(n.Arguments())
-	case functions.Timezone:
-		return !n.IntrinsicStable() && both(n.Value, n.Zone)
-	case functions.DatetimeAgeFinite:
-		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.JSONStripNulls:
+	case unnestExpression:
 		return false
-	case functions.JSONExtract:
-		return args(n.Arguments())
-	case functions.JSONBPathQueryArray:
-		return args(n.Arguments())
-	case functions.JSONBPathExists:
-		return args(n.Arguments())
-	case functions.JSONBPathMatch:
-		return args(n.Arguments())
-	case functions.JSONBPathQueryFirst:
-		return args(n.Arguments())
-	case functions.JSONBSet:
-		return args(n.Arguments())
-	case functions.DatetimeMake:
-		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeFormatting:
-		return false
-	case functions.NumericFormatting:
-		return false
-	case functions.String:
-		return !n.Plan.SessionDependent() && args(n.Args)
-	case functions.ArrayRandom, unnestExpression:
-		return false
-	case functions.ArrayTransform:
-		return !n.IntrinsicStable() && args(n.Args)
-	case functions.ArrayInspect:
-		return args(n.Args)
-	case functions.ArraySearch:
-		return !n.Plan.SessionDependent() && args(n.Args)
 	case aclValueExpression:
 		return n.kind != aclExplode && args(n.arguments())
 	case objectAddressExpression:
@@ -323,20 +261,6 @@ func generationImmutable(node BoundExpr) bool {
 		return false
 	case commitTimestampExpression:
 		return false
-	case functions.UUIDExtract:
-		return generationImmutable(n.Arg)
-	case functions.NetworkFormat:
-		return args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator:
-		return args(n.Args[:])
-	case functions.RangeInspect:
-		return args(n.Args)
-	case functions.Enum:
-		return false
-	case functions.Math:
-		return args(n.Args)
-	case functions.NullCount:
-		return args(n.Args)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -353,15 +277,14 @@ func generationImmutable(node BoundExpr) bool {
 		return n.Property.Volatility == Immutable && args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
-	case functions.JSONCreate:
-		return false
-	case functions.StringVariadic:
-		return !n.IntrinsicStable() && args(n.Args)
-	case functions.Format:
-		return false
-	default:
-		return node.Properties().Volatility == Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
+	case expr.Composite:
+		// Last, so the explicit engine wrappers above keep precedence. A
+		// provider is admitted by its own volatility and its children.
+		if intrinsic, ok := n.(expr.Intrinsic); ok {
+			return intrinsic.IntrinsicVolatility() == Immutable && args(n.Children())
+		}
 	}
+	return node.Properties().Volatility == Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
 }
 
 func generationRecipeExpression(definition columnGeneration) BoundExpr {
@@ -528,20 +451,6 @@ func generationHasTableOID(node BoundExpr) bool {
 		return one(n.child)
 	case likeExpression:
 		return both(n.left, n.right)
-	case functions.LikeEscape:
-		return both(n.Pattern, n.Escape)
-	case functions.Posix:
-		return both(n.Left, n.Right)
-	case functions.Similar:
-		return both(n.Left, n.Right)
-	case functions.SimilarEscape:
-		return both(n.Pattern, n.Escape)
-	case functions.PosixSubstring:
-		return args(n.Args[:])
-	case functions.SimilarSubstring:
-		return args(n.Args[:])
-	case functions.Regexp:
-		return args(n.Args)
 	case conditionalExpression:
 		return args(n.args)
 	case caseExpression:
@@ -554,52 +463,6 @@ func generationHasTableOID(node BoundExpr) bool {
 			}
 		}
 		return false
-	case functions.Binary:
-		return args(n.Args)
-	case functions.DatetimeJustify:
-		return args(n.Arguments())
-	case functions.DatetimeExtract:
-		return args(n.Arguments())
-	case functions.DatetimeOverlaps:
-		return args(n.Arguments())
-	case functions.DatetimeBin:
-		return args(n.Arguments())
-	case functions.DatetimeTrunc:
-		return args(n.Arguments())
-	case functions.DatetimeZoneCalendar:
-		return args(n.Arguments())
-	case functions.DatetimeAgeFinite:
-		return args(n.Arguments())
-	case functions.JSONStripNulls:
-		return args(n.Arguments())
-	case functions.JSONExtract:
-		return args(n.Arguments())
-	case functions.JSONBPathQueryArray:
-		return args(n.Arguments())
-	case functions.JSONBPathExists:
-		return args(n.Arguments())
-	case functions.JSONBPathMatch:
-		return args(n.Arguments())
-	case functions.JSONBPathQueryFirst:
-		return args(n.Arguments())
-	case functions.JSONBSet:
-		return args(n.Arguments())
-	case functions.DatetimeMake:
-		return args(n.Arguments())
-	case functions.DatetimeFormatting:
-		return args(n.Args[:])
-	case functions.NumericFormatting:
-		return args(n.Args[:])
-	case functions.String:
-		return args(n.Args)
-	case functions.ArrayRandom:
-		return args(n.Args)
-	case functions.ArrayTransform:
-		return args(n.Args)
-	case functions.ArrayInspect:
-		return args(n.Args)
-	case functions.ArraySearch:
-		return args(n.Args)
 	case aclValueExpression:
 		return args(n.arguments())
 	case objectAddressExpression:
@@ -612,20 +475,6 @@ func generationHasTableOID(node BoundExpr) bool {
 		return n.arg != nil && generationHasTableOID(n.arg)
 	case commitTimestampExpression:
 		return n.arg != nil && generationHasTableOID(n.arg)
-	case functions.UUIDExtract:
-		return generationHasTableOID(n.Arg)
-	case functions.NetworkFormat:
-		return args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator:
-		return args(n.Args[:])
-	case functions.RangeInspect:
-		return args(n.Args)
-	case functions.Enum:
-		return args(n.Args)
-	case functions.Math:
-		return args(n.Args)
-	case functions.NullCount:
-		return args(n.Args)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -642,16 +491,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
-	case functions.JSONCreate:
-		return args(n.Args)
-	case functions.StringVariadic:
-		return args(n.Args)
-	case functions.Format:
-		return args(n.Args)
-	case functions.UUIDGeneration:
-		return args(n.Args)
-	case functions.Timezone:
-		return both(n.Value, n.Zone)
+	case expr.Composite:
+		return args(n.Children())
 	default:
 		return false
 	}
@@ -897,8 +738,6 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case coercionExpression:
 		return child(n.child)
-	case functions.Timezone:
-		return pair(n.Value, n.Zone)
 	case selectedOperatorExpression:
 		return child(n.provider)
 	case arithmeticExpression:
@@ -934,20 +773,6 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case likeExpression:
 		return pair(n.left, n.right)
-	case functions.LikeEscape:
-		return pair(n.Pattern, n.Escape)
-	case functions.Posix:
-		return pair(n.Left, n.Right)
-	case functions.Similar:
-		return pair(n.Left, n.Right)
-	case functions.SimilarEscape:
-		return pair(n.Pattern, n.Escape)
-	case functions.PosixSubstring:
-		return args(n.Args[:])
-	case functions.SimilarSubstring:
-		return args(n.Args[:])
-	case functions.Regexp:
-		return args(n.Args)
 	case conditionalExpression:
 		return args(n.args)
 	case caseExpression:
@@ -960,61 +785,6 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			}
 		}
 		return nil
-	case functions.Binary:
-		return args(n.Args)
-	case functions.DatetimeJustify:
-		return args(n.Arguments())
-	case functions.DatetimeExtract:
-		return args(n.Arguments())
-	case functions.DatetimeOverlaps:
-		return args(n.Arguments())
-	case functions.DatetimeBin:
-		return args(n.Arguments())
-	case functions.DatetimeTrunc:
-		return args(n.Arguments())
-	case functions.DatetimeZoneCalendar:
-		return args(n.Arguments())
-	case functions.DatetimeAgeFinite:
-		return args(n.Arguments())
-	case functions.JSONStripNulls:
-		return args(n.Arguments())
-	case functions.JSONExtract:
-		return args(n.Arguments())
-	case functions.JSONBPathQueryArray:
-		return args(n.Arguments())
-	case functions.JSONBPathExists:
-		return args(n.Arguments())
-	case functions.JSONBPathMatch:
-		return args(n.Arguments())
-	case functions.JSONBPathQueryFirst:
-		return args(n.Arguments())
-	case functions.JSONBSet:
-		return args(n.Arguments())
-	case functions.DatetimeMake:
-		return args(n.Arguments())
-	case functions.DatetimeFormatting:
-		return args(n.Args[:])
-	case functions.NumericFormatting:
-		return args(n.Args[:])
-	case functions.String:
-		return args(n.Args)
-	case functions.ArrayRandom:
-		if err := n.Validate(); err != nil {
-			return err
-		}
-		return args(n.Args)
-	case functions.ArrayTransform:
-		if err := n.Validate(); err != nil {
-			return err
-		}
-		return args(n.Args)
-	case functions.ArrayInspect:
-		if err := n.Validate(); err != nil {
-			return err
-		}
-		return args(n.Args)
-	case functions.ArraySearch:
-		return args(n.Args)
 	case aclValueExpression:
 		if err := n.validateStored(); err != nil {
 			return err
@@ -1048,29 +818,6 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			return validateGenerationPlan(view, d, n.arg)
 		}
 		return nil
-	case functions.UUIDExtract:
-		if err := n.Validate(); err != nil {
-			return err
-		}
-		return validateGenerationPlan(view, d, n.Arg)
-	case functions.NetworkFormat:
-		if err := n.Validate(); err != nil {
-			return err
-		}
-		return args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator:
-		if err := n.Validate(); err != nil {
-			return err
-		}
-		return args(n.Args[:])
-	case functions.RangeInspect:
-		return args(n.Args)
-	case functions.Enum:
-		return args(n.Args)
-	case functions.Math:
-		return args(n.Args)
-	case functions.NullCount:
-		return args(n.Args)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -1087,12 +834,16 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
-	case functions.JSONCreate:
-		return args(n.Args)
-	case functions.StringVariadic:
-		return args(n.Args)
-	case functions.Format:
-		return args(n.Args)
+	case expr.Composite:
+		// Last, so the explicit engine wrappers above keep precedence.
+		stored, ok := n.(expr.StoredProvider)
+		if !ok {
+			return fmt.Errorf("stuntgres: unsupported generation plan provider %T", node)
+		}
+		if err := stored.ValidateStoredProvider(); err != nil {
+			return err
+		}
+		return args(n.Children())
 	default:
 		return fmt.Errorf("stuntgres: unsupported generation plan provider %T", node)
 	}

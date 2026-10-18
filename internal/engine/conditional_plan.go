@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -297,17 +297,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			return literalExpression{e.expressionInfo, sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
-	case functions.Timezone:
-		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
-			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-		}
-		if !e.Local {
-			e.Zone, err = child(e.Zone)
-		}
-		if err == nil {
-			e.Value, err = child(e.Value)
-		}
-		expression = e
 	case collationExpression:
 		e.child, err = child(e.child)
 		expression = e
@@ -344,46 +333,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		expression = e
-	case functions.LikeEscape:
-		e.Pattern, err = child(e.Pattern)
-		if err == nil {
-			e.Escape, err = child(e.Escape)
-		}
-		expression = e
-	case functions.Posix:
-		e.Left, err = child(e.Left)
-		if err == nil {
-			e.Right, err = child(e.Right)
-		}
-		expression = e
-	case functions.Similar:
-		e.Left, err = child(e.Left)
-		if err == nil {
-			e.Right, err = child(e.Right)
-		}
-		expression = e
-	case functions.SimilarEscape:
-		e.Pattern, err = child(e.Pattern)
-		if err == nil {
-			e.Escape, err = child(e.Escape)
-		}
-		expression = e
-	case functions.PosixSubstring:
-		for i, arg := range e.Args {
-			e.Args[i], err = child(arg)
-			if err != nil {
-				break
-			}
-		}
-		expression = e
-	case functions.SimilarSubstring:
-		for i, arg := range e.Args {
-			e.Args[i], err = child(arg)
-			if err != nil {
-				break
-			}
-		}
-		expression = e
 	case rowComparisonExpression:
 		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
 		for i, pair := range e.comparisons {
@@ -397,24 +346,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.comparisons[i] = pair
 		}
 		expression = e
-	case functions.Regexp:
-		e.Args = append([]BoundExpr(nil), e.Args...)
-		for i, arg := range e.Args {
-			e.Args[i], err = child(arg)
-			if err != nil {
-				break
-			}
-		}
-		expression = e
-	case functions.RegexpSet:
-		e.Args = append([]BoundExpr(nil), e.Args...)
-		for i, arg := range e.Args {
-			e.Args[i], err = child(arg)
-			if err != nil {
-				break
-			}
-		}
-		return e, changed, err // Sets are never constant-folded without an input row.
 	case scalarArrayComparisonExpression:
 		var replaced bool
 		e, replaced, err = mapScalarArrayChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
@@ -434,55 +365,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
-	case functions.JSONKeys:
-		arg, failure := child(e.Args[0])
-		err = failure
-		if changed {
-			e.Args = []BoundExpr{arg}
-		}
-		return e, changed, err // Cardinality belongs to its query stage.
-	case functions.JSONBRecord:
-		return e.MapChildren(func(arg BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, arg, decisiveDefaults) })
-	case functions.JSONBElements:
-		arg, failure := child(e.Args[0])
-		err = failure
-		if changed {
-			e.Args = []BoundExpr{arg}
-		}
-		return e, changed, err // Cardinality belongs to its query stage.
-	case functions.JSONRecord:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			arg, replaced, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if replaced {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = arg
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		return e, changed, nil
-	case functions.JSONEach:
-		arg, failure := child(e.Args[0])
-		err = failure
-		if changed {
-			e.Args = []BoundExpr{arg}
-		}
-		return e, changed, err // Cardinality belongs to its query stage.
-	case functions.JSONElements:
-		arg, failure := child(e.Args[0])
-		err = failure
-		if changed {
-			e.Args = []BoundExpr{arg}
-		}
-		return e, changed, err // Cardinality belongs to its query stage.
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -531,336 +413,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.args = args
 		}
 		expression = e
-	case functions.Binary:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		for _, arg := range e.Args {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.DatetimeJustify:
-		node, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		if did {
-			e.Arg, changed = node, true
-		}
-		if randomLiteralNull(e.Arg) {
-			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-		}
-		expression = e
-	case functions.DatetimeExtract:
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i], changed = node, true
-			}
-		}
-		expression = e
-	case functions.DatetimeOverlaps:
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i], changed = node, true
-			}
-		}
-		next, did, failure := simplifyOverlapsRoute(c, e)
-		if failure != nil {
-			return nil, false, failure
-		}
-		e, changed = next, changed || did
-		expression = e
-	case functions.DatetimeBin:
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i], changed = node, true
-			}
-		}
-		for _, arg := range e.Args {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.DatetimeTrunc:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i], changed = node, true
-			}
-		}
-		for _, arg := range e.Arguments() {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.DatetimeZoneCalendar:
-		for _, arg := range e.Arguments() {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i], changed = node, true
-			}
-		}
-		expression = e
-	case functions.DatetimeAgeFinite:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i], changed = node, true
-			}
-		}
-		for _, arg := range e.Arguments() {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.JSONStripNulls:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.JSONExtract:
-		next, did, failure := functions.MapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
-			return simplifyConditional(c, arg, decisiveDefaults)
-		})
-		if failure != nil {
-			return nil, false, failure
-		}
-		changed = changed || did
-		expression = next
-	case functions.JSONBPathQueryArray:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.JSONBPathExists:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.JSONBPathMatch:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.JSONBPathQueryFirst:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.JSONBPathQuery:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.JSONBSet:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.DatetimeMake:
-		for i, old := range e.Arguments() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		for _, arg := range e.Arguments() {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.DatetimeFormatting:
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		for _, arg := range e.Args {
-			if randomLiteralNull(arg) {
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.NumericFormatting:
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args[i] = node
-				changed = true
-			}
-		}
-		expression = e
-	case functions.String:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		if e.Plan.Strict() {
-			for _, arg := range e.Args {
-				if randomLiteralNull(arg) {
-					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-				}
-			}
-		}
-		expression = e
-	case functions.ArrayRandom:
-		var did bool
-		e, did, err = functions.MapArrayRandomChildren(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
-		if err != nil {
-			return nil, false, err
-		}
-		changed = changed || did
-		expression = e
-	case functions.ArrayTransform:
-		var did bool
-		e, did, err = functions.MapArrayTransformChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
-			return simplifyConditional(c, old, decisiveDefaults)
-		})
-		if err != nil {
-			return nil, false, err
-		}
-		changed = changed || did
-		expression = e
-	case functions.ArrayInspect:
-		var did bool
-		e, did, err = functions.MapArrayInspectChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
-			return simplifyConditional(c, old, decisiveDefaults)
-		})
-		if err != nil {
-			return nil, false, err
-		}
-		changed = changed || did
-		expression = e
-	case functions.ArraySearch:
-		var did bool
-		e, did, err = functions.MapArraySearchChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
-			return simplifyConditional(c, old, decisiveDefaults)
-		})
-		if err != nil {
-			return nil, false, err
-		}
-		changed = changed || did
-		expression = e
 	case catalogUserNameExpression:
 		arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
 		if failure != nil {
@@ -890,145 +442,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.arg = arg
 			changed = changed || did
 		}
-		expression = e
-	case functions.UUIDExtract:
-		arg, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		e.Arg = arg
-		changed = changed || did
-		expression = e
-	case functions.NetworkFormat:
-		var did bool
-		e, did, err = mapNetworkFormatChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
-			return simplifyConditional(c, old, decisiveDefaults)
-		})
-		if err != nil {
-			return nil, false, err
-		}
-		changed = changed || did
-		expression = e
-	case functions.RangeOperator:
-		var did bool
-		e, did, err = mapRangeOperatorChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
-			return simplifyConditional(c, old, decisiveDefaults)
-		})
-		if err != nil {
-			return nil, false, err
-		}
-		changed = changed || did
-		expression = e
-	case functions.RangeInspect:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		expression = e
-	case functions.Enum:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		expression = e
-	case functions.Math:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		if !functions.SelectedLogPower(e.Plan.Name()) {
-			for _, arg := range e.Args {
-				if randomLiteralNull(arg) {
-					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-				}
-			}
-		}
-		expression = e
-	case functions.UUIDGeneration:
-		if len(e.Args) != 0 {
-			node, did, failure := simplifyConditional(c, e.Args[0], decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.Args = []BoundExpr{node}
-				changed = true
-			}
-			if randomLiteralNull(node) {
-				// Strictness eliminates demand even for a volatile provider.
-				// Preserve analyzed metadata; the surviving literal is immutable.
-				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-			}
-		}
-		expression = e
-	case functions.Random:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		expression = e
-	case functions.DatetimeSleep:
-		node, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		e.Arg = node
-		if randomLiteralNull(node) {
-			return literalExpression{expressionInfo: expressionInfo{Usage: e.Usage, Pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
-		}
-		changed = changed || did
 		expression = e
 	case advisoryExpression:
 		var args []BoundExpr
@@ -1208,25 +621,6 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.args = args
 		}
 		expression = e
-	case functions.NullCount:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		expression = e
 	case installedSoundexFunctionExpression:
 		var args []BoundExpr
 		for i, old := range e.Args {
@@ -1355,68 +749,17 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		e.child = next
 		changed = changed || did
 		expression = e
-	case functions.JSONCreate:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
+	case expr.Composite:
+		// Last, so the explicit engine wrappers above keep precedence.
+		next, did, done, failure := simplifyCompositeNode(c, e, decisiveDefaults)
+		if failure != nil {
+			return nil, false, failure
 		}
-		if args != nil {
-			next, failure := e.Reconstruct(e.Info, args)
-			if failure != nil {
-				return nil, false, failure
-			}
-			e = next
+		if done {
+			return next, changed || did, nil
 		}
-		expression = e
-	case functions.StringVariadic:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		node, folded, failure := foldStringVariadic(c, e)
-		return node, changed || folded, failure
-	case functions.Format:
-		var args []BoundExpr
-		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]BoundExpr(nil), e.Args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.Args = args
-		}
-		expression = e
+		changed = changed || did
+		expression = next
 	}
 	if err != nil {
 		return nil, false, err
@@ -1453,8 +796,6 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	}
 	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
-	case functions.Timezone:
-		return literal(e.Value) && (e.Local || literal(e.Zone))
 	case collationExpression:
 		return literal(e.child)
 	case coercionExpression:
@@ -1467,28 +808,9 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.left) && (e.right == nil || literal(e.right))
 	case likeExpression:
 		return literal(e.left) && literal(e.right)
-	case functions.LikeEscape:
-		return literal(e.Pattern) && literal(e.Escape)
-	case functions.Posix:
-		return literal(e.Left) && literal(e.Right)
-	case functions.Similar:
-		return literal(e.Left) && literal(e.Right)
-	case functions.SimilarEscape:
-		return literal(e.Pattern) && literal(e.Escape)
-	case functions.PosixSubstring:
-		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.SimilarSubstring:
-		return literal(e.Args[0]) && literal(e.Args[1]) && literal(e.Args[2])
 	case rowComparisonExpression:
 		for _, pair := range e.comparisons {
 			if !literal(pair.left) || !literal(pair.right) {
-				return false
-			}
-		}
-		return true
-	case functions.Regexp:
-		for _, arg := range e.Args {
-			if !literal(arg) {
 				return false
 			}
 		}
@@ -1520,195 +842,12 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.Binary:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeJustify:
-		return literal(e.Arg)
-	case functions.DatetimeExtract:
-		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.DatetimeOverlaps:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeBin:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeTrunc:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeZoneCalendar:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeAgeFinite:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONStripNulls:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONExtract:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathQueryArray:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathExists:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathMatch:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathQueryFirst:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathQuery:
-		return false
-	case functions.JSONBSet:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeMake:
-		for _, arg := range e.Arguments() {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeFormatting:
-		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.NumericFormatting:
-		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.String:
-		if e.Plan.Name() == "string_to_table" {
-			return false
-		}
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayRandom:
-		return false // Volatile even for strict NULL, empty and singleton arrays.
-	case functions.ArrayTransform:
-		if e.IntrinsicStable() {
-			return false
-		}
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayInspect:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.ArraySearch:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
 	case aclValueExpression:
 		// Keep constructors symbolic: their inert identities need the statement
 		// authority, and stored definitions must retain their child dependencies.
 		return false
 	case catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression, objectAddressExpression:
 		return false
-	case functions.UUIDExtract:
-		return literal(e.Arg)
-	case functions.NetworkFormat:
-		for _, arg := range e.Args[:e.Kind.Arity()] {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.RangeOperator:
-		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.RangeInspect:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.Enum:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.Math:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.NullCount:
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
 	case installedSoundexFunctionExpression:
 		for _, arg := range e.Args {
 			if !literal(arg) {
@@ -1753,20 +892,9 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case jsonPredicateExpression:
 		return literal(e.child)
-	case functions.JSONCreate:
-		return false // All eight JSON creation functions are intrinsically STABLE.
-	case functions.StringVariadic:
-		if e.IntrinsicStable() {
-			return false
-		}
-		for _, arg := range e.Args {
-			if !literal(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.Format:
-		return false // Intrinsically STABLE, even with literal children.
+	case expr.Composite:
+		// Last, so the explicit engine wrappers above keep precedence.
+		return compositeConstantInputs(e)
 	}
 	return false
 }

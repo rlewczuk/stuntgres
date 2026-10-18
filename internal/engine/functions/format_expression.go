@@ -100,3 +100,31 @@ func FormatFirstCoercion(source, text sqltype.Usage) (CoercionRequest, bool) {
 	return CoercionRequest{Intent: TextFormalArgument, Target: target}, true
 }
 func FormatIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+
+// Format implements expr.Composite. It has no provider to revalidate, so Rebuild
+// only takes the new metadata and children.
+var _ expr.Composite = Format{}
+
+func (e Format) Children() []expr.Expr { return e.Args }
+func (e Format) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Format", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, append([]expr.Expr(nil), children...)
+	return e, nil
+}
+
+func (e Format) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+// PlanningFold: format is intrinsically STABLE, even with literal children.
+func (e Format) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e Format) ValidateStoredProvider() error { return nil }
+
+// Retag retains the INT4 descriptor generation.
+func (e Format) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	int4 := env.Type(e.Int4)
+	changed = changed || int4 != e.Int4
+	e.Info, e.Args, e.Int4 = info, children, int4
+	return e, changed, nil
+}

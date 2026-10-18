@@ -234,3 +234,14 @@ func (e JSONBPathQuery) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSONPath query set call")
 }
+
+func (e JSONBPathExists) IntrinsicVolatility() expr.Volatility     { return expr.Immutable }
+func (e JSONBPathMatch) IntrinsicVolatility() expr.Volatility      { return expr.Immutable }
+func (e JSONBPathQueryFirst) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e JSONBPathQuery) IntrinsicVolatility() expr.Volatility      { return expr.Immutable }
+
+func (e JSONBPathQuery) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e JSONBPathExists) ValidateStoredProvider() error     { return nil }
+func (e JSONBPathMatch) ValidateStoredProvider() error      { return nil }
+func (e JSONBPathQueryFirst) ValidateStoredProvider() error { return nil }

@@ -341,3 +341,53 @@ func StringArgumentAnalysis(name string, index int) AnalysisRequest {
 	}
 	return AnalysisRequest{Intent: StringTextArgument}
 }
+
+// String implements expr.Composite. Rebuild keeps the bound text usage.
+var _ expr.Composite = String{}
+
+func (e String) Children() []expr.Expr { return e.Args }
+func (e String) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("String", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	if err := checkPresent("stuntgres: invalid remapped string argument", children); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children, e.Plan.TextUsage()))
+}
+
+func (e String) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e String) PlanningFold() expr.Fold {
+	if e.Plan.Name() == "string_to_table" {
+		return expr.FoldNever
+	}
+	return expr.FoldConstant
+}
+func (e String) StrictNull() expr.Strict {
+	if e.Plan.Strict() {
+		return expr.StrictAfter
+	}
+	return expr.StrictNone
+}
+
+func (e String) ValidateStoredProvider() error { return nil }
+
+// Retag retains and remaps the bound text usage. A text usage change alone is
+// revalidated but does not count as a change.
+func (e String) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	if err := checkPresent("stuntgres: invalid remapped string argument", children); err != nil {
+		return nil, false, err
+	}
+	text := e.Plan.TextUsage()
+	text.Type = env.Type(text.Type)
+	var err error
+	if text.Collation, err = env.Collation(text.Collation); err != nil {
+		return nil, false, err
+	}
+	if !changed && text == e.Plan.TextUsage() {
+		return e, false, nil
+	}
+	node, err := e.Reconstruct(info, children, text)
+	return retagged(node, changed, err)
+}

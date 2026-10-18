@@ -246,8 +246,8 @@ records). `json_object`/`jsonb_object` sat in the final switch, so they use
 `ExactSpelling` and `SharedGates`. The slot calls (`jsonb_set*`, JSONPath
 calls, `json_strip_nulls`) share `bindSlots` in `json_slot_bind.go`.
 `json_sql.go` exports their stored-SQL renderers, `MapJSONExtractChildren`
-and `JSONBPathQueryName` for the engine's deparse, retag and planning
-switches until F2.
+and `JSONBPathQueryName` for the engine's deparse, preflight and
+aggregate-binding switches until they adopt the protocol.
 
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
@@ -283,21 +283,47 @@ To add or port a builtin family:
    change the composite fallback decision.
 5. An installed extension family resolves its procedure through
    `InstalledRoutine` (add its `Extension` and the engine's handle). The
-   engine's wrapper node, its validation and its switch cases stay until F2.
-6. Helpers that engine switches still call (retag, conditional planning) are
-   exported until F2 converts those switches.
+   engine's wrapper node and its validation stay in the engine; switches keep
+   explicit wrapper cases ahead of their protocol branch, because the wrapper's
+   catalog identity is engine state.
+6. Helpers that remaining engine switches still call (preflight, aggregate
+   binding, deparse) stay exported until those switches adopt the protocol.
 
 ## Node protocol
 
-Nodes whose `Reconstruct` depends only on metadata and children implement
-`expr.Composite` beside their definitions: `Children` returns the lexical
-children and `Rebuild` checks the child count, then delegates to
-`Reconstruct`. Fixed-arity nodes keep argument slots beyond `Children`
-unchanged. Helpers are in `composite.go`. Nodes whose reconstruction needs
-engine-derived inputs (collation, retained descriptors, clock or timestamp
-usages) are not protocol nodes yet; step 3 F2 decides their hooks. Engine
-wrappers that embed a protocol node override `Rebuild` to keep their routine
-identity.
+Every function node implements `expr.Composite` beside its definition (helpers
+in `composite.go`). `Children` lists the lexical children in evaluation order
+(`Timezone` lists the zone before the value; AT LOCAL has no zone). `Rebuild`
+checks the child count and revalidates through `Reconstruct`, keeping the inputs
+the node derived at binding: input collation, retained descriptors, text and
+clock usages, folded OVERLAPS ends and the math wrapper context. Fixed-arity
+nodes keep argument slots beyond `Children`; nodes without a provider
+(`Format`, `NullCount`, `Random`, the three leaves) only take the new metadata
+and children. Engine wrappers that embed a node override `Rebuild` to keep
+their routine identity.
+
+Nodes also implement the optional `expr` hooks that the engine's switches ask
+(the `expr` README defines them):
+
+- `IntrinsicVolatility` on every node: the value its planned volatility,
+  generated admission and `rewrittenIntrinsicProperties` use.
+- `PlanningFold`: `FoldNever` for stage-owned and never-evaluated calls (JSON
+  set and record functions, `RegexpSet`, `jsonb_path_query`,
+  `string_to_table`, JSON creation, `format`, random and UUID generation,
+  sleep, the leaves, and STABLE `ArrayTransform`/`StringVariadic` calls);
+  `FoldOverlapsRoute` and `FoldQuoteCapture` name the engine's OVERLAPS and
+  quote-capture folds.
+- `StrictNull` for calls that conditional planning replaces with a typed NULL
+  when a child is a literal NULL.
+- `ValidateStoredProvider` on the nodes a stored generation plan may contain.
+- `Retag` on nodes with catalog-derived inputs, using the engine's `expr.Retag`
+  environment and change bit.
+- `Annotation`/`WithAnnotation` on `StringVariadic`, whose quote-capture origin
+  the engine owns.
+
+A new node implements `Children`, `Rebuild` and `IntrinsicVolatility`, and each
+other hook whose default (fold as a constant, never strict, not a stored
+provider, rebuild on change) does not describe it.
 
 ## What stays in the engine
 
@@ -329,8 +355,9 @@ exported: `FinishArrayTransform` (the `||` operator), `ArraySearchNode` (the
 not registered: their operands are analyzed with string intents, and they
 move with the string family. `unnest` and `generate_subscripts` stay with the
 engine's set-returning functions, and the array/range operators with operator
-binding. `array_node_sql.go` holds the array nodes' remap and deparse helpers
-for the engine switches until F2.
+binding. `array_node_sql.go` holds the array nodes' child-mapping and deparse
+helpers for the engine's preflight and deparse switches until they adopt the
+protocol.
 
 ## Family notes
 
@@ -428,7 +455,7 @@ make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed)$
 Node protocol on function nodes:
 
 ```sh
-make check RUN='^TestComposite(SliceArguments|ArityLimitedArguments|CountedArgumentsKeepTrailingSlots|NamedArguments)$'
+make check RUN='^Test(Composite|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|StringVariadicAnnotationRoundTrip)'
 ```
 
 JSON/JSONB function calls (registry; the engine's `TestJSON*` bind through

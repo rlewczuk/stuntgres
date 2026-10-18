@@ -164,3 +164,33 @@ func (e DatetimeExtract) Reconstruct(info expr.Info, args [2]expr.Expr, retain f
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, changed, nil
 }
+
+// DatetimeExtract implements expr.Composite. Rebuild keeps the retained plan descriptors
+// and any argument slots beyond Children.
+var _ expr.Composite = DatetimeExtract{}
+
+func (e DatetimeExtract) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeExtract", children, len(e.Arguments())); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, _, err := e.Reconstruct(info, args, keepDescriptor)
+	return rebuilt(node, err)
+}
+
+func (e DatetimeExtract) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
+
+func (e DatetimeExtract) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeExtract) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, planChanged, err := e.Reconstruct(info, args, env.Type)
+	return retagged(node, changed || planChanged, err)
+}

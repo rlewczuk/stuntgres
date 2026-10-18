@@ -126,3 +126,22 @@ func TransactionTimeDecoration(raw parser.FunctionExpr) string {
 	}
 	return ""
 }
+
+// TransactionTime implements expr.Composite as a leaf: no children, and Rebuild only takes
+// the new metadata.
+var _ expr.Composite = TransactionTime{}
+
+func (e TransactionTime) Children() []expr.Expr { return nil }
+func (e TransactionTime) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("TransactionTime", children, 0); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	return e, nil
+}
+
+// IntrinsicVolatility is the analyzed volatility: the call is volatile or
+// has no children, so nothing from eliminated arms can be retained.
+func (e TransactionTime) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
+
+func (e TransactionTime) PlanningFold() expr.Fold { return expr.FoldNever }

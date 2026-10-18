@@ -77,3 +77,35 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 		t.Fatalf("walk visited %v, want %v", visited, want)
 	}
 }
+
+// The uuid-ossp wrapper embeds a generation node with no children; Rebuild
+// takes new metadata and keeps the installed identity.
+func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
+	var uuid *sqltype.Descriptor
+	for _, d := range sqltype.Builtins() {
+		if d.ID() == sqltype.UUID {
+			uuid = d
+		}
+	}
+	info := expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}
+	call, err := functions.NewUUIDGeneration(info, "uuidv4", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	procedure := &procedureDescriptor{}
+	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
+	node := installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: procedure, ref: ref}
+	next := info
+	next.Pos.Offset = 3
+	rebuilt, err := node.Rebuild(next, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := rebuilt.(installedUUIDOsspFunctionExpression)
+	if !ok || got.procedure != procedure || got.ref != ref || got.Pos.Offset != 3 || node.Pos.Offset != 0 {
+		t.Fatalf("rebuilt %#v", rebuilt)
+	}
+	if _, err := node.Rebuild(info, []BoundExpr{literalExpression{}}); err == nil {
+		t.Fatal("Rebuild accepted an extra child")
+	}
+}

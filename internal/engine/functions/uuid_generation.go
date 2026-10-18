@@ -181,3 +181,40 @@ func (e UUIDGeneration) Reconstruct(info expr.Info, args []expr.Expr, timestamp 
 	}
 	return next, nil
 }
+
+// UUIDGeneration implements expr.Composite. Rebuild keeps the bound timestamp
+// descriptor; a call without arguments only takes the new metadata.
+var _ expr.Composite = UUIDGeneration{}
+
+func (e UUIDGeneration) Children() []expr.Expr { return e.Args }
+func (e UUIDGeneration) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("UUIDGeneration", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	if len(children) == 0 {
+		e.Info = info
+		return e, nil
+	}
+	return rebuilt(e.Reconstruct(info, children, e.Timestamp))
+}
+
+// IntrinsicVolatility is the analyzed volatility: the call is volatile or
+// has no children, so nothing from eliminated arms can be retained.
+func (e UUIDGeneration) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
+
+// StrictNull eliminates demand even though the provider is volatile.
+func (e UUIDGeneration) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e UUIDGeneration) PlanningFold() expr.Fold { return expr.FoldNever }
+
+// Retag retains the timestamp descriptor generation.
+func (e UUIDGeneration) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	if len(children) == 0 {
+		e.Info = info
+		return e, changed, nil
+	}
+	timestamp := env.Type(e.Timestamp)
+	changed = changed || timestamp != e.Timestamp
+	node, err := e.Reconstruct(info, children, timestamp)
+	return retagged(node, changed, err)
+}

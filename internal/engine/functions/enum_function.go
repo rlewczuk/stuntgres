@@ -63,6 +63,9 @@ func (e Enum) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if err := checkChildren("Enum", children, len(e.Args)); err != nil {
 		return nil, err
 	}
+	if err := checkPresent("stuntgres: invalid remapped enum argument", children); err != nil {
+		return nil, err
+	}
 	return rebuilt(e.Reconstruct(info, children))
 }
 func (e Enum) Validate() error {
@@ -123,3 +126,7 @@ func CoerceEnumArguments(b ArgumentCoercer, arguments []Argument, target sqltype
 }
 
 func EnumIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+
+func (e Enum) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+func (e Enum) ValidateStoredProvider() error { return nil }

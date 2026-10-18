@@ -241,3 +241,21 @@ func (e StringVariadic) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 	}
 	return rebuilt(e.Reconstruct(info, children))
 }
+
+func (e StringVariadic) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
+
+func (e StringVariadic) PlanningFold() expr.Fold {
+	if e.IntrinsicStable() {
+		return expr.FoldNever
+	}
+	return expr.FoldQuoteCapture
+}
+
+func (e StringVariadic) ValidateStoredProvider() error { return nil }
+
+// StringVariadic carries its quote-capture origin as an expr.Annotated value.
+func (e StringVariadic) Annotation() any { return e.Origin }
+func (e StringVariadic) WithAnnotation(origin any) expr.Expr {
+	e.Origin = origin
+	return e
+}

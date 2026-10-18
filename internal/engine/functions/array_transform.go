@@ -321,3 +321,41 @@ func (e ArrayTransform) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid array transformation")
 }
+
+// ArrayTransform implements expr.Composite. Rebuild keeps the bound sort
+// collation.
+var _ expr.Composite = ArrayTransform{}
+
+func (e ArrayTransform) Children() []expr.Expr { return e.Args }
+func (e ArrayTransform) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayTransform", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	ref, conflict := e.Sort.InputCollation()
+	return rebuilt(e.Reconstruct(info, children, ref, conflict))
+}
+
+func (e ArrayTransform) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
+
+func (e ArrayTransform) PlanningFold() expr.Fold {
+	if e.IntrinsicStable() {
+		return expr.FoldNever
+	}
+	return expr.FoldConstant
+}
+
+func (e ArrayTransform) ValidateStoredProvider() error { return e.Validate() }
+
+// Retag remaps the bound sort collation.
+func (e ArrayTransform) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	ref, conflict := e.Sort.InputCollation()
+	next, err := env.Collation(ref)
+	if err != nil {
+		return nil, false, err
+	}
+	if !changed && next == ref {
+		return e, false, nil
+	}
+	node, err := e.Reconstruct(info, children, next, conflict)
+	return retagged(node, true, err)
+}

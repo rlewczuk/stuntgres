@@ -171,3 +171,7 @@ func (e ArrayInspect) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.Integer(e.Usage.Type, n)
 }
+
+func (e ArrayInspect) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e ArrayInspect) ValidateStoredProvider() error { return e.Validate() }

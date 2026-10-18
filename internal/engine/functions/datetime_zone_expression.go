@@ -223,3 +223,34 @@ func (e DatetimeZoneCalendar) Reconstruct(info expr.Info, args [3]expr.Expr) (Da
 	e.Info, e.Args, e.Provider = info, args, provider
 	return e, changed, nil
 }
+
+// DatetimeZoneCalendar implements expr.Composite. Rebuild rebinds the
+// arithmetic provider from the children and keeps trailing argument slots.
+var _ expr.Composite = DatetimeZoneCalendar{}
+
+func (e DatetimeZoneCalendar) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeZoneCalendar) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeZoneCalendar", children, e.Count); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, _, err := e.Reconstruct(info, args)
+	return rebuilt(node, err)
+}
+
+func (e DatetimeZoneCalendar) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.IntrinsicStable())
+}
+
+func (e DatetimeZoneCalendar) StrictNull() expr.Strict { return expr.StrictBefore }
+
+func (e DatetimeZoneCalendar) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the arithmetic provider; a provider change counts as a change.
+func (e DatetimeZoneCalendar) Retag(info expr.Info, children []expr.Expr, changed bool, _ expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, providerChanged, err := e.Reconstruct(info, args)
+	return retagged(node, changed || providerChanged, err)
+}

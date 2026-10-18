@@ -21,7 +21,7 @@ func (e Math) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if !SelectedLogPower(e.Plan.Name()) {
+	if !selectedLogPower(e.Plan.Name()) {
 		for _, arg := range e.Args {
 			if c.FunctionLiteralNull(arg) {
 				return sqltype.Null(e.Usage.Type), nil
@@ -85,10 +85,10 @@ func bindMathProvider(name string, result sqltype.Usage, args []sqltype.Usage, r
 	return sqltype.BindMath(name, result, args...)
 }
 
-// SelectedLogPower reports the math names admitted in column DEFAULT
+// selectedLogPower reports the math names admitted in column DEFAULT
 // expressions; they also keep strict literal-NULL folding out of the
 // conditional planner.
-func SelectedLogPower(name string) bool {
+func selectedLogPower(name string) bool {
 	switch name {
 	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
 		return true
@@ -299,7 +299,7 @@ func CoerceMathArguments(b ArgumentCoercer, name string, raw []parser.Expr, args
 			argument.Usage = arg.ResultUsage()
 		}
 		intent := DirectFormalArgument
-		if _, parameter := raw[i].(parser.ParameterExpr); parameter && unknown[i] && SelectedLogPower(name) {
+		if _, parameter := raw[i].(parser.ParameterExpr); parameter && unknown[i] && selectedLogPower(name) {
 			// Occurrence-sensitive inference uses the existing parameter owner.
 			// Literals and already typed arguments keep ordinary formal coercion.
 			intent = FinalizeArgument
@@ -322,4 +322,53 @@ func NewMath(info expr.Info, name string, args []expr.Expr) (Math, error) {
 	}
 	plan, err := sqltype.BindMath(name, info.Usage, usages[:len(args)]...)
 	return Math{Info: info, Plan: plan, Args: args}, err
+}
+
+// Math implements expr.Composite. Rebuild keeps the bound comparison collation
+// and the wrapper context chosen at binding.
+var _ expr.Composite = Math{}
+
+func (e Math) Children() []expr.Expr { return e.Args }
+func (e Math) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Math", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	if err := checkPresent("stuntgres: invalid remapped math argument", children); err != nil {
+		return nil, err
+	}
+	ref, conflict := e.Plan.InputCollation()
+	return rebuilt(e.Reconstruct(info, children, ref, conflict))
+}
+
+func (e Math) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e Math) StrictNull() expr.Strict {
+	if selectedLogPower(e.Plan.Name()) {
+		return expr.StrictNone
+	}
+	return expr.StrictAfter
+}
+
+func (e Math) ValidateStoredProvider() error { return nil }
+
+// Retag remaps the comparison collation and recomputes the wrapper context
+// from the retagged arguments.
+func (e Math) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	ref, conflict := e.Plan.InputCollation()
+	next, err := env.Collation(ref)
+	if err != nil {
+		return nil, false, err
+	}
+	if !changed && next == ref {
+		return e, false, nil
+	}
+	if err := checkPresent("stuntgres: invalid remapped math argument", children); err != nil {
+		return nil, false, err
+	}
+	node, err := e.Reconstruct(info, children, next, conflict)
+	if err != nil {
+		return nil, false, err
+	}
+	node.WrapperContext = mathWrapperContext(node.Plan.Name(), node.Args)
+	return node, true, nil
 }

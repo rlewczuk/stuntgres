@@ -176,3 +176,11 @@ func (e DatetimeMake) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, 
 	copy(args[:], children)
 	return rebuilt(e.Reconstruct(info, args))
 }
+
+func (e DatetimeMake) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
+
+func (e DatetimeMake) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e DatetimeMake) ValidateStoredProvider() error { return nil }

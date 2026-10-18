@@ -53,19 +53,20 @@ methods next to their definitions. If a switch case encodes behavior that does
 not fit the protocol, give the protocol a small, named hook rather than
 keeping a special case, and record it in the `expr` README.
 
-State after 2c: 35 function nodes and the four installed-routine wrappers
-implement `expr.Composite`; the walk switch keeps explicit cases for the rest.
-Still to design here:
+State after the first F2 session: every function node implements
+`expr.Composite`, plus the optional hooks in the `expr` README; walk, retag,
+remap, volatility, generated admission, conditional planning and join
+legality have one protocol branch each. Still to design in the second
+session:
 
-- the render hooks for deparse and node-tree output (deferred from 2c);
-- protocol membership for nodes whose `Reconstruct` takes engine-derived
-  inputs: `Math`, `String`, `ArrayTransform`, `ArraySearch`, `Posix`,
-  `Similar`, `Regexp`/`RegexpSet` (`RegexpCall`), `UUIDGeneration`,
-  `DatetimeSleep` and the retained-descriptor datetime nodes (`Justify`,
-  `Extract`, `Overlaps`, `Bin`, `Trunc`, `ZoneCalendar`, `AgeFinite`), plus
-  `Timezone`, `Format`, `NullCount` and `Random`, which have no `Reconstruct`;
+- the render hooks for deparse (`deparse_renderer.go`), node-tree output
+  (`deparse_tree.go`) and stored scalar SQL (`scalar_function_sql.go`, which
+  the list above missed). One spec value should serve all three renderers;
+  name quoting and implicit-cast display differ per node and must stay
+  byte-identical;
 - removing `Arguments()` where it duplicates `Children()`, once no switch
-  calls it.
+  calls it (deparse and node tree still do; `Timezone.Arguments` is the
+  deparse order, which matches `Children`).
 
 ### F3 — Binder interface and registry, with a pilot family
 
@@ -150,9 +151,12 @@ Tier C has a refined plan.
 
 - [x] F1 — Generics removed (`69aeb6167` generics, `5ec01573f`
   `functionInfo`, docs `937962c4f`)
-- [ ] F2 — Switches converted: [ ] retag [ ] remap [ ] volatility
-  [ ] deparse [ ] node tree [ ] generated admission [ ] conditional plan
-  [ ] join legality
+- [ ] F2 — Switches converted: [x] retag [x] remap [x] volatility
+  [ ] deparse [ ] node tree [x] generated admission [x] conditional plan
+  [x] join legality (session 1: `c6de24e8f` members, `144458647` join,
+  `5d7935b7d` volatility, `4c54eaf54` conditional, `1fa051e96` generated,
+  `1e6bd8aec` retag, `c703fd8d9` remap, `09fc24b0a` math helpers, docs
+  `ec2fba8bd`)
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
@@ -610,7 +614,7 @@ Notes for later steps (datetime, pattern, string):
 - LIKE's binder and node move together once F2 has converted the switches
   that name `likeExpression`.
 
-F4/F5 follow-up (regexp, variadic string, `to_number`), on `7af01d85b`. A
+F4/F5 follow-up (regexp, variadic string, `to_number`), on `ec3fcadd4`. A
 second session (`split/functions-string-regex-datetime`) ported the same three
 families in parallel; after the tier-a merge it rebased only what master still
 dispatched by name chain onto a new branch and dropped the rest:
@@ -668,3 +672,103 @@ Notes for later steps (JSON):
   mixed-case EXTRACT fields in deparse) and
   `TestReferenceDatetimeFormattingReviewCollationDemand` (XX000 "cache
   lookup failed for collation 0" instead of 42P22).
+
+F2 session 1 record, measured at its start on `604ee2be6`:
+
+- Function cases removed per switch: walk 21 (plus 35 in 2c), join legality
+  55, volatility 49, conditional planning 94 (simplify 52, constant inputs
+  42), generated 125 (admission 42, `tableoid` 42, stored validation 41),
+  retag 55, remap 55. Each branch is the switch's last case, after the
+  installed-routine wrapper cases, which stay because their catalog identity
+  is engine state.
+- Protocol membership: the 24 remaining nodes (the derived-input nodes listed
+  above, `Timezone`, `Format`, `NullCount`, `Random` and the leaves
+  `CurrentDateTime`, `VersionInformation`, `TransactionTime`). `Rebuild` keeps
+  the inputs derived at binding; only `Retag` replaces them. The uuid-ossp
+  wrapper overrides `Rebuild` like the 2c wrappers.
+- Hooks (reasons in the `expr` README): `Intrinsic`, `Folding`,
+  `StrictFolding`, `StoredProvider`, `Retaggable` with the `Retag`
+  environment, `Annotated`. The two engine-state folds (OVERLAPS inline
+  route, quote capture) are fold kinds the engine dispatches in
+  `conditional_fold.go`, as decided at the session start.
+- Corrections to this prompt: retag needs the engine's change bit, not only
+  an environment, because cases gate differently (for example `String`
+  revalidates but ignores a text-usage-only change, `Binary` rejects a nil
+  argument even when unchanged). Generated admission was a copy of the
+  volatility knowledge and now reads `Intrinsic`. `conditionalConstantInputs`
+  is not "intrinsic immutable": engine tests pin a STABLE `enum_first` with
+  literal arguments as constant inputs and STABLE JSON creation as not, so the
+  calls planning never evaluates are `FoldNever`. Stored-plan validation
+  calls `Validate()` only on the six nodes it validated before, through the
+  distinct `ValidateStoredProvider`; a generic `Validate()` hook would have
+  reached eight more nodes. The remap switch copies every node, so its
+  branch reports every child as replaced.
+- `Timezone` children follow evaluation order (zone, value). The planner and
+  PostgreSQL 18.6 use that order (`(1/0)` value and `(2147483647+1)::text`
+  zone fail with "integer out of range" on both); the lexical walk visited
+  the value first and keeps an explicit case for it (see notes).
+- `generationHasTableOID` now also walks the children of `random`,
+  `pg_sleep`, the JSON set functions and `RegexpSet`, which it skipped. None
+  can appear in a generated column or index expression; only the partition
+  CHECK recheck on trusted import with an owner change could observe it, and
+  then it rechecks more, not less.
+- `mapRegexpChildren` was deleted (retag was its only caller). The engine no
+  longer calls `functions.SelectedLogPower` or `functions.MathWrapperContext`;
+  they are unexported.
+
+Tests in F2 session 1: added `functions/composite_derived_test.go`
+(`TestCompositeTimezoneChildrenFollowMode`,
+`TestCompositeRetainedPlanKeepsTrailingSlots`,
+`TestCompositeStringKeepsTextUsage`, `TestCompositeLeafRebuildTakesMetadata`,
+`TestCompositeProviderlessRebuildOwnsChildren`,
+`TestIntrinsicVolatilityExcludesChildren`, `TestPlanningHooks`,
+`TestRetagReportsDerivedInputChanges`,
+`TestStringVariadicAnnotationRoundTrip`) and the engine's
+`TestInstalledUUIDOsspRebuildKeepsWrapper`. No test moved, was adapted or was
+deleted.
+
+Verification: `make quickcheck` passed after each commit and after each
+rebase (44 packages; final base `ec3fcadd4`, where the regexp, string and
+view-replace selections below were rerun with `REFERENCE=1`); `make deps` lists only module
+paths; `expr` and `functions` import only `ids`, `parser`, `sqlstate` and
+`sqltype`. `REFERENCE=1` selections passed on the stuntgres side:
+`^TestReferenceView`, `^TestReferenceGenerated`,
+`^TestReference(Default|Check)`, `^TestReferenceDeparseConstraints`,
+Dump/Restore names, `StoredConsumers` names and
+`^TestReference(Datetime|Regexp|Regex|Similar|Posix|Timezone|AtTimeZone|String)`.
+Their only failures are the `/postgres` subtests already listed as 18.6 drift
+(the two `CheckReview` connection tests, `UUIDGenerationStoredConsumersAndControls`,
+`DatetimeExtractCanonicalDefinitions`, `DatetimeFormattingReviewCollationDemand`,
+`StringCaseReviewSigma`, `StringCoreNormalization`,
+`StringCoreValuesSourceConsumerRoutes`, `StringSplitLocking`; the last two
+were rechecked on master with the same failing subtests). A throwaway probe
+compared master and the branch on generated-column admission (immutable,
+STABLE, volatile, set-returning, `unicode_version()`, `pi()`, dead CASE arms)
+and the AT TIME ZONE ordering cases: identical output. Bench: medians
+1.70 ms/op on master and 1.77 ms/op on the branch, 7,769 allocs/op on both
+(the 2c note on allocating `Children` did not bite: these switches are
+plan-time; startup is still above the 1 ms target as on master). Racecheck
+skipped at the user's request.
+
+Notes for later steps (F2):
+
+- Compatibility bug, outside the split: `SELECT a AT TIME ZONE b FROM t GROUP
+  BY c` reports `t.a` where PostgreSQL 18.6 reports `t.b`, and nested
+  aggregates inside AT TIME ZONE report the value's aggregate first. Fix by
+  dropping the walk's explicit `Timezone` case (the Composite branch already
+  visits the zone first) together with reference coverage.
+- Compatibility bug, outside the split: `GENERATED ALWAYS AS
+  (unicode_version()) STORED` (also VIRTUAL, and `icu_unicode_version()`)
+  fails with "unsupported generation plan provider
+  functions.VersionInformation"; PostgreSQL accepts these immutable calls.
+  Admission accepts them, stored-plan validation does not. The fix is a
+  `ValidateStoredProvider` on `VersionInformation` plus reference coverage.
+- More engine switches still list function nodes (case lines at the end of
+  session 1): `aggregate_bind.go` 159 (grouping identity
+  `sameGroupExpression` and aggregate argument binding), preflight in
+  `expression.go` 67 (`preflightCoercionsWithPolicy`, which still uses the
+  exported `Map*Children` helpers), `string_table_bind.go` 36,
+  `index_control.go` 30, `default.go` 15, `string_set_query.go` 12,
+  `view_literals.go` 11 and a few smaller ones. They are not in this
+  prompt's list; convert them after the render hooks, reusing the existing
+  hooks where they fit.

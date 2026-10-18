@@ -81,11 +81,6 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.arg)
 	case visibilityInquiryExpression:
 		walk(e.arg)
-	case functions.Timezone:
-		walk(e.Value)
-		if !e.Local {
-			walk(e.Zone)
-		}
 	case arithmeticExpression:
 		walk(e.left)
 		walk(e.right)
@@ -109,22 +104,12 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case functions.Posix:
-		walk(e.Left)
-		walk(e.Right)
-	case functions.Similar:
-		walk(e.Left)
-		walk(e.Right)
 	case seriesExpression:
 		args(e.args)
 	case subscriptsExpression:
 		args(e.args)
 	case unnestExpression:
 		args(e.args)
-	case functions.Regexp:
-		args(e.Args)
-	case functions.RegexpSet:
-		args(e.Args)
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)
@@ -137,8 +122,6 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.child)
 	case conditionalExpression:
 		args(e.args)
-	case functions.String:
-		args(e.Args)
 	case installedUUIDOsspFunctionExpression:
 		// No argument children.
 	case installedFunctionExpression:
@@ -147,28 +130,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case jsonPredicateExpression:
 		walk(e.child)
-	case functions.Format:
-		args(e.Args)
 	case indexPropertyExpression:
 		args(e.children())
-	case functions.DatetimeJustify:
-		walk(e.Arg)
-	case functions.DatetimeExtract:
-		args(e.Arguments())
-	case functions.DatetimeOverlaps:
-		args(e.Arguments())
-	case functions.DatetimeBin:
-		args(e.Arguments())
-	case functions.DatetimeTrunc:
-		args(e.Arguments())
-	case functions.DatetimeZoneCalendar:
-		args(e.Arguments())
-	case functions.DatetimeAgeFinite:
-		args(e.Arguments())
-	case functions.ArrayTransform:
-		args(e.Args)
-	case functions.ArraySearch:
-		args(e.Args)
 	case catalogUserNameExpression:
 		walk(e.arg)
 	case catalogForeignKeysExpression:
@@ -180,22 +143,12 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		if e.arg != nil {
 			walk(e.arg)
 		}
-	case functions.Math:
-		args(e.Args)
 	case deparseExpression:
 		args(e.args)
 	case commentInquiryExpression:
 		args(e.args)
-	case functions.NullCount:
-		args(e.Args)
-	case functions.Random:
-		args(e.Args)
-	case functions.DatetimeSleep:
-		walk(e.Arg)
 	case advisoryExpression:
 		args(e.args)
-	case functions.UUIDGeneration:
-		args(e.Args)
 	case sequenceCallExpression:
 		args(e.args)
 	case caseExpression:
@@ -208,6 +161,14 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case subqueryExpression:
 		for _, comparison := range e.comparisons {
 			walk(comparison.left)
+		}
+	case functions.Timezone:
+		// Known divergence kept from before the node protocol: PostgreSQL walks
+		// timezone(zone, value) zone first, which decides the reported column in
+		// GROUP BY and nested-aggregate errors. Children follow PostgreSQL.
+		walk(e.Value)
+		if !e.Local {
+			walk(e.Zone)
 		}
 	case expr.Composite:
 		// Last, so the explicit cases above keep precedence over embedded nodes.

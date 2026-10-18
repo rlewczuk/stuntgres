@@ -229,3 +229,34 @@ func (x DatetimeSleep) Reconstruct(info expr.Info, arg expr.Expr, clock sqltype.
 	return x, nil
 }
 func DatetimeSleepIntrinsicRule() IntrinsicPropertyRule { return VolatileOnly }
+
+// DatetimeSleep implements expr.Composite. Rebuild keeps the bound clock usage.
+var _ expr.Composite = DatetimeSleep{}
+
+func (x DatetimeSleep) Children() []expr.Expr { return []expr.Expr{x.Arg} }
+func (x DatetimeSleep) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeSleep", children, 1); err != nil {
+		return nil, err
+	}
+	return rebuilt(x.Reconstruct(info, children[0], x.ClockUsage))
+}
+
+// IntrinsicVolatility is the analyzed volatility: the call is volatile or
+// has no children, so nothing from eliminated arms can be retained.
+func (x DatetimeSleep) IntrinsicVolatility() expr.Volatility { return x.Property.Volatility }
+
+func (x DatetimeSleep) StrictNull() expr.Strict { return expr.StrictAfterBare }
+
+func (x DatetimeSleep) PlanningFold() expr.Fold { return expr.FoldNever }
+
+// Retag retains the clock descriptor generation.
+func (x DatetimeSleep) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	clock := x.ClockUsage
+	clock.Type = env.Type(clock.Type)
+	changed = changed || clock.Type != x.ClockUsage.Type
+	if !changed {
+		return x, false, nil
+	}
+	node, err := x.Reconstruct(info, children[0], clock)
+	return retagged(node, true, err)
+}

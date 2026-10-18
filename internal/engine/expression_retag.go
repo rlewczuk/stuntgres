@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -181,14 +181,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.target = targets[0]
 		n.expressionInfo = info
 		rebound = n
-	case functions.Regexp:
-		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
-		n.Info = info
-		rebound = n
-	case functions.RegexpSet:
-		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
-		n.Info = info
-		rebound = n
 	case seriesExpression:
 		n.args = children(n.args)
 		n.expressionInfo = info
@@ -212,60 +204,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				return nil, false, err
 			}
 		}
-		rebound = n
-	case functions.JSONKeys:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if changed {
-			n, err = n.Reconstruct(info, n.Args)
-		}
-		n.Info = info
-		rebound = n
-	case functions.JSONBRecord:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBElements:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if changed {
-			n, err = n.Reconstruct(info, n.Args)
-		}
-		n.Info = info
-		rebound = n
-	case functions.JSONRecord:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONEach:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if changed {
-			n, err = n.Reconstruct(info, n.Args)
-		}
-		n.Info = info
-		rebound = n
-	case functions.JSONElements:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if changed {
-			n, err = n.Reconstruct(info, n.Args)
-		}
-		n.Info = info
 		rebound = n
 	case installedSoundexFunctionExpression:
 		n.Args = children(n.Args)
@@ -543,36 +481,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case functions.UUIDGeneration:
-		if len(n.Args) != 0 {
-			next := child(n.Args[0])
-			if changed {
-				n.Args = []BoundExpr{next}
-			}
-			nextType := retainedType(n.Timestamp)
-			changed = changed || nextType != n.Timestamp
-			n.Timestamp = nextType
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Args, n.Timestamp)
-			}
-		} else {
-			n.Info = info
-		}
-		rebound = n
-	case functions.Random:
-		n.Args = children(n.Args)
-		n.Info = info
-		rebound = n
-	case functions.DatetimeSleep:
-		n.Arg = child(n.Arg)
-		clockType := retainedType(n.ClockUsage.Type)
-		changed = changed || clockType != n.ClockUsage.Type
-		n.ClockUsage.Type = clockType
-		if err == nil && changed {
-			n, err = n.Reconstruct(info, n.Arg, n.ClockUsage)
-		}
-		n.Info = info
-		rebound = n
 	case advisoryExpression:
 		n.args = children(n.args)
 		n.expressionInfo = info
@@ -698,331 +606,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case functions.Binary:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		for _, arg := range n.Args {
-			if arg == nil {
-				return node, false, fmt.Errorf("stuntgres: invalid remapped binary argument")
-			}
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.DatetimeJustify:
-		n.Arg = child(n.Arg)
-		if err != nil {
-			return node, false, err
-		}
-		mapped, planChanged, failure := n.Reconstruct(info, n.Arg, retainedType)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || planChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.DatetimeExtract:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || planChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.DatetimeOverlaps:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType, sqltype.Value.Retag)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || planChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.DatetimeBin:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || planChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.DatetimeTrunc:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || planChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.DatetimeZoneCalendar:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		mapped, providerChanged, failure := n.Reconstruct(info, n.Args)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || providerChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.DatetimeAgeFinite:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
-		if failure != nil {
-			return node, false, failure
-		}
-		changed = changed || planChanged
-		if !changed {
-			return node, false, nil
-		}
-		rebound = mapped
-	case functions.JSONStripNulls:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONExtract:
-		var did bool
-		n, did, err = functions.MapJSONExtractChildren(n, mapChild)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed && !did {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBPathQueryArray:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBPathExists:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBPathMatch:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBPathQueryFirst:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBPathQuery:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.JSONBSet:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.DatetimeMake:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.DatetimeFormatting:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.NumericFormatting:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.String:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		for _, arg := range n.Args {
-			if arg == nil {
-				return node, false, fmt.Errorf("stuntgres: invalid remapped string argument")
-			}
-		}
-		text := n.Plan.TextUsage()
-		text.Type = retainedType(text.Type)
-		if len(collations) != 0 && collations[0] != nil {
-			text.Collation, err = collations[0](text.Collation)
-			if err != nil {
-				return nil, false, err
-			}
-		}
-		if !changed && text == n.Plan.TextUsage() {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args, text)
-		rebound = n
-	case functions.ArrayRandom:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.ArrayTransform:
-		ref, conflict := n.Sort.InputCollation()
-		ref = comparisonCollation(ref)
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args, ref, conflict)
-		rebound = n
-	case functions.ArrayInspect:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.ArraySearch:
-		ref, conflict := n.Plan.InputCollation()
-		ref = comparisonCollation(ref)
-		n.Args = children(n.Args)
-		array, integer := retainedType(n.Plan.Array()), retainedType(n.Plan.Integer())
-		changed = changed || array != n.Plan.Array() || integer != n.Plan.Integer()
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args, array, info.Usage.Type, integer, ref, conflict)
-		rebound = n
 	case catalogUserNameExpression:
 		n.arg = child(n.arg)
 		if err != nil {
@@ -1067,90 +650,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
-	case functions.UUIDExtract:
-		n.Arg = child(n.Arg)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Arg)
-		rebound = n
-	case functions.NetworkFormat:
-		for i := range n.Kind.Arity() {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.RangeOperator:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.RangeInspect:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		for _, arg := range n.Args {
-			if arg == nil {
-				return node, false, fmt.Errorf("stuntgres: invalid remapped range inspection argument")
-			}
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.Enum:
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		for _, arg := range n.Args {
-			if arg == nil {
-				return node, false, fmt.Errorf("stuntgres: invalid remapped enum argument")
-			}
-		}
-		n, err = n.Reconstruct(info, n.Args)
-		rebound = n
-	case functions.Math:
-		ref, conflict := n.Plan.InputCollation()
-		ref = comparisonCollation(ref)
-		n.Args = children(n.Args)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		for _, arg := range n.Args {
-			if arg == nil {
-				return node, false, fmt.Errorf("stuntgres: invalid remapped math argument")
-			}
-		}
-		n, err = n.Reconstruct(info, n.Args, ref, conflict)
-		if err == nil {
-			n.WrapperContext = functions.MathWrapperContext(n.Plan.Name(), n.Args)
-		}
-		rebound = n
 	case visibilityInquiryExpression:
 		n.arg = child(n.arg)
 		n.expressionInfo = info
@@ -1158,10 +657,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case commentInquiryExpression:
 		n.args = children(n.args)
 		n.expressionInfo = info
-		rebound = n
-	case functions.NullCount:
-		n.Args = children(n.Args)
-		n.Info = info
 		rebound = n
 	case sqlJSONExpression:
 		n.args = children(n.args)
@@ -1171,28 +666,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case jsonPredicateExpression:
 		n.child = child(n.child)
 		n.expressionInfo = info
-		rebound = n
-	case functions.JSONCreate:
-		n.Args = children(n.Args)
-		if err == nil {
-			n, err = n.Reconstruct(info, n.Args)
-		}
-		rebound = n
-	case functions.StringVariadic:
-		n.Args = append([]BoundExpr(nil), n.Args...)
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if err == nil {
-			n, err = n.Reconstruct(info, n.Args)
-		}
-		rebound = n
-	case functions.Format:
-		n.Args = children(n.Args)
-		int4 := retainedType(n.Int4)
-		changed = changed || int4 != n.Int4
-		n.Int4 = int4
-		n.Info = info
 		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
@@ -1273,15 +746,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case identityExpression:
 		n.expressionInfo = info
 		rebound = n
-	case functions.CurrentDateTime:
-		n.Info = info
-		rebound = n
-	case functions.VersionInformation:
-		n.Info = info
-		rebound = n
-	case functions.TransactionTime:
-		n.Info = info
-		rebound = n
 	case domainValueExpression:
 		if !changed {
 			return node, false, nil
@@ -1308,16 +772,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		n.expressionInfo = info
-		rebound = n
-	case functions.Timezone:
-		n.Value = child(n.Value)
-		if !n.Local {
-			n.Zone = child(n.Zone)
-		}
-		if !changed {
-			return node, false, err
-		}
-		n.Info = info
 		rebound = n
 	case collationExpression:
 		n.child = child(n.child)
@@ -1400,90 +854,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 		}
 		n.expressionInfo = info
-		rebound = n
-	case functions.LikeEscape:
-		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			info, err = collatedInfo(view, info, n.Pattern, n.Escape)
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Pattern, n.Escape)
-			}
-		}
-		n.Info = info
-		rebound = n
-	case functions.Posix:
-		n.Left, n.Right = child(n.Left), child(n.Right)
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
-			}
-		}
-		n.Info = info
-		rebound = n
-	case functions.Similar:
-		n.Left, n.Right = child(n.Left), child(n.Right)
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
-			}
-		}
-		n.Info = info
-		rebound = n
-	case functions.SimilarEscape:
-		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			info, err = collatedInfo(view, info, n.Pattern, n.Escape)
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Pattern, n.Escape)
-			}
-		}
-		n.Info = info
-		rebound = n
-	case functions.PosixSubstring:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			info, err = collatedInfo(view, info, n.Args[:]...)
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Args)
-			}
-		}
-		n.Info = info
-		rebound = n
-	case functions.SimilarSubstring:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			info, err = collatedInfo(view, info, n.Args[:]...)
-			if err == nil {
-				n, err = n.Reconstruct(info, n.Args)
-			}
-		}
-		n.Info = info
 		rebound = n
 	case rowComparisonExpression:
 		var pairs []comparisonExpression
@@ -1605,6 +975,18 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
+	case expr.Composite:
+		// Last, so the explicit engine wrappers above keep precedence.
+		var mapped []BoundExpr
+		mapped, err = mapCompositeChildren(n, mapChild)
+		if err != nil {
+			return node, false, err
+		}
+		if hook, ok := n.(expr.Retaggable); ok {
+			rebound, changed, err = hook.Retag(info, mapped, changed, retagEnvironment(view, retainedType, collations))
+		} else if changed {
+			rebound, err = n.Rebuild(info, mapped)
+		}
 	default:
 		return nil, false, fmt.Errorf("stuntgres: unsupported stored default node")
 	}
@@ -1615,4 +997,43 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		return node, false, nil
 	}
 	return rebound, true, nil
+}
+
+// mapCompositeChildren maps a protocol node's children, copying the slice only
+// when a child is replaced.
+func mapCompositeChildren(node expr.Composite, mapChild func(BoundExpr) (BoundExpr, bool, error)) ([]BoundExpr, error) {
+	children := node.Children()
+	var mapped []BoundExpr
+	for i, old := range children {
+		next, replaced, err := mapChild(old)
+		if err != nil {
+			return nil, err
+		}
+		if replaced {
+			if mapped == nil {
+				mapped = append([]BoundExpr(nil), children...)
+			}
+			mapped[i] = next
+		}
+	}
+	if mapped == nil {
+		return children, nil
+	}
+	return mapped, nil
+}
+
+// retagEnvironment gives Retaggable nodes the retained descriptors, the stored
+// collation remap and collation derivation over the catalog view.
+func retagEnvironment(view CatalogRead, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations []collationRemapper) expr.Retag {
+	remap := func(ref sqltype.CollationRef) (sqltype.CollationRef, error) { return ref, nil }
+	if len(collations) != 0 && collations[0] != nil {
+		remap = collations[0]
+	}
+	return expr.Retag{
+		Type:      retainedType,
+		Collation: remap,
+		Collated: func(info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+			return collatedInfo(view, info, inputs...)
+		},
+	}
 }

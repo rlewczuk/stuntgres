@@ -52,3 +52,29 @@ func (e DatetimeJustify) Reconstruct(info expr.Info, arg expr.Expr, retain func(
 	e.Info, e.Arg, e.Plan = info, arg, plan
 	return e, changed, nil
 }
+
+// DatetimeJustify implements expr.Composite. Rebuild keeps the retained plan
+// descriptors.
+var _ expr.Composite = DatetimeJustify{}
+
+func (e DatetimeJustify) Children() []expr.Expr { return []expr.Expr{e.Arg} }
+func (e DatetimeJustify) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeJustify", children, 1); err != nil {
+		return nil, err
+	}
+	node, _, err := e.Reconstruct(info, children[0], keepDescriptor)
+	return rebuilt(node, err)
+}
+
+func (e DatetimeJustify) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e DatetimeJustify) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e DatetimeJustify) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeJustify) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	node, planChanged, err := e.Reconstruct(info, children[0], env.Type)
+	return retagged(node, changed || planChanged, err)
+}

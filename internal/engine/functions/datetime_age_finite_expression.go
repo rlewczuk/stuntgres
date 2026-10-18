@@ -199,3 +199,35 @@ func (e DatetimeAgeFinite) Reconstruct(info expr.Info, args [2]expr.Expr, retain
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, changed, nil
 }
+
+// DatetimeAgeFinite implements expr.Composite. Rebuild keeps the retained plan descriptors
+// and any argument slots beyond Children.
+var _ expr.Composite = DatetimeAgeFinite{}
+
+func (e DatetimeAgeFinite) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeAgeFinite) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeAgeFinite", children, len(e.Arguments())); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, _, err := e.Reconstruct(info, args, keepDescriptor)
+	return rebuilt(node, err)
+}
+
+func (e DatetimeAgeFinite) IntrinsicVolatility() expr.Volatility {
+	return stableIf(e.Plan.SessionDependent())
+}
+
+func (e DatetimeAgeFinite) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e DatetimeAgeFinite) ValidateStoredProvider() error { return nil }
+
+// Retag rebinds the plan's retained descriptors; a plan change counts as a
+// change.
+func (e DatetimeAgeFinite) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	args := e.Args
+	copy(args[:], children)
+	node, planChanged, err := e.Reconstruct(info, args, env.Type)
+	return retagged(node, changed || planChanged, err)
+}
