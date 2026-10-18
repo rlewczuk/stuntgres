@@ -8,7 +8,7 @@ a leaf library: it imports [`expr`](../expr/README.md), `ids`, `sqltype`,
 storage, lock or visibility state. It reaches the engine only through
 `Binder` at bind time and `expr.Context` at evaluation time. `expr` owns
 `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
-`IntrinsicPropertyRule`; this package keeps aliases for them until step 2d.
+`IntrinsicPropertyRule`; this package uses them under their `expr` names.
 
 Function nodes are plain types over the `expr` contract: they embed
 `expr.Info`, hold children as `expr.Expr` and evaluate with `Eval(expr.Context)`,

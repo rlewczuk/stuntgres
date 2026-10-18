@@ -128,20 +128,47 @@ evaluation regression. 2d completes the step.
 - [x] 2c — Node protocol landed with the walk switch as first adopter
   (`328df6341` protocol, `aafd6fe97` function nodes, `f038faf09` walk
   adopter, docs `767e1293e`)
-- [ ] 2d — Aliases removed
+- [x] 2d — Aliases removed (`a30776ce9` shadowing locals, `d981cc9c0`
+  embedded field, `f70e8a7d9` functions, `f6107872e` engine, docs DOCS)
 
-Outstanding aliases (2d removes them):
+Outstanding aliases: none. 2d deleted both `expr_aliases.go` files.
 
-- Engine, `internal/engine/expr_aliases.go`: types `BoundExpr`,
-  `ExprProperties`, `ExprContext`, `Volatility` and `expressionInfo`;
-  constants `Immutable`, `Stable` and `Volatile`; forwarding functions
-  `boundExpressionInfo` (→ `expr.InfoOf`, 132 uses),
-  `mergeExpressionProperties` (→ `expr.MergeProperties`, 95) and
-  `expressionError` (→ `expr.ErrorAt`, 577).
-- `functions`, `internal/engine/functions/expr_aliases.go`: types
-  `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
-  `IntrinsicPropertyRule`; constants `ExactStable`, `ExactVolatile`,
-  `VolatileOnly` and `ExactImmutable`.
+Corrections to this prompt, measured at the 2d start (on `367c16096`):
+
+- Besides the listed aliases, three structs embedded `BoundExpr` as a field:
+  `implicitComparisonOperand` and two test probes. They now embed
+  `expr.Expr`, so their selectors and keys spell `.Expr`.
+- Shadowing: 100 locals named `expr` (all bound expressions, in 87
+  declarations) were in scope at an alias use, so `expr.X` would have
+  resolved to the local. A throwaway `go/packages` pass renamed them first,
+  to `bound` (92), `node` (5) or `operand` (3), picking a name no identifier
+  in the enclosing declaration used. `functions` had none.
+- Embedded field: the inliner skips aliases used as embedded fields, because
+  inlining renames the field. The same pass rewrote the 70 embedded
+  `expressionInfo` fields to `expr.Info` and their 934 selectors and keys to
+  `Info`, after checking that none of the 71 types reaching such a field
+  already reached an `Info` field or method (which would re-bind silently).
+- Inlining: the aliases were marked `//go:fix inline`. `go fix -inline`
+  (Go 1.27.1) rewrote `functions` (19 files) but wrote nothing for the
+  engine package although it reported 574 files updated. The standalone
+  x/tools v0.50.0 `inline` driver applied the 9,893 engine fixes (production
+  and test files, 574 files).
+- Imports: the inliner sorts a new import into the first import block. The
+  engine uses both one mixed block (991 files on master) and separate
+  standard and module blocks (475), so each new `expr` import was placed by
+  the file's own style; single-line imports became one grouped import.
+- `view_dependencies.go` keeps a local variable named `expressionError`; it
+  is unrelated to the removed forwarder.
+
+Tests in 2d: no test was moved, deleted or rewritten. Test files changed
+only by the same mechanical renames (aliases, shadowing locals, the embedded
+fields).
+
+Verification in 2d: `make build`, test compilation of every package, the
+`expr`, `functions` and engine expression unit tests, and `make quickcheck`.
+`make racecheck` was skipped at the user's request. `make bench` and
+`REFERENCE=1` were not run: 2d renames identifiers only, and the prompt asks
+for reference runs in 2a and 2c.
 
 Corrections to this prompt, measured at the 2c start (on `2ae77489b`):
 
@@ -228,12 +255,10 @@ deleted.
 
 Notes for later steps:
 
-- 2d: the forwarding functions are not type aliases; rewrite their call
-  sites to the `expr` names (adding the import), then delete them.
-- 2d: engine nodes embed `expr.Info` under the alias name `expressionInfo`,
-  so composite literals spell `expressionInfo: ...` and code selects
-  `.expressionInfo`. Removing that alias renames the embedded field to `Info`
-  at every such site.
+- 4c and later alias removals: mark the aliases `//go:fix inline`; first
+  rename locals that shadow the target package name; rename embedded alias
+  fields separately; if `go fix -inline` writes nothing, run the x/tools
+  `inline` driver; then check the import grouping.
 - F1: `functions/pgcrypto.go` checks entropy, UUID and FIPS capabilities with
   `any(c).(interface{...})`. Once nodes take `expr.Context`, these become
   direct calls.

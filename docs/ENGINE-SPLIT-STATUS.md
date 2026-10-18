@@ -5,11 +5,10 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `a3a2f0548`.
+Last verified against `master` at `367c16096`.
 
 ## Next ready sub-steps
 
-- **2d** — remove the `expr` aliases (needs 2c ✓) *(alias removal)*.
 - **F2 session 2** — render hooks for deparse, node tree and stored scalar
   SQL (needs F2 session 1 ✓) *(broad rewrite)*.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
@@ -18,9 +17,8 @@ Last verified against `master` at `a3a2f0548`.
 - **5c** — view, rule, policy, extension-provider and expression payload
   seams (needs 5b ✓).
 
-They may run in parallel on separate branches, except that 2d, 4c and F2
-must not run alongside each other or another broad rewrite or alias removal
-(§8).
+They may run in parallel on separate branches, except that 4c and F2 must
+not run alongside each other or another broad rewrite or alias removal (§8).
 
 ## Task tree
 
@@ -33,7 +31,7 @@ must not run alongside each other or another broad rewrite or alias removal
     (`9a56cf39d`, `3993c587c`, `ebb5ee0dd`, docs `27a4b6bb2`)
   - [x] 1d — Aliases removed (`282b6608a`, `369dc435f`, `3d31f69ba`,
     `01bb004d6`, `77a7d4bd0`, `e799ad1e3`, `ebdcd8c6b`, docs `b859670f7`)
-- [ ] **Step 2 — `expr`** ([prompt](ENGINE-SPLIT-expr.md); needs 1)
+- [x] **Step 2 — `expr`** ([prompt](ENGINE-SPLIT-expr.md); needs 1)
   - [x] 2a — Evaluation through `ExprContext`; `routineRecipe` cut, cut 7
     (`52d15cad4`, `a7bc48424`, `d0fb3f388`, docs `19466ff87`; merged in
     `e884b9126`)
@@ -42,7 +40,8 @@ must not run alongside each other or another broad rewrite or alias removal
   - [x] 2c — Node protocol landed with the walk switch as first adopter
     (`328df6341`, `aafd6fe97`, `f038faf09`, docs `767e1293e`)
     *(full racecheck skipped at user request)*
-  - [ ] 2d — Aliases removed *(broad rewrite)*
+  - [x] 2d — Aliases removed (`a30776ce9`, `d981cc9c0`, `f70e8a7d9`,
+    `f6107872e`, docs DOCS) *(racecheck skipped at user request)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
   2b, and 2c for F2)
   - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)

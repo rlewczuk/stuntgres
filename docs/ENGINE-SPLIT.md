@@ -334,7 +334,8 @@ uses aliases or direct `ids.` names. Done: 1d removed the aliases.
 
 **Moves.**
 
-- `BoundExpr` becomes `expr.Expr`, kept as a temporary alias in the engine.
+- `BoundExpr` becomes `expr.Expr`. The engine kept a temporary alias until
+  2d removed it with the other `expr` aliases.
 - `ExprProperties` becomes `expr.Properties`; `Volatility` and its constants
   move too.
 - `expressionInfo` becomes `expr.Info`, replacing `functions.Info[P]`. In 2b
@@ -706,7 +707,7 @@ package-specific scope. This section holds the rules every session follows.
 | Step | Prompt file | Needs | Status |
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
-| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2c done; 2d next |
+| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A except JSON operators/constructors, Tier B, and aggregates and windows done; F2 six of eight switches done; F2 render hooks and the remaining JSON F4/F5 next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a, 5b done; 5c next |

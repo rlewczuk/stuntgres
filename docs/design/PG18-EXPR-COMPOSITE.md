@@ -169,7 +169,7 @@ The existing occurrence-path capture map has explicit selection, expansion,
 dot-builtin and whole-row kinds. Each stores exact base Usage and ordered stable
 attributes, with the genuine null-count kind or frozen namespace/qualifier/frame
 handle only where required. Empty expansion and whole-row captures retain an
-explicit kind even with zero attributes. The map stores no live BoundExpr or
+explicit kind even with zero attributes. The map stores no live `expr.Expr` or
 catalog root. Raw expansion bases are captured once despite physical lowering.
 
 Rendering resolves stable members through validated current descriptors and

@@ -41,9 +41,9 @@ Reuse catalog's component-wise normalized `ObjectName`/`Identifier`; no splittin
 Proposed engine contracts:
 
 ```go
-// BoundExpr, ExprProperties and Volatility are now expr.Expr, expr.Properties
-// and expr.Volatility; see internal/engine/expr/README.md.
-type ExpressionAnalysis struct { Expr BoundExpr; Dependencies []PlanDependency }
+// Bound expressions, their properties and volatility are expr.Expr,
+// expr.Properties and expr.Volatility; see internal/engine/expr/README.md.
+type ExpressionAnalysis struct { Expr expr.Expr; Dependencies []PlanDependency }
 func (b *expressionBinder) Bind(raw parser.Expr, policy ExprPolicy) (ExpressionAnalysis, error)
 ```
 
@@ -120,7 +120,7 @@ type ExprPolicy struct {
     Scope *ExpressionScope
     Expected *sqltype.Usage
     Coercion sqltype.CoercionContext
-    MaxVolatility Volatility
+    MaxVolatility expr.Volatility
     AllowParameters, AllowAggregate, AllowWindow, AllowSubquery bool
 }
 ```
