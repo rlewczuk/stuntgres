@@ -69,11 +69,11 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 
 func TestPGDatabaseCapture(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, ref := pgDatabaseUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, ref := pgDatabaseUnitSource(t, e, view)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
-	rows := pgDatabaseUnitCapture(t, e, catalog)
+	rows := pgDatabaseUnitCapture(t, e, view)
 	row := rows.anonymous[0]
 	for i, value := range row {
 		wantNull := i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14 && i <= 17
@@ -86,7 +86,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			t.Fatal("OID", i, got, want, err)
 		}
 	}
-	database := catalog.MustDatabase(currentDatabaseAddress)
+	database := view.MustDatabase(currentDatabaseAddress)
 	for i, want := range map[int]string{1: database.Name(), 4: "c", 12: "C", 13: "C"} {
 		if got, err := row[i].Text(); err != nil || got != want {
 			t.Fatal("text", i, got, want, err)
@@ -109,7 +109,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := e.capturePGDatabase(ctx, catalog, e.Roles(), ref, d); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := e.capturePGDatabase(ctx, view, e.Roles(), ref, d); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	unchanged()
@@ -118,7 +118,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		catalog CatalogRead
 		roles   authorization.Read
 		ref     ids.ObjectRef
-	}{{foreign.CatalogRead(), e.Roles(), ref}, {catalog, foreign.Roles(), ref}, {catalog, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
+	}{{foreign.CatalogRead(), e.Roles(), ref}, {view, foreign.Roles(), ref}, {view, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
 		if got, err := e.capturePGDatabase(context.Background(), tc.catalog, tc.roles, tc.ref, d); got != nil || err == nil {
 			t.Fatal("foreign capture admitted", got, err)
 		}
@@ -127,18 +127,18 @@ func TestPGDatabaseCapture(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(column.Usage.Type.ID())
-		if got, err := e.capturePGDatabase(context.Background(), catalog, e.Roles(), ref, &invalid); got != nil || err == nil {
+		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("foreign concrete type", i, got, err)
 		}
 	}
 	for _, width := range []int{0, 17, 19} {
 		invalid := *d
 		invalid.Columns = make([]ColumnDescriptor, width)
-		if got, err := e.capturePGDatabase(context.Background(), catalog, e.Roles(), ref, &invalid); got != nil || err == nil {
+		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("invalid source width", width, got, err)
 		}
 	}
-	private := cloneCatalog(catalog.State())
+	private := cloneCatalog(view.State())
 	for address := range private.Descriptors() {
 		if address.ClassID == ids.RelationClassID {
 			private.RemoveDescriptor(address)

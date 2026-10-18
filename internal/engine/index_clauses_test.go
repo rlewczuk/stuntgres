@@ -29,11 +29,11 @@ func indexClausesFixture(t *testing.T) (*relationDescriptor, *relationDescriptor
 	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	def := &indexDefinition{Parent: parent.Address(), Keys: []indexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: indexRelation, SQLIndex: def, Columns: append([]ColumnDescriptor(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
-	catalog := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{parent.Address(): parent, index.Address(): index}, nil)
-	if err := validateIndexDefinition(newCatalogRead(nil, catalog), index); err != nil {
+	catalogSnapshot := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{parent.Address(): parent, index.Address(): index}, nil)
+	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
-	return parent, index, catalog, types
+	return parent, index, catalogSnapshot, types
 }
 
 func TestIndexClausesRootAttributes(t *testing.T) {
@@ -107,14 +107,14 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 }
 
 func TestIndexClausesClassRoots(t *testing.T) {
-	parent, index, catalog, types := indexClausesFixture(t)
+	parent, index, catalogSnapshot, types := indexClausesFixture(t)
 	ctx := context.Background()
 	oid, _ := sqltype.LookupIndexClass("oid_ops")
 	index.SQLIndex = &indexDefinition{Parent: parent.Address(), Keys: []indexKey{{Attribute: 10, Class: oid, ExplicitClass: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	index.Columns = []ColumnDescriptor{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
 	index.AttributeHighWater = 2
-	if err := validateIndexDefinition(newCatalogRead(nil, catalog), index); err != nil {
+	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
@@ -141,7 +141,7 @@ func TestIndexClausesClassRoots(t *testing.T) {
 }
 
 func TestIndexClausesUniquePayload(t *testing.T) {
-	parent, index, catalog, types := indexClausesFixture(t)
+	parent, index, catalogSnapshot, types := indexClausesFixture(t)
 	ctx := context.Background()
 	c := uniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.Address()}
 	parent.UniqueConstraints = []uniqueConstraint{c}
@@ -150,10 +150,10 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	index.Columns = []ColumnDescriptor{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
 	index.AttributeHighWater = 2
-	if err := validateIndexDefinition(newCatalogRead(nil, catalog), index); err != nil {
+	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateUniques(newCatalogRead(nil, catalog), parent, map[string]bool{}); err != nil {
+	if err := validateUniques(newCatalogRead(nil, catalogSnapshot), parent, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
@@ -175,14 +175,14 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 }
 
 func TestIndexClausesEvolution(t *testing.T) {
-	parent, index, catalog, types := indexClausesFixture(t)
+	parent, index, catalogSnapshot, types := indexClausesFixture(t)
 	index.SQLIndex.Keys[0].ExplicitClass = true
 	textPattern, _ := sqltype.LookupIndexClass("text_pattern_ops")
 	index.SQLIndex.Keys[1] = indexKey{Attribute: 30, Class: textPattern, ExplicitClass: true, Collation: 951}
 	index.SQLIndex.Include = []int32{20}
 	index.Columns = []ColumnDescriptor{parent.Columns[0], parent.Columns[2], parent.Columns[1]}
 	index.Columns[1].Usage = indexKeyCollation(parent.Columns[2].Usage, index.SQLIndex.Keys[1])
-	if err := validateIndexDefinition(newCatalogRead(nil, catalog), index); err != nil {
+	if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
 	// Included TYPE normalizes every OLD default, not only the changed key.
@@ -243,7 +243,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 		{"include-using", 30, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			parent, index, catalog, types := indexClausesFixture(t)
+			parent, index, catalogSnapshot, types := indexClausesFixture(t)
 			parent.Columns[1].Usage = types[sqltype.Text].Usage()
 			textClass, _ := sqltype.DefaultIndexClass(types[sqltype.Text])
 			index.SQLIndex.Keys[0].ExplicitClass = true
@@ -251,7 +251,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			index.SQLIndex.Keys[1].ExplicitClass = true
 			index.SQLIndex.Keys[1].Collation = parent.Columns[1].Usage.Collation.ID
 			index.Columns[1].Usage = indexKeyCollation(parent.Columns[1].Usage, index.SQLIndex.Keys[1])
-			if err := validateIndexDefinition(newCatalogRead(nil, catalog), index); err != nil {
+			if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), index); err != nil {
 				t.Fatal(err)
 			}
 			definition := index.SQLIndex
@@ -259,7 +259,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			columns := append([]ColumnDescriptor(nil), index.Columns...)
 			parentColumns := append([]ColumnDescriptor(nil), parent.Columns...)
 			e := New()
-			stage := e.BeginCatalogStage(e.catalog.read(catalog))
+			stage := e.BeginCatalogStage(e.catalog.read(catalogSnapshot))
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -279,7 +279,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			if index.SQLIndex != definition || !reflect.DeepEqual(definition.Keys, keys) || !reflect.DeepEqual(index.Columns, columns) || !reflect.DeepEqual(parent.Columns, parentColumns) {
 				t.Fatal("TYPE evolution mutated original descriptor")
 			}
-			if err := validateIndexDefinition(newCatalogRead(nil, catalog), evolved); err != nil {
+			if err := validateIndexDefinition(newCatalogRead(nil, catalogSnapshot), evolved); err != nil {
 				t.Fatal(err)
 			}
 			for _, changes := range [][]columnTransformation{nil, {{attribute: 99}}} {
@@ -290,7 +290,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			}
 			other := parent.Address()
 			other.ObjectID += 2
-			unrelated := e.BeginCatalogStage(e.catalog.read(catalog))
+			unrelated := e.BeginCatalogStage(e.catalog.read(catalogSnapshot))
 			if err := unrelated.Replace(parent); err != nil {
 				t.Fatal(err)
 			}

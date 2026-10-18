@@ -23,7 +23,7 @@ type partitionConstraintUnit struct {
 
 func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	t.Helper()
-	root, index, catalog, types := indexClausesFixture(t)
+	root, index, catalogSnapshot, types := indexClausesFixture(t)
 	e := New()
 	state := *e.catalog.state
 	state.ResetMaps(e.catalog.state.DescriptorCount() + 4)
@@ -56,7 +56,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	leaf.Index = map[string]int{"b": 0, "a": 1, "p": 2}
 	root.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 	root.Partition.DefaultChild = leaf.Address()
-	for a, d := range catalog.Descriptors() {
+	for a, d := range catalogSnapshot.Descriptors() {
 		state.SetDescriptor(a, d)
 	}
 	state.SetDescriptor(leaf.Address(), &leaf)

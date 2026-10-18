@@ -77,16 +77,16 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		}
 		state.SetDescriptor(d.Address(), d)
 	}
-	catalog := f.e.catalog.read(state)
+	view := f.e.catalog.read(state)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = catalog
+	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
-	held, got := defaultUnitProjection(t, catalog, auth)
+	held, got := defaultUnitProjection(t, view, auth)
 	var want [][]string
 	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
 		hierarchy := "NO"
@@ -108,7 +108,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal("projection origins/kinds/bits/options", got, want)
 	}
 	auth.state.CurrentUser = f.reader
-	_, readerRows := defaultUnitProjection(t, catalog, auth)
+	_, readerRows := defaultUnitProjection(t, view, auth)
 	readerWant := [][]string{
 		{"default_owner", "default_reader", "unit_database", "default_schema", "proof_named", "SELECT", "YES", "YES"},
 		{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"},
@@ -120,7 +120,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal("grantee visibility was filtered by namespace/table SELECT or invented inherited origins", readerRows)
 	}
 	auth.state.CurrentUser = f.member
-	_, memberRows := defaultUnitProjection(t, catalog, auth)
+	_, memberRows := defaultUnitProjection(t, view, auth)
 	if !reflect.DeepEqual(memberRows, want) {
 		t.Fatal("inherited grantor visibility", memberRows)
 	}
@@ -134,8 +134,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	setFixtureEdges(roles, edges)
 	auth.roleRecord = roles
-	auth.recaptureCatalog(catalog)
-	_, setRows := defaultUnitProjection(t, catalog, auth)
+	auth.recaptureCatalog(view)
+	_, setRows := defaultUnitProjection(t, view, auth)
 	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(setWant)
 	if !reflect.DeepEqual(setRows, setWant) {
@@ -184,8 +184,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := captureTablePrivileges(canceled, catalog, AuthorizationView{}, "unit_database", ref, source)
+	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
+	rows, err := captureTablePrivileges(canceled, view, AuthorizationView{}, "unit_database", ref, source)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

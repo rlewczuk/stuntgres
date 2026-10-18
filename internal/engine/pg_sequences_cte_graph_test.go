@@ -66,10 +66,10 @@ func TestPGSequencesCTEStoredGraphAuthority(t *testing.T) {
 	} {
 		sessionSQL(t, s, q)
 	}
-	catalog := e.CatalogRead()
-	root := &sourceNode{ref: catalogRef(t, e, catalog, "nested")}
-	v := catalogRef(t, e, catalog, "v")
-	broken := cloneCatalog(catalog.State())
+	view := e.CatalogRead()
+	root := &sourceNode{ref: catalogRef(t, e, view, "nested")}
+	v := catalogRef(t, e, view, "v")
+	broken := cloneCatalog(view.State())
 	broken.RemoveDescriptor(v.Address)
 	if _, err := cteStoredViewVolatile(e.catalog.read(broken), root); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("invalid stored identity err=%v want ErrCatalogReplaced", err)
@@ -78,9 +78,9 @@ func TestPGSequencesCTEStoredGraphAuthority(t *testing.T) {
 	// Publication continues to allow cycles; only expansion/static inspection
 	// rejects the active path, using the existing view graph diagnostic.
 	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT sequencename FROM nested")
-	catalog = e.CatalogRead()
-	root = &sourceNode{ref: catalogRef(t, e, catalog, "nested")}
-	_, err := cteStoredViewVolatile(catalog, root)
+	view = e.CatalogRead()
+	root = &sourceNode{ref: catalogRef(t, e, view, "nested")}
+	_, err := cteStoredViewVolatile(view, root)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != `infinite recursion detected in rules for relation "nested"` {
 		t.Fatalf("cyclic stored graph err=%v want existing nested 42P17", err)

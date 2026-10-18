@@ -243,9 +243,9 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.roles != nil {
 		roles = c.roles
 	}
-	catalog := e.privateCatalogLocked(c)
-	read := e.roleRead(catalog, roles)
-	if err := validateDefaultACLs(read, catalog); err != nil {
+	view := e.privateCatalogLocked(c)
+	read := e.roleRead(view, roles)
+	if err := validateDefaultACLs(read, view); err != nil {
 		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {
@@ -269,7 +269,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 			return CatalogConflict{}
 		}
 	}
-	if err := catalogDependencyPreflight(e.catalog.state, catalog.State(), c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.dependencies, c.originals); err != nil {
 		return err
 	}
 	if err := e.truncateGraphPreflightLocked(c); err != nil {

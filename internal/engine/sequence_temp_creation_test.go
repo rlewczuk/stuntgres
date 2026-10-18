@@ -91,8 +91,8 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					t.Fatal("initial held allocation", got)
 				}
 				r.Rows.Close()
-				catalog, namespace, cell := e.catalog.state, a.temporaryNamespace, held.sequences
-				retained := cloneCatalog(catalog)
+				catalogSnapshot, namespace, cell := e.catalog.state, a.temporaryNamespace, held.sequences
+				retained := cloneCatalog(catalogSnapshot)
 				generators := make(map[ids.ObjectAddress]sequenceGenerator, len(e.sequences))
 				for address, g := range e.sequences {
 					generators[address] = *g
@@ -102,12 +102,12 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					memories[address] = *m
 				}
 				peerAddress := NameAddressForTempMove(t, e, peerNamespace, "seed")
-				peerDescriptor, peerMemory := catalog.Get(peerAddress), *b.sequences[peerAddress]
+				peerDescriptor, peerMemory := catalogSnapshot.Get(peerAddress), *b.sequences[peerAddress]
 				last, peerLast := a.lastSequence, b.lastSequence
 				err = sequenceTempMoveCommand(t, e, a, query, prepared)
 				if !success {
 					sequenceOwnerDiagnostic(t, err, code, message, "")
-					if e.catalog.state != catalog || !reflect.DeepEqual(catalog, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || a.lastSequence != last || b.lastSequence != peerLast || held.sequences != cell || len(e.sequences) != len(generators) || len(a.sequences) != len(memories) {
+					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || a.lastSequence != last || b.lastSequence != peerLast || held.sequences != cell || len(e.sequences) != len(generators) || len(a.sequences) != len(memories) {
 						t.Fatal("creation rejection published catalog, namespace event, generator, memory or held analysis")
 					}
 					for address, want := range generators {
@@ -136,7 +136,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
-					wantGeneration := catalog.NamespaceGeneration()
+					wantGeneration := catalogSnapshot.NamespaceGeneration()
 					if fresh {
 						wantGeneration++
 					}

@@ -54,7 +54,7 @@ func namespaceCapturedAuthorization(t *testing.T, s *Session) AuthorizationView 
 
 func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	e, owner, peer, foreign, chain, persistent := namespaceTemporaryStorageFixture(t)
-	catalog := e.CatalogRead()
+	catalogView := e.CatalogRead()
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
 	collect := func(view CatalogRead, relation *relationDescriptor, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
@@ -74,36 +74,36 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		relation *relationDescriptor
 		only     bool
 	}{{foreign, false}, {foreign, true}, {chain, false}} {
-		refs, err := collect(catalog, tc.relation, tc.only, false, peer.token)
+		refs, err := collect(catalogView, tc.relation, tc.only, false, peer.token)
 		defaultUnitDiagnostic(t, err, "0A000", "cannot access temporary tables of other sessions")
 		if len(refs) != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 			t.Fatal("rejected physical source changed capture frontier or TEMP footprint", refs, err)
 		}
 	}
 	e.mu.Lock()
-	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalog.Epoch(), foreign.Address())}, peer.token, queryRowMark{})
+	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalogView.Epoch(), foreign.Address())}, peer.token, queryRowMark{})
 	e.mu.Unlock()
 	defaultUnitDiagnostic(t, seededErr, "0A000", "cannot access temporary tables of other sessions")
 	if len(seeded) != 0 {
 		t.Fatal("preseeded target bypassed physical admission", seeded)
 	}
-	refs, err := collect(catalog, foreign, false, true, peer.token)
+	refs, err := collect(catalogView, foreign, false, true, peer.token)
 	if err != nil || len(refs) != 0 {
 		t.Fatal("metadata-only leaf admitted physical storage", refs, err)
 	}
-	refs, err = collect(catalog, foreign, false, false, owner.token)
+	refs, err = collect(catalogView, foreign, false, false, owner.token)
 	if err != nil || len(refs) != 1 || refs[0].Address != foreign.Address() {
 		t.Fatal("own TEMP storage denied", refs, err)
 	}
-	refs, err = collect(catalog, persistent, false, false, peer.token)
+	refs, err = collect(catalogView, persistent, false, false, peer.token)
 	if err != nil || len(refs) != 1 || refs[0].Address != persistent.Address() {
 		t.Fatal("persistent ancestor did not skip foreign TEMP child", refs, err)
 	}
-	refs, err = collect(catalog, persistent, false, false, owner.token)
+	refs, err = collect(catalogView, persistent, false, false, owner.token)
 	if err != nil || len(refs) != 2 {
 		t.Fatal("own inherited TEMP child omitted", refs, err)
 	}
-	missing := cloneCatalog(catalog.State())
+	missing := cloneCatalog(catalogView.State())
 	missing.RemoveDescriptor(foreign.Namespace())
 	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.token)
 	if !errors.Is(err, ids.ErrCatalogReplaced) {

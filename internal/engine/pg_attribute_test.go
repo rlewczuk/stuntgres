@@ -89,10 +89,10 @@ func TestPGAttributeShape(t *testing.T) {
 
 func TestPGAttributeCapture(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, ref := pgAttributeUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, ref := pgAttributeUnitSource(t, e, view)
 	before, descriptors := e.catalog.state, maps.Collect(e.catalog.state.Descriptors())
-	rows := pgAttributeUnitCapture(t, e, catalog)
+	rows := pgAttributeUnitCapture(t, e, view)
 	for _, row := range rows.anonymous {
 		if len(row) != 25 {
 			t.Fatal("width", len(row))
@@ -114,15 +114,15 @@ func TestPGAttributeCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := e.capturePGAttribute(ctx, catalog, e.Roles(), ref, d); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := e.capturePGAttribute(ctx, view, e.Roles(), ref, d); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", got, err)
 	}
-	if got, err := e.capturePGAttribute(context.Background(), catalog, New().Roles(), ref, d); got != nil || err == nil {
+	if got, err := e.capturePGAttribute(context.Background(), view, New().Roles(), ref, d); got != nil || err == nil {
 		t.Fatal("foreign roles", got, err)
 	}
 	wrong := ref
 	wrong.Epoch++
-	if got, err := e.capturePGAttribute(context.Background(), catalog, e.Roles(), wrong, d); got != nil || err == nil {
+	if got, err := e.capturePGAttribute(context.Background(), view, e.Roles(), wrong, d); got != nil || err == nil {
 		t.Fatal("stale source", got, err)
 	}
 	privateColumn := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, Columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, Attributes: []int32{1}, ColumnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}
@@ -133,7 +133,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified := *d
 	modified.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	modified.Columns[24].Usage.Typmod = 0
-	privateState := cloneCatalog(catalog.State())
+	privateState := cloneCatalog(view.State())
 	privateState.SetDescriptor(d.Address(), &modified)
 	if got, err := e.capturePGAttribute(context.Background(), e.catalog.read(privateState), e.Roles(), ref, &modified); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)

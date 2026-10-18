@@ -94,9 +94,9 @@ func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map
 }
 func TestPGTypeCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	catalogView := e.CatalogRead()
 	d, ref := pgTypeUnitSource(t, e)
-	roles := e.roleRead(catalog, e.roles)
+	roles := e.roleRead(catalogView, e.roles)
 	if len(d.Columns) != 32 || d.RowType != 71 || !d.HasIndexes {
 		t.Fatal("source definition", d)
 	}
@@ -122,7 +122,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
 	capture := func() *querySource {
 		t.Helper()
-		s, err := e.capturePGType(t.Context(), catalog, roles, ref, d)
+		s, err := e.capturePGType(t.Context(), catalogView, roles, ref, d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,28 +152,28 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	foreign := other.CatalogRead()
 	s, err := e.capturePGType(t.Context(), foreign, roles, ref, d)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), catalog, other.roleRead(foreign, other.roles), ref, d)
+	s, err = e.capturePGType(t.Context(), catalogView, other.roleRead(foreign, other.roles), ref, d)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), catalog, roles, ref, nil)
+	s, err = e.capturePGType(t.Context(), catalogView, roles, ref, nil)
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), CatalogRead{}, roles, ref, d)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), catalog, roles, ids.ObjectRef{}, d)
+	s, err = e.capturePGType(t.Context(), catalogView, roles, ids.ObjectRef{}, d)
 	ordinary(s, err)
 	badRef := ref
 	badRef.Epoch++
-	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
+	s, err = e.capturePGType(t.Context(), catalogView, roles, badRef, d)
 	ordinary(s, err)
 	badRef = ref
 	badRef = other.catalog.Domain.Ref(badRef.Epoch, badRef.Address)
-	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
+	s, err = e.capturePGType(t.Context(), catalogView, roles, badRef, d)
 	ordinary(s, err)
 	badRef = ref
 	badRef.Address.ObjectID = 1259
-	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
+	s, err = e.capturePGType(t.Context(), catalogView, roles, badRef, d)
 	ordinary(s, err)
 	for _, badWidth := range []bool{false, true} {
-		root := cloneCatalog(catalog.State())
+		root := cloneCatalog(catalogView.State())
 		bad := *d
 		bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		if badWidth {
@@ -187,8 +187,8 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		ordinary(s, err)
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
-	root := cloneCatalog(catalog.State())
-	original := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
+	root := cloneCatalog(catalogView.State())
+	original := catalogView.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	changed := *original
 	changed.ACL = authorization.ACLValue{Explicit: true}
 	changed.ACLSyntheticDefault = false
@@ -209,10 +209,10 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if !found {
 		t.Fatal("modified ACL type absent")
 	}
-	for _, at := range []int32{1, 10, 100, int32(catalog.DescriptorCount() + 25)} {
+	for _, at := range []int32{1, 10, 100, int32(catalogView.DescriptorCount() + 25)} {
 		during, cancel := context.WithCancel(context.Background())
 		ctx := &cancelAtErrCheck{Context: during, cancel: cancel, at: at}
-		got, err := e.capturePGType(ctx, catalog, roles, ref, d)
+		got, err := e.capturePGType(ctx, catalogView, roles, ref, d)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled partial capture", got, err)
@@ -236,7 +236,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	s, err = e.capturePGType(t.Context(), freshCatalog, e.roleRead(freshCatalog, e.roles), freshRef, d)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), catalog, roles, ref, d)
+	s, err = e.capturePGType(t.Context(), catalogView, roles, ref, d)
 	if err != nil {
 		t.Fatal("retained root rejected", err)
 	}
@@ -257,10 +257,10 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		}
 	}
 	install()
-	catalog := e.CatalogRead()
+	catalogView := e.CatalogRead()
 	source, ref := pgTypeUnitSource(t, e)
-	roles := e.roleRead(catalog, e.roles)
-	captured, err := e.capturePGType(t.Context(), catalog, roles, ref, source)
+	roles := e.roleRead(catalogView, e.roles)
+	captured, err := e.capturePGType(t.Context(), catalogView, roles, ref, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,8 +324,8 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 			}
 		}
 	}
-	check(catalog, oldRows)
-	nested := domainUnitType(t, catalog, "pt18_query_nested")
+	check(catalogView, oldRows)
+	nested := domainUnitType(t, catalogView, "pt18_query_nested")
 	for _, name := range []string{"query_int", "pt18_query_domain"} {
 		for _, missing := range []bool{true, false} {
 			kind := "foreign_generation"
@@ -333,8 +333,8 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				kind = "missing"
 			}
 			t.Run(name+"/"+kind, func(t *testing.T) {
-				root := cloneCatalog(catalog.State())
-				original := domainUnitType(t, catalog, name)
+				root := cloneCatalog(catalogView.State())
+				original := domainUnitType(t, catalogView, name)
 				if missing {
 					root.RemoveDescriptor(original.Address())
 				} else {
@@ -346,7 +346,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 					root.SetDescriptor(original.Address(), &replacement)
 				}
 				bad := e.catalog.read(root)
-				for _, d := range []*typeDescriptor{nested, array(t, catalog, nested)} {
+				for _, d := range []*typeDescriptor{nested, array(t, catalogView, nested)} {
 					facts, err := pgTypeFacts(bad, d)
 					if err == nil || facts != (sqltype.PGTypeMetadata{}) {
 						t.Fatal("accepted missing/foreign immediate base", facts, err)
@@ -359,7 +359,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 			})
 		}
 	}
-	oldBase := domainUnitType(t, catalog, "query_int")
+	oldBase := domainUnitType(t, catalogView, "query_int")
 	if err := e.Reset(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -376,10 +376,10 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	}
 	// Old rows and old catalog-aware inheritance retain their original actual
 	// installation even if the receiving catalog reuses numeric addresses.
-	check(catalog, oldRows)
-	oldCapture, err := e.capturePGType(t.Context(), catalog, roles, ref, source)
+	check(catalogView, oldRows)
+	oldCapture, err := e.capturePGType(t.Context(), catalogView, roles, ref, source)
 	if err != nil {
 		t.Fatal("retained installed catalog rejected", err)
 	}
-	check(catalog, pgTypeUnitBag(t, oldCapture, source))
+	check(catalogView, pgTypeUnitBag(t, oldCapture, source))
 }

@@ -899,11 +899,11 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	return nil
 }
 
-func (e *Engine) roleRead(catalog CatalogRead, root *roleCatalog) authorization.Read {
-	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || root == nil {
+func (e *Engine) roleRead(view CatalogRead, root *roleCatalog) authorization.Read {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || root == nil {
 		return authorization.Read{}
 	}
-	database, ok := catalog.Database(currentDatabaseAddress)
+	database, ok := view.Database(currentDatabaseAddress)
 	if !ok {
 		return authorization.Read{}
 	}

@@ -95,19 +95,19 @@ func TestPgClassSubclassPublication(t *testing.T) {
 
 func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
-	catalog, parent := pgClassHistoryCatalog(e)
+	view, parent := pgClassHistoryCatalog(e)
 	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
-	catalog.State().SetDescriptor(child.Address(), child)
+	view.State().SetDescriptor(child.Address(), child)
 	history := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-	catalog.State().SetDescriptor(history.Address(), history)
-	if err := normalizeReplacementSubclassHistory(context.Background(), catalog); err != nil {
+	view.State().SetDescriptor(history.Address(), history)
+	if err := normalizeReplacementSubclassHistory(context.Background(), view); err != nil {
 		t.Fatal(err)
 	}
-	got := catalog.MustRelation(parent.Address())
+	got := view.MustRelation(parent.Address())
 	if !got.HasSubclasses || got == parent || parent.HasSubclasses || !history.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := e.catalog.read(cloneCatalog(catalog.State()))
+	base := e.catalog.read(cloneCatalog(view.State()))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -117,10 +117,10 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := normalizeReplacementSubclassHistory(canceled, catalog); !errors.Is(err, context.Canceled) {
+	if err := normalizeReplacementSubclassHistory(canceled, view); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := e.catalog.read(cloneCatalog(catalog.State()))
+	missing := e.catalog.read(cloneCatalog(view.State()))
 	missing.State().RemoveDescriptor(parent.Address())
 	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")

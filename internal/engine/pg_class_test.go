@@ -89,24 +89,24 @@ func TestPgClassProjection(t *testing.T) {
 
 func TestPgClassKinds(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	for _, tc := range []struct {
 		kind relationKind
 		want string
 	}{{tableRelation, "r"}, {sequenceRelation, "S"}, {viewRelation, "v"}, {materializedViewRelation, "m"}, {compositeRelation, "c"}, {partitionedRelation, "p"}} {
-		if got := pgClassKind(catalog, &relationDescriptor{RelationKind: tc.kind}); got != tc.want {
+		if got := pgClassKind(view, &relationDescriptor{RelationKind: tc.kind}); got != tc.want {
 			t.Fatal(tc, got)
 		}
 	}
 	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
-		d := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		before := d.VirtualView
-		if got := pgClassKind(catalog, d); got != "v" || d.VirtualView != before {
+		if got := pgClassKind(view, d); got != "v" || d.VirtualView != before {
 			t.Fatal("classification changed dispatch", oid, got)
 		}
 	}
 	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200010}
-	state := cloneCatalog(catalog.State())
+	state := cloneCatalog(view.State())
 	state.SetDescriptor(parentAddress, &relationDescriptor{ObjectAddress: parentAddress, Partition: &partitionDefinition{}})
 	index := &relationDescriptor{RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: parentAddress}}
 	if got := pgClassKind(e.catalog.read(state), index); got != "I" {

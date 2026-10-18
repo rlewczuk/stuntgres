@@ -23,11 +23,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if !needed {
 		return ctx.Err()
 	}
-	catalog, roles, frontier := e.catalog.state, e.roles, e.commitSeq
+	catalogSnapshot, roles, frontier := e.catalog.state, e.roles, e.commitSeq
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
-		if result == nil && (e.catalog.state != catalog || e.roles != roles || e.commitSeq != frontier) {
+		if result == nil && (e.catalog.state != catalogSnapshot || e.roles != roles || e.commitSeq != frontier) {
 			result = ids.ErrCatalogReplaced
 		}
 	}()

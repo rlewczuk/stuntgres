@@ -22,11 +22,11 @@ func databaseCollationActualVersion() (*string, error) {
 
 // Caller owns e.mu. Only the supplied catalog and paired role read participate;
 // neither session identity nor the live engine catalog replaces captured facts.
-func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGDatabase(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.State().Epoch() || ref.Address != source.Address() {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() {
 		return nil, fmt.Errorf("stuntgres: foreign database source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}
@@ -34,16 +34,16 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 		return nil, fmt.Errorf("stuntgres: invalid database source shape")
 	}
 	for i, id := range ids {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign database source type")
 		}
 	}
-	database, ok := catalog.Database(currentDatabaseAddress)
+	database, ok := view.Database(currentDatabaseAddress)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}
-	if err := (databaseProvider{}).Validate(catalog, database); err != nil {
+	if err := (databaseProvider{}).Validate(view, database); err != nil {
 		return nil, err
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {

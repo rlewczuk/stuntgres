@@ -11,11 +11,11 @@ import (
 
 // Caller owns e.mu. Catalog and paired roles are immutable captured authority;
 // inventory visibility is independent of the actor's schema USAGE privileges.
-func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGNamespace(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}
@@ -23,23 +23,23 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		return nil, fmt.Errorf("stuntgres: invalid namespace source shape")
 	}
 	for i, id := range ids {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign namespace source type")
 		}
 	}
-	database, ok := catalog.Database(currentDatabaseAddress)
+	database, ok := view.Database(currentDatabaseAddress)
 	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
 	count := 0
-	for _, d := range catalog.Descriptors() {
+	for _, d := range view.Descriptors() {
 		if _, ok := d.(*namespaceDescriptor); ok {
 			count++
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
-	for address, d := range catalog.Descriptors() {
+	for address, d := range view.Descriptors() {
 		ns, ok := d.(*namespaceDescriptor)
 		if !ok {
 			continue
@@ -47,7 +47,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if err := (namespaceProvider{}).Validate(catalog, ns); err != nil {
+		if err := (namespaceProvider{}).Validate(view, ns); err != nil {
 			return nil, err
 		}
 		if address != ns.Address() {
