@@ -85,7 +85,13 @@ Added for UUID generation, `format` and uuid-ossp (F4/F5):
   provider is not the extension's routine. pgcrypto's lookup walks the path
   namespace by namespace and returns `CatalogBuiltin` when `pg_catalog` comes
   before the installed `gen_random_uuid`, so the call binds as the core
-  builtin. intarray and intagg can reuse this capability.
+  builtin. The intagg port added `IntaggExtension`: `Attach` takes an
+  `IntaggEnumeration` (the bound `int_array_enum` call), applies the
+  engine's set-returning admission (EXECUTE parameters, policy frames,
+  `AdmitSetReturning`) and returns the engine's set-returning unnest node.
+  The engine's `int_array_aggregate` aggregate and window paths read the
+  identity from the same handle. intarray needed nothing: it installs only
+  the `query_int` type and its I/O procedures, which bind no calls.
 
 Added for the array and range families (F4/F5), which also use
 `CollatedInfo` and `NoteCatalogText` (array_to_string over catalog-identifier
@@ -233,6 +239,10 @@ Registered families:
 | pgcrypto | `pgcrypto_bind.go` | `pgcryptoNames` | none |
 | fuzzystrmatch | `fuzzystrmatch_bind.go` | `fuzzystrmatchNames` | none |
 | unaccent, `daitch_mokotoff` | `unaccent_bind.go` | `unaccent`, `daitch_mokotoff` | none |
+| Random | `random_bind.go` | `random`, `random_normal`, `setseed` | `ExactSpelling`, `SharedGates` |
+| Sleep | `datetime_sleep_bind.go` | `pg_sleep`, `pg_sleep_for`, `pg_sleep_until` | `ExactSpelling`, `SharedGates` |
+| Clocks | `transaction_time_bind.go` | `now`, `transaction_timestamp`, `statement_timestamp`, `clock_timestamp`, `timeofday` | none |
+| intagg | `intagg_bind.go` | `int_array_aggregate`, `int_array_enum` | none |
 
 `datetimeNames` covers extract/date_part, date_trunc, date_bin,
 timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
@@ -247,6 +257,13 @@ entry point, because they need engine state the registry cannot express:
 - `overlaps` (`BindDatetimeOverlaps`): the engine sets `WrapperContext` from
   inline safety, an engine node walk that F2 replaces.
 - `similar_to_escape` (`BindSimilarEscape`): claimed by call syntax, not name.
+- `current_date`, `current_time[stamp]`, `localtime[stamp]`
+  (`BindCurrentDateTime`): SQL value functions, dispatched by syntax. The
+  precision warning is returned as a value; the engine delivers it unless a
+  held description is being re-analyzed.
+- `int_array_aggregate` as an aggregate: the engine's aggregate and window
+  binders call `AnalyzeIntaggArguments` and `ResolveIntagg`, then keep FILTER,
+  grouping and the aggregate call.
 - Not name dispatch: AT TIME ZONE (`BindTimeZone`), the POSIX and SIMILAR TO
   operators (`BindPosix`, `BindSimilar`) and `||`/`^@` (`StringNode`).
 
@@ -276,7 +293,10 @@ aggregate-binding switches until they adopt the protocol.
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
 label part alone, for families that analyze no FILTER), `CallDecorationError`
-(DISTINCT/ORDER BY/FILTER/OVER on a scalar) and `NamedArgumentType`.
+(DISTINCT/ORDER BY/FILTER/OVER on a scalar), `NamedArgumentType` and
+`ArgumentTypeNames` (projection analysis of every argument spelled for a
+42883, as the engine's `functionArgumentTypeNames`; the clock functions use
+it).
 `resolution_error.go` holds `ResolutionError` (the pure 42883/42725 builder;
 it notes nothing, so missing signatures still go through `SignatureError`),
 `DirectResolutionError` (overload failure over `AnalyzeDirectArguments`
@@ -366,7 +386,11 @@ validation and stored identity; registered bind code reaches them only through
 with the engine's renderers until F2.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
-engine. Function evaluation borrows the same owners only when demanded. Literal
+engine: `random.go`, the `EvalContext` clock and sleep methods in
+`transaction_time.go`, and the closed DEFAULT admission of clock and sleep
+calls (`closedTransactionTimeDefault`). `TransactionTimeSQL` and
+`CurrentDateTimeSQL` are exported for the engine's deparse and DEFAULT
+switches until F2. Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate
 providers own execution-local state; the engine owns FILTER/DISTINCT/ORDER,
 grouping, windows and state lifetime. Query/set expansion and physical regex
@@ -597,6 +621,15 @@ for the PostgreSQL run):
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestExtensionRules)$'
 make check RUN='^TestReference(Pgcrypto|Levenshtein|Metaphone|Soundex|DaitchMokotoff)'
 make check RUN='^TestReference(Extension|AvailableExtensions|MaterializedAlterExtension|ObjectGrant(Levenshtein|Metaphone|Soundex|PGCrypto|UUIDOssp))'
+```
+
+Random, sleep, clock and intagg registration (registry here; the engine's
+unit tests bind through `bindFunctionProvider` or `BindCurrentDateTime` and
+cover engine switches; add `REFERENCE=1` for the PostgreSQL run):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|Test(Random|Datetime(Sleep|Current)|TransactionTime|CurrentDateTime|Intagg))'
+make check RUN='^TestReference(Datetime(TxTimes|Current|Sleep)|Random|DeparseConstraintsReviewRandom|Intagg|QueryInt|ObjectGrantIntagg|PGAggregateIntagg|ComparisonInstalledQueryInt)'
 ```
 
 Array inspect, random, transform and search bind over comparison-analyzed
