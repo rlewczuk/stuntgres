@@ -26,7 +26,7 @@ func (e selectedOperatorExpression) Eval(ctx ExprContext) (sqltype.Value, error)
 
 func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy expressionPolicy) (BoundExpr, error) {
 	if r.SQLSimilar {
-		return bindSimilar(b, r)
+		return functions.BindSimilar(b, r)
 	}
 	if subquery, ok := rowSubqueryComparison(r); ok {
 		return b.bindSubquery(subquery)
@@ -42,7 +42,7 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 	case likeName(name):
 		return bindLike(b, r)
 	case len(r.Args) == 2 && functions.PosixName(name):
-		return bindPosix(b, r)
+		return functions.BindPosix(b, r)
 	case arrayMembershipName(name):
 		return b.bindArrayMembership(r)
 	case jsonExtractionName(name):

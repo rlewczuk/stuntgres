@@ -49,6 +49,7 @@ var definitions = [...]Definition{
 	{Names: textObjectNames[:], ExactSpelling: true, SharedGates: true, Bind: bindTextObject},
 	{Names: datetimeNames[:], ExactSpelling: true, SharedGates: true, Bind: bindDatetime},
 	{Names: datetimeMakeNames[:], ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindDatetime},
+	{Names: []string{"like_escape"}, ExactSpelling: true, SharedGates: true, Bind: bindLikeEscape},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

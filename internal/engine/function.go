@@ -60,7 +60,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindInstalledSoundex(raw)
 	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
-		return bindSimilarEscape(b, raw)
+		return functions.BindSimilarEscape(b, raw)
 	}
 	if parser.VersionInformationFunctionName(name) {
 		return b.bindVersionInformation(raw)
@@ -96,7 +96,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		if err != nil {
 			return nil, err
 		}
-		call, err := bindRegexpCall(b, raw, visible, b.regexpPlacement)
+		call, err := functions.BindRegexpCall(b, raw, visible, b.regexpPlacement)
 		if err != nil {
 			return nil, err
 		}
@@ -196,8 +196,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindStringFunction(raw, visible && name != "trim")
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
-	case "like_escape":
-		return bindLikeEscape(b, raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 		return b.bindBinaryFunction(raw, visible)
 	case "pg_size_bytes", "pg_size_pretty":
