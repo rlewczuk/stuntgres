@@ -82,3 +82,16 @@ func (e VersionInformation) Eval(c expr.Context) (sqltype.Value, error) {
 		return sqltype.Null(e.Usage.Type), nil
 	}
 }
+
+// VersionInformation implements expr.Composite as a leaf: no children, and Rebuild only takes
+// the new metadata.
+var _ expr.Composite = VersionInformation{}
+
+func (e VersionInformation) Children() []expr.Expr { return nil }
+func (e VersionInformation) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("VersionInformation", children, 0); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	return e, nil
+}

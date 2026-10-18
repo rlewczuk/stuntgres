@@ -321,3 +321,16 @@ func (e ArrayTransform) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid array transformation")
 }
+
+// ArrayTransform implements expr.Composite. Rebuild keeps the bound sort
+// collation.
+var _ expr.Composite = ArrayTransform{}
+
+func (e ArrayTransform) Children() []expr.Expr { return e.Args }
+func (e ArrayTransform) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayTransform", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	ref, conflict := e.Sort.InputCollation()
+	return rebuilt(e.Reconstruct(info, children, ref, conflict))
+}

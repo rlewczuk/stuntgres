@@ -323,3 +323,19 @@ func NewMath(info expr.Info, name string, args []expr.Expr) (Math, error) {
 	plan, err := sqltype.BindMath(name, info.Usage, usages[:len(args)]...)
 	return Math{Info: info, Plan: plan, Args: args}, err
 }
+
+// Math implements expr.Composite. Rebuild keeps the bound comparison collation
+// and the wrapper context chosen at binding.
+var _ expr.Composite = Math{}
+
+func (e Math) Children() []expr.Expr { return e.Args }
+func (e Math) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Math", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	if err := checkPresent("stuntgres: invalid remapped math argument", children); err != nil {
+		return nil, err
+	}
+	ref, conflict := e.Plan.InputCollation()
+	return rebuilt(e.Reconstruct(info, children, ref, conflict))
+}

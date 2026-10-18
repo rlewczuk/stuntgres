@@ -341,3 +341,17 @@ func StringArgumentAnalysis(name string, index int) AnalysisRequest {
 	}
 	return AnalysisRequest{Intent: StringTextArgument}
 }
+
+// String implements expr.Composite. Rebuild keeps the bound text usage.
+var _ expr.Composite = String{}
+
+func (e String) Children() []expr.Expr { return e.Args }
+func (e String) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("String", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	if err := checkPresent("stuntgres: invalid remapped string argument", children); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children, e.Plan.TextUsage()))
+}

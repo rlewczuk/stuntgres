@@ -49,6 +49,9 @@ func (e RangeInspect) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, 
 	if err := checkChildren("RangeInspect", children, len(e.Args)); err != nil {
 		return nil, err
 	}
+	if err := checkPresent("stuntgres: invalid remapped range inspection argument", children); err != nil {
+		return nil, err
+	}
 	return rebuilt(e.Reconstruct(info, children))
 }
 func (e RangeInspect) Validate() error {

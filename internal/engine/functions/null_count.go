@@ -127,3 +127,16 @@ func NullCountAllowed(visible, variadic bool, count int) bool {
 func NullCountVariadicArray(usage sqltype.Usage) bool {
 	return usage.Type != nil && usage.Type.BaseType().IsArray()
 }
+
+// NullCount implements expr.Composite. It has no provider to revalidate, so Rebuild
+// only takes the new metadata and children.
+var _ expr.Composite = NullCount{}
+
+func (e NullCount) Children() []expr.Expr { return e.Args }
+func (e NullCount) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NullCount", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, append([]expr.Expr(nil), children...)
+	return e, nil
+}

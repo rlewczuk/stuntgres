@@ -314,3 +314,18 @@ func (e DatetimeOverlaps) Reconstruct(info expr.Info, args [4]expr.Expr, retain 
 	e.Info, e.Args, e.Plan, e.Folded = info, args, plan, folded
 	return e, changed, nil
 }
+
+// DatetimeOverlaps implements expr.Composite. Rebuild keeps the retained plan
+// descriptors and folded pair ends.
+var _ expr.Composite = DatetimeOverlaps{}
+
+func (e DatetimeOverlaps) Children() []expr.Expr { return e.Args[:] }
+func (e DatetimeOverlaps) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeOverlaps", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, _, err := e.Reconstruct(info, args, keepDescriptor, keepValue)
+	return rebuilt(node, err)
+}

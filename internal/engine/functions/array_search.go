@@ -124,3 +124,16 @@ func FinishArraySearch(b ArgumentCoercer, name string, args []Argument, targets 
 	}
 	return result, nil
 }
+
+// ArraySearch implements expr.Composite. Rebuild keeps the bound array and
+// integer descriptors and comparison collation.
+var _ expr.Composite = ArraySearch{}
+
+func (e ArraySearch) Children() []expr.Expr { return e.Args }
+func (e ArraySearch) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArraySearch", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	ref, conflict := e.Plan.InputCollation()
+	return rebuilt(e.Reconstruct(info, children, e.Plan.Array(), info.Usage.Type, e.Plan.Integer(), ref, conflict))
+}

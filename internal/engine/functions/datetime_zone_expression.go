@@ -223,3 +223,18 @@ func (e DatetimeZoneCalendar) Reconstruct(info expr.Info, args [3]expr.Expr) (Da
 	e.Info, e.Args, e.Provider = info, args, provider
 	return e, changed, nil
 }
+
+// DatetimeZoneCalendar implements expr.Composite. Rebuild rebinds the
+// arithmetic provider from the children and keeps trailing argument slots.
+var _ expr.Composite = DatetimeZoneCalendar{}
+
+func (e DatetimeZoneCalendar) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeZoneCalendar) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeZoneCalendar", children, e.Count); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	node, _, err := e.Reconstruct(info, args)
+	return rebuilt(node, err)
+}

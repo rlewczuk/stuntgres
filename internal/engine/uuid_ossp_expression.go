@@ -17,6 +17,17 @@ type installedUUIDOsspFunctionExpression struct {
 	ref       ids.ObjectRef
 }
 
+// Rebuild keeps the installed-routine identity; the promoted Rebuild would
+// return the bare functions node.
+func (e installedUUIDOsspFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+	node, err := e.UUIDGeneration.Rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	e.UUIDGeneration = node.(functions.UUIDGeneration)
+	return e, nil
+}
+
 func (n installedUUIDOsspFunctionExpression) validShape() bool {
 	properties := n.Properties()
 	// Group rewriting adds execution-stage dependence to a valid leaf.

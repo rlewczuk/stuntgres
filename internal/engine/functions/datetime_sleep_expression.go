@@ -229,3 +229,14 @@ func (x DatetimeSleep) Reconstruct(info expr.Info, arg expr.Expr, clock sqltype.
 	return x, nil
 }
 func DatetimeSleepIntrinsicRule() IntrinsicPropertyRule { return VolatileOnly }
+
+// DatetimeSleep implements expr.Composite. Rebuild keeps the bound clock usage.
+var _ expr.Composite = DatetimeSleep{}
+
+func (x DatetimeSleep) Children() []expr.Expr { return []expr.Expr{x.Arg} }
+func (x DatetimeSleep) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeSleep", children, 1); err != nil {
+		return nil, err
+	}
+	return rebuilt(x.Reconstruct(info, children[0], x.ClockUsage))
+}

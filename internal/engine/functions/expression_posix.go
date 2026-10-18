@@ -123,3 +123,14 @@ func (e PosixSubstring) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 	copy(args[:], children)
 	return rebuilt(e.Reconstruct(info, args))
 }
+
+// Posix implements expr.Composite. Rebuild keeps the bound input collation.
+var _ expr.Composite = Posix{}
+
+func (e Posix) Children() []expr.Expr { return []expr.Expr{e.Left, e.Right} }
+func (e Posix) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Posix", children, 2); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children[0], children[1], e.Provider.Collation(), e.Provider.Conflict()))
+}

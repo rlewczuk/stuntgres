@@ -63,3 +63,16 @@ func (e CurrentDateTime) Validate(intrinsicMatch bool) error {
 	return nil
 }
 func CurrentDateTimeIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+
+// CurrentDateTime implements expr.Composite as a leaf: no children, and Rebuild only takes
+// the new metadata.
+var _ expr.Composite = CurrentDateTime{}
+
+func (e CurrentDateTime) Children() []expr.Expr { return nil }
+func (e CurrentDateTime) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("CurrentDateTime", children, 0); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	return e, nil
+}

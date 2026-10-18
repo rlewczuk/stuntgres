@@ -179,3 +179,32 @@ func RegexpStageDependent(name string) bool {
 	kind := sqltype.RegexpFunctionKind(name)
 	return kind == sqltype.RegexpMatches || kind == sqltype.RegexpSplitTable
 }
+
+// Regexp and RegexpSet implement expr.Composite. Rebuild keeps the bound input
+// collation and returns the same wrapper type.
+var (
+	_ expr.Composite = Regexp{}
+	_ expr.Composite = RegexpSet{}
+)
+
+func (call RegexpCall) Children() []expr.Expr { return call.Args }
+func (call RegexpCall) rebuild(info expr.Info, children []expr.Expr) (RegexpCall, error) {
+	if err := checkChildren("Regexp", children, len(call.Args)); err != nil {
+		return call, err
+	}
+	return call.Reconstruct(info, children, call.Plan.Collation(), call.Plan.Conflict())
+}
+func (e Regexp) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	call, err := e.rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	return Regexp{call}, nil
+}
+func (e RegexpSet) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	call, err := e.rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	return RegexpSet{call}, nil
+}

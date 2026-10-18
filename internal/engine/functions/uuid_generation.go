@@ -181,3 +181,19 @@ func (e UUIDGeneration) Reconstruct(info expr.Info, args []expr.Expr, timestamp 
 	}
 	return next, nil
 }
+
+// UUIDGeneration implements expr.Composite. Rebuild keeps the bound timestamp
+// descriptor; a call without arguments only takes the new metadata.
+var _ expr.Composite = UUIDGeneration{}
+
+func (e UUIDGeneration) Children() []expr.Expr { return e.Args }
+func (e UUIDGeneration) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("UUIDGeneration", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	if len(children) == 0 {
+		e.Info = info
+		return e, nil
+	}
+	return rebuilt(e.Reconstruct(info, children, e.Timestamp))
+}

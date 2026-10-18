@@ -217,3 +217,16 @@ func CoerceRandomArguments(b ArgumentCoercer, raw []parser.Expr, args []expr.Exp
 	}
 	return nil
 }
+
+// Random implements expr.Composite. It has no provider to revalidate, so Rebuild
+// only takes the new metadata and children.
+var _ expr.Composite = Random{}
+
+func (e Random) Children() []expr.Expr { return e.Args }
+func (e Random) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Random", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, append([]expr.Expr(nil), children...)
+	return e, nil
+}

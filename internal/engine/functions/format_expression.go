@@ -100,3 +100,16 @@ func FormatFirstCoercion(source, text sqltype.Usage) (CoercionRequest, bool) {
 	return CoercionRequest{Intent: TextFormalArgument, Target: target}, true
 }
 func FormatIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+
+// Format implements expr.Composite. It has no provider to revalidate, so Rebuild
+// only takes the new metadata and children.
+var _ expr.Composite = Format{}
+
+func (e Format) Children() []expr.Expr { return e.Args }
+func (e Format) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Format", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, append([]expr.Expr(nil), children...)
+	return e, nil
+}
