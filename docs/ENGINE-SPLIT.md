@@ -542,7 +542,9 @@ Step 4b moved it: `ErrCatalogReplaced` went to `ids` and `lock` has a private
 `sqlError`. The larger cost was test coupling, not code: about 140 engine test
 files read manager internals under its mutex. They now read an owned
 diagnostic snapshot (`Inspect`), and tests that staged races under the mutex
-moved into `lock` on an engine-free fixture.
+moved into `lock` on an engine-free fixture. Step 4c removed the aliases and
+the engine's `ErrCatalogReplaced` re-export; the engine names `lock.` and
+`ids.ErrCatalogReplaced` directly.
 
 **Done when** `lock` imports only `ids`, `sqlstate` (lock diagnostics) and the
 standard library. Its README documents mutex ownership and lock order. `make racecheck` passes, including
@@ -709,7 +711,7 @@ package-specific scope. This section holds the rules every session follows.
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A except JSON operators/constructors, Tier B, and aggregates and windows done; F2 eight of nine switches done (deparse and node tree through `expr.Rendering`); F2 stored scalar SQL and the remaining JSON F4/F5 next |
-| 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
+| 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a, 5b done; 5c next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |

@@ -76,7 +76,7 @@ An omitted candidate restores only unique-key grants acquired since its mark.
 The same lock manager owns that operation; relation, row-witness and transaction
 completion resources are untouched. Previously held key grants/modes survive.
 Checkpoint/restore accepts only ordinary unique resources on nonpersistent
-transaction tickets. It reads/intersects the current relationHold.mode without
+transaction tickets. It reads/intersects the current `lock.Hold` mode without
 replacing retained holder contributions. Session advisory tickets and their
 counted shared/exclusive grants remain outside omission and statement Finish;
 the supplemental claim seam explicitly checks repeated counted grants and cleanup.

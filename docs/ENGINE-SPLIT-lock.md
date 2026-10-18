@@ -123,26 +123,54 @@ teardown tests.
 - [x] 4b — `lock` created and declarations moved (`6fe4ccdc6`,
   `ff15343fb`, `f2887fb33`, `8192746a5`, `dd7b1b796`, then the commit that
   records this status)
-- [ ] 4c — Aliases removed
+- [x] 4c — Aliases removed (`78796c5df`, `27ae525e7`, `0462d4b61`, then the
+  commit that records this status)
 
-Outstanding aliases, all in `internal/engine/lock_aliases.go`:
+Outstanding aliases: none. `internal/engine/lock_aliases.go` is gone, and the
+engine names `lock.` identifiers and `ids.ErrCatalogReplaced` directly.
 
-- Types: `completionLockPurpose`, `lockResource`, `lockWaiter`,
-  `multiEvent`, `multiMode`, `multiTuple`, `pgLockRecord`, `relationHold`,
-  `relationLockCheckpoint`, `relationLockMode`, `relationLockPolicy`,
-  `relationRequest`, `relationTicket`.
-- Mode constants (`accessShare` … `typeExclusive`; note `rowUpdate`,
-  `noKeyUpdate`, `keyShare` and `rowShare` are `lock.ForUpdate`,
-  `ForNoKeyUpdate`, `ForKeyShare` and `ForShare`, while `relationRowShare`,
-  `relationShare` and `relationExclusive` are `lock.RowShare`, `Share` and
-  `Exclusive`), `advisoryBigintResource`, `advisoryPairResource`,
-  `completionVirtual`, `completionTransaction`, the six `multi*` modes and
-  the six `pg*Lock` record kinds.
-- Errors: `errRelationOwnerEnded`, `errRelationUnavailable`.
+4c results:
 
-Not an alias: `engine.ErrCatalogReplaced = ids.ErrCatalogReplaced` is the
-engine's exported name for the shared value (525 engine uses). 4c decides
-whether to rewrite those uses to `ids.` or keep the re-export.
+- **Commits.** `78796c5df` renames the one local that would shadow the
+  package: `foreignKeyParentExists`'s `lock bool` parameter became
+  `lockParent`. `27ae525e7` rewrites 1,928 alias uses in 236 engine files
+  and deletes the alias file. `0462d4b61` rewrites 703 uses of
+  `engine.ErrCatalogReplaced` in 305 files to `ids.ErrCatalogReplaced` and
+  deletes the re-export. Nothing outside the engine used the engine name, so
+  `ids` stays its one exported home.
+- **Tool.** The 1d qualifier (type-checked by object identity, from
+  `go list -export -deps -test` data), parameterized by import path,
+  qualifier and declaring file. It audits shadowing with `LookupParent` at
+  every rewritten use before editing and gofmts only files that were already
+  clean. gofmt sorted one misplaced import in
+  `transaction_prepared_boundary_test.go`; the 11 other unclean engine files
+  were not touched.
+- **Tests.** None moved, deleted or substantially rewritten; test files
+  changed only by the mechanical rewrite.
+- **Layering.** `lock` imports only `ids`, `sqlstate` and the standard
+  library. No engine code touches the manager mutex.
+- **Verification.** Every commit builds and compiles all tests. The lock
+  README selector and an engine selection of 117 lock, deadlock, advisory,
+  blocking-PID, `pg_locks`, MultiXact, unique-key, session-timeout and
+  prepared-transaction tests passed with `RACE=1`. 91 reference tests
+  (relation locks, deadlocks, lock modes, advisory, blocking PIDs, view
+  locks, MultiXact, unique-key deadlock, row-lock matrix, cancellation and
+  lifetime) passed with `REFERENCE=1` and in quick mode. `quickcheck`
+  passed. `make bench`: 1.50–1.91 ms/op and 7,769 allocations (about
+  1.55 ms and 7,753 at 4b; no startup change). `make deps` lists only module
+  paths. `racecheck` and `finalcheck` were skipped at the user's request.
+  `AGENTS.md`: 100 lines before and after.
+
+Lessons from 4c, for 5f, 6c and 7c:
+
+- Grep counts overstate alias uses: fields, keys and methods share the names
+  (`relationRequest` matched 92 lines, the type checker found 19 uses). Size
+  the work with the tool's `-audit` mode, not grep.
+- Short package names collide with ordinary locals (`lock`, `ids`, likely
+  `catalog`, `storage`). Audit first and commit the few renames separately.
+- Compare `gofmt -l` before and after. The 1d tool's unclean-file skip
+  compared relative with absolute paths and never matched; the 4c copy
+  resolves both.
 
 4b results:
 
@@ -283,8 +311,6 @@ Lessons from 4b:
 
 Notes for later steps:
 
-- 4c: remove the aliases above. Engine tests name `lockWaiter` and
-  `lock.ResourceState`; production names the rest.
 - `TestRelationLockWaitsDelayedDeadlines` (moved) still sleeps until its
   absolute deadlines pass while holding the manager mutex. The mutex, not
   the sleep, orders the callbacks; a fake clock would remove the wait.

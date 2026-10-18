@@ -5,21 +5,20 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `ae1fc88b1`.
+Last verified against `master` at `cd8737298`.
 
 ## Next ready sub-steps
 
 - **F2 stored scalar SQL** — adopt `expr.Rendering` in
   `scalar_function_sql.go`/`default.go` (needs F2 deparse ✓) *(broad
   rewrite)*.
-- **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F4/F5 JSON** — JSON operators, SQL/JSON constructors and `IS JSON`
   (needs F3 ✓).
 - **5c** — view, rule, policy, extension-provider and expression payload
   seams (needs 5b ✓).
 
-They may run in parallel on separate branches, except that 4c and F2 must
-not run alongside each other or another broad rewrite or alias removal (§8).
+They may run in parallel on separate branches, except that F2 must not run
+alongside another broad rewrite or alias removal (§8).
 
 ## Task tree
 
@@ -105,13 +104,15 @@ not run alongside each other or another broad rewrite or alias removal (§8).
     `ff28e5996`, `a18766bcc`, `c4a15e187`, then the docs commit)
     *(racecheck skipped at user request)*
   - [ ] Tier C refined *(after steps 4, 5 and 7)*
-- [ ] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
+- [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
     (`78265dd49`, `d4a96abb9`, `e9c2356cd`, docs `ad4693205`)
   - [x] 4b — `lock` created and declarations moved (`6fe4ccdc6`,
     `ff15343fb`, `f2887fb33`, `8192746a5`, `dd7b1b796`, then the docs commit)
     *(full racecheck skipped at user request; targeted RACE=1 runs passed)*
-  - [ ] 4c — Aliases removed
+  - [x] 4c — Aliases removed (`78796c5df`, `27ae525e7`, `0462d4b61`, then
+    the docs commit) *(racecheck skipped at user request; targeted RACE=1
+    runs passed)*
 - [ ] **Step 5 — `catalog`** ([prompt](ENGINE-SPLIT-catalog.md); needs 1,
   2b)
   - [x] 5a — `catalogStore` state ownership (`41d5fbda9`, `9a0e50246`,
