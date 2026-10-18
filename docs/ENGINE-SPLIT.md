@@ -221,8 +221,8 @@ Package names are proposals (§7).
    mutating methods carry the `Locked` suffix or document that the caller holds
    the engine mutex. The lock manager keeps its own mutex, innermost: never
    taken under `Engine.mu` or the session mutexes, and holding nothing else.
-   Step 4a confirmed this against the code and documented the order on
-   `relationLockManager`; it moves to the `lock` README in 4b.
+   Step 4a confirmed this against the code; the order is documented in
+   [`internal/engine/lock/README.md`](../internal/engine/lock/README.md).
 4. **Subsystem packages own data, not orchestration.** They own immutable
    records, copy-on-write transforms and validation. Installing a change,
    cancellation fences and lifecycle stay in the root until a later wave gives
@@ -525,6 +525,11 @@ Step 4a confirmed it: the lock-owned files compile against `ids`, `sqlstate`
 and the standard library apart from `ErrCatalogReplaced` and `sqlError`.
 More than half the code (1.25k of 2.3k lines) is already free of god structs.
 The remaining references are entry points that stay in the engine.
+Step 4b moved it: `ErrCatalogReplaced` went to `ids` and `lock` has a private
+`sqlError`. The larger cost was test coupling, not code: about 140 engine test
+files read manager internals under its mutex. They now read an owned
+diagnostic snapshot (`Inspect`), and tests that staged races under the mutex
+moved into `lock` on an engine-free fixture.
 
 **Done when** `lock` imports only `ids`, `sqlstate` (lock diagnostics) and the
 standard library. Its README documents mutex ownership and lock order. `make racecheck` passes, including
@@ -686,7 +691,7 @@ package-specific scope. This section holds the rules every session follows.
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2b done; 2c next |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
-| 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a done; 4b next |
+| 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
