@@ -22,7 +22,7 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 	signature := func() error {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
+			names[i] = functions.NamedArgumentType(raw, i, functions.DiagnosticNameOrUnknown(o.Usage.Type))
 		}
 		return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

@@ -87,4 +87,7 @@ type Binder interface {
 	// CaptureTypeInput captures the diagnostic-name, ACL and catalog
 	// identifier input that values of the type need.
 	CaptureTypeInput(*sqltype.Descriptor) error
+	// ConstantValue returns the value of a literal node built by the
+	// analyzer; ok is false for every other node.
+	ConstantValue(expr.Expr) (sqltype.Value, bool)
 }

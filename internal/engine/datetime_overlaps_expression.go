@@ -27,12 +27,12 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 	resolution := func(ambiguous bool) (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = datetimeFormattingTypeName(o.Usage.Type)
+			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
 	}
 	prepared := functions.PrepareDatetimeOverlaps(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeOverlaps(prepared, operands, b.temporalTypesForDemand(prepared.Demand))
+	selection := functions.ResolveDatetimeOverlaps(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution != functions.Resolved {
 		return resolution(selection.Resolution == functions.Ambiguous)
 	}

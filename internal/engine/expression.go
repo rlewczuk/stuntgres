@@ -3695,6 +3695,13 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 		operand, err = b.comparisonOperand(raw)
 	case functions.ThresholdArrayArgument:
 		operand, err = b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext, thresholdArrayInput: true})
+	case functions.ZoneArgument:
+		// Only explicit casts read the flag; restoring it keeps nested and
+		// adjacent calls unaffected.
+		previous := b.datetimeZoneOperands
+		b.datetimeZoneOperands = true
+		operand, err = b.comparisonOperand(raw)
+		b.datetimeZoneOperands = previous
 	case functions.StringTextArgument, functions.StringOtherArgument:
 		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
 	case functions.RecordBaseArgument:

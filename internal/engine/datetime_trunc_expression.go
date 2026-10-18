@@ -31,13 +31,13 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 	names := func() []string {
 		result := make([]string, len(operands))
 		for i, o := range operands {
-			result[i] = datetimeFormattingTypeName(o.Usage.Type)
+			result[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return result
 	}
 	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names()) }
 	prepared := functions.PrepareDatetimeTrunc(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeTrunc(prepared, operands, b.temporalTypesForDemand(prepared.Demand))
+	selection := functions.ResolveDatetimeTrunc(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution == functions.Missing {
 		return signature()
 	}

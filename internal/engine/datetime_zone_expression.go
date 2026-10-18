@@ -31,12 +31,12 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 	resolutionError := func(ambiguous bool) (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = datetimeFormattingTypeName(o.Usage.Type)
+			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
 	}
 	prepared := functions.PrepareDatetimeZone(name, visible, raw.Variadic, operands)
-	signature := functions.ResolveDatetimeZone(prepared, name, operands, b.temporalTypesForDemand(prepared.Demand))
+	signature := functions.ResolveDatetimeZone(prepared, name, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if signature.Resolution != functions.Resolved {
 		return resolutionError(signature.Resolution == functions.Ambiguous)
 	}

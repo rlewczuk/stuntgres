@@ -36,7 +36,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 	names := func() []string {
 		result := make([]string, len(operands))
 		for i, o := range operands {
-			result[i] = datetimeFormattingTypeName(o.Usage.Type)
+			result[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return result
 	}
@@ -44,7 +44,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		return nil, b.functionSignatureErrorForTypes(diagnosticName, raw.Pos, names())
 	}
 	prepared := functions.PrepareDatetimeExtract(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeExtract(prepared, operands, b.temporalTypesForDemand(prepared.Demand))
+	selection := functions.ResolveDatetimeExtract(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution == functions.Missing {
 		return signature()
 	}

@@ -52,3 +52,22 @@ func DirectResolutionError(b Binder, raw parser.FunctionExpr, args []expr.Expr, 
 	}
 	return b.SignatureError(raw.Name, raw.Pos, types)
 }
+
+// NotedResolutionError is ResolutionError for bind code whose missing
+// signature must reach the engine: 42883 goes through Binder.SignatureError,
+// while an ambiguous call is reported without a note.
+func NotedResolutionError(b Binder, name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
+	if ambiguous {
+		return ResolutionError(name, pos, names, true)
+	}
+	return b.SignatureError(name, pos, names)
+}
+
+// DiagnosticNameOrUnknown spells an analyzed argument type, or "unknown" for
+// a deferred literal. Unlike Binder.DiagnosticTypeName it never qualifies.
+func DiagnosticNameOrUnknown(d *sqltype.Descriptor) string {
+	if d != nil {
+		return d.DiagnosticName()
+	}
+	return "unknown"
+}

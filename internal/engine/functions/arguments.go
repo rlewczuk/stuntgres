@@ -39,6 +39,9 @@ const (
 	// base: named casts to user-defined composites keep their occurrence
 	// identity.
 	RecordBaseArgument
+	// ZoneArgument is a comparison operand of timezone/date_add/date_subtract,
+	// whose explicit casts admit the zone family's temporal targets.
+	ZoneArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }

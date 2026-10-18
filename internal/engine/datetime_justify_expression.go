@@ -27,7 +27,7 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = datetimeFormattingTypeName(o.Usage.Type)
+			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

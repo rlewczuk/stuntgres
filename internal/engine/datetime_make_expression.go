@@ -33,7 +33,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
+			names[i] = functions.NamedArgumentType(raw, i, functions.DiagnosticNameOrUnknown(o.Usage.Type))
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
@@ -48,7 +48,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", labelFailure.Name), labelFailure.Pos)
 	}
 	prepared := functions.PrepareDatetimeMake(name, visible, raw.Variadic, operands, raw.ArgNames, &labels, &types, count, result)
-	selection := functions.ResolveDatetimeMake(prepared, operands, b.temporalTypesForDemand(prepared.Demand))
+	selection := functions.ResolveDatetimeMake(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution != functions.Resolved {
 		return signature()
 	}

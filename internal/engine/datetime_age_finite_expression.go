@@ -32,7 +32,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
+			names[i] = functions.NamedArgumentType(raw, i, functions.DiagnosticNameOrUnknown(o.Usage.Type))
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
@@ -40,7 +40,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		return signature()
 	}
 	prepared := functions.PrepareDatetimeAgeFinite(name, visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeAgeFinite(prepared, name, operands, b.temporalTypesForDemand(prepared.Demand))
+	selection := functions.ResolveDatetimeAgeFinite(prepared, name, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution == functions.Missing {
 		return signature()
 	}
@@ -48,7 +48,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		names := func() []string {
 			names := make([]string, len(operands))
 			for i, o := range operands {
-				names[i] = datetimeFormattingTypeName(o.Usage.Type)
+				names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 			}
 			return names
 		}()

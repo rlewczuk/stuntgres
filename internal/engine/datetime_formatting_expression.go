@@ -43,7 +43,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		return signature()
 	}
 	if selection.Resolution == functions.Ambiguous {
-		err := expressionError("42725", fmt.Sprintf("function %s(unknown, %s) is not unique", objectNameText(raw.Name), datetimeFormattingTypeName(operands[1].Usage.Type)), raw.Pos).(*sqlstate.Error)
+		err := expressionError("42725", fmt.Sprintf("function %s(unknown, %s) is not unique", objectNameText(raw.Name), functions.DiagnosticNameOrUnknown(operands[1].Usage.Type)), raw.Pos).(*sqlstate.Error)
 		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 	}
 	source := b.typ(selection.Source)
 	if selection.Numeric {
-		return b.numericFormattingOperands(raw, operands, source)
+		return functions.NumericFormattingOperands(b, raw, operands, source)
 	}
 	var args [2]BoundExpr
 	properties := expr.IntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
@@ -101,45 +101,4 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		return nil, err
 	}
 	return functions.DatetimeFormatting{Info: info, Plan: plan, Args: args}, nil
-}
-func datetimeFormattingTypeName(d *sqltype.Descriptor) string {
-	if d != nil {
-		return d.DiagnosticName()
-	}
-	return "unknown"
-}
-
-func (b *expressionBinder) temporalTypesForDemand(demand functions.TemporalDemand) functions.TemporalTypes {
-	var types functions.TemporalTypes
-	if demand == 0 {
-		return types
-	}
-	if demand&functions.NeedText != 0 {
-		types.Text = b.typ(sqltype.Text).Usage()
-	}
-	if demand&functions.NeedDate != 0 {
-		types.Date = b.typ(sqltype.Date).Usage()
-	}
-	if demand&functions.NeedTime != 0 {
-		types.Time = b.typ(sqltype.Time).Usage()
-	}
-	if demand&functions.NeedTimetz != 0 {
-		types.Timetz = b.typ(sqltype.Timetz).Usage()
-	}
-	if demand&functions.NeedTimestamp != 0 {
-		types.Timestamp = b.typ(sqltype.Timestamp).Usage()
-	}
-	if demand&functions.NeedTimestamptz != 0 {
-		types.Timestamptz = b.typ(sqltype.Timestamptz).Usage()
-	}
-	if demand&functions.NeedInterval != 0 {
-		types.Interval = b.typ(sqltype.Interval).Usage()
-	}
-	if demand&functions.NeedInt4 != 0 {
-		types.Int4 = b.typ(sqltype.Int4).Usage()
-	}
-	if demand&functions.NeedFloat8 != 0 {
-		types.Float8 = b.typ(sqltype.Float8).Usage()
-	}
-	return types
 }

@@ -135,3 +135,8 @@ func (b *expressionBinder) CaptureTypeInput(typ *sqltype.Descriptor) error {
 	}
 	return nil
 }
+
+func (b *expressionBinder) ConstantValue(node expr.Expr) (sqltype.Value, bool) {
+	literal, ok := node.(literalExpression)
+	return literal.value, ok
+}
