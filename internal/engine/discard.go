@@ -111,10 +111,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
 	session, e := s.op.session, s.op.session.Engine()
 	ticket := session.advisory.ticket
-	e.locks.mu.Lock()
-	valid := ticket != nil && ticket.session == session.token && ticket.persistent && e.locks.valid(ticket)
-	e.locks.mu.Unlock()
-	if !valid {
+	if !e.locks.validSession(ticket, session.token) {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
 	}
 	e.mu.Lock()

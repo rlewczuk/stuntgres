@@ -74,14 +74,11 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 
 func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
 	e := s.op.session.Engine()
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
 	required := relationRowShare | rowExclusive
 	if writable {
 		required = rowExclusive
 	}
-	held := e.locks.valid(s.ticket) && entry != nil && entry.holders[s.ticket].mode&required != 0
-	e.locks.mu.Unlock()
+	held := e.locks.holds(s.ticket, lockResource{ObjectRef: ref}, required)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
@@ -159,11 +156,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 		}
 	}()
 	e := s.op.session.Engine()
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: old.row}]
-	held := e.locks.valid(s.ticket) && entry != nil && entry.holders[s.ticket].mode&rowUpdate != 0
-	e.locks.mu.Unlock()
-	if !held {
+	if !e.locks.holds(s.ticket, lockResource{ObjectRef: ref, row: old.row}, rowUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
 	s.owner.mu.Lock()

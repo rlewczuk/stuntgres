@@ -161,10 +161,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 		if !eligible {
 			continue
 		}
-		e.locks.mu.Lock()
-		owner := e.locks.owners[ref]
-		e.locks.mu.Unlock()
-		if owner != nil {
+		if owner := e.locks.transactionTicket(ref); owner != nil {
 			if err := s.waitCompletion(owner, completionVirtual); err != nil {
 				return err
 			}

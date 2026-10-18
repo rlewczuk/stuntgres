@@ -127,13 +127,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	manager := s.op.session.Engine().locks
-	resource := lockResource{ObjectRef: candidate.ref, row: candidate.row}
-	manager.mu.Lock()
-	entry := manager.entries[resource]
-	held := manager.valid(s.ticket) && entry != nil && entry.holders[s.ticket].mode&rowUpdate != 0
-	manager.mu.Unlock()
-	if !held {
+	if !s.op.session.Engine().locks.holds(s.ticket, lockResource{ObjectRef: candidate.ref, row: candidate.row}, rowUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
 	s.owner.mu.Lock()

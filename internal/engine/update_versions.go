@@ -97,16 +97,10 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch inde
 		if admission == nil || !admission.writable {
 			return errors.New("stuntgres: missing writable internal action admission")
 		}
-		e := s.op.session.Engine()
-		e.locks.mu.Lock()
-		for _, row := range old {
-			entry := e.locks.entries[lockResource{ObjectRef: ref, row: row.row}]
-			if !e.locks.valid(s.ticket) || entry == nil || entry.holders[s.ticket].mode&(noKeyUpdate|rowUpdate) == 0 {
-				e.locks.mu.Unlock()
-				return errors.New("stuntgres: internal action replacement requires its row grant")
-			}
+		var small [8]ids.RowID
+		if s.op.session.Engine().locks.missingRowGrant(s.ticket, ref, versionRows(small[:0], old)) >= 0 {
+			return errors.New("stuntgres: internal action replacement requires its row grant")
 		}
-		e.locks.mu.Unlock()
 	}
 	if len(old) != len(rows) {
 		return errors.New("stuntgres: invalid replacement shape")

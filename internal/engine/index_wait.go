@@ -2,25 +2,6 @@ package engine
 
 import "stuntgres/internal/engine/ids"
 
-// Capturing granted holders is not an acquisition of Share: later writers stay
-// admissible and cannot be appended to this exact transaction cohort.
-func (m *relationLockManager) indexWriters(ticket *relationTicket, parent ids.ObjectRef) ([]*relationTicket, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if !m.valid(ticket) || parent.Epoch != ticket.ref.Epoch() {
-		return nil, ErrCatalogReplaced
-	}
-	var cohort []*relationTicket
-	if entry := m.entries[lockResource{ObjectRef: parent}]; entry != nil {
-		for owner, mode := range entry.holders {
-			if !sameLockSession(owner, ticket) && m.valid(owner) && lockConflict(relationShare, mode.mode) {
-				cohort = append(cohort, owner)
-			}
-		}
-	}
-	return cohort, nil
-}
-
 type indexBuildWaitKind uint8
 
 const (

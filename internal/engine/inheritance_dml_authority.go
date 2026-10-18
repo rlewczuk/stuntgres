@@ -6,6 +6,14 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
+// versionRows appends the logical row identities of versions to buf.
+func versionRows(buf []ids.RowID, versions []rowVersion) []ids.RowID {
+	for _, version := range versions {
+		buf = append(buf, version.row)
+	}
+	return buf
+}
+
 // Descendant replacement authority is a real command target, captured generation
 // and row grant. Neither a source grant nor an RI authorization can manufacture it.
 func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []rowVersion) error {
@@ -19,17 +27,14 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 	if s.view == nil || s.view.read().generationAt(ref.Address) != store {
 		return errors.New("stuntgres: replacement requires its captured target view")
 	}
-	e := s.op.session.Engine()
-	e.locks.mu.Lock()
-	defer e.locks.mu.Unlock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	if s.ticket == nil || s.ticket.ref != s.txRef || !e.locks.valid(s.ticket) || entry == nil || entry.holders[s.ticket].mode&rowExclusive == 0 {
+	var small [8]ids.RowID
+	target, missing := s.op.session.Engine().locks.replacementGrants(s.ticket, ref, versionRows(small[:0], old))
+	if s.ticket == nil || s.ticket.ref != s.txRef || !target {
 		return errors.New("stuntgres: replacement requires its target grant")
 	}
 	data := s.view.read()
-	for _, row := range old {
-		held := e.locks.entries[lockResource{ObjectRef: ref, row: row.row}]
-		if held == nil || held.holders[s.ticket].mode&(noKeyUpdate|rowUpdate) == 0 {
+	for i, row := range old {
+		if i == missing {
 			return errors.New("stuntgres: replacement requires its row grant")
 		}
 		captured := data.committed[ref.Address]
