@@ -6,10 +6,44 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// NumericFormattingOperands finishes numeric to_char/to_number over operands
+// bindNumericFormatting binds to_number. It runs after the engine's shared
+// call gates; builtin visibility follows them, as in the final name switch.
+func bindNumericFormatting(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
+	}
+	var small [4]Argument
+	operands := small[:min(len(raw.Args), len(small))]
+	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
+		operands = make([]Argument, len(raw.Args))
+	}
+	for i, arg := range raw.Args {
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: StringTextArgument})
+		if err != nil {
+			return nil, err
+		}
+		if i < len(operands) {
+			operands[i] = o
+		}
+	}
+	if len(raw.Args) > 100 {
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	if ResolveNumericFormatting(visible, raw.Variadic, operands) != Resolved {
+		names := make([]string, len(operands))
+		for i, o := range operands {
+			names[i] = DiagnosticNameOrUnknown(o.Usage.Type)
+		}
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
+	}
+	return numericFormattingOperands(b, raw, operands, b.Type(sqltype.Text))
+}
+
+// numericFormattingOperands finishes numeric to_char/to_number over operands
 // already transformed by the caller's resolver, retaining argument error
 // precedence and parameter occurrences.
-func NumericFormattingOperands(b Binder, raw parser.FunctionExpr, operands []Argument, source *sqltype.Descriptor) (expr.Expr, error) {
+func numericFormattingOperands(b Binder, raw parser.FunctionExpr, operands []Argument, source *sqltype.Descriptor) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	text := source.Usage()
 	if source.ID() != sqltype.Text {

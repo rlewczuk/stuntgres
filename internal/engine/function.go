@@ -144,8 +144,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		e := node.(functions.DatetimeOverlaps)
 		e.WrapperContext = !overlapsInlineSafe(e)
 		return e, nil
-	case "to_number":
-		return b.bindNumericFormatting(raw, visible)
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
