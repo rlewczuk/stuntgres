@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -52,12 +53,12 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 		return nil, err
 	}
 	directCount := 1
-	operation := aggregatePercentileCont
+	operation := functions.AggregatePercentileCont
 	if raw.Name == "mode" {
 		directCount = 0
-		operation = aggregateMode
+		operation = functions.AggregateMode
 	} else if raw.Name == "percentile_disc" {
-		operation = aggregatePercentileDisc
+		operation = functions.AggregatePercentileDisc
 	}
 	undefined := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(name, raw.Pos, types) }
 	if !visible || n != directCount+1 {
@@ -85,7 +86,7 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 			return nil, err
 		}
 	}
-	if operation == aggregatePercentileCont {
+	if operation == functions.AggregatePercentileCont {
 		selected := fraction
 		if inputType != nil && inputType.BaseType().ID() == sqltype.Interval {
 			selected = b.typ(sqltype.Interval)
@@ -137,7 +138,7 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 		usage.Type = result
 	}
 	provider := &orderedSetProvider{usage: usage, input: inputType, fraction: fraction, operation: operation, array: array, comparison: comparison}
-	if operation == aggregatePercentileCont && inputType.ID() == sqltype.Interval {
+	if operation == functions.AggregatePercentileCont && inputType.ID() == sqltype.Interval {
 		provider.subtract, err = sqltype.BindArithmetic(sqltype.ArithmeticSubtract, inputType, inputType, inputType)
 		if err != nil {
 			return nil, err
@@ -155,7 +156,7 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 	call := aggregateCall{provider: provider, argument: arg, direct: direct, operation: operation, stageWidth: 2, order: []sortKey{{expression: arg, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, slot: 0, cache: 0}}}
 	var formal [2]sqltype.ID
 	formalCount := 2
-	if operation == aggregateMode {
+	if operation == functions.AggregateMode {
 		formal[0], formalCount = sqltype.ID(2283), 1
 	} else {
 		formal[0] = sqltype.Float8
@@ -163,7 +164,7 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 			formal[0] = sqltype.ID(1022)
 		}
 		formal[1] = sqltype.ID(2283)
-		if operation == aggregatePercentileCont {
+		if operation == functions.AggregatePercentileCont {
 			formal[1] = inputType.ID()
 		}
 	}

@@ -29,11 +29,11 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 		return nil, err
 	}
 	typ := arg.ResultUsage().Type
-	operation := aggregateAnd
+	operation := functions.AggregateAnd
 	if raw.Name == "bool_or" {
-		operation = aggregateOr
+		operation = functions.AggregateOr
 	}
-	call := aggregateCall{provider: functions.NewBooleanAggregateProvider(typ.Usage(), operation == aggregateAnd), argument: arg, operation: operation}
+	call := aggregateCall{provider: functions.NewBooleanAggregateProvider(typ.Usage(), operation == functions.AggregateAnd), argument: arg, operation: operation}
 	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, sqltype.Bool)
 	if err != nil {
 		return nil, err

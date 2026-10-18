@@ -39,13 +39,13 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 		return nil, err
 	}
 	typ := arg.ResultUsage().Type
-	var provider aggregateProvider
+	var provider functions.AggregateProvider
 	switch operation {
-	case aggregateIntervalAvg:
+	case functions.AggregateIntervalAvg:
 		provider = functions.NewIntervalAvg(typ.Usage())
-	case aggregateNumericAvg:
+	case functions.AggregateNumericAvg:
 		provider = functions.NewNumericAvg(typ, b.typ(sqltype.Numeric).Usage())
-	case aggregateFloatAvg:
+	case functions.AggregateFloatAvg:
 		provider = functions.NewFloatAvg(typ, b.typ(sqltype.Float8).Usage())
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
@@ -56,7 +56,7 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
 }
 
-func (b *expressionBinder) resolveAvgSignature(raw parser.AggregateExpr, name parser.ObjectName, operand comparisonOperand, types []string) (BoundExpr, aggregateOperation, error) {
+func (b *expressionBinder) resolveAvgSignature(raw parser.AggregateExpr, name parser.ObjectName, operand comparisonOperand, types []string) (BoundExpr, functions.AggregateOperation, error) {
 	if len(raw.Args) > 100 {
 		return nil, 0, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -79,14 +79,14 @@ func (b *expressionBinder) resolveAvgSignature(raw parser.AggregateExpr, name pa
 		d.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
 		return nil, 0, d
 	}
-	var operation aggregateOperation
+	var operation functions.AggregateOperation
 	switch typ {
 	case b.typ(sqltype.Interval):
-		operation = aggregateIntervalAvg
+		operation = functions.AggregateIntervalAvg
 	case b.typ(sqltype.Int2), b.typ(sqltype.Int4), b.typ(sqltype.Int8), b.typ(sqltype.Numeric):
-		operation = aggregateNumericAvg
+		operation = functions.AggregateNumericAvg
 	case b.typ(sqltype.Float4), b.typ(sqltype.Float8):
-		operation = aggregateFloatAvg
+		operation = functions.AggregateFloatAvg
 	default:
 		return nil, 0, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}

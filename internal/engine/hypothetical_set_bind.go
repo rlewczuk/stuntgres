@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,8 +13,8 @@ func hypotheticalSetName(name string) bool {
 	return name == "rank" || name == "dense_rank" || name == "percent_rank" || name == "cume_dist"
 }
 
-func hypotheticalOperation(op aggregateOperation) bool {
-	return op >= aggregateHypotheticalRank && op <= aggregateHypotheticalCumeDist
+func hypotheticalOperation(op functions.AggregateOperation) bool {
+	return op >= functions.AggregateHypotheticalRank && op <= functions.AggregateHypotheticalCumeDist
 }
 
 func (b *expressionBinder) bindHypotheticalSet(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
@@ -65,15 +66,15 @@ func (b *expressionBinder) bindHypotheticalSet(raw parser.AggregateExpr, name pa
 		d.Hint = fmt.Sprintf("To use the hypothetical-set aggregate %s, the number of hypothetical direct arguments (here %d) must match the number of ordering columns (here %d).", raw.Name, len(raw.Args), len(raw.Order))
 		return nil, d
 	}
-	op := aggregateHypotheticalRank
+	op := functions.AggregateHypotheticalRank
 	result := b.typ(sqltype.Int8)
 	switch raw.Name {
 	case "dense_rank":
-		op = aggregateHypotheticalDenseRank
+		op = functions.AggregateHypotheticalDenseRank
 	case "percent_rank":
-		op, result = aggregateHypotheticalPercentRank, b.typ(sqltype.Float8)
+		op, result = functions.AggregateHypotheticalPercentRank, b.typ(sqltype.Float8)
 	case "cume_dist":
-		op, result = aggregateHypotheticalCumeDist, b.typ(sqltype.Float8)
+		op, result = functions.AggregateHypotheticalCumeDist, b.typ(sqltype.Float8)
 	}
 	call := aggregateCall{operation: op, includeNulls: true, direct: make([]BoundExpr, len(raw.Args)), order: make([]sortKey, len(raw.Order)), stageWidth: 2 + len(raw.Order)}
 	// Signature transformation coerces every pair before sort operators or

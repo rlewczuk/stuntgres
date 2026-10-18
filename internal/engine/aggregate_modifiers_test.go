@@ -215,7 +215,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 				call.order[0].slot = -1
 			}
 			provider := call.provider
-			call.provider = aggregateProbeProvider{aggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
+			call.provider = aggregateProbeProvider{AggregateProvider: provider, advance: func(ctx context.Context, s any, v, d sqltype.Value) error {
 				advances++
 				err := provider.Advance(ctx, s, v, d)
 				if phase == "replay" {

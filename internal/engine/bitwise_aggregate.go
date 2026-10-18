@@ -8,19 +8,8 @@ import (
 )
 
 func (b *expressionBinder) bindBitwiseAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
-	if b.aggregateClause == "INSERT VALUES" && b.queryNamespace == nil {
-		// As with SUM, destination columns are diagnostic candidates, not inputs.
-		b.queryNamespace = &queryNamespace{}
-		hidden := b.queryHidden
-		if target := b.insertTarget; target != nil {
-			columns := make([]queryColumn, len(target.columns))
-			for i, descriptor := range target.columns {
-				columns[i].descriptor = descriptor
-			}
-			b.queryHidden = append(b.queryHidden, queryQualifier{name: target.name, columns: columns, lateralForbidden: true})
-		}
-		defer func() { b.queryNamespace, b.queryHidden = nil, hidden }()
-	}
+	// As with SUM, destination columns are diagnostic candidates, not inputs.
+	defer b.valuesAggregateNamespace()()
 	var operand comparisonOperand
 	var unary [1]string
 	var types []string
@@ -49,19 +38,19 @@ func (b *expressionBinder) bindBitwiseAggregate(raw parser.AggregateExpr, name p
 	if err != nil {
 		return nil, err
 	}
-	operation := aggregateBitAnd
+	operation := functions.AggregateBitAnd
 	if raw.Name == "bit_or" {
-		operation = aggregateBitOr
+		operation = functions.AggregateBitOr
 	}
 	if raw.Name == "bit_xor" {
-		operation = aggregateBitXor
+		operation = functions.AggregateBitXor
 	}
 	usage := arg.ResultUsage().Type.Usage()
 	operator, err := bitwiseAggregateOperator(operation)
 	if err != nil {
 		return nil, err
 	}
-	var provider aggregateProvider
+	var provider functions.AggregateProvider
 	if usage.Type.ID() == sqltype.Bit {
 		provider = functions.NewBitStringAggregateProvider(usage, operator)
 	} else {
@@ -106,13 +95,13 @@ func (b *expressionBinder) resolveBitwiseAggregateSignature(raw parser.Aggregate
 	return b.coerceConditional(operand, typ.Usage(), raw.Name)
 }
 
-func bitwiseAggregateOperator(operation aggregateOperation) (sqltype.BitwiseOperator, error) {
+func bitwiseAggregateOperator(operation functions.AggregateOperation) (sqltype.BitwiseOperator, error) {
 	switch operation {
-	case aggregateBitAnd:
+	case functions.AggregateBitAnd:
 		return sqltype.BitwiseAnd, nil
-	case aggregateBitOr:
+	case functions.AggregateBitOr:
 		return sqltype.BitwiseOr, nil
-	case aggregateBitXor:
+	case functions.AggregateBitXor:
 		return sqltype.BitwiseXor, nil
 	default:
 		return 0, fmt.Errorf("stuntgres: invalid bitwise aggregate operation")

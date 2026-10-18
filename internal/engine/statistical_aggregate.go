@@ -52,10 +52,10 @@ func (b *expressionBinder) bindStatisticalAggregate(raw parser.AggregateExpr, na
 	if err != nil {
 		return nil, err
 	}
-	var provider aggregateProvider
-	var operation aggregateOperation
+	var provider functions.AggregateProvider
+	var operation functions.AggregateOperation
 	if raw.Name == "regr_count" {
-		operation = aggregateRegrCount
+		operation = functions.AggregateRegrCount
 		provider = functions.NewRegressionCountAggregate(b.typ(sqltype.Float8), usage)
 	} else if regressionAggregateName(raw.Name) {
 		final := sqltype.RegressionSlope
@@ -81,20 +81,20 @@ func (b *expressionBinder) bindStatisticalAggregate(raw parser.AggregateExpr, na
 		case "regr_r2":
 			final = sqltype.RegressionR2
 		}
-		operation = aggregateRegrSlope + aggregateOperation(final)
+		operation = functions.AggregateRegrSlope + functions.AggregateOperation(final)
 		provider = functions.NewRegressionAggregate(b.typ(sqltype.Float8), usage, final)
 	} else {
 		sample := raw.Name != "var_pop" && raw.Name != "stddev_pop"
 		stddev := raw.Name == "stddev" || raw.Name == "stddev_samp" || raw.Name == "stddev_pop"
-		operation = aggregateVarPop
+		operation = functions.AggregateVarPop
 		if sample {
-			operation = aggregateVarSamp
+			operation = functions.AggregateVarSamp
 		}
 		if stddev {
 			if sample {
-				operation = aggregateStddevSamp
+				operation = functions.AggregateStddevSamp
 			} else {
-				operation = aggregateStddevPop
+				operation = functions.AggregateStddevPop
 			}
 		}
 		provider = functions.NewStatisticalAggregate(args[0].ResultUsage().Type, usage, sample, stddev)

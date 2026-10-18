@@ -92,7 +92,7 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.JSON, sqltype.JSONB} {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonArrayProviderUnit(t, input.Usage(), result.Usage(), true)
-		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: aggregateJSONStrict, includeNulls: true}}}
+		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: functions.AggregateJSONStrict, includeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 	if len(node.calls) != 3 {
 		t.Fatal("operation sharing", len(node.calls))
 	}
-	if node.calls[0].operation != aggregateIntervalAvg {
+	if node.calls[0].operation != functions.AggregateIntervalAvg {
 		t.Fatal("wrong operation")
 	}
 	for _, c := range q.Root.Schema()[:2] {

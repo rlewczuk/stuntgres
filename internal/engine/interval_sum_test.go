@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -124,11 +125,11 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 	source, destination := New(), New()
 	old, _ := source.CatalogRead().LookupType(id)
 	owned, _ := destination.CatalogRead().LookupType(id)
-	var p aggregateProvider
-	operation := aggregateIntervalSum
+	var p functions.AggregateProvider
+	operation := functions.AggregateIntervalSum
 	if id == sqltype.Money {
 		p = moneySumUnitProvider(t, source)
-		operation = aggregateMoneySum
+		operation = functions.AggregateMoneySum
 	} else {
 		p = intervalSumProvider{old.Usage()}
 	}

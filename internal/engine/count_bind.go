@@ -45,7 +45,7 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	if err := b.resolveCountSignature(raw, name, args); err != nil {
 		return nil, err
 	}
-	call := aggregateCall{provider: functions.NewCountProvider(b.typ(sqltype.Int8).Usage()), operation: aggregateCount}
+	call := aggregateCall{provider: functions.NewCountProvider(b.typ(sqltype.Int8).Usage()), operation: functions.AggregateCount}
 	if len(args) == 1 {
 		call.argument = args[0]
 	}

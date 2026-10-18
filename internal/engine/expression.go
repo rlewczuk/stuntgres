@@ -2581,7 +2581,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
-			if hypotheticalSetName(r.Name) {
+			if definition, ok := functions.LookupAggregate(r.Name); ok {
+				node, err = b.bindRegisteredAggregate(r, name, definition)
+			} else if hypotheticalSetName(r.Name) {
 				node, err = b.bindHypotheticalSet(r, name)
 			} else if orderedSetName(r.Name) {
 				node, err = b.bindOrderedSet(r, name)
@@ -3695,6 +3697,9 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 				operand.node = literal
 			}
 		}
+	case functions.BareProjectionArgument:
+		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+		operand.raw = raw
 	case functions.DirectDeferredArgument:
 		if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			operand.raw = raw

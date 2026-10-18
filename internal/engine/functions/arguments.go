@@ -42,6 +42,9 @@ const (
 	// ZoneArgument is a comparison operand of timezone/date_add/date_subtract,
 	// whose explicit casts admit the zone family's temporal targets.
 	ZoneArgument
+	// BareProjectionArgument binds the operand in projection context without
+	// the unknown-NULL annotation, as aggregate arguments are bound.
+	BareProjectionArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }

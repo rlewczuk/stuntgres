@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -38,7 +39,7 @@ func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ..
 		in.values[3*i+2] = parse(text)
 		in.indices[i] = i
 	}
-	return hypotheticalSetProvider{usage: result.Usage(), operation: aggregateHypotheticalRank}, in
+	return hypotheticalSetProvider{usage: result.Usage(), operation: functions.AggregateHypotheticalRank}, in
 }
 
 func TestHypotheticalAggregateTupleEquality(t *testing.T) {
@@ -91,7 +92,7 @@ func TestHypotheticalAggregateFormulasAndBorrowing(t *testing.T) {
 		p, in := hypotheticalUnitInput(t, sqltype.Int4, tc.direct, "10", "20", "20", "40")
 		before := append([]sqltype.Value(nil), in.values...)
 		target := append([]sqltype.Value(nil), in.target...)
-		for i, op := range []aggregateOperation{aggregateHypotheticalRank, aggregateHypotheticalDenseRank, aggregateHypotheticalPercentRank, aggregateHypotheticalCumeDist} {
+		for i, op := range []functions.AggregateOperation{functions.AggregateHypotheticalRank, functions.AggregateHypotheticalDenseRank, functions.AggregateHypotheticalPercentRank, functions.AggregateHypotheticalCumeDist} {
 			p.operation = op
 			id := sqltype.Int8
 			if i >= 2 {
@@ -274,7 +275,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 	for _, phase := range []string{"success", "direct_first", "direct_later", "sort_compare", "placement", "dense_peer", "prepare", "finalize", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
 			p, in := hypotheticalUnitInput(t, sqltype.Int4, "30", "10", "10", "20")
-			p.operation = aggregateHypotheticalDenseRank
+			p.operation = functions.AggregateHypotheticalDenseRank
 			input := in.target[2].Type()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

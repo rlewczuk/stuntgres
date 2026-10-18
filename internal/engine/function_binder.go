@@ -13,7 +13,7 @@ import (
 // The expression binder is the analyzer that builtin bind code reaches
 // through functions.Binder. These methods map the interface onto the
 // binder's existing private services; they add no state of their own.
-var _ functions.Binder = (*expressionBinder)(nil)
+var _ functions.AggregateBinder = (*expressionBinder)(nil)
 
 func (b *expressionBinder) Type(id sqltype.ID) *sqltype.Descriptor { return b.typ(id) }
 
@@ -145,4 +145,32 @@ func (b *expressionBinder) TargetSet() {
 
 func (b *expressionBinder) RegexpSetPlacement(call functions.RegexpCall) error {
 	return b.regexpPlacement(call)
+}
+
+func (b *expressionBinder) AnalyzeAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error) {
+	return b.bindAggregateFilter(raw)
+}
+
+func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functions.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
+	result, err := b.finishAggregate(raw, aggregateCall{
+		provider:     call.Provider,
+		routine:      call.Routine,
+		argument:     call.Argument,
+		separator:    call.Separator,
+		direct:       call.Direct,
+		stageWidth:   call.StageWidth,
+		operation:    call.Operation,
+		includeNulls: call.IncludeNulls,
+	}, filter, info)
+	if err != nil || !call.RetainUntypedArgument {
+		return result, err
+	}
+	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
+	// remaining ANY occurrence joins the unresolved-parameter guard.
+	b.RetainUntypedParameter(b.aggregates[result.(aggregateExpression).slot].argument)
+	return result, nil
+}
+
+func (b *expressionBinder) DomainTypeName(typ *sqltype.Descriptor) (string, error) {
+	return b.domainTypeName(typ)
 }

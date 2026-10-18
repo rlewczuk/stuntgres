@@ -45,7 +45,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	array, _ := e.CatalogRead().LookupArray(integer)
 	provider := call.provider.(*functions.ArrayAggregateProvider)
-	if call.procedure != e.catalog.state.Get(ext.members[0]) || call.ref.Address != ext.members[0] || !call.includeNulls || call.operation != aggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
+	if call.procedure != e.catalog.state.Get(ext.members[0]) || call.ref.Address != ext.members[0] || !call.includeNulls || call.operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
 	if !b.sameAggregateCall(call, call) {

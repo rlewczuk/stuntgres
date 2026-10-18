@@ -42,11 +42,11 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 	if err != nil {
 		return nil, err
 	}
-	operation := aggregateMin
+	operation := functions.AggregateMin
 	if raw.Name == "max" {
-		operation = aggregateMax
+		operation = functions.AggregateMax
 	}
-	provider := functions.NewExtremaProvider(usage, comparison, operation == aggregateMax)
+	provider := functions.NewExtremaProvider(usage, comparison, operation == functions.AggregateMax)
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
 	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, selected.ID())
 	if err != nil {
@@ -59,7 +59,10 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 }
 
 func (b *expressionBinder) extremaArgumentTypeName(operand comparisonOperand) (string, error) {
-	typ := operand.descriptor()
+	return b.domainTypeName(operand.descriptor())
+}
+
+func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, error) {
 	if typ == nil {
 		return "unknown", nil
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -39,9 +40,9 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			}
 			result, _ := source.CatalogRead().LookupType(id)
 			strict, unique := strings.HasSuffix(name, "_strict"), strings.Contains(name, "_unique")
-			operation := aggregateJSONObject
+			operation := functions.AggregateJSONObject
 			if strict {
-				operation = aggregateJSONObjectStrict
+				operation = functions.AggregateJSONObjectStrict
 			}
 			if p.strict != strict || p.unique != unique || p.usage.Type != result || p.usage.Typmod != -1 || p.key.Type != key || p.input.Type != input || !call.includeNulls || call.operation != operation || !first.Properties().StageDependent {
 				t.Fatal("fixed descriptor or policy lost", call, p)

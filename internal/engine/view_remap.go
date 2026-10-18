@@ -817,7 +817,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 						p.comparison, err = sqltype.BindOrdering(inputUsage)
 					}
 				}
-				if err == nil && p.operation == aggregatePercentileCont && p.input.ID() == sqltype.Interval {
+				if err == nil && p.operation == functions.AggregatePercentileCont && p.input.ID() == sqltype.Interval {
 					p.subtract, err = sqltype.BindArithmetic(sqltype.ArithmeticSubtract, p.input, p.input, p.input)
 					if err == nil {
 						p.multiply, err = sqltype.BindArithmetic(sqltype.ArithmeticMultiply, p.input, p.fraction, p.input)

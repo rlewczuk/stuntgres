@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/sqltype"
 )
@@ -11,7 +12,7 @@ import (
 // The hypothetical row is compared, never inserted into shared ordered inputs.
 type hypotheticalSetProvider struct {
 	usage     sqltype.Usage
-	operation aggregateOperation
+	operation functions.AggregateOperation
 }
 
 func (p *hypotheticalSetProvider) ResultUsage() sqltype.Usage            { return p.usage }
@@ -40,14 +41,14 @@ func (p *hypotheticalSetProvider) FinalizeOrdered(ctx context.Context, _ ordered
 			break
 		}
 		if sign == 0 {
-			if p.operation != aggregateHypotheticalCumeDist {
+			if p.operation != functions.AggregateHypotheticalCumeDist {
 				break
 			}
 			equal++
 			continue
 		}
 		before++
-		if p.operation == aggregateHypotheticalDenseRank {
+		if p.operation == functions.AggregateHypotheticalDenseRank {
 			if i == 0 {
 				distinct++
 			} else {
@@ -65,17 +66,17 @@ func (p *hypotheticalSetProvider) FinalizeOrdered(ctx context.Context, _ ordered
 		return sqltype.Value{}, err
 	}
 	switch p.operation {
-	case aggregateHypotheticalRank:
+	case functions.AggregateHypotheticalRank:
 		return sqltype.Integer(p.usage.Type, before+1)
-	case aggregateHypotheticalDenseRank:
+	case functions.AggregateHypotheticalDenseRank:
 		return sqltype.Integer(p.usage.Type, distinct+1)
-	case aggregateHypotheticalPercentRank:
+	case functions.AggregateHypotheticalPercentRank:
 		value := float64(0)
 		if in.len() > 0 {
 			value = float64(before) / float64(in.len())
 		}
 		return sqltype.Float(p.usage.Type, value)
-	case aggregateHypotheticalCumeDist:
+	case functions.AggregateHypotheticalCumeDist:
 		return sqltype.Float(p.usage.Type, float64(before+equal+1)/float64(in.len()+1))
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid hypothetical aggregate operation")

@@ -35,9 +35,9 @@ func (b *expressionBinder) bindRangeAggregate(raw parser.AggregateExpr, name par
 		return nil, err
 	}
 	input := arg.ResultUsage().Type
-	operation, identity := sqltype.RangeAggregateUnion, aggregateRangeUnion
+	operation, identity := sqltype.RangeAggregateUnion, functions.AggregateRangeUnion
 	if raw.Name == "range_intersect_agg" {
-		operation, identity = sqltype.RangeAggregateIntersection, aggregateRangeIntersection
+		operation, identity = sqltype.RangeAggregateIntersection, functions.AggregateRangeIntersection
 	}
 	bound, err := sqltype.BindRangeAggregate(input, operation)
 	if err != nil {

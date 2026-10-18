@@ -118,3 +118,23 @@ type Binder interface {
 	// placement policy).
 	RegexpSetPlacement(RegexpCall) error
 }
+
+// AggregateBinder is the analyzer as aggregate bind code sees it: the scalar
+// Binder plus the capabilities that are valid only while an aggregate call
+// (parser.AggregateExpr) is bound, where the engine owns grouping state.
+type AggregateBinder interface {
+	Binder
+	// AnalyzeAggregateFilter analyzes an aggregate's FILTER clause as a
+	// boolean in the FILTER context and returns it, or nil without FILTER.
+	// Aggregates analyze it after their arguments, before resolution.
+	AnalyzeAggregateFilter(parser.AggregateExpr) (expr.Expr, error)
+	// FinishAggregate completes an analyzed aggregate call with the engine's
+	// grouping state: it binds ORDER BY and DISTINCT, checks window nesting,
+	// registers (or merges) the call and returns the occurrence node.
+	FinishAggregate(raw parser.AggregateExpr, call AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error)
+	// DomainTypeName spells an aggregate input type as min, max, range_agg
+	// and the ordered-set family report it: a domain is named through the
+	// type search path, propagating lookup errors; other types use their
+	// diagnostic name, and nil is "unknown".
+	DomainTypeName(*sqltype.Descriptor) (string, error)
+}

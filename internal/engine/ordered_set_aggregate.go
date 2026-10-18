@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +45,7 @@ type orderedSetProvider struct {
 	usage                   sqltype.Usage
 	input                   *sqltype.Descriptor
 	fraction                *sqltype.Descriptor
-	operation               aggregateOperation
+	operation               functions.AggregateOperation
 	array                   bool
 	comparison              sqltype.Comparison
 	subtract, multiply, add sqltype.Arithmetic
@@ -86,7 +87,7 @@ func (p *orderedSetProvider) PrepareOrdered(ctx context.Context, args []sqltype.
 		direct = args[0]
 	}
 	prepared := orderedSetPreparation{direct: direct}
-	if p.operation == aggregateMode {
+	if p.operation == functions.AggregateMode {
 		if count == 0 {
 			prepared.terminal = true
 			prepared.value = sqltype.Null(p.usage.Type)
@@ -147,7 +148,7 @@ func (p *orderedSetProvider) FinalizeOrdered(ctx context.Context, prepared order
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	if p.operation == aggregateMode {
+	if p.operation == functions.AggregateMode {
 		return p.mode(ctx, in, env)
 	}
 	if p.array {
@@ -193,7 +194,7 @@ func (p *orderedSetProvider) percentile(ctx context.Context, fraction float64, i
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	if p.operation == aggregatePercentileDisc {
+	if p.operation == functions.AggregatePercentileDisc {
 		index := int(math.Ceil(fraction*float64(in.len()))) - 1
 		if index < 0 {
 			index = 0

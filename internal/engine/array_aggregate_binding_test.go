@@ -35,12 +35,12 @@ func TestArrayAggregateBinding(t *testing.T) {
 			t.Fatal("collation provenance lost")
 		}
 		if argument.ResultUsage().Type.IsArray() {
-			if usage.Type != argument.ResultUsage().Type || call.operation != aggregateArrayArray {
+			if usage.Type != argument.ResultUsage().Type || call.operation != functions.AggregateArrayArray {
 				t.Fatal("array overload identity")
 			}
 		} else {
 			associated, ok := e.CatalogRead().LookupArray(argument.ResultUsage().Type)
-			if !ok || usage.Type != associated || call.operation != aggregateArrayScalar {
+			if !ok || usage.Type != associated || call.operation != functions.AggregateArrayScalar {
 				t.Fatal("coherent associated array identity")
 			}
 		}

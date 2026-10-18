@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -151,7 +152,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		}
 		for i, call := range n.calls {
 			var err error
-			if provider, ok := call.provider.(contextualAggregateProvider); ok {
+			if provider, ok := call.provider.(functions.ContextualAggregateProvider); ok {
 				group.states[i], err = provider.InitWithEnvironment(ctx, output)
 			} else {
 				group.states[i], err = call.provider.Init(ctx)

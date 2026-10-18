@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func sumUnitProvider(e *Engine, id sqltype.ID) (aggregateProvider, *sqltype.Descriptor) {
+func sumUnitProvider(e *Engine, id sqltype.ID) (functions.AggregateProvider, *sqltype.Descriptor) {
 	input, _ := e.CatalogRead().LookupType(id)
 	switch id {
 	case sqltype.Int2, sqltype.Int4:
@@ -89,7 +89,7 @@ func TestSumSlotsAndMetadata(t *testing.T) {
 	if len(node.calls) != 8 {
 		t.Fatal("input-aware immutable sharing", len(node.calls))
 	}
-	for i, operation := range []aggregateOperation{aggregateIntegralSum, aggregateIntegralSum, aggregateNumericSum, aggregateNumericSum, aggregateFloatSum, aggregateFloatSum, aggregateNumericAvg, aggregateCount} {
+	for i, operation := range []functions.AggregateOperation{functions.AggregateIntegralSum, functions.AggregateIntegralSum, functions.AggregateNumericSum, functions.AggregateNumericSum, functions.AggregateFloatSum, functions.AggregateFloatSum, functions.AggregateNumericAvg, functions.AggregateCount} {
 		if node.calls[i].operation != operation {
 			t.Fatal(i, node.calls[i].operation)
 		}
@@ -120,13 +120,13 @@ func TestSumEagerCancellation(t *testing.T) {
 			original := node.calls[0].provider
 			switch phase {
 			case "advance":
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
 					err := original.Advance(ctx, s, v, separator)
 					cancel()
 					return err
 				}}
 			case "finalize":
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err

@@ -57,15 +57,15 @@ func (b *expressionBinder) bindJSONArrayAggregate(raw parser.AggregateExpr, name
 		return nil, expressionError("42803", "aggregate functions are not allowed in DEFAULT expressions", raw.Pos)
 	}
 	absent := raw.Name == "json_agg_strict" || raw.Name == "jsonb_agg_strict"
-	operation := aggregateJSON
+	operation := functions.AggregateJSON
 	if absent {
-		operation = aggregateJSONStrict
+		operation = functions.AggregateJSONStrict
 	}
 	if raw.JSON != nil {
 		absent = raw.JSON.Absent
-		operation = aggregateJSONArray
+		operation = functions.AggregateJSONArray
 		if absent {
-			operation = aggregateJSONArrayAbsent
+			operation = functions.AggregateJSONArrayAbsent
 		}
 	}
 	arrayPlan, err := sqltype.BindJSONArrayAggregate(arg.ResultUsage(), usage, absent)

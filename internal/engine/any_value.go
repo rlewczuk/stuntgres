@@ -37,7 +37,7 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 	}
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
-	call := aggregateCall{provider: functions.NewAnyValue(usage), argument: arg, operation: aggregateAnyValue}
+	call := aggregateCall{provider: functions.NewAnyValue(usage), argument: arg, operation: functions.AggregateAnyValue}
 	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, "any_value", sqltype.ID(2283))
 	if err != nil {
 		return nil, err

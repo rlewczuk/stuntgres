@@ -9,23 +9,8 @@ import (
 )
 
 func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
-	if b.aggregateClause == "INSERT VALUES" && b.queryNamespace == nil {
-		// VALUES has no source namespace: the destination is not a SUM input.
-		b.queryNamespace = &queryNamespace{}
-		hidden := b.queryHidden
-		if target := b.insertTarget; target != nil {
-			// Retain the target solely as an inaccessible diagnostic candidate.
-			// It is never added to the source namespace or read manifest.
-			columns := make([]queryColumn, len(target.columns))
-			for i, descriptor := range target.columns {
-				columns[i].descriptor = descriptor
-			}
-			b.queryHidden = append(b.queryHidden, queryQualifier{name: target.name, columns: columns, lateralForbidden: true})
-		}
-		defer func() {
-			b.queryNamespace, b.queryHidden = nil, hidden
-		}()
-	}
+	// VALUES has no source namespace: the destination is not a SUM input.
+	defer b.valuesAggregateNamespace()()
 	var operand comparisonOperand
 	var singleType [1]string
 	var types []string
@@ -67,24 +52,24 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
 }
 
-func (b *expressionBinder) sumProvider(typ *sqltype.Descriptor) (aggregateProvider, aggregateOperation, error) {
+func (b *expressionBinder) sumProvider(typ *sqltype.Descriptor) (functions.AggregateProvider, functions.AggregateOperation, error) {
 	switch typ.ID() {
 	case sqltype.Int2, sqltype.Int4:
-		return functions.NewIntegralSum(typ, b.typ(sqltype.Int8).Usage()), aggregateIntegralSum, nil
+		return functions.NewIntegralSum(typ, b.typ(sqltype.Int8).Usage()), functions.AggregateIntegralSum, nil
 	case sqltype.Int8, sqltype.Numeric:
-		return functions.NewNumericSum(typ, b.typ(sqltype.Numeric).Usage()), aggregateNumericSum, nil
+		return functions.NewNumericSum(typ, b.typ(sqltype.Numeric).Usage()), functions.AggregateNumericSum, nil
 	case sqltype.Float4, sqltype.Float8:
-		return functions.NewFloatSum(typ, typ.Usage()), aggregateFloatSum, nil
+		return functions.NewFloatSum(typ, typ.Usage()), functions.AggregateFloatSum, nil
 	case sqltype.Money:
 		bound, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, typ, typ, typ)
 		if err != nil {
-			return nil, aggregateMoneySum, err
+			return nil, functions.AggregateMoneySum, err
 		}
-		return moneySumProvider{typ.Usage(), bound}, aggregateMoneySum, nil
+		return moneySumProvider{typ.Usage(), bound}, functions.AggregateMoneySum, nil
 	case sqltype.Interval:
-		return intervalSumProvider{typ.Usage()}, aggregateIntervalSum, nil
+		return intervalSumProvider{typ.Usage()}, functions.AggregateIntervalSum, nil
 	}
-	return nil, aggregateCount, nil
+	return nil, functions.AggregateCount, nil
 }
 
 // Resolve/coerce SUM's existing callable without constructing a provider or

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -17,9 +18,9 @@ func (b *expressionBinder) bindSQLJSONObjectAggregate(raw parser.AggregateExpr, 
 	if b.defaultConsumer {
 		return nil, expressionError("42803", "aggregate functions are not allowed in DEFAULT expressions", raw.Pos)
 	}
-	operation := aggregateJSONObject
+	operation := functions.AggregateJSONObject
 	if raw.JSON.Absent {
-		operation = aggregateJSONObjectStrict
+		operation = functions.AggregateJSONObjectStrict
 	}
 	provider := jsonObjectAggregateProvider{usage: usage, strict: raw.JSON.Absent, unique: raw.JSON.Unique}
 	call := aggregateCall{provider: provider, argument: args[0], separator: args[1], operation: operation, includeNulls: true}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -128,7 +129,7 @@ func TestJSONObjectAggregateProviderRemap(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.JSON, sqltype.JSONB} {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonObjectProviderUnit(t, key.Usage(), input.Usage(), result.Usage(), true)
-		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: aggregateJSONObjectStrict, includeNulls: true}}}
+		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: functions.AggregateJSONObjectStrict, includeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next

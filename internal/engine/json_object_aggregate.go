@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -90,9 +91,9 @@ func (b *expressionBinder) bindJSONObjectAggregate(raw parser.AggregateExpr, nam
 	case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
 		unique = true
 	}
-	operation := aggregateJSONObject
+	operation := functions.AggregateJSONObject
 	if strict {
-		operation = aggregateJSONObjectStrict
+		operation = functions.AggregateJSONObjectStrict
 	}
 	provider := jsonObjectAggregateProvider{usage: usage, strict: strict, unique: unique}
 	call := aggregateCall{provider: provider, argument: args[0], separator: args[1], operation: operation, includeNulls: true}

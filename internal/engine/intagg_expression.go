@@ -62,7 +62,7 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	properties := arg.Properties()
 	properties.StageDependent = true
 	info := b.info(array.Usage(), raw.Pos, properties)
-	call := aggregateCall{provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), argument: arg, operation: aggregateArrayScalar, includeNulls: true, procedure: proc, ref: ref, routine: ref}
+	call := aggregateCall{provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), argument: arg, operation: functions.AggregateArrayScalar, includeNulls: true, procedure: proc, ref: ref, routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
 }
 

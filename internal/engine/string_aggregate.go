@@ -45,7 +45,7 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	if err != nil {
 		return nil, err
 	}
-	call := aggregateCall{provider: functions.NewStringAggregateProvider(info.Usage), argument: value, separator: separator, operation: aggregateString}
+	call := aggregateCall{provider: functions.NewStringAggregateProvider(info.Usage), argument: value, separator: separator, operation: functions.AggregateString}
 	formal := value.ResultUsage().Type.ID()
 	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, "string_agg", formal, formal)
 	if err != nil {

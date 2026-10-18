@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -76,7 +77,7 @@ type windowCall struct {
 	argument     BoundExpr
 	ordinal      BoundExpr
 	defaultValue BoundExpr
-	provider     aggregateProvider
+	provider     functions.AggregateProvider
 	raw          *parser.WindowSpec
 	analysisOnly bool // Retained binding/slot ownership without executable demand.
 }
@@ -387,6 +388,11 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		}
 		return usage, err
 	}
+	if definition, ok := functions.LookupAggregate(raw.Name); ok && definition.Window != nil {
+		arg, usage, err := definition.Window(b, raw, name)
+		*argument = arg
+		return usage, err
+	}
 	var small [2]comparisonOperand
 	var names [2]string
 	var operands []comparisonOperand
@@ -438,15 +444,15 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 			usage = arg.ResultUsage()
 		}
 	case "avg":
-		var operation aggregateOperation
+		var operation functions.AggregateOperation
 		arg, operation, err = b.resolveAvgSignature(raw, name, operand, types)
 		if err == nil {
 			switch operation {
-			case aggregateIntervalAvg:
+			case functions.AggregateIntervalAvg:
 				usage = arg.ResultUsage()
-			case aggregateNumericAvg:
+			case functions.AggregateNumericAvg:
 				usage = b.typ(sqltype.Numeric).Usage()
-			case aggregateFloatAvg:
+			case functions.AggregateFloatAvg:
 				usage = b.typ(sqltype.Float8).Usage()
 			}
 		}

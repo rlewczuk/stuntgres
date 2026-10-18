@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -14,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func orderedSetUnitProvider(t *testing.T, operation aggregateOperation, id sqltype.ID, array bool) orderedSetProvider {
+func orderedSetUnitProvider(t *testing.T, operation functions.AggregateOperation, id sqltype.ID, array bool) orderedSetProvider {
 	t.Helper()
 	catalog := New().CatalogRead()
 	input, ok := catalog.LookupType(id)
@@ -35,7 +36,7 @@ func orderedSetUnitProvider(t *testing.T, operation aggregateOperation, id sqlty
 		usage.Type = result
 	}
 	p := orderedSetProvider{usage: usage, input: input, fraction: fraction, operation: operation, array: array, comparison: comparison}
-	if operation == aggregatePercentileCont && id == sqltype.Interval {
+	if operation == functions.AggregatePercentileCont && id == sqltype.Interval {
 		p.subtract, err = sqltype.BindArithmetic(sqltype.ArithmeticSubtract, input, input, input)
 		if err != nil {
 			t.Fatal(err)
@@ -89,14 +90,14 @@ func orderedSetUnitFinalize(ctx context.Context, p *orderedSetProvider, direct s
 
 func TestOrderedSetAggregateSevenProviders(t *testing.T) {
 	for _, tc := range []struct {
-		operation aggregateOperation
+		operation functions.AggregateOperation
 		id        sqltype.ID
 		array     bool
 		want      string
 	}{
-		{aggregatePercentileCont, sqltype.Float8, false, "25"}, {aggregatePercentileCont, sqltype.Interval, false, "25 days"},
-		{aggregatePercentileCont, sqltype.Float8, true, "{25}"}, {aggregatePercentileCont, sqltype.Interval, true, "{\"25 days\"}"},
-		{aggregatePercentileDisc, sqltype.Int4, false, "20"}, {aggregatePercentileDisc, sqltype.Int4, true, "{20}"}, {aggregateMode, sqltype.Int4, false, "10"},
+		{functions.AggregatePercentileCont, sqltype.Float8, false, "25"}, {functions.AggregatePercentileCont, sqltype.Interval, false, "25 days"},
+		{functions.AggregatePercentileCont, sqltype.Float8, true, "{25}"}, {functions.AggregatePercentileCont, sqltype.Interval, true, "{\"25 days\"}"},
+		{functions.AggregatePercentileDisc, sqltype.Int4, false, "20"}, {functions.AggregatePercentileDisc, sqltype.Int4, true, "{20}"}, {functions.AggregateMode, sqltype.Int4, false, "10"},
 	} {
 		p := orderedSetUnitProvider(t, tc.operation, tc.id, tc.array)
 		texts := []string{"10", "20", "30", "40"}
@@ -128,7 +129,7 @@ func TestOrderedSetAggregateSevenProviders(t *testing.T) {
 }
 
 func TestOrderedSetAggregateShapeAndEmptyPrecedence(t *testing.T) {
-	p := orderedSetUnitProvider(t, aggregatePercentileCont, sqltype.Float8, true)
+	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, true)
 	fractionArray := orderedSetUnitFractionArray(t, p)
 	direct, err := fractionArray.Input(context.Background(), "[-1:0][3:5]={{1,NULL,0},{.5,.25,.5}}", -1)
 	if err != nil {
@@ -174,7 +175,7 @@ func TestOrderedSetAggregateShapeAndEmptyPrecedence(t *testing.T) {
 }
 
 func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
-	p := orderedSetUnitProvider(t, aggregatePercentileCont, sqltype.Float8, false)
+	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, false)
 	in := orderedSetUnitInput(t, p, "Infinity", "Infinity")
 	for _, fraction := range []float64{0, .5, 1} {
 		direct, _ := sqltype.Float(p.fraction, fraction)
@@ -196,7 +197,7 @@ func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
 		{sqltype.Float8, []string{"1", "NaN", "NaN"}, "NaN"},
 		{sqltype.Inet, []string{"10.0.0.1", "10.0.0.1", "10.0.0.2"}, "10.0.0.1"},
 	} {
-		mode := orderedSetUnitProvider(t, aggregateMode, tc.id, false)
+		mode := orderedSetUnitProvider(t, functions.AggregateMode, tc.id, false)
 		out, err := orderedSetUnitFinalize(context.Background(), &mode, sqltype.Value{}, orderedSetUnitInput(t, mode, tc.values...), sqltype.InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
@@ -215,9 +216,9 @@ func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
 func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 	for _, phase := range []string{".sortOrderedAggregate.func1", ".(*orderedSetProvider).mode", ".(*orderedSetProvider).PrepareOrdered", ".(*orderedSetProvider).FinalizeOrdered", ".(*orderedSetProvider).percentile"} {
 		t.Run(phase, func(t *testing.T) {
-			operation := aggregatePercentileCont
+			operation := functions.AggregatePercentileCont
 			if phase == ".(*orderedSetProvider).mode" {
-				operation = aggregateMode
+				operation = functions.AggregateMode
 			}
 			p := orderedSetUnitProvider(t, operation, sqltype.Float8, false)
 			in := orderedSetUnitInput(t, p, "10", "20", "30", "40")
@@ -239,7 +240,7 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 }
 
 func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
-	p := orderedSetUnitProvider(t, aggregatePercentileCont, sqltype.Float8, false)
+	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, false)
 	info := expressionInfo{Usage: p.input.Usage(), Property: ExprProperties{RowDependent: true}}
 	key := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 0}
 	arg := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}
@@ -255,7 +256,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			provider := p
 			if phase == "scan" {
-				provider.operation = aggregateMode
+				provider.operation = functions.AggregateMode
 			}
 			if phase == "array" || phase == "prepare" {
 				provider.usage.Type = orderedSetUnitFractionArray(t, provider)
@@ -398,7 +399,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 }
 
 func TestOrderedSetAggregateInternalCharCarrier(t *testing.T) {
-	for _, operation := range []aggregateOperation{aggregateMode, aggregatePercentileDisc} {
+	for _, operation := range []functions.AggregateOperation{functions.AggregateMode, functions.AggregatePercentileDisc} {
 		p := orderedSetUnitProvider(t, operation, sqltype.Char, false)
 		in := orderedSetUnitInput(t, p, "b", "b", "c")
 		direct, _ := sqltype.Float(p.fraction, .5)
@@ -418,12 +419,12 @@ func TestOrderedSetAggregateInternalCharCarrier(t *testing.T) {
 func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 	for _, family := range []struct {
 		name      string
-		operation aggregateOperation
+		operation functions.AggregateOperation
 		id        sqltype.ID
 	}{
-		{"cont_float", aggregatePercentileCont, sqltype.Float8},
-		{"cont_interval", aggregatePercentileCont, sqltype.Interval},
-		{"disc", aggregatePercentileDisc, sqltype.Int4},
+		{"cont_float", functions.AggregatePercentileCont, sqltype.Float8},
+		{"cont_interval", functions.AggregatePercentileCont, sqltype.Interval},
+		{"disc", functions.AggregatePercentileDisc, sqltype.Int4},
 	} {
 		for _, tc := range []struct {
 			name, fraction, want                  string
@@ -560,24 +561,24 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	domain := domainUnitType(t, view, "os_unit_domain").typ
 	for _, tc := range []struct {
 		name            string
-		operation       aggregateOperation
+		operation       functions.AggregateOperation
 		id              sqltype.ID
 		custom          *sqltype.Descriptor
 		array, explicit bool
 	}{
-		{"cont_float", aggregatePercentileCont, sqltype.Float8, nil, false, false},
-		{"cont_interval", aggregatePercentileCont, sqltype.Interval, nil, false, false},
-		{"cont_float_array", aggregatePercentileCont, sqltype.Float8, nil, true, false},
-		{"cont_interval_array", aggregatePercentileCont, sqltype.Interval, nil, true, false},
-		{"disc_sized", aggregatePercentileDisc, sqltype.VarChar, nil, false, false},
-		{"disc_sized_array", aggregatePercentileDisc, sqltype.VarChar, nil, true, false},
-		{"mode_explicit", aggregateMode, sqltype.VarChar, nil, false, true},
-		{"disc_enum", aggregatePercentileDisc, 0, enum, false, false},
-		{"disc_enum_array", aggregatePercentileDisc, 0, enum, true, false},
-		{"mode_enum", aggregateMode, 0, enum, false, false},
-		{"disc_domain", aggregatePercentileDisc, 0, domain, false, false},
-		{"disc_domain_array", aggregatePercentileDisc, 0, domain, true, false},
-		{"mode_domain", aggregateMode, 0, domain, false, false},
+		{"cont_float", functions.AggregatePercentileCont, sqltype.Float8, nil, false, false},
+		{"cont_interval", functions.AggregatePercentileCont, sqltype.Interval, nil, false, false},
+		{"cont_float_array", functions.AggregatePercentileCont, sqltype.Float8, nil, true, false},
+		{"cont_interval_array", functions.AggregatePercentileCont, sqltype.Interval, nil, true, false},
+		{"disc_sized", functions.AggregatePercentileDisc, sqltype.VarChar, nil, false, false},
+		{"disc_sized_array", functions.AggregatePercentileDisc, sqltype.VarChar, nil, true, false},
+		{"mode_explicit", functions.AggregateMode, sqltype.VarChar, nil, false, true},
+		{"disc_enum", functions.AggregatePercentileDisc, 0, enum, false, false},
+		{"disc_enum_array", functions.AggregatePercentileDisc, 0, enum, true, false},
+		{"mode_enum", functions.AggregateMode, 0, enum, false, false},
+		{"disc_domain", functions.AggregatePercentileDisc, 0, domain, false, false},
+		{"disc_domain_array", functions.AggregatePercentileDisc, 0, domain, true, false},
+		{"mode_domain", functions.AggregateMode, 0, domain, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -631,14 +632,14 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				key = parser.CollateExpr{Child: key, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "POSIX", Pos: position}}}, Pos: position}
 			}
 			name := "percentile_cont"
-			if tc.operation == aggregatePercentileDisc {
+			if tc.operation == functions.AggregatePercentileDisc {
 				name = "percentile_disc"
 			}
-			if tc.operation == aggregateMode {
+			if tc.operation == functions.AggregateMode {
 				name = "mode"
 			}
 			raw := parser.AggregateExpr{Name: name, Within: true, Pos: position, Order: []parser.OrderKey{{Expr: key, Pos: position}}}
-			if tc.operation != aggregateMode {
+			if tc.operation != functions.AggregateMode {
 				direct := parser.TypeName{Name: "float8"}
 				text := ".5"
 				if tc.array {

@@ -76,7 +76,7 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 					return sqltype.Boolean(usage.Type, name == "bool_or"), nil
 				})
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
+				node.calls[0].provider = aggregateProbeProvider{AggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
 					advances++
 					got, err := v.Boolean()
 					if err != nil || got != (name == "bool_or") {
