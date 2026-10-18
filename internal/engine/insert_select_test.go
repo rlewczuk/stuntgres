@@ -256,17 +256,16 @@ func TestInsertSelectSourceLockIdentity(t *testing.T) {
 		done := lockAsync(e, worker, ctx, "INSERT INTO t SELECT i FROM s", false)
 		lockPending(t, e, 1)
 		target := catalogRef(t, e, e.CatalogRead(), "t")
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: target}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: target}]
 		held := false
 		if entry != nil {
-			for _, mode := range entry.holders {
-				if mode.mode == rowExclusive {
+			for _, mode := range entry.Holders {
+				if mode.Mode == rowExclusive {
 					held = true
 				}
 			}
 		}
-		e.locks.mu.Unlock()
 		if !held {
 			t.Fatal("target RX not retained while source AS waits")
 		}

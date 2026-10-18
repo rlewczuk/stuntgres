@@ -186,15 +186,15 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]rela
 			if grants[leaf.ref] != 0 {
 				mode = relationRowShare
 			}
-			policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-			request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref}, mode, policy)
+			policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref}, mode, policy)
 			if request != nil {
 				s.admissionWaited = true
 				if s.replacementRead {
 					e.replacementMu.RUnlock()
 					s.replacementRead = false
 				}
-				err = request.wait()
+				err = request.Wait()
 			}
 			if err != nil {
 				return err

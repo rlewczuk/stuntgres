@@ -23,15 +23,14 @@ func TestTruncateGraphPartitions(t *testing.T) {
 		t.Fatal("virtual authorities became physical stores or a real leaf was omitted")
 	}
 	for _, ref := range []ids.ObjectRef{root, nested, left, right} {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: ref}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: ref}]
 		var hold relationHold
 		ok := false
 		if entry != nil {
-			hold, ok = entry.holders[scope.ticket]
+			hold, ok = entry.Holders[scope.ticket]
 		}
-		e.locks.mu.Unlock()
-		if !ok || hold.mode&accessExclusive == 0 {
+		if !ok || hold.Mode&accessExclusive == 0 {
 			t.Fatal("missing canonical hierarchy AX", ref)
 		}
 	}
@@ -62,13 +61,12 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	writes, ticket := waiter.transactions.writes[p.Address], waiter.transactions.ticket
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: p}]
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: p}]
 	var mode relationLockMode
 	if entry != nil {
-		mode = entry.holders[ticket].mode
+		mode = entry.Holders[ticket].Mode
 	}
-	e.locks.mu.Unlock()
 	if mode&accessExclusive == 0 {
 		t.Fatal("real prior grant was not upgraded")
 	}

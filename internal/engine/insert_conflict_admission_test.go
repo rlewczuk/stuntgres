@@ -118,7 +118,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	baseline := manager.checkpointUnique(scope.ticket, nil)
+	baseline := manager.CheckpointUnique(scope.ticket, nil)
 	if len(baseline) != 1 {
 		t.Fatal("accepted proposal owns one actual key", baseline)
 	}
@@ -127,12 +127,12 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 		if err != nil || admitted {
 			t.Fatal("duplicate was not omitted", admitted, err)
 		}
-		after := manager.checkpointUnique(scope.ticket, nil)
+		after := manager.CheckpointUnique(scope.ticket, nil)
 		if len(after) != len(baseline) {
 			t.Fatal("omission retained a new grant", after)
 		}
 		for key, mode := range baseline {
-			if after[key].mode != mode.mode || len(after[key].multi) != 0 || len(mode.multi) != 0 {
+			if after[key].Mode != mode.Mode || len(after[key].Multi) != 0 || len(mode.Multi) != 0 {
 				t.Fatal("omission lost preexisting grant")
 			}
 		}
@@ -141,7 +141,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if len(manager.checkpointUnique(scope.ticket, nil)) != 2 {
+	if len(manager.CheckpointUnique(scope.ticket, nil)) != 2 {
 		t.Fatal("accepted claims were lost")
 	}
 }

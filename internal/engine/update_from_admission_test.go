@@ -35,10 +35,9 @@ func TestUpdateFromEarlierSourceMetadataAndAuthorityRefresh(t *testing.T) {
 			done := lockAsync(e, writer, context.Background(), "UPDATE t SET v=s.n FROM s JOIN r USING(k) WHERE t.id=k RETURNING old.v,new.v,s.n", false)
 			lockPending(t, e, 1)
 			sref := catalogRef(t, e, e.CatalogRead(), "s")
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: sref}]
-			firstAdmitted := entry != nil && len(entry.holders) == 1
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: sref}]
+			firstAdmitted := entry != nil && len(entry.Holders) == 1
 			if !firstAdmitted {
 				t.Fatal("earlier source was not genuinely admitted")
 			}

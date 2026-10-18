@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -95,82 +95,71 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		t.Fatal("first reversal must leave another cycle")
 	}
 	model[0].waits[0], model[0].waits[1] = model[0].waits[1], model[0].waits[0]
-	e := New()
-	sessions := make([]*Session, 4)
-	tickets := make([]*relationTicket, 4)
-	for i := range sessions {
-		sessions[i] = sessionStart(t, e, nil)
-		transactionBegin(t, sessions[i])
-		tickets[i] = sessions[i].transactions.ticket
-		ticket := tickets[i]
-		t.Cleanup(func() { e.endLockOwner(ticket) })
+	f := newLockFixture(t)
+	tickets := make([]*Ticket, 4)
+	for i := range tickets {
+		tickets[i] = f.tx()
 	}
-	// Catalog creation belongs to an independent idle session.
-	creator := sessionStart(t, e, nil)
-	resources := make([]lockResource, 3)
-	for i, name := range []string{"x", "y", "z"} {
-		sessionSQL(t, creator, "CREATE TABLE "+name+"(v INT)")
-		resources[i] = lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), name)}
-	}
-	deadlockRequest(t, e, tickets[0], resources[0], accessShare)
-	deadlockRequest(t, e, tickets[2], resources[1], accessShare)
-	deadlockRequest(t, e, tickets[0], resources[2], accessExclusive)
+	resources := []Resource{f.relation(), f.relation(), f.relation()}
+	f.request(tickets[0], resources[0], AccessShare)
+	f.request(tickets[2], resources[1], AccessShare)
+	f.request(tickets[0], resources[2], AccessExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 	var requests []*relationRequest
-	e.locks.mu.Lock()
-	enqueue := func(owner, resource int, mode relationLockMode) {
-		entry := e.locks.entries[resources[resource]]
-		r := &relationRequest{ticket: tickets[owner], provenance: tickets[owner].ref, ctx: ctx, mode: mode, done: make(chan struct{}), ref: resources[resource], entry: entry}
+	f.m.mu.Lock()
+	enqueue := func(owner, resource int, mode Mode) {
+		entry := f.m.entries[resources[resource]]
+		r := &relationRequest{ticket: tickets[owner], provenance: tickets[owner].Ref(), ctx: ctx, mode: mode, done: make(chan struct{}), ref: resources[resource], entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[owner].resources[resources[resource]] = struct{}{}
 		requests = append(requests, r)
 	}
-	enqueue(1, 0, accessExclusive)
-	enqueue(3, 1, accessExclusive)
-	enqueue(0, 1, accessShare)
-	enqueue(2, 2, accessExclusive)
-	e.locks.mu.Unlock()
-	requests = append(requests, deadlockRequest(t, e, tickets[2], resources[0], accessShare))
+	enqueue(1, 0, AccessExclusive)
+	enqueue(3, 1, AccessExclusive)
+	enqueue(0, 1, AccessShare)
+	enqueue(2, 2, AccessExclusive)
+	f.m.mu.Unlock()
+	requests = append(requests, f.request(tickets[2], resources[0], AccessShare))
 	actual := make([]deadlockModelQueue, 3)
-	e.locks.mu.Lock()
+	f.m.mu.Lock()
 	for i, resource := range resources {
-		entry := e.locks.entries[resource]
+		entry := f.m.entries[resource]
 		for ticket, mode := range entry.holders {
 			for owner, candidate := range tickets {
 				if ticket == candidate {
-					actual[i].holders = append(actual[i].holders, deadlockModelWait{owner, mode.mode&accessExclusive != 0})
+					actual[i].holders = append(actual[i].holders, deadlockModelWait{owner, mode.Mode&AccessExclusive != 0})
 				}
 			}
 		}
 		for _, r := range entry.pending {
 			for owner, candidate := range tickets {
 				if r.ticket == candidate {
-					actual[i].waits = append(actual[i].waits, deadlockModelWait{owner, r.mode&accessExclusive != 0})
+					actual[i].waits = append(actual[i].waits, deadlockModelWait{owner, r.mode&AccessExclusive != 0})
 				}
 			}
 		}
 	}
 	for _, r := range requests {
-		if r != nil && r.terminal && r.err != nil {
-			t.Errorf("avoidable victim: %v", r.err)
+		if r != nil && r.terminal && r.Err() != nil {
+			t.Errorf("avoidable victim: %v", r.Err())
 		}
 	}
-	e.locks.mu.Unlock()
+	f.m.mu.Unlock()
 	if !deadlockModelAcyclic(actual, 4) {
 		t.Fatal("accepted queue arrangement still has a cycle")
 	}
 	for _, ticket := range tickets {
-		e.endLockOwner(ticket)
+		f.m.End(ticket)
 	}
 	for _, r := range requests {
 		if r != nil {
 			select {
-			case <-r.done:
+			case <-r.Done():
 			case <-time.After(time.Second):
 				t.Fatal("ended request not notified")
 			}
 		}
 	}
-	lockEmpty(t, e)
+	f.empty()
 }

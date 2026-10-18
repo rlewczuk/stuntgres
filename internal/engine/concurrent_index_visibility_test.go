@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *Operation, context.CancelFunc) {
@@ -77,7 +78,7 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	e.mu.Lock()
 	bare := e.visibilityXID == counter
 	for ref, v := range e.visibility {
-		bare = bare && v.xid == 0 && v.xmin == 0 && v.assignedXID == 0 && !v.snapshot && !v.safeBuilder && v.ticket != nil && v.ticket.ref == ref
+		bare = bare && v.xid == 0 && v.xmin == 0 && v.assignedXID == 0 && !v.snapshot && !v.safeBuilder && v.ticket != nil && v.ticket.Ref() == ref
 	}
 	e.mu.Unlock()
 	if !bare {
@@ -163,7 +164,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	concurrentUnitCompletion(t, e, late.transactions.ticket, builder)
 	e.mu.Lock()
 	self, associated := e.visibility[scope.txRef]
-	mirroredXID := scope.ticket.assignedPublicXID()
+	mirroredXID := scope.ticket.AssignedPublicXID()
 	e.mu.Unlock()
 	// Phase reset withdraws all ordering/snapshot advertisement, not the
 	// registered ticket's canonical assignment association.
@@ -172,10 +173,9 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 		t.Fatal("builder retained phase advertisement or lost canonical ticket association during older wait", self, wantSelf, mirroredXID)
 	}
 	sessionSQL(t, writer, "ROLLBACK")
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{completion: late.transactions.ticket}]
-	pending := entry != nil && len(entry.pending) == 1
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lock.CompletionOf(late.transactions.ticket)]
+	pending := entry != nil && len(entry.Pending) == 1
 	if !pending {
 		t.Fatal("ending XID owner released another transaction's persistent snapshot")
 	}

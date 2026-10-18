@@ -208,7 +208,7 @@ func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, err
 	}
 	e := scope.op.session.Engine()
 	if n.kind == identityMultiAge {
-		age, err := e.locks.multiAge(scope.ticket, xid)
+		age, err := e.locks.MultiAge(scope.ticket, xid)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -268,17 +268,17 @@ func (n transactionIdentityExpression) openMembers(c *EvalContext) ([]sqltype.Va
 	if scope == nil {
 		return nil, fmt.Errorf("stuntgres: MultiXact lacks statement scope")
 	}
-	members, err := scope.op.session.Engine().locks.multiXactMembers(scope.ticket, xid)
+	members, err := scope.op.session.Engine().locks.MultiXactMembers(scope.ticket, xid)
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]sqltype.Value, len(members))
 	for i, m := range members {
-		x, err := sqltype.XIDValue(n.Usage.Type.CompositeMember(0).Usage.Type, m.xid)
+		x, err := sqltype.XIDValue(n.Usage.Type.CompositeMember(0).Usage.Type, m.XID)
 		if err != nil {
 			return nil, err
 		}
-		mode := sqltype.String(n.Usage.Type.CompositeMember(1).Usage.Type, m.mode.name())
+		mode := sqltype.String(n.Usage.Type.CompositeMember(1).Usage.Type, m.Mode.Name())
 		rows[i], err = sqltype.OwnedCompositeValue(n.Usage.Type, []sqltype.Value{x, mode})
 		if err != nil {
 			return nil, err

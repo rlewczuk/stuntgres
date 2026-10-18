@@ -68,11 +68,11 @@ func TestSavepointsLifecycle(t *testing.T) {
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			ticket := a.transactions.ticket
 			controlsRequire(t, a, "ROLLBACK TO s")
-			if a.transactions.ticket != ticket || len(ticket.resources) != 0 {
+			if a.transactions.ticket != ticket || len(e.locks.Inspect(ticket).Journals[ticket]) != 0 {
 				t.Fatal("rollback did not release postmark contributions")
 			}
 			controlsAbort(t, a)
-			if a.transactions.ticket != ticket || len(ticket.resources) != 0 {
+			if a.transactions.ticket != ticket || len(e.locks.Inspect(ticket).Journals[ticket]) != 0 {
 				t.Fatal("recoverable failure lost ticket or retained child contributions")
 			}
 			controlsRequire(t, a, "ROLLBACK TO s")

@@ -215,10 +215,9 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 					}
 				}()
 				lockPending(t, e, 1)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: lateRef}]
-				queuedOnLate := entry != nil && len(entry.pending) == 1
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: lateRef}]
+				queuedOnLate := entry != nil && len(entry.Pending) == 1
 				if !queuedOnLate {
 					t.Fatal("ALTER did not queue on exact late resource")
 				}

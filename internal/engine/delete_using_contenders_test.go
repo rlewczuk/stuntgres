@@ -63,10 +63,9 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			}()
 			await := deleteUsingJoin(t, cancel, done)
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref, row: original.row}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == rowUpdate && entry.holders[holder.transactions.ticket].mode == noKeyUpdate
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == rowUpdate && entry.Holders[holder.transactions.ticket].Mode == noKeyUpdate
 			if !queued {
 				t.Fatal("not an actual DELETE rowUpdate queue")
 			}
@@ -129,10 +128,9 @@ func TestDeleteUsingContentionOutcomes(t *testing.T) {
 			lockPending(t, e, 1)
 			if phase == "cancel_source" {
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				admitted := entry != nil && len(entry.holders) >= 1
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				admitted := entry != nil && len(entry.Holders) >= 1
 				if !admitted {
 					t.Fatal("target was not admitted before source wait")
 				}

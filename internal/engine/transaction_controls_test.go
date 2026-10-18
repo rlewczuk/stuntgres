@@ -73,12 +73,11 @@ func TestTransactionControlsChainIdentity(t *testing.T) {
 				controlsRequire(t, a, q)
 				next := a.transactions.ref
 				fresh := a.transactions.ticket
-				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.ref != next || a.TransactionState() != TxActive || a.transactions.command != 0 || a.transactions.writes != nil || len(fresh.resources) != 0 {
+				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != TxActive || a.transactions.command != 0 || a.transactions.writes != nil || len(e.locks.Inspect(fresh).Journals[fresh]) != 0 {
 					t.Fatal("chain did not create independent empty authority", next, a.transactions)
 				}
-				e.locks.mu.Lock()
-				_, oldLive := e.locks.owners[old]
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				_, oldLive := lockState.Owners[old]
 				if oldLive {
 					t.Fatal("old ticket survived")
 				}
@@ -285,7 +284,7 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 			}
 			r.Rows.Close()
 			if strings.Contains(q, "CHAIN") {
-				if len(a.transactions.ticket.resources) != 0 {
+				if len(e.locks.Inspect(a.transactions.ticket).Journals[a.transactions.ticket]) != 0 {
 					t.Fatal("AX inherited")
 				}
 				sessionSQL(t, a, "INSERT INTO t VALUES(2)")

@@ -98,7 +98,7 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch inde
 			return errors.New("stuntgres: missing writable internal action admission")
 		}
 		var small [8]ids.RowID
-		if s.op.session.Engine().locks.missingRowGrant(s.ticket, ref, versionRows(small[:0], old)) >= 0 {
+		if s.op.session.Engine().locks.MissingRowGrant(s.ticket, ref, versionRows(small[:0], old)) >= 0 {
 			return errors.New("stuntgres: internal action replacement requires its row grant")
 		}
 	}
@@ -247,7 +247,7 @@ retry:
 			if mode == 0 {
 				mode = modes[i]
 			}
-			s.multiEvents = append(s.multiEvents, multiEvent{tuple: multiTuple{lockResource{ObjectRef: ref, row: old[i].row}, old[i].version}, mode: mode, successor: next.version})
+			s.multiEvents = append(s.multiEvents, multiEvent{Tuple: multiTuple{lockResource{ObjectRef: ref, Row: old[i].row}, old[i].version}, Mode: mode, Successor: next.version})
 			s.recordForeignActionReplacement(ref, old[i], next)
 		}
 	}

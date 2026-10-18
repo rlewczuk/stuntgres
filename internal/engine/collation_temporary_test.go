@@ -59,15 +59,14 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	before := e.CatalogRead()
 	tx := transactionBegin(t, peer)
 	ref := catalogRef(t, e, before, "coll_cleanup_t")
-	if err := e.locks.acquire(context.Background(), peer.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), peer.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	owner.RequestEnd(CleanClose)
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	valid := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive && privateSessionOf(entry.pending[0].ticket.ref.Session()) != nil
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive && privateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
 	if !valid || e.CatalogRead().state != before.state {
 		t.Fatal("cleanup bypassed genuine AX or published before lock admission")
 	}

@@ -36,11 +36,10 @@ func TestUpdateReturningCurrentPredecessor(t *testing.T) {
 			await := updateDeleteAsync(t, e, worker, context.Background(), query)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
-			e.locks.mu.Lock()
-			entry := e.locks.entries[resource]
-			actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].mode&(rowUpdate|noKeyUpdate) != 0
-			e.locks.mu.Unlock()
+			resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[resource]
+			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
 			if !actual {
 				t.Fatal("not actual predecessor contention")
 			}
@@ -98,16 +97,15 @@ func TestUpdateReturningWaitCancellation(t *testing.T) {
 	await := updateDeleteAsync(t, e, worker, ctx, "UPDATE t SET id=id+1 RETURNING id")
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	e.locks.mu.Lock()
-	first := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
-	second := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[1].row}
-	entry := e.locks.entries[second]
-	actual := entry != nil && len(entry.pending) == 1 && e.locks.entries[first] != nil
+	lockState := e.locks.Inspect()
+	first := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+	second := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[1].row}
+	entry := lockState.Resources[second]
+	actual := entry != nil && len(entry.Pending) == 1 && lockState.Resources[first] != nil
 	if actual {
-		ticket := entry.pending[0].ticket
-		actual = e.locks.entries[first].holders[ticket].mode&noKeyUpdate != 0
+		ticket := entry.Pending[0].Ticket
+		actual = lockState.Resources[first].Holders[ticket].Mode&noKeyUpdate != 0
 	}
-	e.locks.mu.Unlock()
 	if !actual {
 		t.Fatal("wait without independently observed earlier row grant")
 	}

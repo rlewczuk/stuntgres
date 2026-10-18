@@ -50,7 +50,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		t.Fatal(err)
 	}
 	old := e.domain.Ref(e.CatalogRead().Epoch(), c.address)
-	if err = e.locks.acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -72,10 +72,9 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		}
 	}()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: old}]
-	correct := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == s.ticket && entry.pending[0].mode == rowExclusive
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: old}]
+	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == s.ticket && entry.Pending[0].Mode == rowExclusive
 	if !correct {
 		t.Fatal("descendant did not queue an actual physical RX request")
 	}

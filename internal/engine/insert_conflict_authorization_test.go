@@ -69,7 +69,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if admitted, err := holder.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("holder claim", admitted, err)
 	}
-	mark := f.e.locks.checkpointUnique(holder.ticket, nil)
+	mark := f.e.locks.CheckpointUnique(holder.ticket, nil)
 	if len(mark) != 1 {
 		t.Fatal("holder did not acquire exact unique key", mark)
 	}
@@ -77,7 +77,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	for key := range mark {
 		resource = key
 	}
-	if resource.key == nil || resource.ObjectRef.Address != f.index.address {
+	if resource.Key() == nil || resource.ObjectRef.Address != f.index.address {
 		t.Fatal("reservation is not the actual unique provider", resource)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -141,7 +141,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("authorized prefix", admitted, err)
 	}
 	ticket := scope.ticket
-	prefixMark := f.e.locks.checkpointUnique(ticket, nil)
+	prefixMark := f.e.locks.CheckpointUnique(ticket, nil)
 	if len(prefixMark) != 1 {
 		t.Fatal("accepted prefix owns no exact reservation", prefixMark)
 	}
@@ -159,19 +159,18 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	// interned key, holder and waiter ticket—not by worker start or elapsed time.
 	for {
 		manager := f.e.locks
-		manager.mu.Lock()
-		entry := manager.entries[resource]
+		lockState := manager.Inspect()
+		entry := lockState.Resources[resource]
 		queued := false
-		prefixEntry := manager.entries[prefixResource]
-		if entry != nil && entry.holders[holder.ticket].mode&uniqueClaim != 0 && prefixEntry != nil && prefixEntry.holders[ticket].mode&uniqueClaim != 0 {
-			for _, request := range entry.pending {
-				if request.ticket == ticket && request.mode&uniqueClaim != 0 && !request.terminal {
+		prefixEntry := lockState.Resources[prefixResource]
+		if entry != nil && entry.Holders[holder.ticket].Mode&uniqueClaim != 0 && prefixEntry != nil && prefixEntry.Holders[ticket].Mode&uniqueClaim != 0 {
+			for _, request := range entry.Pending {
+				if request.Ticket == ticket && request.Mode&uniqueClaim != 0 && !request.Terminal {
 					queued = true
 					break
 				}
 			}
 		}
-		manager.mu.Unlock()
 		if queued {
 			break
 		}
@@ -220,20 +219,19 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("failed admission changed exact committed sentinel identity or values", retained)
 	}
 	manager := f.e.locks
-	manager.mu.Lock()
-	leaked := manager.valid(ticket)
-	for _, entry := range manager.entries {
-		if _, ok := entry.holders[ticket]; ok {
+	lockState := manager.Inspect()
+	leaked := lockState.Valid(ticket)
+	for _, entry := range lockState.Resources {
+		if _, ok := entry.Holders[ticket]; ok {
 			leaked = true
 		}
-		for _, request := range entry.pending {
-			if request.ticket == ticket {
+		for _, request := range entry.Pending {
+			if request.Ticket == ticket {
 				leaked = true
 			}
 		}
 	}
-	buckets := len(manager.keyBuckets)
-	manager.mu.Unlock()
+	buckets := lockState.KeyBuckets
 	if leaked || buckets != 0 {
 		t.Fatal("failed waiter retained grants, requests, transaction ticket or key bucket", leaked, buckets)
 	}

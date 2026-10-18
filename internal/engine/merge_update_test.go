@@ -26,14 +26,13 @@ func TestMergeUpdateRowLocks(t *testing.T) {
 			done := lockAsync(e, worker, ctx, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND t.v>=20 THEN UPDATE SET v=100 WHEN MATCHED THEN UPDATE SET v=200", false)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			rowWait := false
-			for resource, entry := range e.locks.entries {
-				if resource.ObjectRef == ref && resource.row != 0 && len(entry.pending) == 1 {
+			for resource, entry := range lockState.Resources {
+				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.Pending) == 1 {
 					rowWait = true
 				}
 			}
-			e.locks.mu.Unlock()
 			if !rowWait {
 				t.Fatal("no actual row queue")
 			}

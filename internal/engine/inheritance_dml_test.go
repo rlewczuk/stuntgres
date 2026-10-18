@@ -31,7 +31,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 	s.lockedRef = e.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	s.lockedDescriptor = p
 	s.lockedStorage = e.storage[p.address]
-	if err = e.locks.acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
+	if err = e.locks.Acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
 		s.Finish(err)
 		done()
 		t.Fatal(err)
@@ -59,20 +59,17 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 		t.Fatal("diamond was not deduplicated", refs)
 	}
 	seen := map[ids.ObjectRef]bool{}
-	e.locks.mu.Lock()
+	lockState := e.locks.Inspect()
 	for _, ref := range refs {
 		if seen[ref] {
-			e.locks.mu.Unlock()
 			t.Fatal("duplicate physical identity", ref)
 		}
 		seen[ref] = true
-		entry := e.locks.entries[lockResource{ObjectRef: ref}]
-		if entry == nil || entry.holders[s.ticket].mode&rowExclusive == 0 {
-			e.locks.mu.Unlock()
+		entry := lockState.Resources[lockResource{ObjectRef: ref}]
+		if entry == nil || entry.Holders[s.ticket].Mode&rowExclusive == 0 {
 			t.Fatal("missing physical RX grant", ref)
 		}
 	}
-	e.locks.mu.Unlock()
 	if err := s.acquireInheritedMutationTargets(&parser.Delete{}); err != nil || len(s.inheritedTargets) != 3 {
 		t.Fatal("readmission duplicated targets", err)
 	}

@@ -13,12 +13,12 @@ type uniqueKeyValues struct {
 	values   []sqltype.Value
 }
 
-func (k *uniqueKeyValues) equalKey(ctx context.Context, stored any) (bool, error) {
+func (k *uniqueKeyValues) EqualKey(ctx context.Context, stored any) (bool, error) {
 	cmp, err := k.ordering.compareKeys(ctx, logicalIndexEntry{keys: stored.([]sqltype.Value)}, logicalIndexEntry{keys: k.values})
 	return err == nil && cmp == 0, err
 }
 
-func (k *uniqueKeyValues) ownedKey() any { return slices.Clone(k.values) }
+func (k *uniqueKeyValues) OwnedKey() any { return slices.Clone(k.values) }
 
 // pinUniqueKey hashes the claimed values, then pins their interned lock
 // resource. Hashing and comparison run outside every metadata mutex.
@@ -27,7 +27,7 @@ func (e *Engine) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref i
 	if err != nil {
 		return lockResource{}, nil, err
 	}
-	return e.locks.pinUniqueKey(ctx, ticket, ref, hash, &uniqueKeyValues{ordering: ordering, values: values})
+	return e.locks.PinUniqueKey(ctx, ticket, ref, hash, &uniqueKeyValues{ordering: ordering, values: values})
 }
 
 // Both lock interning and the conflict command's private overlay use this
@@ -59,14 +59,14 @@ func (s *StatementScope) acquireUnique(ref ids.ObjectRef, bound *uniqueBoundKey,
 		return err
 	}
 	defer unpin()
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, resource, uniqueClaim, policy)
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, uniqueClaim, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 	}
 	if err != nil {
 		return err

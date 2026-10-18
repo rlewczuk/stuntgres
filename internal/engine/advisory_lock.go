@@ -5,28 +5,32 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // This delegate owns only the physical lifetime handle. Counts, granted modes,
-// queues and terminal decisions belong exclusively to relationLockManager.
-type sessionAdvisory struct{ ticket *relationTicket }
+// queues and terminal decisions belong exclusively to lock.Manager.
+type sessionAdvisory struct {
+	ticket *relationTicket
+	locks  *lock.Manager
+}
 
 func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error {
-	if a.ticket.session != token {
+	if a.ticket.Session() != token {
 		return errors.New("stuntgres: foreign advisory session")
 	}
-	a.ticket.manager.end(a.ticket)
+	a.locks.End(a.ticket)
 	return nil
 }
 
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, lifetime advisoryLifetime, try bool) (bool, error) {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, nowait: try, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, provenance: s.txRef}
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, NoWait: try, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, Provenance: s.txRef}
 	ticket := s.op.session.advisory.ticket
 	if lifetime == advisoryTransaction {
 		ticket = s.ticket
 	}
-	request, err := e.locks.startAcquire(ctx, ticket, ref, mode, policy)
+	request, err := e.locks.StartAcquire(ctx, ticket, ref, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		return false, nil
 	}
@@ -35,7 +39,7 @@ func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, 
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 		if err == nil {
 			// Retain the original provenance, never retry a replacement name.
 			e.replacementMu.RLock()

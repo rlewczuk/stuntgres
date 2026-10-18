@@ -68,14 +68,12 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 		t.Fatal("immediate DELETE failed", result, err)
 	}
 	ref := scope.lockedRef
-	e.locks.mu.Lock()
 	rows := 0
-	for resource, entry := range e.locks.entries {
-		if resource.ObjectRef == ref && resource.row != 0 && entry.holders[scope.ticket].mode == rowUpdate && len(entry.pending) == 0 {
+	for resource, entry := range e.locks.Inspect().Resources {
+		if resource.ObjectRef == ref && resource.Row != 0 && entry.Holders[scope.ticket].Mode == rowUpdate && len(entry.Pending) == 0 {
 			rows++
 		}
 	}
-	e.locks.mu.Unlock()
 	if rows != 2 {
 		t.Fatal("immediate DELETE lacks exact row grants", rows)
 	}
@@ -134,16 +132,15 @@ func deleteReplacementQueued(t *testing.T, e *Engine, resource lockResource, hol
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[resource]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[resource]
 		var request *relationRequest
-		if entry != nil && entry.holders[holder].mode == rowUpdate && len(entry.pending) == 1 {
-			r := entry.pending[0]
-			if r.ticket == waiter && r.ref == resource && r.mode == rowUpdate && !r.terminal {
-				request = r
+		if entry != nil && entry.Holders[holder].Mode == rowUpdate && len(entry.Pending) == 1 {
+			r := entry.Pending[0]
+			if r.Ticket == waiter && r.Resource == resource && r.Mode == rowUpdate && !r.Terminal {
+				request = r.Request
 			}
 		}
-		e.locks.mu.Unlock()
 		if request != nil {
 			return request
 		}
@@ -210,10 +207,9 @@ func deleteReplacementReject(t *testing.T, scope *StatementScope, done <-chan de
 	}
 	scope.op.Done()
 	manager := scope.op.session.Engine().locks
-	manager.mu.Lock()
-	resources := len(ticket.resources)
-	_, registered := manager.owners[ticket.ref]
-	manager.mu.Unlock()
+	lockState := manager.Inspect(ticket)
+	resources := len(lockState.Journals[ticket])
+	_, registered := lockState.Owners[ticket.Ref()]
 	if resources != 0 || registered {
 		t.Fatal("stale DELETE ticket retained lock journal", resources, registered)
 	}
@@ -238,7 +234,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				oldStorage := e.storage[ref.Address]
-				resource := lockResource{ObjectRef: ref, row: oldStorage.versions[1].row}
+				resource := lockResource{ObjectRef: ref, Row: oldStorage.versions[1].row}
 				hr := transactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 				var wr ids.TxRef
@@ -275,9 +271,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 					t.Fatal("replacement did not complete with old holder active")
 				}
 				deleteReplacementReject(t, scope, done)
-				e.locks.mu.Lock()
-				fenced := request.terminal && errors.Is(request.err, ErrCatalogReplaced)
-				e.locks.mu.Unlock()
+				fenced := request.Terminal() && errors.Is(request.Err(), ErrCatalogReplaced)
 				if !fenced || oldStorage.ends != nil {
 					t.Fatal("queued request not fenced or private deletion published")
 				}
@@ -310,7 +304,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	oldStorage := e.storage[ref.Address]
 	first, blocked := oldStorage.versions[0].row, oldStorage.versions[1].row
-	resource := lockResource{ObjectRef: ref, row: blocked}
+	resource := lockResource{ObjectRef: ref, Row: blocked}
 	hr := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 	scope, ticket, done := deleteReplacementScope(t, e, waiter)
@@ -348,11 +342,10 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	transactionEnd(t, holder, hr, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[resource]
-		granted := request.terminal && request.err == nil && entry != nil && entry.holders[ticket].mode == rowUpdate && len(entry.pending) == 0
-		_, journaled := ticket.resources[resource]
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect(ticket)
+		entry := lockState.Resources[resource]
+		granted := request.Terminal() && request.Err() == nil && entry != nil && entry.Holders[ticket].Mode == rowUpdate && len(entry.Pending) == 0
+		_, journaled := lockState.Journals[ticket][resource]
 		if granted && journaled {
 			break
 		}
@@ -397,7 +390,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.locks.fence(epoch)
+	e.locks.Fence(epoch)
 	e.replacementMu.Unlock()
 	writerHeld = false
 	deleteReplacementReject(t, scope, done)

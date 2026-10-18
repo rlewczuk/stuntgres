@@ -111,14 +111,13 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	transactionEnd(t, holder, holderRef, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		held := false
-		for _, entry := range e.locks.entries {
-			if entry.holders[ticket].mode != 0 {
+		for _, entry := range lockState.Resources {
+			if entry.Holders[ticket].Mode != 0 {
 				held = true
 			}
 		}
-		e.locks.mu.Unlock()
 		if held {
 			break
 		}
@@ -135,7 +134,7 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	epoch := next.epoch
 	e.mu.Unlock()
 	e.replacementMu.Unlock()
-	e.locks.fence(epoch)
+	e.locks.Fence(epoch)
 	lockAwait(t, done, ErrCatalogReplaced)
 	if err = scope.Finish(ErrCatalogReplaced); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(err)
@@ -152,12 +151,12 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
-		go func() { done <- e.locks.acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare) }()
+		go func() { done <- e.locks.Acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare) }()
 		lockPending(t, e, 1)
 		ended := make(chan struct{})
 		go func() { e.endLockOwner(a.transactions.ticket); close(ended) }()
@@ -167,12 +166,11 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		held := relationLockMode(0)
-		if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
-			held = entry.holders[b.transactions.ticket].mode
+		if entry := lockState.Resources[lockResource{ObjectRef: ref}]; entry != nil {
+			held = entry.Holders[b.transactions.ticket].Mode
 		}
-		e.locks.mu.Unlock()
 		if err != nil && held != 0 {
 			t.Fatal("failed acquisition retained contribution")
 		}

@@ -130,10 +130,9 @@ func TestConcurrentIndexU6BeforeDescriptorAndWriterCancellation(t *testing.T) {
 			if phase == "before_descriptor" {
 				lockPending(t, e, 1)
 				ref := roleTableRef(t, e, "t")
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				exact := len(entry.pending) == 1 && entry.pending[0].mode == shareUpdateExclusive
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				exact := len(entry.Pending) == 1 && entry.Pending[0].Mode == shareUpdateExclusive
 				if !exact {
 					t.Fatal("predescriptor SUE acquisition not actually pending")
 				}

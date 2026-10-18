@@ -57,21 +57,19 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 	deleteCount(t, writer, "DELETE FROM t USING s WHERE t.id=s.k", 1)
 	target := catalogRef(t, e, e.CatalogRead(), "t")
 	source := catalogRef(t, e, e.CatalogRead(), "s")
-	e.locks.mu.Lock()
+	lockState := e.locks.Inspect()
 	var targetMode, sourceMode relationLockMode
-	for resource, entry := range e.locks.entries {
-		if resource.ObjectRef == target && resource.row == 0 {
-			targetMode = entry.holders[writer.transactions.ticket].mode
+	for resource, entry := range lockState.Resources {
+		if resource.ObjectRef == target && resource.Row == 0 {
+			targetMode = entry.Holders[writer.transactions.ticket].Mode
 		}
 		if resource.ObjectRef == source {
-			if resource.row != 0 {
-				e.locks.mu.Unlock()
+			if resource.Row != 0 {
 				t.Fatal("ordinary source tuple write grant", resource)
 			}
-			sourceMode = entry.holders[writer.transactions.ticket].mode
+			sourceMode = entry.Holders[writer.transactions.ticket].Mode
 		}
 	}
-	e.locks.mu.Unlock()
 	if targetMode&rowExclusive == 0 || sourceMode&accessShare == 0 || sourceMode&rowExclusive != 0 {
 		t.Fatal(targetMode, sourceMode)
 	}

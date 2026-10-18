@@ -110,7 +110,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.locks.fence(epoch)
+	e.locks.Fence(epoch)
 }
 func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 	for _, grantBeforeFence := range []bool{false, true} {
@@ -118,17 +118,17 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			e := New()
 			a, ra := advisoryUnitOwner(t, e)
 			b, rb := advisoryUnitOwner(t, e)
-			key := lockResource{kind: advisoryBigintResource, high: 0x80000000, low: 9}
+			key := lockResource{Kind: advisoryBigintResource, High: 0x80000000, Low: 9}
 			advisoryUnitGrant(t, a, ra, key, advisoryShared)
 			advisoryUnitGrant(t, b, rb, key, advisoryShared)
 			transactionEnd(t, b, rb, false)
 			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 			m := e.locks
-			m.mu.Lock()
-			request := m.entries[key].pending[0]
-			_, journaled := ticket.resources[key]
-			m.mu.Unlock()
-			if request.provenance != provenance || request.ticket != b.advisory.ticket || !journaled {
+			lockState := m.Inspect(ticket)
+			waiter := lockState.Resources[key].Pending[0]
+			request := waiter.Request
+			_, journaled := lockState.Journals[ticket][key]
+			if waiter.Provenance != provenance || waiter.Ticket != b.advisory.ticket || !journaled {
 				t.Fatal("persistent request lost current transient provenance")
 			}
 			if grantBeforeFence {
@@ -140,11 +140,9 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 					}
 				})
 				advisoryUnitUnlock(t, a, key, advisoryShared, true)
-				m.mu.Lock()
-				granted := request.terminal && request.err == nil
-				count := m.entries[key].holders[b.advisory.ticket]
-				m.mu.Unlock()
-				if !granted || count.shared != 1 || count.exclusive != 1 {
+				granted := request.Terminal() && request.Err() == nil
+				count := m.Inspect().Resources[key].Holders[b.advisory.ticket]
+				if !granted || count.Shared != 1 || count.Exclusive != 1 {
 					t.Fatal("actual transfer before readmission", granted, count)
 				}
 				select {
@@ -161,27 +159,26 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				}
 			}
 			advisoryUnitScopeResult(t, done, ErrCatalogReplaced)
-			m.mu.Lock()
-			liveSource := m.valid(ticket)
-			journal := len(ticket.resources)
-			persistentLive := m.valid(b.advisory.ticket)
-			m.mu.Unlock()
+			lockState = m.Inspect(ticket)
+			liveSource := lockState.Valid(ticket)
+			journal := len(lockState.Journals[ticket])
+			persistentLive := lockState.Valid(b.advisory.ticket)
 			count := advisoryUnitHold(b, key)
 			wantExclusive := uint64(0)
 			if grantBeforeFence {
 				wantExclusive = 1
 			}
-			if liveSource || journal != 0 || !persistentLive || count.shared != 1 || count.exclusive != wantExclusive || b.TransactionState() != TxIdle {
+			if liveSource || journal != 0 || !persistentLive || count.Shared != 1 || count.Exclusive != wantExclusive || b.TransactionState() != TxIdle {
 				t.Fatal("fence crossed physical lifetime or lost actual grant", liveSource, journal, persistentLive, count, b.TransactionState())
 			}
 			c, rc := advisoryUnitOwner(t, e)
 			if _, err := advisoryUnitAcquire(t, c, rc, key, advisoryExclusive, true); !errors.Is(err, errRelationUnavailable) {
 				t.Fatal("new epoch ignored physical holds", err)
 			}
-			if err := m.unlockAdvisoryAll(a.advisory.ticket); err != nil {
+			if err := m.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
 				t.Fatal(err)
 			}
-			if err := m.unlockAdvisoryAll(b.advisory.ticket); err != nil {
+			if err := m.UnlockAdvisoryAll(b.advisory.ticket); err != nil {
 				t.Fatal(err)
 			}
 			advisoryUnitGrant(t, c, rc, key, advisoryExclusive)
@@ -191,7 +188,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryPairResource, high: 10, low: 11}
+		key := lockResource{Kind: advisoryPairResource, High: 10, Low: 11}
 		advisoryUnitGrant(t, a, ra, key, advisoryShared)
 		advisoryUnitGrant(t, b, rb, key, advisoryShared)
 		transactionEnd(t, b, rb, false)
@@ -202,7 +199,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		}
 		op := transactionOperation(t, b)
 		_, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error {
-			observed <- b.TransactionState() == TxIdle && advisoryUnitHold(b, key).shared == 1
+			observed <- b.TransactionState() == TxIdle && advisoryUnitHold(b, key).Shared == 1
 			return nil
 		}})
 		op.Done()
@@ -225,12 +222,11 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		default:
 			t.Fatal("prepared resource cleanup callback missing")
 		}
-		e.locks.mu.Lock()
-		persistentLive := e.locks.valid(b.advisory.ticket)
-		sourceLive := e.locks.valid(ticket)
-		journal := len(b.advisory.ticket.resources)
-		e.locks.mu.Unlock()
-		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(a, key).shared != 1 {
+		lockState := e.locks.Inspect(b.advisory.ticket)
+		persistentLive := lockState.Valid(b.advisory.ticket)
+		sourceLive := lockState.Valid(ticket)
+		journal := len(lockState.Journals[b.advisory.ticket])
+		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(a, key).Shared != 1 {
 			t.Fatal("physical cleanup scope", persistentLive, sourceLive, journal)
 		}
 		if err = b.advisory.EndSession(b.token, CleanClose); err != nil {

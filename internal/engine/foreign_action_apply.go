@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -263,7 +264,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			continue
 		}
 		if old.version != candidate.version {
-			lockMode, err := multiLockMode(mode)
+			lockMode, err := lock.MultiLockMode(mode)
 			if err != nil {
 				return err
 			}

@@ -97,7 +97,7 @@ func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor
 		t.Fatal(err)
 	}
 	ref := e.domain.Ref(e.CatalogRead().Epoch(), table.address)
-	if err := e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	return scope
@@ -135,10 +135,9 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 	t.Helper()
 	lockPending(t, c.e, 1)
 	ref := c.e.domain.Ref(c.e.CatalogRead().Epoch(), table.address)
-	c.e.locks.mu.Lock()
-	entry := c.e.locks.entries[lockResource{ObjectRef: ref}]
-	correct := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == c.scope.ticket && entry.pending[0].mode == accessExclusive
-	c.e.locks.mu.Unlock()
+	lockState := c.e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == c.scope.ticket && entry.Pending[0].Mode == accessExclusive
 	if !correct {
 		t.Fatal("ALTER did not queue the actual descendant AX request")
 	}

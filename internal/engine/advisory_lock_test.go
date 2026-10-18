@@ -16,7 +16,7 @@ func advisoryUnitOwner(t *testing.T, e *Engine) (*Session, ids.TxRef) {
 }
 func advisoryUnitAcquire(t *testing.T, s *Session, provenance ids.TxRef, key lockResource, mode relationLockMode, nowait bool) (*relationRequest, error) {
 	t.Helper()
-	return s.Engine().locks.startAcquire(context.Background(), s.advisory.ticket, key, mode, relationLockPolicy{provenance: provenance, nowait: nowait})
+	return s.Engine().locks.StartAcquire(context.Background(), s.advisory.ticket, key, mode, relationLockPolicy{Provenance: provenance, NoWait: nowait})
 }
 func advisoryUnitGrant(t *testing.T, s *Session, provenance ids.TxRef, key lockResource, mode relationLockMode) {
 	t.Helper()
@@ -27,16 +27,15 @@ func advisoryUnitGrant(t *testing.T, s *Session, provenance ids.TxRef, key lockR
 }
 func advisoryUnitHold(s *Session, key lockResource) relationHold {
 	m := s.Engine().locks
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if entry := m.entries[key]; entry != nil {
-		return entry.holders[s.advisory.ticket]
+	lockState := m.Inspect()
+	if entry := lockState.Resources[key]; entry != nil {
+		return entry.Holders[s.advisory.ticket]
 	}
 	return relationHold{}
 }
 func advisoryUnitUnlock(t *testing.T, s *Session, key lockResource, mode relationLockMode, want bool) {
 	t.Helper()
-	got, err := s.Engine().locks.unlockAdvisory(s.advisory.ticket, key, mode)
+	got, err := s.Engine().locks.UnlockAdvisory(s.advisory.ticket, key, mode)
 	if err != nil || got != want {
 		t.Fatal("exact mode unlock", got, err, want)
 	}
@@ -48,7 +47,7 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 				e := New()
 				a, ra := advisoryUnitOwner(t, e)
 				b, rb := advisoryUnitOwner(t, e)
-				key := lockResource{kind: advisoryBigintResource, high: 0xffffffff, low: 0x80000000}
+				key := lockResource{Kind: advisoryBigintResource, High: 0xffffffff, Low: 0x80000000}
 				advisoryUnitGrant(t, a, ra, key, held)
 				r, err := advisoryUnitAcquire(t, b, rb, key, requested, true)
 				compatible := held == advisoryShared && requested == advisoryShared
@@ -65,49 +64,6 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 			})
 		}
 	}
-	t.Run("disjoint counted grants and overflow", func(t *testing.T) {
-		e := New()
-		a, ra := advisoryUnitOwner(t, e)
-		b, rb := advisoryUnitOwner(t, e)
-		big := lockResource{kind: advisoryBigintResource, high: 0xffffffff, low: 0xffffffff}
-		pair := big
-		pair.kind = advisoryPairResource
-		advisoryUnitGrant(t, a, ra, big, advisoryShared)
-		advisoryUnitGrant(t, a, ra, big, advisoryShared)
-		advisoryUnitGrant(t, a, ra, big, advisoryExclusive)
-		advisoryUnitGrant(t, a, ra, big, advisoryExclusive)
-		advisoryUnitGrant(t, b, rb, pair, advisoryExclusive)
-		want := relationHold{mode: advisoryShared | advisoryExclusive, shared: 2, exclusive: 2}
-		if got := advisoryUnitHold(a, big); got != want {
-			t.Fatal(got, want)
-		}
-		advisoryUnitUnlock(t, a, big, advisoryExclusive, true)
-		advisoryUnitUnlock(t, a, big, advisoryExclusive, true)
-		advisoryUnitUnlock(t, a, big, advisoryExclusive, false)
-		if got := advisoryUnitHold(a, big); got.mode != advisoryShared || got.shared != 2 || got.exclusive != 0 {
-			t.Fatal(got)
-		}
-		advisoryUnitGrant(t, b, rb, big, advisoryShared)
-		advisoryUnitUnlock(t, b, big, advisoryShared, true)
-		m := e.locks
-		m.mu.Lock()
-		entry := m.entries[big]
-		h := entry.holders[a.advisory.ticket]
-		h.shared = ^uint64(0)
-		entry.holders[a.advisory.ticket] = h
-		m.mu.Unlock()
-		r, err := advisoryUnitAcquire(t, a, ra, big, advisoryShared, true)
-		if r != nil || err == nil || err.Error() != "stuntgres: advisory hold count exhausted" || advisoryUnitHold(a, big) != h {
-			t.Fatal("overflow must not mutate", r, err, advisoryUnitHold(a, big))
-		}
-		if err = m.unlockAdvisoryAll(a.advisory.ticket); err != nil {
-			t.Fatal(err)
-		}
-		if advisoryUnitHold(a, big) != (relationHold{}) || advisoryUnitHold(b, pair).exclusive != 1 {
-			t.Fatal("unlock all scope")
-		}
-		advisoryUnitUnlock(t, b, pair, advisoryExclusive, true)
-	})
 	t.Run("ordinary checkpoints are independent", func(t *testing.T) {
 		e := New()
 		a := sessionStart(t, e, nil)
@@ -115,32 +71,30 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 		ra := transactionBegin(t, a)
 		object := catalogRef(t, e, e.CatalogRead(), "t")
 		ordinary := lockResource{ObjectRef: object}
-		key := lockResource{kind: advisoryBigintResource, low: uint32(object.Address.ObjectID)}
+		key := lockResource{Kind: advisoryBigintResource, Low: uint32(object.Address.ObjectID)}
 		ticket := a.transactions.ticket
 		m := e.locks
-		if err := m.acquire(context.Background(), ticket, ordinary, accessShare); err != nil {
+		if err := m.Acquire(context.Background(), ticket, ordinary, accessShare); err != nil {
 			t.Fatal(err)
 		}
-		checkpoint := m.checkpoint(ticket)
-		if err := m.acquire(context.Background(), ticket, ordinary, accessExclusive); err != nil {
+		checkpoint := m.Checkpoint(ticket)
+		if err := m.Acquire(context.Background(), ticket, ordinary, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
-		m.restore(ticket, checkpoint)
-		m.mu.Lock()
-		ordinaryHold := m.entries[ordinary].holders[ticket]
-		persistentJournal := len(a.advisory.ticket.resources)
-		m.mu.Unlock()
-		if ordinaryHold.mode != accessShare || ordinaryHold.shared != 0 || ordinaryHold.exclusive != 0 || persistentJournal != 1 || advisoryUnitHold(a, key).exclusive != 2 {
+		m.Restore(ticket, checkpoint)
+		lockState := m.Inspect(a.advisory.ticket)
+		ordinaryHold := lockState.Resources[ordinary].Holders[ticket]
+		persistentJournal := len(lockState.Journals[a.advisory.ticket])
+		if ordinaryHold.Mode != accessShare || ordinaryHold.Shared != 0 || ordinaryHold.Exclusive != 0 || persistentJournal != 1 || advisoryUnitHold(a, key).Exclusive != 2 {
 			t.Fatal("checkpoint crossed count domain", ordinaryHold, persistentJournal)
 		}
-		if err := m.unlockAdvisoryAll(a.advisory.ticket); err != nil {
+		if err := m.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
 			t.Fatal(err)
 		}
-		m.mu.Lock()
-		remaining := m.entries[ordinary].holders[ticket].mode
-		m.mu.Unlock()
+		lockState = m.Inspect()
+		remaining := lockState.Resources[ordinary].Holders[ticket].Mode
 		if remaining != accessShare {
 			t.Fatal("unlock all removed ordinary mode", remaining)
 		}

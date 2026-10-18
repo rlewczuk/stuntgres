@@ -301,15 +301,14 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 		}
 	}()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
 	queued := false
 	if entry != nil {
-		for _, request := range entry.pending {
-			queued = queued || !request.terminal && request.mode == shareRowExclusive && request.ticket != a.transactions.ticket
+		for _, request := range entry.Pending {
+			queued = queued || !request.Terminal && request.Mode == shareRowExclusive && request.Ticket != a.transactions.ticket
 		}
 	}
-	e.locks.mu.Unlock()
 	if !queued {
 		t.Fatal("ADD FK did not queue its exact child table SRE request")
 	}

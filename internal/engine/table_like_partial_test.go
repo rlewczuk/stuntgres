@@ -327,9 +327,8 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.mu.Lock()
-	held := len(e.locks.entries)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	held := len(lockState.Resources)
 	if held != 0 {
 		t.Fatal("private providers received incumbent holds", held)
 	}

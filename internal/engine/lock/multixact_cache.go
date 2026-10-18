@@ -1,4 +1,4 @@
-package engine
+package lock
 
 // PostgreSQL's member-set/ID cache is transaction-local, capped at 256 entries.
 // The caller owns the slice (manager-held ticket or private batch preparation).

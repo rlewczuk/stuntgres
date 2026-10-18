@@ -215,11 +215,10 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 				if e.privateCatalogLocked(owner.transactions.catalog).state.descriptors[child.address] != child {
 					t.Fatal("savepoint retained attachment overlay")
 				}
-				e.locks.mu.Lock()
-				parentMode := e.locks.entries[lockResource{ObjectRef: parentRef}].holders[owner.transactions.ticket].mode
-				childEntry := e.locks.entries[lockResource{ObjectRef: childRef}]
-				childHeld := childEntry != nil && childEntry.holders[owner.transactions.ticket].mode != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				parentMode := lockState.Resources[lockResource{ObjectRef: parentRef}].Holders[owner.transactions.ticket].Mode
+				childEntry := lockState.Resources[lockResource{ObjectRef: childRef}]
+				childHeld := childEntry != nil && childEntry.Holders[owner.transactions.ticket].Mode != 0
 				if parentMode != accessShare || childHeld {
 					t.Fatal("savepoint did not restore earlier lock contribution", parentMode, childHeld)
 				}

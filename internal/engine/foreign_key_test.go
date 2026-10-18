@@ -26,13 +26,12 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session,
 }
 func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, ticket *relationTicket, want relationLockMode) {
 	t.Helper()
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: row}]
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
 	var actual relationLockMode
 	if entry != nil {
-		actual = entry.holders[ticket].mode
+		actual = entry.Holders[ticket].Mode
 	}
-	e.locks.mu.Unlock()
 	if actual != want {
 		t.Fatal("exact canonical parent row grant", ref, row, actual, want)
 	}
@@ -40,15 +39,14 @@ func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowI
 func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, holder *relationTicket, want relationLockMode) {
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: row}]
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
 	found := false
 	if entry != nil {
-		for _, request := range entry.pending {
-			found = found || !request.terminal && request.mode == want && request.ticket != holder
+		for _, request := range entry.Pending {
+			found = found || !request.Terminal && request.Mode == want && request.Ticket != holder
 		}
 	}
-	e.locks.mu.Unlock()
 	if !found {
 		t.Fatal("request queued on another/fabricated relation or row", ref, row, want)
 	}
@@ -352,15 +350,14 @@ func TestForeignKeyCreationIdentityAfterWait(t *testing.T) {
 		}
 	}()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
 	found := false
 	if entry != nil {
-		for _, request := range entry.pending {
-			found = found || !request.terminal && request.mode == shareRowExclusive
+		for _, request := range entry.Pending {
+			found = found || !request.Terminal && request.Mode == shareRowExclusive
 		}
 	}
-	e.locks.mu.Unlock()
 	if !found {
 		t.Fatal("CREATE did not retain original parent DDL request")
 	}

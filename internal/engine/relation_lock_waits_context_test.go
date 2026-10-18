@@ -53,34 +53,31 @@ func TestRelationLockWaitsUntimedGrant(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	policy := relationLockPolicy{timeout: 20 * time.Millisecond}
-	if r, err := e.locks.startAcquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy); r != nil || err != nil {
+	policy := relationLockPolicy{Timeout: 20 * time.Millisecond}
+	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy); r != nil || err != nil {
 		t.Fatal(r, err)
 	}
 	time.Sleep(40 * time.Millisecond)
-	if r, err := e.locks.startAcquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy); r != nil || err != nil {
+	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy); r != nil || err != nil {
 		t.Fatal("immediate grant retained timer", r, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, relationLockPolicy{})
+	r, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, relationLockPolicy{})
 	if r == nil || err != nil {
 		t.Fatal(r, err)
 	}
 	time.Sleep(40 * time.Millisecond)
-	e.locks.mu.Lock()
-	terminal := r.terminal
-	timer := r.timer
-	e.locks.mu.Unlock()
-	if terminal || timer != nil {
+	// The manager arms a lock timer exactly when the request has a deadline.
+	if r.Terminal() || !r.Deadline().IsZero() {
 		t.Fatal("zero timeout was armed")
 	}
 	transactionEnd(t, a, ra, false)
-	if err = r.wait(); err != nil {
+	if err = r.Wait(); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(40 * time.Millisecond)
-	if repeated, err := e.locks.startAcquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy); repeated != nil || err != nil {
+	if repeated, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy); repeated != nil || err != nil {
 		t.Fatal(repeated, err)
 	}
 	transactionEnd(t, b, rb, false)

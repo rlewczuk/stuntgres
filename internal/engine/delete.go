@@ -77,12 +77,12 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.ticket == nil || s.ticket.ref != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
+	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: candidate.ref, row: candidate.row}, rowUpdate, policy)
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: candidate.ref, Row: candidate.row}, rowUpdate, policy)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		if err = request.wait(); err != nil {
+		if err = request.Wait(); err != nil {
 			return err
 		}
 		if s.implicit {
@@ -127,7 +127,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if !s.op.session.Engine().locks.holds(s.ticket, lockResource{ObjectRef: candidate.ref, row: candidate.row}, rowUpdate) {
+	if !s.op.session.Engine().locks.Holds(s.ticket, lockResource{ObjectRef: candidate.ref, Row: candidate.row}, rowUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -208,7 +208,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	}
 	root.rows[candidate.row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
-	s.multiEvents = append(s.multiEvents, multiEvent{tuple: multiTuple{lockResource{ObjectRef: candidate.ref, row: original.row}, original.version}, mode: multiUpdateAction})
+	s.multiEvents = append(s.multiEvents, multiEvent{Tuple: multiTuple{lockResource{ObjectRef: candidate.ref, Row: original.row}, original.version}, Mode: multiUpdateAction})
 	return nil
 }
 

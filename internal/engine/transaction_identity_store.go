@@ -70,7 +70,7 @@ func (e *Engine) transactionStatusLocked(xid uint64) (string, bool, error) {
 	if !ok {
 		return "", false, nil
 	}
-	if r.ticket != nil && !r.ticket.ownershipEnded() && r.ticket.assignedFullXID() == xid {
+	if r.ticket != nil && !r.ticket.OwnershipEnded() && r.ticket.AssignedFullXID() == xid {
 		return "in progress", true, nil
 	}
 	if r.state == ids.TxCommitted {
@@ -92,7 +92,7 @@ func (e *Engine) endTransactionIdentityLocked(ref ids.TxRef, committed bool) {
 		r.state = ids.TxCommitted
 	}
 	if r.ticket != nil {
-		r.ticket.mirrorCompletion(r.state)
+		r.ticket.MirrorCompletion(r.state)
 	}
 	e.transactionHistory[v.fullXID] = r
 }

@@ -12,23 +12,13 @@ prevents old status from following a later index phase with the same low bits.
 The live-low index makes collision checking constant-time, including the
 publication-to-manager-release gap. Tracking OFF allocates no timestamp map.
 
-The existing lock manager owns immutable MultiXact records, nonzero modular
-counters and actual physical-version association under manager.mu. Arbitration
-still uses ObjectRef/RowID; history adds VersionID to distinguish predecessor action
-from the successor's exact original raw xmax ID and full bag, including ended or
-mixed-mode members. Raw candidate grants imply neither assignment nor membership.
-CHECK/branch admission precedes the physical event; index and RETURNING evaluation
-follow it. Shared mutations journal successor/deletion events while private roots
-are locked and flush after Engine/owner unlock, before caller-visible evaluation.
-Manager preflight prepares the complete batch before any counter/history publication.
-Member-set reuse is a transaction-local LRU of at most 256 IDs, populated by both
-creation and member inquiry, never universal interning. A successor copies the
-original ID without allocating a new inherited set; later expansion filters only
-the new bag. Single same-XID physical strength merges preserve action versus lock
-kind; an existing MultiXact can retain several statuses of the same XID.
-Savepoints capture physical status contributions separately from grant modes;
-grant intersection only bounds stale checkpoint authority, never invents provenance.
-No Engine.mu→manager.mu acquisition is introduced; status reads ticket atomics.
+MultiXact records, counters and version history belong to the lock manager; see
+[lock/README.md](lock/README.md). Raw candidate grants imply neither assignment
+nor membership. CHECK/branch admission precedes the physical event; index and
+RETURNING evaluation follow it. Shared mutations journal successor/deletion
+events while private roots are locked and flush after Engine/owner unlock,
+before caller-visible evaluation. No Engine.mu→manager mutex acquisition is
+introduced; status reads ticket atomics.
 
 Ordinary UPDATE accumulates distinct accepted physical targets by amortized append,
 without copying the growing private prefix per row. Its frozen source and FROM

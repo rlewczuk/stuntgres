@@ -188,7 +188,7 @@ func (s *StatementScope) Finish(err error) error {
 			if t.state == TxActive {
 				mark := t.savepoints[len(t.savepoints)-1]
 				t.restoreSavepoint(mark, mark.settings.clone())
-				e.locks.restore(t.ticket, mark.locks)
+				e.locks.Restore(t.ticket, mark.locks)
 			}
 			t.state = TxAborted
 		} else {

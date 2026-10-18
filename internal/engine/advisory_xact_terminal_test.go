@@ -19,11 +19,11 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 				b, _ := advisoryUnitOwner(t, e)
 				m := e.locks
 				at, bt := a.transactions.ticket, b.transactions.ticket
-				key := lockResource{kind: advisoryPairResource, high: 19, low: 20}
+				key := lockResource{Kind: advisoryPairResource, High: 19, Low: 20}
 				advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				request, err := m.startAcquire(ctx, bt, key, advisoryShared, relationLockPolicy{timeout: time.Hour})
+				request, err := m.StartAcquire(ctx, bt, key, advisoryShared, relationLockPolicy{Timeout: time.Hour})
 				if err != nil || request == nil {
 					t.Fatal(request, err)
 				}
@@ -32,23 +32,15 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 					case "cancel":
 						cancel()
 					case "end":
-						m.end(bt)
+						m.End(bt)
 					case "timeout":
-						m.mu.Lock()
-						request.deadline = time.Now().Add(-time.Second)
-						var notify *relationRequest
-						if !request.terminal {
-							m.settle(request.entry, &notify)
-							m.retire(key, request.entry)
-						}
-						m.mu.Unlock()
-						notifyRequests(notify)
+						m.ExpireWait(request, request.Deadline())
 					case "fence":
-						m.fence(bt.ref.Epoch() + 1)
+						m.Fence(bt.Ref().Epoch() + 1)
 					}
 				}
 				if grantFirst {
-					m.end(at)
+					m.End(at)
 					if err := deadlockResult(t, request); err != nil {
 						t.Fatal(err)
 					}
@@ -60,7 +52,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					m.end(at)
+					m.End(at)
 				}
 				err = deadlockResult(t, request)
 				if grantFirst {
@@ -88,18 +80,14 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 						}
 					}
 				}
-				if request.timer.Stop() {
-					t.Fatal("terminal left lock timer armed")
+				if !request.Released() {
+					t.Fatal("terminal left lock timer or cancellation registration armed")
 				}
-				if request.stop() {
-					t.Fatal("terminal left cancellation registration armed")
-				}
-				m.end(bt)
-				m.mu.Lock()
-				entry := m.entries[key]
-				leaked := entry != nil && (len(entry.holders) != 0 || len(entry.pending) != 0)
-				journal := len(bt.resources)
-				m.mu.Unlock()
+				m.End(bt)
+				lockState := m.Inspect(bt)
+				entry := lockState.Resources[key]
+				leaked := entry != nil && (len(entry.Holders) != 0 || len(entry.Pending) != 0)
+				journal := len(lockState.Journals[bt])
 				if leaked || journal != 0 {
 					t.Fatal("terminal leaked ownership", leaked, journal)
 				}
@@ -112,10 +100,10 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryBigintResource, low: 66}
+		key := lockResource{Kind: advisoryBigintResource, Low: 66}
 		advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
 		ctx, cancel := context.WithCancel(context.Background())
-		request, err := e.locks.startAcquire(ctx, b.transactions.ticket, key, advisoryExclusive, relationLockPolicy{timeout: time.Hour})
+		request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, key, advisoryExclusive, relationLockPolicy{Timeout: time.Hour})
 		if err != nil || request == nil {
 			cancel()
 			t.Fatal(request, err)
@@ -128,7 +116,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		close(start)
 		joined.Wait()
 		err = deadlockResult(t, request)
-		held := advisoryXactUnitHold(b, key).mode
+		held := advisoryXactUnitHold(b, key).Mode
 		if err == nil && held != advisoryExclusive || err != nil && (!errors.Is(err, context.Canceled) || held != 0) {
 			t.Fatal("inconsistent terminal publication", err, held)
 		}

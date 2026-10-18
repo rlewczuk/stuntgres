@@ -5,19 +5,19 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `444bdbefe`.
+Last verified against `master` at `b12c7ee57`.
 
 ## Next ready sub-steps
 
 - **2c** — node protocol with the walk switch as first adopter (needs 2b ✓).
-- **4b** — create `lock` and move the declarations (needs 4a ✓).
+- **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F1** — remove the `functions` generics (needs 2b ✓) *(broad rewrite)*.
 - **F3** — `Binder`, `Definition`/`Lookup` and engine dispatch with a pilot
   family (needs 2b ✓).
 - **5a** — `catalogStore` state ownership (needs 1 ✓, 2b ✓).
 
-They may run in parallel on separate branches, except that F1 must not run
-alongside another broad rewrite (§8).
+They may run in parallel on separate branches, except that 4c and F1 must not
+run alongside another broad rewrite or alias removal (§8).
 
 ## Task tree
 
@@ -81,7 +81,9 @@ alongside another broad rewrite (§8).
 - [ ] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
     (`78265dd49`, `d4a96abb9`, `e9c2356cd`, docs `ad4693205`)
-  - [ ] 4b — `lock` created and declarations moved
+  - [x] 4b — `lock` created and declarations moved (`6fe4ccdc6`,
+    `ff15343fb`, `f2887fb33`, `8192746a5`, `dd7b1b796`, then the docs commit)
+    *(full racecheck skipped at user request; targeted RACE=1 runs passed)*
   - [ ] 4c — Aliases removed
 - [ ] **Step 5 — `catalog`** ([prompt](ENGINE-SPLIT-catalog.md); needs 1,
   2b)

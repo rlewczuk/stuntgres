@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -109,7 +110,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 		t.Fatal(err)
 	}
 	entry := e.prepared["boundary"]
-	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.serializable.nodes[entry.ref] == nil || len(entry.ticket.resources) == 0 {
+	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.serializable.nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
 	}
 	e.mu.Lock()
@@ -153,14 +154,13 @@ type preparedBoundarySnapshot struct {
 	creators        map[ids.VersionID]ids.TxRef
 	owners          map[ids.TxRef]*relationTicket
 	resources       map[lockResource]struct{}
-	locks           map[lockResource]relationEntry
+	locks           map[lockResource]lock.ResourceState
 }
 
 func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoundarySnapshot {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.locks.mu.Lock()
-	defer e.locks.mu.Unlock()
+	lockState := e.locks.Inspect(entry.ticket)
 	s := preparedBoundarySnapshot{
 		catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names),
 		counters:        [10]uint64{uint64(e.state.epoch), e.state.namespaceGeneration, uint64(e.nextOID), uint64(e.nextRevision), e.nextRow, e.nextVersion, uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.nextPrincipal},
@@ -169,7 +169,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		indexes: maps.Clone(e.indexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
 		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
-		owners: maps.Clone(e.locks.owners), resources: maps.Clone(entry.ticket.resources), locks: map[lockResource]relationEntry{},
+		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lockResource]lock.ResourceState{},
 	}
 	for address, store := range e.storage {
 		value := *store
@@ -229,10 +229,8 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		value.incoming, value.outgoing, value.possible = maps.Clone(node.incoming), maps.Clone(node.outgoing), maps.Clone(node.possible)
 		s.ssi[ref] = value
 	}
-	for resource, lock := range e.locks.entries {
-		value := *lock
-		value.holders, value.pending = maps.Clone(lock.holders), slices.Clone(lock.pending)
-		s.locks[resource] = value
+	for resource, lock := range lockState.Resources {
+		s.locks[resource] = *lock
 	}
 	return s
 }
@@ -301,13 +299,18 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 		derived.execution = &preparedBoundaryExpression{BoundExpr: derived.execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
-			for _, lock := range []*sync.Mutex{&e.mu, &origin.mu, &origin.transactions.mu, &finisher.mu, &finisher.transactions.mu, &e.locks.mu} {
+			for _, lock := range []*sync.Mutex{&e.mu, &origin.mu, &origin.transactions.mu, &finisher.mu, &finisher.transactions.mu} {
 				if !lock.TryLock() {
 					t.Error("publication expression executed under metadata mutex")
 					close(arrived)
 					return
 				}
 				lock.Unlock()
+			}
+			if e.locks.MutexHeld() {
+				t.Error("publication expression executed under the lock manager mutex")
+				close(arrived)
+				return
 			}
 			close(arrived)
 			<-release
@@ -372,7 +375,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 				t.Fatal("final veto", failure)
 			}
 			preparedBoundaryUnchanged(t, e, entry, before)
-			if !reflect.DeepEqual(entry.writes[parent][updatePosition], originalUpdate) || &e.storage[parent].versions[0] != originalHead || entry.ticket != originalTicket || e.locks.owners[entry.ref] != originalTicket {
+			if !reflect.DeepEqual(entry.writes[parent][updatePosition], originalUpdate) || &e.storage[parent].versions[0] != originalHead || entry.ticket != originalTicket || e.locks.TransactionTicket(entry.ref) != originalTicket {
 				t.Fatal("failed completion changed retained UPDATE/base/version, committed head or original ticket")
 			}
 			if veto == "counter" {
@@ -452,9 +455,8 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 			t.Fatal("private generator did not transfer unchanged")
 		}
 	}
-	e.locks.mu.Lock()
-	defer e.locks.mu.Unlock()
-	if e.locks.owners[entry.ref] != nil || len(entry.ticket.resources) != 0 {
+	lockState := e.locks.Inspect(entry.ticket)
+	if lockState.Owners[entry.ref] != nil || len(lockState.Journals[entry.ticket]) != 0 {
 		t.Fatal("original physical ticket was not released")
 	}
 }
@@ -556,7 +558,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 			t.Fatal("winner SET commit / loser whole SET rollback / SET LOCAL undo", i, value, expected)
 		}
 	}
-	if e.locks.owners[refs[loser.owner]] != nil || len(tickets[loser.owner].resources) != 0 || e.locks.owners[refs[winner.owner]] != entry.ticket {
+	if e.locks.TransactionTicket(refs[loser.owner]) != nil || len(e.locks.Inspect(tickets[loser.owner]).Journals[tickets[loser.owner]]) != 0 || e.locks.TransactionTicket(refs[winner.owner]) != entry.ticket {
 		t.Fatal("loser released winner or retained its own holds")
 	}
 	if node := e.serializable.nodes[refs[loser.owner]]; node != nil && (!node.aborted || !node.ended || node.prepared) {
@@ -565,7 +567,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	if err := preparedUnitControl(t, e, owners[loser.owner], parser.KindCommitPrepared, "race"); err != nil {
 		t.Fatal(err)
 	}
-	if e.locks.owners[refs[winner.owner]] != nil {
+	if e.locks.TransactionTicket(refs[winner.owner]) != nil {
 		t.Fatal("winner resources survived outcome")
 	}
 	for address := range entry.writes {
@@ -603,8 +605,8 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	waiterRef := transactionBegin(t, waiter)
 	var resource lockResource
 	found := false
-	for held := range entry.ticket.resources {
-		if held.row == 0 && held.key == nil && held.Address == parent {
+	for held := range e.locks.Inspect(entry.ticket).Journals[entry.ticket] {
+		if held.Row == 0 && held.Key() == nil && held.Address == parent {
 			resource, found = held, true
 			break
 		}
@@ -614,7 +616,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	}
 	waitContext, cancelWaiter := context.WithCancel(context.Background())
 	defer cancelWaiter()
-	request, err := e.locks.startAcquire(waitContext, waiter.transactions.ticket, resource, accessShare, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(waitContext, waiter.transactions.ticket, resource, accessShare, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal("waiter was not queued behind prepared table hold", err)
 	}
@@ -644,7 +646,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	})
 	go func() {
 		defer close(observed)
-		if err := request.wait(); err != nil {
+		if err := request.Wait(); err != nil {
 			if waitContext.Err() == nil {
 				t.Error(err)
 			}

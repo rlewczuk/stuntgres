@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func exclusionCommitWorker(t *testing.T, s *Session, ref ids.TxRef) <-chan error {
@@ -39,26 +40,25 @@ func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *relationT
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{completion: owner}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lock.CompletionOf(owner)]
 		queued := false
 		if entry != nil {
-			for _, request := range entry.pending {
-				if request.ticket == waiter && request.mode == transactionCompletion && !request.terminal {
+			for _, request := range entry.Pending {
+				if request.Ticket == waiter && request.Mode == transactionCompletion && !request.Terminal {
 					queued = true
 				}
 			}
 		}
-		e.locks.mu.Unlock()
 		if queued {
 			if !e.mu.TryLock() {
 				t.Fatal("completion waiter retained engine metadata lock")
 			}
 			e.mu.Unlock()
-			if !txOwnerOf(waiter.ref).mu.TryLock() {
+			if !txOwnerOf(waiter.Ref()).mu.TryLock() {
 				t.Fatal("completion waiter retained transaction owner lock")
 			}
-			txOwnerOf(waiter.ref).mu.Unlock()
+			txOwnerOf(waiter.Ref()).mu.Unlock()
 			return
 		}
 		select {
@@ -162,14 +162,13 @@ func TestExclusionEagerClaims(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			done, cancel := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			claimed := false
-			for resource, entry := range e.locks.entries {
-				if resource.key != nil && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim {
+			for resource, entry := range lockState.Resources {
+				if resource.Key() != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == uniqueClaim {
 					claimed = true
 				}
 			}
-			e.locks.mu.Unlock()
 			if !claimed {
 				t.Fatal("eager exclusion did not reuse the typed unique-key resource")
 			}

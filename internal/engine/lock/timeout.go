@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -16,14 +16,14 @@ const (
 	relationTimeoutStatement
 )
 
-func relationTimeoutSourceCause(policy relationLockPolicy, lockDeadline, now time.Time) error {
-	if policy.source != nil {
-		if errors.Is(policy.source.Err(), context.Canceled) {
+func relationTimeoutSourceCause(policy Policy, lockDeadline, now time.Time) error {
+	if policy.Source != nil {
+		if errors.Is(policy.Source.Err(), context.Canceled) {
 			return context.Canceled
 		}
-		if deadline, ok := policy.source.Deadline(); ok && !now.Before(deadline) &&
+		if deadline, ok := policy.Source.Deadline(); ok && !now.Before(deadline) &&
 			(lockDeadline.IsZero() || !lockDeadline.Before(deadline)) &&
-			(policy.statementDeadline.IsZero() || !policy.statementDeadline.Before(deadline)) {
+			(policy.StatementDeadline.IsZero() || !policy.StatementDeadline.Before(deadline)) {
 			return context.DeadlineExceeded
 		}
 	}
@@ -32,10 +32,10 @@ func relationTimeoutSourceCause(policy relationLockPolicy, lockDeadline, now tim
 
 // Share deadline classification without constructing a discarded SQL error in
 // the lifecycle callback. Equal absolute SQL deadlines retain lock precedence.
-func relationTimeoutWinner(policy relationLockPolicy, lockDeadline, now time.Time) uint32 {
+func relationTimeoutWinner(policy Policy, lockDeadline, now time.Time) uint32 {
 	lockExpired := !lockDeadline.IsZero() && !now.Before(lockDeadline)
-	statementExpired := !policy.statementDeadline.IsZero() && !now.Before(policy.statementDeadline)
-	if lockExpired && (!statementExpired || !policy.statementDeadline.Before(lockDeadline)) {
+	statementExpired := !policy.StatementDeadline.IsZero() && !now.Before(policy.StatementDeadline)
+	if lockExpired && (!statementExpired || !policy.StatementDeadline.Before(lockDeadline)) {
 		return relationTimeoutLock
 	}
 	if statementExpired {
@@ -67,21 +67,21 @@ func relationTimeoutError(state uint32) error {
 	return nil
 }
 
-// relationTimeoutSlot projects one admitted statement's queued SQL-deadline
+// TimeoutSlot projects one admitted statement's queued SQL-deadline
 // request to its session timeout observer without entering manager metadata.
 // The request publishes itself on enqueue and retires on terminal outcome.
-type relationTimeoutSlot struct {
+type TimeoutSlot struct {
 	request atomic.Pointer[relationRequest] // exact queued timeout-tracked request
 	failed  atomic.Bool                     // sticky: a tracked request ended with a SQL timeout ERROR
 }
 
-func (slot *relationTimeoutSlot) reset() {
+func (slot *TimeoutSlot) Reset() {
 	slot.request.Store(nil)
 	slot.failed.Store(false)
 }
 
 func (r *relationRequest) tracksTimeout() bool {
-	return r.policy.timeoutSlot != nil && (!r.deadline.IsZero() || !r.policy.statementDeadline.IsZero())
+	return r.policy.TimeoutSlot != nil && (!r.deadline.IsZero() || !r.policy.StatementDeadline.IsZero())
 }
 
 // The manager owns queue/grant/retirement. This atomic claim only prevents a
@@ -110,13 +110,13 @@ func (r *relationRequest) timeoutWaitError(now time.Time) error {
 			return claimed
 		}
 	}
-	return relationWaitError(r.ctx, r.policy, r.deadline, now)
+	return WaitError(r.ctx, r.policy, r.deadline, now)
 }
 
 func (r *relationRequest) finishTimeout(err error) error {
 	err = r.claimTimeoutTerminal(err)
 	if r.tracksTimeout() {
-		slot := r.policy.timeoutSlot
+		slot := r.policy.TimeoutSlot
 		if state := r.timeoutState.Load(); state == relationTimeoutLock || state == relationTimeoutStatement {
 			slot.failed.Store(true)
 		}
@@ -127,7 +127,7 @@ func (r *relationRequest) finishTimeout(err error) error {
 
 // Session.mu is held. Read no manager-owned fields; the immutable deadlines
 // and atomic state are published with the exact queued request pointer.
-func (slot *relationTimeoutSlot) pending(now time.Time) bool {
+func (slot *TimeoutSlot) Pending(now time.Time) bool {
 	if slot.failed.Load() {
 		return true
 	}

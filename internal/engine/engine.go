@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 
 type Engine struct {
 	mu            sync.Mutex
-	locks         *relationLockManager
+	locks         *lock.Manager
 	notifications map[ids.SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
@@ -178,7 +179,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	e := &Engine{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}, storage: map[ids.ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
-	e.locks = newRelationLockManager(e.domain)
+	e.locks = lock.New(e.domain)
 	e.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)

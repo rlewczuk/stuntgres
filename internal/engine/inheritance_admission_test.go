@@ -25,7 +25,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 			}
 			base := e.CatalogRead()
 			ref := e.domain.Ref(base.Epoch(), parent.address)
-			if err = e.locks.acquire(context.Background(), holder.session.transactions.ticket, lockResource{ObjectRef: ref}, shareUpdateExclusive); err != nil {
+			if err = e.locks.Acquire(context.Background(), holder.session.transactions.ticket, lockResource{ObjectRef: ref}, shareUpdateExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -141,7 +141,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	}()
 	base := e.CatalogRead()
 	ref := e.domain.Ref(base.Epoch(), table.address)
-	if err := e.locks.acquire(context.Background(), holder.session.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.session.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -173,9 +173,8 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	if err := lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{table.address}); err != nil {
 		t.Fatal("standalone DROP attempted an extra root grant", err)
 	}
-	e.locks.mu.Lock()
-	resources := len(scope.ticket.resources)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect(scope.ticket)
+	resources := len(lockState.Journals[scope.ticket])
 	if resources != 0 || stage.base.state != base.state || len(stage.removals) != 1 {
 		t.Fatal("standalone closure changed lock ownership or staged catalog")
 	}

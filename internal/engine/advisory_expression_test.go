@@ -61,9 +61,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if err != nil || rebound.ResultUsage() != node.ResultUsage() || rebound.Properties().Volatility != Volatile {
 					t.Fatal("deparse rebinding", rebound, err)
 				}
-				e.locks.mu.Lock()
-				effects := len(e.locks.entries)
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				effects := len(lockState.Resources)
 				if effects != 0 {
 					t.Fatal("binding/deparse acquired a hold", effects)
 				}
@@ -291,10 +290,10 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		v, err := bound.Eval(&EvalContext{Context: op.Context(), statementScope: scope})
 		finish := scope.Finish(err)
 		op.Done()
-		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lockResource{kind: advisoryBigintResource, low: 42}).exclusive != 1 {
+		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lockResource{Kind: advisoryBigintResource, Low: 42}).Exclusive != 1 {
 			t.Fatal("actual VOID grant", v, err, finish)
 		}
-		if err = e.locks.unlockAdvisoryAll(s.advisory.ticket); err != nil {
+		if err = e.locks.UnlockAdvisoryAll(s.advisory.ticket); err != nil {
 			t.Fatal(err)
 		}
 	})

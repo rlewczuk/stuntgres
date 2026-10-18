@@ -115,10 +115,9 @@ func TestLockModesOrder(t *testing.T) {
 	lockPending(t, e, 1)
 	first := catalogRef(t, e, e.CatalogRead(), "first")
 	later := catalogRef(t, e, e.CatalogRead(), "later")
-	e.locks.mu.Lock()
-	pending := len(e.locks.entries[lockResource{ObjectRef: first}].pending)
-	entry := e.locks.entries[lockResource{ObjectRef: later}]
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	pending := len(lockState.Resources[lockResource{ObjectRef: first}].Pending)
+	entry := lockState.Resources[lockResource{ObjectRef: later}]
 	if pending != 1 || entry != nil {
 		t.Fatal("list was preflighted, sorted, or acquired past the blocked first target")
 	}

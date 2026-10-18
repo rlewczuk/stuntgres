@@ -166,10 +166,9 @@ func TestPGSequencesDemand(t *testing.T) {
 			sequencePreparedDescription(t, e, a, query)
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				held := entry != nil && entry.holders[a.transactions.ticket].mode != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				held := entry != nil && entry.Holders[a.transactions.ticket].Mode != 0
 				if held {
 					t.Fatal("Prepare invoked helper", name)
 				}
@@ -178,24 +177,22 @@ func TestPGSequencesDemand(t *testing.T) {
 			result.Rows.Close()
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				held := entry != nil && entry.holders[a.transactions.ticket].mode == rowExclusive
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				held := entry != nil && entry.Holders[a.transactions.ticket].Mode == rowExclusive
 				want := (name == "a" && query != "SELECT last_value FROM pg_sequences WHERE FALSE" && query != "SELECT last_value FROM pg_sequences WHERE FALSE FOR UPDATE") || query == "SELECT count(*) FROM pg_sequences"
 				if held != want {
 					t.Fatal(name, "RX", held, "want", want)
 				}
 			}
 			tableRef := catalogRef(t, e, e.CatalogRead(), "t")
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			tableMarked := false
-			for resource, entry := range e.locks.entries {
-				if resource.ObjectRef == tableRef && resource.row != 0 && entry.holders[a.transactions.ticket].mode == rowUpdate {
+			for resource, entry := range lockState.Resources {
+				if resource.ObjectRef == tableRef && resource.Row != 0 && entry.Holders[a.transactions.ticket].Mode == rowUpdate {
 					tableMarked = true
 				}
 			}
-			e.locks.mu.Unlock()
 			wantTableMark := query == "SELECT s.sequencename FROM pg_sequences s JOIN t ON t.n=s.sequencename WHERE s.sequencename='a' FOR UPDATE OF s,t" || query == "SELECT sequencename FROM joined WHERE sequencename='a' FOR UPDATE"
 			if tableMarked != wantTableMark {
 				t.Fatal("ordinary joined table rowmark", tableMarked, "want", wantTableMark)

@@ -107,11 +107,10 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}()
 			go func() { result <- scope.acquireDefinitionProviders(stage) }()
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: current}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].mode&accessExclusive != 0
-			obsolete := e.locks.entries[lockResource{ObjectRef: old}]
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: current}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
+			obsolete := lockState.Resources[lockResource{ObjectRef: old}]
 			if !queued || obsolete != nil {
 				t.Fatal("old manifest was not normalized only for current-epoch acquisition", queued, obsolete)
 			}
@@ -178,10 +177,9 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				}
 				assertHold := func() {
 					t.Helper()
-					e.locks.mu.Lock()
-					entry := e.locks.entries[lockResource{ObjectRef: current}]
-					held := entry != nil && entry.holders[scope.ticket].mode&accessShare != 0
-					e.locks.mu.Unlock()
+					lockState := e.locks.Inspect()
+					entry := lockState.Resources[lockResource{ObjectRef: current}]
+					held := entry != nil && entry.Holders[scope.ticket].Mode&accessShare != 0
 					if !held {
 						t.Fatal("retained provider hold lost before statement completion")
 					}

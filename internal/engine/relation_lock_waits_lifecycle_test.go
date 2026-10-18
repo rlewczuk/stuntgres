@@ -15,12 +15,12 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(v INT)")
 			ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			r, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, relationLockPolicy{timeout: time.Hour})
+			r, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, relationLockPolicy{Timeout: time.Hour})
 			if err != nil || r == nil {
 				t.Fatal(err)
 			}
@@ -31,22 +31,19 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			case "end":
 				e.endLockOwner(b.transactions.ticket)
 			case "fence":
-				e.locks.fence(ref.Epoch + 1)
+				e.locks.Fence(ref.Epoch + 1)
 			case "grant":
 				e.endLockOwner(a.transactions.ticket)
 				cancel()
 			}
-			err = r.wait()
+			err = r.Wait()
 			want := map[string]error{"cancel": context.Canceled, "end": errRelationOwnerEnded, "fence": ErrCatalogReplaced, "grant": nil}[action]
 			if !errors.Is(err, want) {
 				t.Fatal(err, want)
 			}
-			e.locks.mu.Lock()
-			if !r.terminal || r.timer.Stop() || r.stop() {
-				e.locks.mu.Unlock()
+			if !r.Released() {
 				t.Fatal("terminal registrations remained live")
 			}
-			e.locks.mu.Unlock()
 			transactionEnd(t, a, ra, false)
 			transactionEnd(t, b, rb, false)
 			lockEmpty(t, e)
@@ -137,36 +134,6 @@ func TestRelationLockWaitsAbort(t *testing.T) {
 		transactionEnd(t, a, ra, false)
 		lockEmpty(t, e)
 	}
-}
-
-func TestRelationLockWaitsDelayedDeadlines(t *testing.T) {
-	e := New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(v INT)")
-	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
-	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	policy := relationLockPolicy{timeout: 40 * time.Millisecond, statementDeadline: time.Now().Add(80 * time.Millisecond)}
-	r, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy)
-	if err != nil || r == nil {
-		t.Fatal(err)
-	}
-	e.locks.mu.Lock()
-	time.Sleep(100 * time.Millisecond)
-	// Simulate a release transition while both callbacks are delayed by
-	// metadata synchronization. Expired lock deadline must beat transfer.
-	var notify *relationRequest
-	e.locks.endLocked(a.transactions.ticket, errRelationOwnerEnded, &notify)
-	e.locks.mu.Unlock()
-	notifyRequests(notify)
-	waitsDiagnostic(t, r.wait(), "55P03", "canceling statement due to lock timeout")
-	transactionEnd(t, a, ra, false)
-	transactionEnd(t, b, rb, false)
-	lockEmpty(t, e)
 }
 
 func TestRelationLockWaitsNowaitAbort(t *testing.T) {

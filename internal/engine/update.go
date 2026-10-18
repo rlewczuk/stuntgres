@@ -185,14 +185,14 @@ func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row ids.RowID) erro
 }
 func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode relationLockMode) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 	}
 	if err != nil {
 		return err

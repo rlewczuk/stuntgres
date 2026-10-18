@@ -20,9 +20,9 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 	action := s.insertConflict
 	manager := s.op.session.Engine().locks
 	if action.statementKeys == nil {
-		action.statementKeys = manager.checkpointUnique(s.ticket, nil)
+		action.statementKeys = manager.CheckpointUnique(s.ticket, nil)
 	}
-	action.checkpoint = manager.checkpointUnique(s.ticket, action.checkpoint)
+	action.checkpoint = manager.CheckpointUnique(s.ticket, action.checkpoint)
 	for {
 		conflict, err := s.probeUniqueRow(ref, candidate, nil, prefix, action, purpose)
 		if err != nil {
@@ -32,7 +32,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 			if err := s.insertConflictVisible(conflict.row, conflict.committed); err != nil {
 				return false, err
 			}
-			manager.restoreUnique(s.ticket, action.checkpoint)
+			manager.RestoreUnique(s.ticket, action.checkpoint)
 			s.discardExclusionCandidate(ref, candidate)
 			return false, nil
 		}
@@ -77,7 +77,7 @@ func (w *WriteStage) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatc
 }
 func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWriteBatch) (indexWriteBatch, error) {
 	prior := s.uniqueBinding
-	s.op.session.Engine().locks.restoreUnique(s.ticket, s.insertConflict.statementKeys)
+	s.op.session.Engine().locks.RestoreUnique(s.ticket, s.insertConflict.statementKeys)
 	s.uniqueBinding = nil
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {

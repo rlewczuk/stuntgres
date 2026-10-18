@@ -263,15 +263,15 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	epoch := auth.catalog.Epoch()
 	e.mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{timeoutSlot: &scope.op.lockWait, timeout: scope.op.lockTimeout, statementDeadline: scope.op.statementDeadline, source: scope.op.sourceContext}
+	policy := relationLockPolicy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
 	for _, ref := range refs {
-		request, err := e.locks.startAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
 		if request != nil {
 			if scope.replacementRead {
 				e.replacementMu.RUnlock()
 				scope.replacementRead = false
 			}
-			err = request.wait()
+			err = request.Wait()
 		}
 		if err != nil {
 			return Result{}, err
@@ -334,9 +334,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	sort.Slice(cascade, func(i, j int) bool { return cascade[i].Address.ObjectID < cascade[j].Address.ObjectID })
 	for _, ref := range cascade {
-		request, err := e.locks.startAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
 		if request != nil {
-			err = request.wait()
+			err = request.Wait()
 		}
 		if err != nil {
 			return Result{}, err

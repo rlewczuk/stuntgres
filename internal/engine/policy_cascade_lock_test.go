@@ -89,15 +89,14 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					if scope == nil {
 						lockEmpty(t, e)
 					} else {
-						e.locks.mu.Lock()
-						resources := len(scope.ticket.resources)
+						lockState := e.locks.Inspect(scope.ticket)
+						resources := len(lockState.Journals[scope.ticket])
 						valid := true
 						for _, old := range owners {
 							ref := e.domain.Ref(base.Epoch(), old.address)
-							entry := e.locks.entries[lockResource{ObjectRef: ref}]
-							valid = valid && entry != nil && entry.holders[scope.ticket].mode == accessExclusive && len(entry.pending) == 0
+							entry := lockState.Resources[lockResource{ObjectRef: ref}]
+							valid = valid && entry != nil && entry.Holders[scope.ticket].Mode == accessExclusive && len(entry.Pending) == 0
 						}
-						e.locks.mu.Unlock()
 						if !valid || resources != len(owners) {
 							t.Fatal("missing/doubled captured owner grants", valid, resources)
 						}

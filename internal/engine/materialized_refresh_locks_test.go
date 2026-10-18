@@ -57,7 +57,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			if tc.target {
 				ref.Address = d.address
 			}
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, tc.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -94,13 +94,12 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			e.locks.mu.Lock()
-			for _, entry := range e.locks.entries {
-				if len(entry.pending) != 0 {
+			lockState := e.locks.Inspect()
+			for _, entry := range lockState.Resources {
+				if len(entry.Pending) != 0 {
 					t.Error("refresh leaked pending lock")
 				}
 			}
-			e.locks.mu.Unlock()
 		})
 	}
 }

@@ -87,7 +87,7 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 	t.session.mu.Lock()
 	identity := t.session.authorization.state
 	t.session.mu.Unlock()
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
@@ -252,7 +252,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		return result, err
 	}
 	if control.Kind == parser.RollbackSavepoint {
-		e.locks.restore(t.ticket, mark.locks)
+		e.locks.Restore(t.ticket, mark.locks)
 	}
 	return Result{}, nil
 }

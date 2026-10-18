@@ -50,10 +50,9 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	completed := make(chan error, 1)
 	go func() { completed <- scope.acquireDefinitionProviders(stage) }()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	exact := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == shareUpdateExclusive && entry.pending[0].ticket == scope.ticket
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	exact := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == shareUpdateExclusive && entry.Pending[0].Ticket == scope.ticket
 	cancel()
 	lockAwait(t, completed, context.Canceled)
 	if !exact {

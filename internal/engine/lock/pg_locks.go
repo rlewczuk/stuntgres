@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"fmt"
@@ -8,24 +8,24 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-type pgLockKind uint8
+type RecordKind uint8
 
 const (
-	pgRelationLock pgLockKind = iota
-	pgObjectLock
-	pgAdvisoryLock
-	pgVirtualLock
-	pgTransactionLock
-	pgPredicateLock
+	RelationRecord RecordKind = iota
+	ObjectRecord
+	AdvisoryRecord
+	VirtualRecord
+	TransactionRecord
+	PredicateRecord
 )
 
 // These records contain only owned scalars. In particular, no ticket, resource
 // key, queue, map, provider value or session pointer escapes manager metadata.
 // The public view joins this manager capture with a separate SSI capture.
-type pgLockOwner struct {
-	session  ids.SessionID
-	local    ids.TxID
-	prepared bool
+type RecordOwner struct {
+	Session  ids.SessionID
+	Local    ids.TxID
+	Prepared bool
 }
 
 // Manager membership is stable while capturing, but canonical assignment and
@@ -33,55 +33,55 @@ type pgLockOwner struct {
 // once, then use the same value for ownership and every dependency in this view.
 // This lookup is capture-local; no ticket pointer escapes in result records.
 type pgLockIdentity struct {
-	owner pgLockOwner
+	owner RecordOwner
 	xid   uint32
 }
 
-type pgLockRecord struct {
-	kind          pgLockKind
-	owner         pgLockOwner
-	mode          relationLockMode
-	object, class uint32
-	subobject     int16
-	target        pgLockOwner
-	xid           uint32
-	waiting       bool
-	waitstart     time.Time
+type Record struct {
+	Kind          RecordKind
+	Owner         RecordOwner
+	Mode          Mode
+	Object, Class uint32
+	Subobject     int16
+	Target        RecordOwner
+	XID           uint32
+	Waiting       bool
+	WaitStart     time.Time
 }
 
-func publicLockOwner(domain *ids.Domain, ref ids.TxRef, prepared bool) (pgLockOwner, bool, error) {
+func PublicOwner(domain *ids.Domain, ref ids.TxRef, prepared bool) (RecordOwner, bool, error) {
 	token := ref.Session()
 	if ref.Domain() != domain || token.Domain() != domain || token.Private() != nil || token.ID() == 0 {
-		return pgLockOwner{}, false, nil
+		return RecordOwner{}, false, nil
 	}
 	if !prepared && token.ID() > math.MaxInt32 {
-		return pgLockOwner{}, false, fmt.Errorf("stuntgres: lock session identity exceeds integer range")
+		return RecordOwner{}, false, fmt.Errorf("stuntgres: lock session identity exceeds integer range")
 	}
-	return pgLockOwner{session: token.ID(), local: ref.ID(), prepared: prepared}, true, nil
+	return RecordOwner{Session: token.ID(), Local: ref.ID(), Prepared: prepared}, true, nil
 }
 
-func (m *relationLockManager) pgLockOwner(t *relationTicket) (pgLockOwner, bool, error) {
+func (m *Manager) pgLockOwner(t *Ticket) (RecordOwner, bool, error) {
 	if !m.valid(t) || t.persistent {
-		return pgLockOwner{}, false, nil
+		return RecordOwner{}, false, nil
 	}
-	return publicLockOwner(m.domain, t.ref, t.detached)
+	return PublicOwner(m.domain, t.ref, t.detached)
 }
 
 // Capture only: no settling, deadlock/timeout evaluation, callbacks, lazy
 // completion registration or Engine/Session/TX synchronization is permitted.
-func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockRecord, error) {
+func (m *Manager) PGLocks(epoch ids.CatalogEpoch) ([]Record, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.epoch > epoch {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
-	var records []pgLockRecord
-	identities := make(map[*relationTicket]pgLockIdentity, len(m.owners))
+	var records []Record
+	identities := make(map[*Ticket]pgLockIdentity, len(m.owners))
 	// Session advisory grants use the current incarnation, or its real idle /0
 	// association. Build this lookup once rather than scanning every owner for
 	// each advisory resource. Prospective CHAIN registrations use their newest
 	// registered incarnation, whose VXID is already genuinely owned.
-	var active map[ids.SessionID]pgLockOwner
+	var active map[ids.SessionID]RecordOwner
 	for _, ticket := range m.owners {
 		if ticket.ref.Epoch() != epoch {
 			continue
@@ -93,46 +93,46 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 		if !visible {
 			continue
 		}
-		identity := pgLockIdentity{owner: owner, xid: ticket.assignedPublicXID()}
+		identity := pgLockIdentity{owner: owner, xid: ticket.AssignedPublicXID()}
 		identities[ticket] = identity
 		if !ticket.detached {
-			records = append(records, pgLockRecord{kind: pgVirtualLock, owner: owner, target: owner})
+			records = append(records, Record{Kind: VirtualRecord, Owner: owner, Target: owner})
 			if session := m.sessions[ticket.session]; session != nil && len(session.resources) != 0 {
 				if active == nil {
-					active = make(map[ids.SessionID]pgLockOwner)
+					active = make(map[ids.SessionID]RecordOwner)
 				}
-				if active[owner.session].local < owner.local {
-					active[owner.session] = owner
+				if active[owner.Session].Local < owner.Local {
+					active[owner.Session] = owner
 				}
 			}
 		}
 		if identity.xid != 0 {
-			records = append(records, pgLockRecord{kind: pgTransactionLock, owner: owner, xid: identity.xid})
+			records = append(records, Record{Kind: TransactionRecord, Owner: owner, XID: identity.xid})
 		}
 	}
 	// Reuse one resource-local index; live lifetimes contribute modes to one
 	// process/object row, while detached prepared participants stay separate.
-	var advisoryRows map[pgLockOwner]int
+	var advisoryRows map[RecordOwner]int
 	for resource, entry := range m.entries {
-		if resource.kind == ordinaryResource && resource.completion == nil && resource.Epoch != epoch {
+		if resource.Kind == OrdinaryResource && resource.completion == nil && resource.Epoch != epoch {
 			continue
 		}
 		// Logical row/key holds have no physical target. Completion ownership
 		// was emitted exactly once from the owning ticket above.
-		projectHolds := resource.row == 0 && resource.key == nil && resource.completion == nil
-		advisory := resource.kind == advisoryBigintResource || resource.kind == advisoryPairResource
+		projectHolds := resource.Row == 0 && resource.key == nil && resource.completion == nil
+		advisory := resource.Kind == AdvisoryBigintResource || resource.Kind == AdvisoryPairResource
 		clear(advisoryRows)
 		if projectHolds {
 			for ticket, hold := range entry.holders {
-				if hold.mode == 0 || !m.valid(ticket) {
+				if hold.Mode == 0 || !m.valid(ticket) {
 					continue
 				}
-				var owner pgLockOwner
+				var owner RecordOwner
 				var visible bool
 				var err error
 				if ticket.persistent {
-					owner, visible, err = publicLockOwner(m.domain, m.domain.Tx(ticket.session, 0, 0, nil, 0), false)
-					if current, ok := active[owner.session]; ok {
+					owner, visible, err = PublicOwner(m.domain, m.domain.Tx(ticket.session, 0, 0, nil, 0), false)
+					if current, ok := active[owner.Session]; ok {
 						owner = current
 					}
 				} else {
@@ -147,20 +147,20 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 				}
 				if advisory {
 					if !ticket.detached {
-						if current, ok := active[owner.session]; ok {
+						if current, ok := active[owner.Session]; ok {
 							owner = current
 						}
 					}
 					if index, ok := advisoryRows[owner]; ok {
-						records[index].mode |= hold.mode
+						records[index].Mode |= hold.Mode
 						continue
 					}
 					if advisoryRows == nil {
-						advisoryRows = make(map[pgLockOwner]int)
+						advisoryRows = make(map[RecordOwner]int)
 					}
 					advisoryRows[owner] = len(records)
 				}
-				record, err := pgResourceRecord(resource, owner, hold.mode)
+				record, err := pgResourceRecord(resource, owner, hold.Mode)
 				if err != nil {
 					return nil, err
 				}
@@ -176,13 +176,13 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 				continue
 			}
 			owner := identity.owner
-			var record pgLockRecord
-			if resource.completion != nil || resource.row != 0 || resource.key != nil {
+			var record Record
+			if resource.completion != nil || resource.Row != 0 || resource.key != nil {
 				target := resource.completion
-				purpose := request.policy.completionPurpose
+				purpose := request.policy.CompletionPurpose
 				if target == nil {
 					target = m.pgWaitDependency(request)
-					purpose = completionTransaction
+					purpose = CompletionTransaction
 				}
 				if target == nil {
 					continue
@@ -191,10 +191,10 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 				if !present {
 					continue
 				}
-				record = pgLockRecord{kind: pgVirtualLock, owner: owner, target: targetIdentity.owner}
-				if (purpose == completionTransaction || targetIdentity.owner.prepared) && targetIdentity.xid != 0 {
-					record.kind, record.xid = pgTransactionLock, targetIdentity.xid
-				} else if targetIdentity.owner.prepared {
+				record = Record{Kind: VirtualRecord, Owner: owner, Target: targetIdentity.owner}
+				if (purpose == CompletionTransaction || targetIdentity.owner.Prepared) && targetIdentity.xid != 0 {
+					record.Kind, record.XID = TransactionRecord, targetIdentity.xid
+				} else if targetIdentity.owner.Prepared {
 					return nil, fmt.Errorf("stuntgres: lock dependency lacks live transaction identity")
 				}
 			} else {
@@ -204,7 +204,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 					return nil, err
 				}
 			}
-			record.waiting, record.waitstart = true, request.enqueuedAt
+			record.Waiting, record.WaitStart = true, request.enqueuedAt
 			records = append(records, record)
 		}
 	}
@@ -213,10 +213,10 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 
 // Select one real current edge. Holder preference and a deterministic diagnostic
 // tie-break do not modify the graph or turn diagnostic identities into XIDs.
-func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relationTicket {
-	var target *relationTicket
+func (m *Manager) pgWaitDependency(request *relationRequest) *Ticket {
+	var target *Ticket
 	for ticket, hold := range request.entry.holders {
-		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !lockConflict(request.mode, hold.mode) {
+		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !Conflicts(request.mode, hold.Mode) {
 			continue
 		}
 		if target == nil || ticket.ref.Diagnostic() < target.ref.Diagnostic() {
@@ -226,40 +226,40 @@ func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relati
 	if target != nil {
 		return target
 	}
-	if request.ref.row != 0 && request.mode == noKeyUpdate {
+	if request.ref.Row != 0 && request.mode == ForNoKeyUpdate {
 		return nil
 	}
 	for _, earlier := range request.entry.pending {
 		if earlier == request {
 			break
 		}
-		if m.validInquiryRequest(earlier, request.entry, request.ref) && !sameLockSession(earlier.ticket, request.ticket) && lockConflict(request.mode, earlier.mode) {
+		if m.validInquiryRequest(earlier, request.entry, request.ref) && !sameLockSession(earlier.ticket, request.ticket) && Conflicts(request.mode, earlier.mode) {
 			return earlier.ticket
 		}
 	}
 	return nil
 }
 
-func pgResourceRecord(resource lockResource, owner pgLockOwner, mode relationLockMode) (pgLockRecord, error) {
-	r := pgLockRecord{owner: owner, mode: mode}
-	switch resource.kind {
-	case advisoryBigintResource, advisoryPairResource:
-		r.kind, r.class, r.object, r.subobject = pgAdvisoryLock, resource.high, resource.low, 1
-		if resource.kind == advisoryPairResource {
-			r.subobject = 2
+func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, error) {
+	r := Record{Owner: owner, Mode: mode}
+	switch resource.Kind {
+	case AdvisoryBigintResource, AdvisoryPairResource:
+		r.Kind, r.Class, r.Object, r.Subobject = AdvisoryRecord, resource.High, resource.Low, 1
+		if resource.Kind == AdvisoryPairResource {
+			r.Subobject = 2
 		}
-	case ordinaryResource:
-		r.object = uint32(resource.Address.ObjectID)
+	case OrdinaryResource:
+		r.Object = uint32(resource.Address.ObjectID)
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
-			r.kind = pgRelationLock
+			r.Kind = RelationRecord
 		case ids.TypeClassID:
-			r.kind, r.class = pgObjectLock, uint32(ids.TypeClassID)
+			r.Kind, r.Class = ObjectRecord, uint32(ids.TypeClassID)
 		default:
-			return pgLockRecord{}, fmt.Errorf("stuntgres: unknown lock object class")
+			return Record{}, fmt.Errorf("stuntgres: unknown lock object class")
 		}
 	default:
-		return pgLockRecord{}, fmt.Errorf("stuntgres: unknown lock resource kind")
+		return Record{}, fmt.Errorf("stuntgres: unknown lock resource kind")
 	}
 	return r, nil
 }

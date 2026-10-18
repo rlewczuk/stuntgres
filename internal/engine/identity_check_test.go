@@ -173,10 +173,9 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	defer cancel()
 	waiting := lockAsync(e, b, ctx, create, false)
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare
 	if !queued {
 		t.Fatal("mixed staged/incumbent CHECK did not admit exact incumbent")
 	}

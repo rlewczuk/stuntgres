@@ -153,18 +153,17 @@ func queryLimitGrants(t *testing.T, e *Engine, ticket *relationTicket, tables ma
 		ref := roleTableRef(t, e, table)
 		e.mu.Lock()
 		for _, id := range ids {
-			want[lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[id-1].row}] = true
+			want[lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[id-1].row}] = true
 		}
 		e.mu.Unlock()
 	}
-	e.locks.mu.Lock()
+	lockState := e.locks.Inspect()
 	got := make(map[lockResource]bool)
-	for resource, entry := range e.locks.entries {
-		if resource.row != 0 && entry.holders[ticket].mode != 0 {
+	for resource, entry := range lockState.Resources {
+		if resource.Row != 0 && entry.Holders[ticket].Mode != 0 {
 			got[resource] = true
 		}
 	}
-	e.locks.mu.Unlock()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("exact physical count frontier", got, want)
 	}

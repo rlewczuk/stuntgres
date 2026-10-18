@@ -171,10 +171,9 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 	})
 	lockPending(t, command.e, 1)
 	ref := command.e.domain.Ref(command.auth.catalog.Epoch(), child.address)
-	command.e.locks.mu.Lock()
-	entry := command.e.locks.entries[lockResource{ObjectRef: ref}]
-	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == command.scope.ticket && entry.pending[0].mode == accessExclusive
-	command.e.locks.mu.Unlock()
+	lockState := command.e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == accessExclusive
 	if !queued {
 		t.Fatal("metadata provider did not queue its actual descendant AX request")
 	}

@@ -7,6 +7,8 @@ import (
 
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func exclusionInsertAwait(t *testing.T, done <-chan deleteOutcome, count int64, code string) {
@@ -42,14 +44,13 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 				done, _ := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
 				lockPending(t, e, 1)
-				e.locks.mu.Lock()
+				lockState := e.locks.Inspect()
 				matched := false
-				for resource, entry := range e.locks.entries {
-					if resource.key != nil && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.session == b.token {
+				for resource, entry := range lockState.Resources {
+					if resource.Key() != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == uniqueClaim && entry.Pending[0].Ticket.Session() == b.token {
 						matched = true
 					}
 				}
-				e.locks.mu.Unlock()
 				if !matched {
 					t.Fatal("same-key wait lacks its actual typed key resource")
 				}
@@ -96,21 +97,20 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					}
 					done, _ := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
 					lockPending(t, e, 1)
-					e.locks.mu.Lock()
+					lockState := e.locks.Inspect()
 					matched := false
 					if deferrable {
-						entry := e.locks.entries[lockResource{completion: at}]
-						matched = entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == transactionCompletion && entry.pending[0].ticket.session == b.token && entry.holders[at].mode&transactionCompletion != 0
+						entry := lockState.Resources[lock.CompletionOf(at)]
+						matched = entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == transactionCompletion && entry.Pending[0].Ticket.Session() == b.token && entry.Holders[at].Mode&transactionCompletion != 0
 					} else {
 						// DELETE retains the existing exact-key grant. The eager
 						// admission waits here before its dirty completion probe.
-						for resource, entry := range e.locks.entries {
-							if resource.key != nil && resource.key.bucket.ObjectRef.Address == index && len(resource.key.value.([]sqltype.Value)) == 1 && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.session == b.token && entry.holders[at].mode&uniqueClaim != 0 {
+						for resource, entry := range lockState.Resources {
+							if resource.Key() != nil && resource.Address == index && len(resource.Key().Value().([]sqltype.Value)) == 1 && len(entry.Pending) == 1 && entry.Pending[0].Mode == uniqueClaim && entry.Pending[0].Ticket.Session() == b.token && entry.Holders[at].Mode&uniqueClaim != 0 {
 								matched = true
 							}
 						}
 					}
-					e.locks.mu.Unlock()
 					if !matched {
 						t.Fatal("provisional deletion lacks its exact expected owner wait", deferrable)
 					}

@@ -237,14 +237,14 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ids.ObjectRef, wor
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		found := false
-		for resource, entry := range e.locks.entries {
+		for resource, entry := range lockState.Resources {
 			if resource.ObjectRef != index {
 				continue
 			}
-			for _, request := range entry.pending {
-				if !request.terminal && request.ticket.ref.Session() == worker.token && request.mode == uniqueClaim {
+			for _, request := range entry.Pending {
+				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && request.Mode == uniqueClaim {
 					found = true
 					break
 				}
@@ -253,7 +253,6 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ids.ObjectRef, wor
 				break
 			}
 		}
-		e.locks.mu.Unlock()
 		if found {
 			return
 		}

@@ -122,13 +122,12 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 			e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				called = true
 				ref := e.domain.Ref(e.CatalogRead().Epoch(), source.address)
-				e.locks.mu.Lock()
-				if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
-					for _, holder := range entry.holders {
-						granted = granted || holder.mode == accessShare
+				lockState := e.locks.Inspect()
+				if entry := lockState.Resources[lockResource{ObjectRef: ref}]; entry != nil {
+					for _, holder := range entry.Holders {
+						granted = granted || holder.Mode == accessShare
 					}
 				}
-				e.locks.mu.Unlock()
 			}}
 			defer func() { e.providers[ids.RelationClassID] = original }()
 			roleExecute(t, e, op, query)

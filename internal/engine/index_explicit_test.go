@@ -47,18 +47,17 @@ func TestBtreeIndexExplicitExclusionBeforeTargets(t *testing.T) {
 				done := waitsCommandAsync(e, builder, ctx, query, false)
 				seenShare := false
 				for {
-					e.locks.mu.Lock()
-					for _, entry := range e.locks.entries {
-						for _, request := range entry.pending {
-							if request.ticket == ticket && request.mode == relationShare {
+					lockState := e.locks.Inspect()
+					for _, entry := range lockState.Resources {
+						for _, request := range entry.Pending {
+							if request.Ticket == ticket && request.Mode == relationShare {
 								seenShare = true
 							}
 						}
-						if entry.holders[ticket].mode&relationShare != 0 {
+						if entry.Holders[ticket].Mode&relationShare != 0 {
 							seenShare = true
 						}
 					}
-					e.locks.mu.Unlock()
 					if seenShare {
 						cancel()
 					}
@@ -113,15 +112,14 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 			done := waitsCommandAsync(e, reader, ctx, query, false)
 			seenShare := false
 			for {
-				e.locks.mu.Lock()
-				for _, entry := range e.locks.entries {
-					for _, request := range entry.pending {
-						if request.mode == relationShare {
+				lockState := e.locks.Inspect()
+				for _, entry := range lockState.Resources {
+					for _, request := range entry.Pending {
+						if request.Mode == relationShare {
 							seenShare = true
 						}
 					}
 				}
-				e.locks.mu.Unlock()
 				if seenShare {
 					cancel()
 				}

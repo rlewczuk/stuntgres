@@ -120,10 +120,85 @@ teardown tests.
 - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
   (`78265dd49`, `d4a96abb9`, `e9c2356cd`, then the commit that records this
   status)
-- [ ] 4b — `lock` created and declarations moved
+- [x] 4b — `lock` created and declarations moved (`6fe4ccdc6`,
+  `ff15343fb`, `f2887fb33`, `8192746a5`, `dd7b1b796`, then the commit that
+  records this status)
 - [ ] 4c — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases, all in `internal/engine/lock_aliases.go`:
+
+- Types: `completionLockPurpose`, `lockResource`, `lockWaiter`,
+  `multiEvent`, `multiMode`, `multiTuple`, `pgLockRecord`, `relationHold`,
+  `relationLockCheckpoint`, `relationLockMode`, `relationLockPolicy`,
+  `relationRequest`, `relationTicket`.
+- Mode constants (`accessShare` … `typeExclusive`; note `rowUpdate`,
+  `noKeyUpdate`, `keyShare` and `rowShare` are `lock.ForUpdate`,
+  `ForNoKeyUpdate`, `ForKeyShare` and `ForShare`, while `relationRowShare`,
+  `relationShare` and `relationExclusive` are `lock.RowShare`, `Share` and
+  `Exclusive`), `advisoryBigintResource`, `advisoryPairResource`,
+  `completionVirtual`, `completionTransaction`, the six `multi*` modes and
+  the six `pg*Lock` record kinds.
+- Errors: `errRelationOwnerEnded`, `errRelationUnavailable`.
+
+Not an alias: `engine.ErrCatalogReplaced = ids.ErrCatalogReplaced` is the
+engine's exported name for the shared value (525 engine uses). 4c decides
+whether to rewrite those uses to `ids.` or keep the re-export.
+
+4b results:
+
+- **Commits.** `6fe4ccdc6` gives `ErrCatalogReplaced` a home in `ids` and
+  drops `ticket.manager` uses. `ff15343fb` renames the API in place with a
+  type-checked renamer and adds ticket and request accessors. `f2887fb33`
+  adds the diagnostic seam and rewrites engine tests to it. `8192746a5` moves
+  lock-only tests onto `lockFixture`. `dd7b1b796` moves the files.
+- **Files.** `relation_lock.go` → `lock/manager.go`, `relation_lock_advisory.go`
+  → `advisory.go`, `relation_lock_blocking.go` → `blocking.go`,
+  `relation_lock_queries.go` → `queries.go`, `relation_lock_snapshot.go` →
+  `pg_locks.go`, `relation_lock_unique.go` → `unique.go`,
+  `relation_lock_unique_delta.go` → `unique_delta.go`, `relation_deadlock.go`
+  → `deadlock.go`, `relation_timeout.go` → `timeout.go`,
+  `transaction_multixact.go` → `multixact.go`, `transaction_multixact_cache.go`
+  → `multixact_cache.go`. New: `errors.go`, `inspect.go`, `README.md`.
+- **API.** `Manager` with the methods the engine calls, `Ticket`, `Request`,
+  `Resource` (exported `Row`, `Kind`, `High`, `Low`; `CompletionOf`,
+  `Key`), `Policy`, `Hold`, `Checkpoint`, `TimeoutSlot`, `Mode` with
+  PostgreSQL names and `Conflicts`, `WaitError`, MultiXact values, `Record`
+  for `pg_locks`, `BlockingPid`, `UniqueKeyComparer`. Diagnostics:
+  `Inspect`/`Snapshot`, `ExpireWait`, `ExpireLockTimeout`,
+  `Request.Terminal`, `Request.Released`, `MutexHeld`.
+- **Reference frame constraint.** Eight `reference/` tests (read-only) find a
+  parked wait by the stack frame suffix `.(*relationRequest).wait`. Renaming
+  `wait` to `Wait` broke them in that commit's first quickcheck,
+  so the commit was amended. `Request` is therefore an alias of the unexported
+  `relationRequest`, and `Wait` delegates to `wait`.
+- **Tests moved into `lock`** (setup rewritten onto `lockFixture`,
+  assertions unchanged): all of `relation_deadlock_search_test.go`,
+  `_review_test.go`, `_publication_test.go`, `_lifecycle_test.go` and
+  `_deadline_test.go` (now `deadlock_*_test.go`) except
+  `TestRelationDeadlockCommandErrorIdentity`, which stays in
+  `relation_deadlock_test.go`; `enum_lock_test.go` as `TestTypeLockLifecycle`;
+  `TestBlockingPidsLifecycle`; the manager part of
+  `TestBlockingPidsAdvisoryAuthority`; advisory counted grants and overflow
+  (`TestAdvisoryCountedGrantsAndOverflow`, from
+  `TestAdvisorySessionKeysCountsCompatibility`); the delayed-callback subtest
+  of `TestAdvisorySessionCompatibleCohortTerminalOrder`
+  (`TestAdvisoryExpiredSourceWinsDelayedCallback`); MultiXact age arithmetic
+  (from `TestTransactionIdentityAgeArithmetic`), the LRU and counter-wrap
+  subtests of `TestTransactionIdentityMultiHistory`; the `pgResourceRecord`
+  half of `TestPGLocksProjectionModes` (`TestPGLocksResourceRecords`, which
+  also pins relation and type records); the concurrent-assignment capture of
+  `TestPGLocksSnapshotOwnership`; `TestRelationLockWaitsDelayedDeadlines`.
+- **Tests rewritten in the engine.** About 150 files moved from locked
+  sections to `Inspect`, mostly mechanically. Substantial rewrites:
+  `TestBlockingPidsAdvisorySafeSnapshot` (the engine half of the advisory
+  authority test), `TestUniqueClaimInterningAndRetirement` (a genuine hash
+  collision through `PinUniqueKey` replaces editing a bucket),
+  `TestPGLocksWaitDependencies` (a pinned genuine key replaces a synthetic
+  one), and the expiry tests in `delete_lifecycle_test.go`,
+  `sequence_owned_lock_test.go`, `advisory_xact_terminal_test.go` and
+  `session_timeout_pending_test.go`. The `sequence_owned_lock` statements run
+  without command admission, so their request has no lock deadline; that is
+  why `ExpireLockTimeout` exists. No test was deleted.
 
 4a results, for 4b:
 
@@ -180,14 +255,39 @@ Lessons for steps 5–7 (state-ownership method):
   doc comments), fix imports per file, and keep each existing file's import
   style.
 
+- **Verification.** `quickcheck` passed after every commit. Targeted
+  `make check RACE=1` selections (relation locks, deadlock, waits, advisory,
+  blocking PIDs, `pg_locks`, MultiXact, unique keys, session timeouts,
+  prepared transactions and the moved `lock` tests) passed after each of
+  the last three commits. The full `racecheck` was skipped at the user's
+  request. The 68 reference tests in the locking, advisory, blocking-PID,
+  row-lock and MultiXact selections passed with `REFERENCE=1` and in quick
+  mode. `make bench`: about 1.55 ms/op and 7,753 allocations before and
+  after (the <1 ms target is already missed on master). `make deps` lists
+  only module paths.
+
+Lessons from 4b:
+
+- Measure test coupling before planning a move. Production needed a small
+  API; tests read the internals at about 230 locked sections. An owned
+  snapshot plus a type-checked rewriter made that tractable.
+- Grep `reference/` and `smoke/` for internal function names before
+  renaming: frame-name matches are invisible to the compiler.
+- A rewriter that removes a mutex section must refuse sections that write,
+  block (`<-ch`, `Sleep`) or call internals, and then re-derive any value a
+  later section reused, because snapshot copies go stale where live pointers
+  did not.
+- Rename in place before moving. Exported names inside the old package keep
+  every intermediate commit green; type renames, which would collide with
+  engine names such as `New`, happen inside the new package after `git mv`.
+
 Notes for later steps:
 
-- 4b: `ErrCatalogReplaced` (`catalog.go`, shared catalog provenance error) and
-  `sqlError` (`engine.go`) need homes. `ErrCatalogReplaced` must keep one
-  identity for `errors.Is`.
-- 4b: engine code reads immutable ticket fields (`ref`, `session`,
-  `persistent`, `manager`) directly; tests also read requests and entries.
-  Export small accessors.
+- 4c: remove the aliases above. Engine tests name `lockWaiter` and
+  `lock.ResourceState`; production names the rest.
+- `TestRelationLockWaitsDelayedDeadlines` (moved) still sleeps until its
+  absolute deadlines pass while holding the manager mutex. The mutex, not
+  the sleep, orders the callbacks; a fake clock would remove the wait.
 - Step 7: `acquireSerializableSnapshot` (`serializable_snapshot.go`) waits for
   a safe snapshot and retakes `replacementMu` as a reader while its callers
   (`snapshotDataPhase`, `not_null.go`, `typed_mutation.go`) hold

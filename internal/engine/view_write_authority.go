@@ -102,15 +102,15 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 // same lock ticket/journal owns the real RX grant and all lifecycle source locks.
 func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: w.ref}, rowExclusive, policy)
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: w.ref}, rowExclusive, policy)
 	if request != nil {
 		s.admissionWaited = true
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 	}
 	if err != nil {
 		return err

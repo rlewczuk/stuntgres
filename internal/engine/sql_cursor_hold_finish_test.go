@@ -193,15 +193,14 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			}()
 			if sequenceWait {
 				lockPending(t, e, 1)
-				e.locks.mu.Lock()
-				var pending *relationRequest
-				for _, entry := range e.locks.entries {
-					for _, request := range entry.pending {
-						pending = request
+				lockState := e.locks.Inspect()
+				var pending *lockWaiter
+				for _, entry := range lockState.Resources {
+					for i := range entry.Pending {
+						pending = &entry.Pending[i]
 					}
 				}
-				correct := pending != nil && pending.provenance == ref && pending.ticket == ticket
-				e.locks.mu.Unlock()
+				correct := pending != nil && pending.Provenance == ref && pending.Ticket == ticket
 				if !correct {
 					t.Fatal("materialization does not wait under original transaction ticket")
 				}

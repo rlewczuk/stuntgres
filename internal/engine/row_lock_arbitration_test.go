@@ -20,19 +20,18 @@ func TestRowLockRelationAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			op.Done()
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			rowHolds := 0
 			relationHolds := 0
-			for resource, entry := range e.locks.entries {
-				held := entry.holders[a.transactions.ticket].mode
-				if resource.row != 0 && held != 0 {
+			for resource, entry := range lockState.Resources {
+				held := entry.Holders[a.transactions.ticket].Mode
+				if resource.Row != 0 && held != 0 {
 					rowHolds++
 				}
-				if resource.row == 0 && held == relationRowShare {
+				if resource.Row == 0 && held == relationRowShare {
 					relationHolds++
 				}
 			}
-			e.locks.mu.Unlock()
 			if rowHolds != 0 || relationHolds != 1 {
 				t.Fatal("prepare authority", rowHolds, relationHolds)
 			}

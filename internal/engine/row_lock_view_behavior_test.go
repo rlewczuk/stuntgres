@@ -59,14 +59,13 @@ func rowLockViewGrants(t *testing.T, e *Engine, ticket *relationTicket, table st
 	e.mu.Lock()
 	want := make(map[lockResource]bool, len(ids))
 	for _, id := range ids {
-		want[lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[id-1].row}] = true
+		want[lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[id-1].row}] = true
 	}
 	e.mu.Unlock()
-	e.locks.mu.Lock()
-	defer e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
 	got := make(map[lockResource]bool)
-	for resource, entry := range e.locks.entries {
-		if resource.row != 0 && entry.holders[ticket].mode != 0 {
+	for resource, entry := range lockState.Resources {
+		if resource.Row != 0 && entry.Holders[ticket].Mode != 0 {
 			got[resource] = true
 		}
 	}

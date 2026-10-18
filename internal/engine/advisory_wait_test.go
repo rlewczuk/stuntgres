@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryPairResource, high: 0x80000000, low: 0xffffffff}
+		key := lockResource{Kind: advisoryPairResource, High: 0x80000000, Low: 0xffffffff}
 		advisoryUnitGrant(t, a, ra, key, advisoryShared)
 		waiter, err := advisoryUnitAcquire(t, b, rb, key, advisoryExclusive, false)
 		if err != nil || waiter == nil {
@@ -30,12 +31,12 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
 		advisoryUnitUnlock(t, a, key, advisoryShared, true)
 		select {
-		case <-waiter.done:
-			t.Fatal("partial decrement woke writer", waiter.err)
+		case <-waiter.Done():
+			t.Fatal("partial decrement woke writer", waiter.Err())
 		default:
 		}
 		advisoryUnitUnlock(t, a, key, advisoryShared, true)
-		if err = deadlockResult(t, waiter); err != nil || advisoryUnitHold(b, key).exclusive != 1 {
+		if err = deadlockResult(t, waiter); err != nil || advisoryUnitHold(b, key).Exclusive != 1 {
 			t.Fatal("counted queued grant", err)
 		}
 		advisoryUnitUnlock(t, b, key, advisoryExclusive, true)
@@ -45,7 +46,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryBigintResource, low: 3}
+		key := lockResource{Kind: advisoryBigintResource, Low: 3}
 		advisoryUnitGrant(t, a, ra, key, advisoryShared)
 		advisoryUnitGrant(t, b, rb, key, advisoryShared)
 		first, err := advisoryUnitAcquire(t, a, ra, key, advisoryExclusive, false)
@@ -60,19 +61,18 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		if err = deadlockResult(t, victim); !errors.As(err, &d) || d.Code != "40P01" || !strings.Contains(d.Detail, "advisory lock [0,3,1]") || strings.Count(d.Detail, "blocked by session ") != 2 {
 			t.Fatal("physical advisory cycle", err)
 		}
-		if advisoryUnitHold(a, key).shared != 1 || advisoryUnitHold(b, key).shared != 1 {
+		if advisoryUnitHold(a, key).Shared != 1 || advisoryUnitHold(b, key).Shared != 1 {
 			t.Fatal("victim erased prior hold")
 		}
 		advisoryUnitUnlock(t, b, key, advisoryShared, true)
 		if err = deadlockResult(t, first); err != nil {
 			t.Fatal(err)
 		}
-		if h := advisoryUnitHold(a, key); h.shared != 1 || h.exclusive != 1 {
+		if h := advisoryUnitHold(a, key); h.Shared != 1 || h.Exclusive != 1 {
 			t.Fatal(h)
 		}
-		e.locks.mu.Lock()
-		pendingJournal := len(a.transactions.ticket.resources) + len(b.transactions.ticket.resources)
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect(a.transactions.ticket, b.transactions.ticket)
+		pendingJournal := len(lockState.Journals[a.transactions.ticket]) + len(lockState.Journals[b.transactions.ticket])
 		if pendingJournal != 0 {
 			t.Fatal("terminal provenance journal retained", pendingJournal)
 		}
@@ -85,11 +85,12 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ordinary := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-		key := lockResource{kind: advisoryPairResource, high: 7, low: 8}
-		if a.transactions.ticket.participant() != a.advisory.ticket.participant() || b.transactions.ticket.participant() != b.advisory.ticket.participant() {
+		key := lockResource{Kind: advisoryPairResource, High: 7, Low: 8}
+		live := e.locks.Inspect()
+		if live.Participant(a.transactions.ticket) != live.Participant(a.advisory.ticket) || live.Participant(b.transactions.ticket) != live.Participant(b.advisory.ticket) {
 			t.Fatal("live tickets did not collapse")
 		}
-		if err := e.locks.acquire(context.Background(), a.transactions.ticket, ordinary, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), a.transactions.ticket, ordinary, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		advisoryUnitGrant(t, b, rb, key, advisoryExclusive)
@@ -103,7 +104,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 			t.Fatal("mixed cycle absent", err)
 		}
 		transactionEnd(t, b, rb, false)
-		if advisoryUnitHold(b, key).exclusive != 1 {
+		if advisoryUnitHold(b, key).Exclusive != 1 {
 			t.Fatal("transaction victim removed persistent grant")
 		}
 		advisoryUnitUnlock(t, b, key, advisoryExclusive, true)
@@ -116,21 +117,21 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 			e := New()
 			a, ra := advisoryUnitOwner(t, e)
 			b, rb := advisoryUnitOwner(t, e)
-			key := lockResource{kind: advisoryBigintResource, low: 4}
+			key := lockResource{Kind: advisoryBigintResource, Low: 4}
 			advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
-			policy := relationLockPolicy{provenance: rb, timeout: 70 * time.Millisecond, statementDeadline: time.Now().Add(time.Second)}
+			policy := relationLockPolicy{Provenance: rb, Timeout: 70 * time.Millisecond, StatementDeadline: time.Now().Add(time.Second)}
 			code, message := "55P03", "canceling statement due to lock timeout"
 			if statementFirst {
-				policy.timeout = time.Second
-				policy.statementDeadline = time.Now().Add(70 * time.Millisecond)
+				policy.Timeout = time.Second
+				policy.StatementDeadline = time.Now().Add(70 * time.Millisecond)
 				code, message = "57014", "canceling statement due to statement timeout"
 			}
 			// Statement expiration is delivered by the admitted command's
 			// context; the canonical manager itself schedules only lock_timeout.
-			clock, cancel := context.WithDeadline(context.Background(), policy.statementDeadline)
+			clock, cancel := context.WithDeadline(context.Background(), policy.StatementDeadline)
 			t.Cleanup(cancel)
-			policy.source = context.Background()
-			r, err := e.locks.startAcquire(clock, b.advisory.ticket, key, advisoryExclusive, policy)
+			policy.Source = context.Background()
+			r, err := e.locks.StartAcquire(clock, b.advisory.ticket, key, advisoryExclusive, policy)
 			if err == nil {
 				if r == nil {
 					t.Fatal("blocked request absent")
@@ -147,11 +148,11 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryBigintResource, low: 5}
+		key := lockResource{Kind: advisoryBigintResource, Low: 5}
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		r, err := e.locks.startAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{provenance: rb, source: ctx, timeout: time.Second})
+		r, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Provenance: rb, Source: ctx, Timeout: time.Second})
 		if err != nil || r == nil {
 			t.Fatal(r, err)
 		}
@@ -161,12 +162,12 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		}
 		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
 		advisoryUnitGrant(t, b, rb, key, advisoryExclusive)
-		if advisoryUnitHold(b, key).exclusive != 1 {
+		if advisoryUnitHold(b, key).Exclusive != 1 {
 			t.Fatal("retired cancellation poisoned successor")
 		}
 		deadline := time.Now()
 		var d *sqlstate.Error
-		if err = relationWaitError(context.Background(), relationLockPolicy{statementDeadline: deadline}, deadline, deadline); !errors.As(err, &d) || d.Code != "55P03" {
+		if err = lock.WaitError(context.Background(), relationLockPolicy{StatementDeadline: deadline}, deadline, deadline); !errors.As(err, &d) || d.Code != "55P03" {
 			t.Fatal("equal deadlines changed lock precedence", err)
 		}
 	})
@@ -178,22 +179,21 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		ra := transactionBegin(t, a)
 		old := a.transactions.ticket
 		ordinary := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-		key := lockResource{kind: advisoryBigintResource, low: 6}
-		if err := e.locks.acquire(context.Background(), old, ordinary, accessExclusive); err != nil {
+		key := lockResource{Kind: advisoryBigintResource, Low: 6}
+		if err := e.locks.Acquire(context.Background(), old, ordinary, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		sessionSQL(t, a, "PREPARE TRANSACTION 'advisory_detached'")
 		current := transactionBegin(t, a)
-		e.locks.mu.Lock()
-		detached := old.detached
-		participant := old.participant()
-		same := sameLockSession(old, a.transactions.ticket)
-		e.locks.mu.Unlock()
-		if !detached || participant.prepared != ra || participant.session != (ids.SessionToken{}) || same || advisoryUnitHold(a, key).exclusive != 1 {
+		lockState := e.locks.Inspect(old)
+		detached := lockState.Detached[old]
+		participant := lockState.Participant(old)
+		same := participant == lockState.Participant(a.transactions.ticket)
+		if !detached || participant.Prepared != ra || participant.Session != (ids.SessionToken{}) || same || advisoryUnitHold(a, key).Exclusive != 1 {
 			t.Fatal("prepared identity/counts", detached, participant, same)
 		}
-		if _, err := e.locks.startAcquire(context.Background(), a.transactions.ticket, ordinary, accessExclusive, relationLockPolicy{nowait: true}); !errors.Is(err, errRelationUnavailable) {
+		if _, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, ordinary, accessExclusive, relationLockPolicy{NoWait: true}); !errors.Is(err, errRelationUnavailable) {
 			t.Fatal("prepared owner self-bypassed", err)
 		}
 		advisoryUnitGrant(t, a, current, key, advisoryExclusive)
@@ -205,12 +205,11 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal("prepared completion did not wake", err)
 		}
-		e.locks.detachPrepared(old)
-		e.locks.mu.Lock()
-		resurrected := e.locks.owners[ra] != nil
-		oldResources := len(old.resources)
-		e.locks.mu.Unlock()
-		if resurrected || oldResources != 0 || advisoryUnitHold(a, key).exclusive != 2 {
+		e.locks.DetachPrepared(old)
+		lockState = e.locks.Inspect(old)
+		resurrected := lockState.Owners[ra] != nil
+		oldResources := len(lockState.Journals[old])
+		if resurrected || oldResources != 0 || advisoryUnitHold(a, key).Exclusive != 2 {
 			t.Fatal("stale detach resurrected or changed holds", resurrected, oldResources)
 		}
 	})

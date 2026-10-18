@@ -19,7 +19,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	holder := sessionStart(t, e, nil)
 	ref := transactionBegin(t, holder)
 	defer transactionEnd(t, holder, ref, false)
-	if err := e.locks.acquire(context.Background(), holder.transactions.ticket, resource, typeExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, resource, typeExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(op.ctx, time.Second)
@@ -34,11 +34,10 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		ast := &parser.AlterEnum{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "mood"}}}, Label: parser.EnumLabel{Text: strings.Repeat("x", 64)}, Old: parser.EnumLabel{Text: "old"}, Rename: rename}
 		_, failure := e.executeEnumDDL(scope, ast, 0)
 		d, ok := failure.(*sqlstate.Error)
-		e.locks.mu.Lock()
-		entry := e.locks.entries[resource]
-		_, owned := entry.holders[scope.owner.ticket]
-		queued := len(entry.pending)
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[resource]
+		_, owned := entry.Holders[scope.owner.ticket]
+		queued := len(entry.Pending)
 		unchanged := e.state == catalog && e.nextEnumMember == member && scope.catalog == nil && scope.owner.catalog == nil
 		finish := scope.Finish(failure)
 		if !ok || d.Code != "42602" || d.Detail != "Labels must be 63 bytes or less." || owned || queued != 0 || !unchanged || finish != failure {

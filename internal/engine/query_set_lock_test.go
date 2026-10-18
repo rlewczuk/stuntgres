@@ -301,12 +301,11 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 				ref  ids.ObjectRef
 				mode relationLockMode
 			}{{base, tc.baseMode}, {right, tc.rightMode}} {
-				e.locks.mu.Lock()
+				lockState := e.locks.Inspect()
 				var got relationLockMode
-				if entry := e.locks.entries[lockResource{ObjectRef: want.ref}]; entry != nil {
-					got = entry.holders[scope.ticket].mode
+				if entry := lockState.Resources[lockResource{ObjectRef: want.ref}]; entry != nil {
+					got = entry.Holders[scope.ticket].Mode
 				}
-				e.locks.mu.Unlock()
 				if got != want.mode {
 					t.Errorf("%s arm %v got relation mode %v want %v", tc.name, want.ref.Address, got, want.mode)
 				}

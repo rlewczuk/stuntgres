@@ -43,7 +43,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.locks.acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: originalRef}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: originalRef}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,7 +62,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{parent}
-	if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parent.ref}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parent.ref}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -81,10 +81,9 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		scope.Finish(err)
 	}()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: originalRef}]
-	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].mode&accessExclusive != 0
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: originalRef}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
 	if !queued {
 		t.Fatal("scanner was not parked on the exact original descendant")
 	}
@@ -117,15 +116,13 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if len(admitted) != 2 || !admitted[originalRef] || !admitted[lateRef] {
 		t.Fatal("late identity omitted from final physical manifest", admitted)
 	}
-	e.locks.mu.Lock()
+	lockState = e.locks.Inspect()
 	for _, physical := range []ids.ObjectRef{originalRef, lateRef} {
-		entry := e.locks.entries[lockResource{ObjectRef: physical}]
-		if entry == nil || entry.holders[scope.ticket].mode&accessShare == 0 {
-			e.locks.mu.Unlock()
+		entry := lockState.Resources[lockResource{ObjectRef: physical}]
+		if entry == nil || entry.Holders[scope.ticket].Mode&accessShare == 0 {
 			t.Fatal("final descendant grant missing", physical)
 		}
 	}
-	e.locks.mu.Unlock()
 	collectAuth, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)

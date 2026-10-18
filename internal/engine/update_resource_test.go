@@ -16,10 +16,10 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	versions := e.storage[ref.Address].versions
 	ta := transactionBegin(t, a)
 	tb := transactionBegin(t, b)
-	resource := lockResource{ObjectRef: ref, row: versions[0].row}
-	other := lockResource{ObjectRef: ref, row: versions[1].row}
+	resource := lockResource{ObjectRef: ref, Row: versions[0].row}
+	other := lockResource{ObjectRef: ref, Row: versions[1].row}
 	acquire := func(ticket *relationTicket, r lockResource) (*relationRequest, error) {
-		return e.locks.startAcquire(context.Background(), ticket, r, noKeyUpdate, relationLockPolicy{})
+		return e.locks.StartAcquire(context.Background(), ticket, r, noKeyUpdate, relationLockPolicy{})
 	}
 	if request, err := acquire(a.transactions.ticket, resource); request != nil || err != nil {
 		t.Fatal(request, err)
@@ -30,7 +30,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if request, err := acquire(b.transactions.ticket, other); request != nil || err != nil {
 		t.Fatal("duplicate-valued row conflicted", request, err)
 	}
-	for _, invalid := range []lockResource{{ObjectRef: ref}, {ObjectRef: New().domain.Ref(ref.Epoch, ref.Address), row: versions[0].row}} {
+	for _, invalid := range []lockResource{{ObjectRef: ref}, {ObjectRef: New().domain.Ref(ref.Epoch, ref.Address), Row: versions[0].row}} {
 		if request, err := acquire(b.transactions.ticket, invalid); request != nil || err == nil {
 			t.Fatal("invalid resource admitted", request, err)
 		}
@@ -40,19 +40,18 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 		t.Fatal("copied ticket admitted", request, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := e.locks.startAcquire(ctx, b.transactions.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, resource, noKeyUpdate, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal("missing exact queued row request", request, err)
 	}
 	cancel()
-	if err := request.wait(); !errors.Is(err, context.Canceled) {
+	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.locks.mu.Lock()
-	entry := e.locks.entries[resource]
-	held := entry.holders[a.transactions.ticket].mode
-	pending := len(entry.pending)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[resource]
+	held := entry.Holders[a.transactions.ticket].Mode
+	pending := len(entry.Pending)
 	if held != noKeyUpdate || pending != 0 {
 		t.Fatal("cancel damaged holder", held, pending)
 	}
@@ -61,7 +60,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 		t.Fatal(request, err)
 	}
 	transactionEnd(t, a, ta, true)
-	if err := request.wait(); err != nil {
+	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
 	transactionEnd(t, b, tb, false)

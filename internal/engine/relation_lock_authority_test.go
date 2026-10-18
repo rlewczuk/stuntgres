@@ -73,26 +73,24 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	tb := b.transactions.ticket
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.locks.acquire(canceled, tb, lockResource{ObjectRef: ref}, accessShare); !errors.Is(err, context.Canceled) {
+	if err := e.locks.Acquire(canceled, tb, lockResource{ObjectRef: ref}, accessShare); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.locks.mu.Lock()
-	if len(e.locks.entries) != 0 {
+	lockState := e.locks.Inspect()
+	if len(lockState.Resources) != 0 {
 		t.Fatal("pre-cancel mutated manager")
 	}
-	e.locks.mu.Unlock()
-	if err := e.locks.acquire(context.Background(), ta, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), ta, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- e.locks.acquire(ctx, tb, lockResource{ObjectRef: ref}, accessShare) }()
+	go func() { done <- e.locks.Acquire(ctx, tb, lockResource{ObjectRef: ref}, accessShare) }()
 	lockPending(t, e, 1)
 	// Grant state is installed by end, independently of the sleeping caller.
 	e.endLockOwner(ta)
-	e.locks.mu.Lock()
-	held := e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].mode
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	held := lockState.Resources[lockResource{ObjectRef: ref}].Holders[tb].Mode
 	if held != accessShare {
 		t.Fatal("grant not journaled before wake", held)
 	}
@@ -108,14 +106,13 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	if tb == old {
 		t.Fatal("ticket reused")
 	}
-	if err := e.locks.acquire(context.Background(), tb, lockResource{ObjectRef: ref}, rowExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), tb, lockResource{ObjectRef: ref}, rowExclusive); err != nil {
 		t.Fatal(err)
 	}
 	e.endLockOwner(old)
-	e.locks.fence(ref.Epoch)
-	e.locks.mu.Lock()
-	held = e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].mode
-	e.locks.mu.Unlock()
+	e.locks.Fence(ref.Epoch)
+	lockState = e.locks.Inspect()
+	held = lockState.Resources[lockResource{ObjectRef: ref}].Holders[tb].Mode
 	if held != rowExclusive {
 		t.Fatal("old cleanup removed new hold")
 	}

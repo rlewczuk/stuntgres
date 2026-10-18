@@ -26,13 +26,12 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.state.descriptors[ps.Address] != descriptor || s.sequences[ps.Address].value != 1 || !s.sequences[ps.Address].valid || s.lastSequence != ps.Address {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ps}]
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ps}]
 	mode := relationLockMode(0)
 	if entry != nil {
-		mode = entry.holders[s.transactions.ticket].mode
+		mode = entry.Holders[s.transactions.ticket].Mode
 	}
-	e.locks.mu.Unlock()
 	if mode&accessExclusive != 0 {
 		t.Fatal("savepoint retained reset AX")
 	}
@@ -197,10 +196,9 @@ func TestTruncateRestartClosure(t *testing.T) {
 			t.Fatal("virtual root omitted its sequence/descendant")
 		}
 		for _, ref := range []ids.ObjectRef{rs, ls, hs} {
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref}]
-			valid := entry != nil && entry.holders[scope.ticket].mode == accessExclusive
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: ref}]
+			valid := entry != nil && entry.Holders[scope.ticket].Mode == accessExclusive
 			if !valid {
 				t.Fatal("missing owned AX", ref)
 			}
@@ -226,11 +224,10 @@ func TestTruncateRestartClosure(t *testing.T) {
 		if scope.catalog.generators[own] == nil || scope.catalog.generators[foreign] != nil || len(scope.truncateSequences) != 1 {
 			t.Fatal("TEMP ownership not isolated")
 		}
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect(scope.ticket)
 		foreignRef := e.domain.Ref(catalog.Epoch(), foreign)
-		_, journaled := scope.ticket.resources[lockResource{ObjectRef: foreignRef}]
-		excluded := e.locks.entries[lockResource{ObjectRef: foreignRef}] == nil && !journaled
-		e.locks.mu.Unlock()
+		_, journaled := lockState.Journals[scope.ticket][lockResource{ObjectRef: foreignRef}]
+		excluded := lockState.Resources[lockResource{ObjectRef: foreignRef}] == nil && !journaled
 		if !excluded {
 			t.Fatal("foreign TEMP sequence was locked/journaled")
 		}

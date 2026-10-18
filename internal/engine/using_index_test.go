@@ -21,7 +21,7 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
 				t.Fatal(err)
 			}
 			catalog, store, root := e.state, e.storage[parent.address], e.indexRoots[index.address]

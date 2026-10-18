@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"time"
@@ -126,8 +127,8 @@ type Operation struct {
 	sqlActivity                bool
 	sqlFinished                bool // Session.mu: ERROR/completion fence, not transaction state
 	timeoutScope               *StatementScope
-	definition                 definitionReader    // Scoped once-only DDL cooking, restored before evaluation.
-	lockWait                   relationTimeoutSlot // queued lock request's SQL-deadline projection
+	definition                 definitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	lockWait                   lock.TimeoutSlot // queued lock request's SQL-deadline projection
 	nonstandardStrings         bool
 	restoreTableDestination    bool
 	restoreInsertAuthority     bool
@@ -223,12 +224,12 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		var ticket *relationTicket
 		if sessionTokenAttached(s.token) {
-			ticket, err = e.locks.registerSession(s.token)
+			ticket, err = e.locks.RegisterSession(s.token)
 		} else {
 			err = errors.New("stuntgres: invalid advisory session")
 		}
 		if err == nil {
-			s.advisory.ticket = ticket
+			s.advisory.ticket, s.advisory.locks = ticket, e.locks
 			_, err = op.Attach(AdvisorySession, &s.advisory)
 			if err != nil {
 				e.endLockOwner(ticket)
@@ -358,7 +359,7 @@ func (op *Operation) Done() {
 		return
 	}
 	op.done = true
-	op.lockWait.reset()
+	op.lockWait.Reset()
 	delete(s.operations, op)
 	op.cancel(nil)
 	if op.timerCancel != nil {

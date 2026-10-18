@@ -38,14 +38,14 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	writer, wt := blockingUnitOwner(t, e)
 	_, second := blockingUnitOwner(t, e)
 	typ := blockingUnitType(e)
-	r := &serializableTransaction{ref: rt.ref, captured: true, readOnly: true, deferrable: true, ready: make(chan struct{})}
-	w := &serializableTransaction{ref: wt.ref, captured: true}
-	w2 := &serializableTransaction{ref: second.ref, captured: true}
+	r := &serializableTransaction{ref: rt.Ref(), captured: true, readOnly: true, deferrable: true, ready: make(chan struct{})}
+	w := &serializableTransaction{ref: wt.Ref(), captured: true}
+	w2 := &serializableTransaction{ref: second.Ref(), captured: true}
 	r.possible = map[*serializableTransaction]struct{}{w: {}, w2: {}}
 	e.mu.Lock()
 	e.serializable.nodes = map[ids.TxRef]*serializableTransaction{r.ref: r, w.ref: w, w2.ref: w2}
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.session.ID()))
+	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.Session().ID()))
 	blockingUnitWant(t, e, reader.token.ID()) // SSI must never invent ordinary locks.
 	for _, mutate := range []func(){
 		func() { r.deferrable = false }, func() { r.readOnly = false }, func() { r.captured = false },

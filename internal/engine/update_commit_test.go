@@ -68,9 +68,8 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			if !reflect.DeepEqual(saved, [2]rowVersion{roots[0][0], roots[1][0]}) {
 				t.Fatal("retained predecessors mutated")
 			}
-			e.locks.mu.Lock()
-			held := len(oldTicket.resources)
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect(oldTicket)
+			held := len(lockState.Journals[oldTicket])
 			if held != 0 {
 				t.Fatal("old row journal retained", held)
 			}

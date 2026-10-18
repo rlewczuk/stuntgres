@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 type deadlockEdge struct {
 	from, to      int
 	request       *relationRequest
-	blocker       *relationTicket
+	blocker       *Ticket
 	before, after int // soft edge reversal: request before its queued blocker
 }
 type deadlockQueue struct {
@@ -26,8 +26,8 @@ type deadlockQueue struct {
 }
 type deadlockConstraint struct{ before, after int }
 type deadlockSearch struct {
-	participants []lockParticipant
-	nodes        map[lockParticipant]int
+	participants []Participant
+	nodes        map[Participant]int
 	queues       []deadlockQueue
 	positions    []int
 	edges        [][]deadlockEdge
@@ -39,7 +39,7 @@ type deadlockSearch struct {
 	frames       [][]deadlockEdge
 }
 
-func (m *relationLockManager) detectDeadlock(newRequest *relationRequest, notify **relationRequest) {
+func (m *Manager) detectDeadlock(newRequest *relationRequest, notify **relationRequest) {
 	for {
 		m.normalizeDeadlockWaits(notify)
 		if newRequest.terminal || !m.detectDeadlockSnapshot(newRequest, notify) {
@@ -50,13 +50,13 @@ func (m *relationLockManager) detectDeadlock(newRequest *relationRequest, notify
 
 // Reuse settle's canonical error arbitration and grant/journal ownership. Any
 // removed request (including a grant) invalidates a snapshot's dependencies.
-func (m *relationLockManager) normalizeDeadlockWaits(notify **relationRequest) bool {
+func (m *Manager) normalizeDeadlockWaits(notify **relationRequest) bool {
 	changed := false
 	for ref, entry := range m.entries {
 		count := len(entry.pending)
 		for _, r := range entry.pending {
 			if !r.terminal && !m.validRequest(r) {
-				terminalRequest(r, ErrCatalogReplaced, notify)
+				terminalRequest(r, ids.ErrCatalogReplaced, notify)
 			}
 		}
 		m.settle(entry, notify)
@@ -68,10 +68,10 @@ func (m *relationLockManager) normalizeDeadlockWaits(notify **relationRequest) b
 
 // Return true only when normalization invalidated the decision and live graph
 // reconstruction is required. Hypothetical search never mutates real queues.
-func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest, notify **relationRequest) bool {
+func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **relationRequest) bool {
 	requestCount := 0
-	s := deadlockSearch{nodes: make(map[lockParticipant]int)}
-	node := func(ticket *relationTicket) {
+	s := deadlockSearch{nodes: make(map[Participant]int)}
+	node := func(ticket *Ticket) {
 		participant := ticket.participant()
 		if _, ok := s.nodes[participant]; !ok {
 			s.nodes[participant] = len(s.participants)
@@ -154,8 +154,8 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 			detail.WriteByte('\n')
 		}
 		r, blocker := edge.request, edge.blocker
-		if r.ref.kind != ordinaryResource {
-			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.ID(), deadlockMode(r.mode), r.ref.high, r.ref.low, r.ref.kind, blocker.session.ID())
+		if r.ref.Kind != OrdinaryResource {
+			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.ID(), deadlockMode(r.mode), r.ref.High, r.ref.Low, r.ref.Kind, blocker.session.ID())
 			continue
 		}
 		if r.ref.completion != nil {
@@ -166,8 +166,8 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 				kind = "type"
 			}
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
-			if r.ref.row != 0 {
-				fmt.Fprintf(&detail, " row %d", r.ref.row)
+			if r.ref.Row != 0 {
+				fmt.Fprintf(&detail, " row %d", r.ref.Row)
 			}
 			if r.ref.key != nil {
 				detail.WriteString(" unique key")
@@ -183,7 +183,7 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 	}
 	// A later queue observation can interrupt this victim after its sweep check.
 	// Arbitrate at the exact terminal boundary, just as settle does before grant.
-	if err := relationWaitError(victim.ctx, victim.policy, victim.deadline, time.Now()); err != nil {
+	if err := WaitError(victim.ctx, victim.policy, victim.deadline, time.Now()); err != nil {
 		terminalRequest(victim, err, notify)
 		m.settle(victim.entry, notify)
 		m.retire(victim.ref, victim.entry)
@@ -252,7 +252,7 @@ func (s *deadlockSearch) findCycle() bool {
 			from := s.nodes[r.ticket.participant()]
 			for ticket, held := range q.entry.holders {
 				to, live := s.nodes[ticket.participant()]
-				if live && !sameLockSession(ticket, r.ticket) && lockConflict(r.mode, held.mode) {
+				if live && !sameLockSession(ticket, r.ticket) && Conflicts(r.mode, held.Mode) {
 					s.edges[from] = append(s.edges[from], deadlockEdge{from: from, to: to, request: r, blocker: ticket, before: -1, after: -1})
 				}
 			}
@@ -260,13 +260,13 @@ func (s *deadlockSearch) findCycle() bool {
 				if r.ref.completion != nil {
 					continue
 				}
-				if sameLockSession(blocker.ticket, r.ticket) || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !lockConflict(r.mode, blocker.mode) {
+				if sameLockSession(blocker.ticket, r.ticket) || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !Conflicts(r.mode, blocker.mode) {
 					continue
 				}
 				// A conflicting existing hold makes this dependency hard already.
 				hard := false
 				for holder, held := range q.entry.holders {
-					if sameLockSession(holder, blocker.ticket) && lockConflict(r.mode, held.mode) {
+					if sameLockSession(holder, blocker.ticket) && Conflicts(r.mode, held.Mode) {
 						hard = true
 						break
 					}
@@ -346,39 +346,39 @@ func (s *deadlockSearch) resolve(depth int) bool {
 	}
 	return false
 }
-func deadlockMode(mode relationLockMode) string {
+func deadlockMode(mode Mode) string {
 	switch mode {
-	case accessShare:
+	case AccessShare:
 		return "AccessShareLock"
-	case rowExclusive:
+	case RowExclusive:
 		return "RowExclusiveLock"
-	case accessExclusive:
+	case AccessExclusive:
 		return "AccessExclusiveLock"
-	case shareUpdateExclusive:
+	case ShareUpdateExclusive:
 		return "ShareUpdateExclusiveLock"
-	case shareRowExclusive:
+	case ShareRowExclusive:
 		return "ShareRowExclusiveLock"
-	case uniqueClaim:
+	case UniqueClaim:
 		return "UniqueKey"
-	case rowUpdate:
+	case ForUpdate:
 		return "Update"
-	case noKeyUpdate:
+	case ForNoKeyUpdate:
 		return "NoKeyUpdate"
-	case keyShare:
+	case ForKeyShare:
 		return "KeyShare"
-	case rowShare:
+	case ForShare:
 		return "Share"
-	case relationRowShare:
+	case RowShare:
 		return "RowShareLock"
-	case relationShare:
+	case Share:
 		return "ShareLock"
-	case relationExclusive:
+	case Exclusive:
 		return "ExclusiveLock"
-	case advisoryShared:
+	case AdvisoryShare:
 		return "ShareLock"
-	case advisoryExclusive:
+	case AdvisoryExclusive:
 		return "ExclusiveLock"
-	case typeExclusive:
+	case TypeExclusive:
 		return "ExclusiveLock"
 	}
 	panic("invalid deadlock request mode")

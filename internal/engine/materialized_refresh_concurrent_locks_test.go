@@ -41,7 +41,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			if tc.target {
 				heldRef = targetRef
 			}
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: heldRef}, tc.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: heldRef}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -66,15 +66,14 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			if tc.blocked {
 				lockPending(t, e, 1)
 				if !tc.target {
-					e.locks.mu.Lock()
-					entry := e.locks.entries[lockResource{ObjectRef: targetRef}]
-					granted := entry != nil && entry.holders[scope.ticket].mode&relationExclusive != 0
-					e.locks.mu.Unlock()
+					lockState := e.locks.Inspect()
+					entry := lockState.Resources[lockResource{ObjectRef: targetRef}]
+					granted := entry != nil && entry.Holders[scope.ticket].Mode&relationExclusive != 0
 					if !granted {
 						t.Fatal("source waiter did not retain target EXCLUSIVE")
 					}
 					reader := refreshUnitScope(t, e, ctx)
-					request, err := e.locks.startAcquire(ctx, reader.ticket, lockResource{ObjectRef: targetRef}, accessShare, relationLockPolicy{})
+					request, err := e.locks.StartAcquire(ctx, reader.ticket, lockResource{ObjectRef: targetRef}, accessShare, relationLockPolicy{})
 					if request != nil || err != nil {
 						t.Fatal("real SELECT grant blocked behind concurrent source waiter", err)
 					}
@@ -113,10 +112,9 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: targetRef}]
-				granted := entry != nil && entry.holders[scope.ticket].mode&relationExclusive != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: targetRef}]
+				granted := entry != nil && entry.Holders[scope.ticket].Mode&relationExclusive != 0
 				if !granted {
 					t.Fatal("concurrent refresh used wrong target mode")
 				}

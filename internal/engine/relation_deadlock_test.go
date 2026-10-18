@@ -15,7 +15,7 @@ func deadlockRequest(t *testing.T, e *Engine, ticket *relationTicket, resource l
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
-	r, err := e.locks.startAcquire(ctx, ticket, resource, mode, relationLockPolicy{completionPurpose: completionVirtual})
+	r, err := e.locks.StartAcquire(ctx, ticket, resource, mode, relationLockPolicy{CompletionPurpose: completionVirtual})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,8 @@ func deadlockResult(t *testing.T, r *relationRequest) error {
 		return nil
 	}
 	select {
-	case <-r.done:
-		return r.err
+	case <-r.Done():
+		return r.Err()
 	case <-time.After(time.Second):
 		t.Fatal("request did not terminate before failure guard")
 		return nil
@@ -56,11 +56,11 @@ func deadlockDiagnostic(t *testing.T, err error, tickets []*relationTicket, reso
 		resource := resources[(i+1)%len(resources)]
 		mode := "AccessExclusiveLock"
 		row := ""
-		if resource.row != 0 {
+		if resource.Row != 0 {
 			mode = "NoKeyUpdate"
-			row = fmt.Sprintf(" row %d", resource.row)
+			row = fmt.Sprintf(" row %d", resource.Row)
 		}
-		line := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d)%s; blocked by transaction %d (session %d, epoch %d).", ticket.ref.ID(), ticket.ref.Session().ID(), ticket.ref.Epoch(), mode, resource.Address.ObjectID, resource.Address.ClassID, resource.Address.SubID, resource.Epoch, row, blocker.ref.ID(), blocker.ref.Session().ID(), blocker.ref.Epoch())
+		line := fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d)%s; blocked by transaction %d (session %d, epoch %d).", ticket.Ref().ID(), ticket.Ref().Session().ID(), ticket.Ref().Epoch(), mode, resource.Address.ObjectID, resource.Address.ClassID, resource.Address.SubID, resource.Epoch, row, blocker.Ref().ID(), blocker.Ref().Session().ID(), blocker.Ref().Epoch())
 		expected[line] = true
 	}
 	for _, line := range lines {
@@ -100,7 +100,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 			for i := range n {
 				modes[i] = accessExclusive
 				if kind == "row" || kind == "mixed" && i == 1 {
-					resources[i].row = ids.RowID(i + 1)
+					resources[i].Row = ids.RowID(i + 1)
 					modes[i] = noKeyUpdate
 				}
 				if r := deadlockRequest(t, e, tickets[i], resources[i], modes[i]); r != nil {
@@ -114,18 +114,16 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 					t.Fatal("conflicting request granted")
 				}
 				if i < n-1 {
-					e.locks.mu.Lock()
-					terminal := pending[i].terminal
-					e.locks.mu.Unlock()
+					terminal := pending[i].Terminal()
 					if terminal {
 						t.Fatal("acyclic prefix victimized")
 					}
 				}
 			}
 			victim := -1
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			for i, r := range pending {
-				if r.terminal {
+				if r.Terminal() {
 					if victim != -1 {
 						t.Error("more than one victim")
 					}
@@ -134,12 +132,11 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 			}
 			if victim >= 0 {
 				for i, resource := range resources {
-					if e.locks.entries[resource].holders[tickets[i]].mode == 0 {
+					if lockState.Resources[resource].Holders[tickets[i]].Mode == 0 {
 						t.Error("manager released held lock before Finish")
 					}
 				}
 			}
-			e.locks.mu.Unlock()
 			if victim < 0 {
 				t.Fatal("hard cycle was not detected")
 			}
@@ -176,10 +173,9 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	deadlockRequest(t, e, c.transactions.ticket, y, accessExclusive)
 	rb := deadlockRequest(t, e, b.transactions.ticket, x, accessExclusive)
 	rc := deadlockRequest(t, e, c.transactions.ticket, x, accessShare)
-	e.locks.mu.Lock()
-	queue := e.locks.entries[x].pending
-	ordered := len(queue) == 2 && queue[0] == rb && queue[1] == rc
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	queue := lockState.Resources[x].Pending
+	ordered := len(queue) == 2 && queue[0].Request == rb && queue[1].Request == rc
 	if !ordered {
 		t.Fatal("missing conflicting predecessor queue proof")
 	}
@@ -187,10 +183,9 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	if err := deadlockResult(t, rc); err != nil {
 		t.Fatal("resolvable soft cycle must not abort", err)
 	}
-	e.locks.mu.Lock()
-	ah := e.locks.entries[x].holders[a.transactions.ticket].mode
-	bt := rb.terminal
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	ah := lockState.Resources[x].Holders[a.transactions.ticket].Mode
+	bt := rb.Terminal()
 	if ah != accessShare || bt {
 		t.Fatal("reorder revoked holder or granted incompatible follower")
 	}
@@ -214,15 +209,32 @@ func TestRelationDeadlockUncontended(t *testing.T) {
 	ticket := a.transactions.ticket
 	defer e.endLockOwner(ticket)
 	resource := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-	if err := e.locks.acquire(context.Background(), ticket, resource, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), ticket, resource, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	allocations := testing.AllocsPerRun(100, func() {
-		if err := e.locks.acquire(context.Background(), ticket, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), ticket, resource, accessShare); err != nil {
 			panic(err)
 		}
 	})
 	if allocations != 0 {
 		t.Fatalf("self reentry allocated %g times", allocations)
+	}
+}
+
+// SQLSTATE must remain a SQL diagnostic through command admission translation.
+func TestRelationDeadlockCommandErrorIdentity(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	op, _, err := s.AcquireCommand(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	original := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40P01", Message: "deadlock detected"}
+	cancel()
+	if got := op.CommandError(original); got != original {
+		t.Fatalf("genuine SQL error translated: %v", got)
 	}
 }

@@ -1,6 +1,10 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+
+	"stuntgres/internal/engine/lock"
+)
 
 type indexBuildWaitKind uint8
 
@@ -40,14 +44,14 @@ func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, k
 
 func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completionLockPurpose) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, completionPurpose: purpose}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{completion: owner}, transactionCompletion, policy)
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, CompletionPurpose: purpose}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), transactionCompletion, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 	}
 	if err == nil && request != nil {
 		return s.readmitProgramsAfterWait()
@@ -57,7 +61,7 @@ func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completio
 
 func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
 	e := s.op.session.Engine()
-	owners, err := e.locks.indexWriters(s.ticket, s.lockedRef)
+	owners, err := e.locks.IndexWriters(s.ticket, s.lockedRef)
 	if err != nil {
 		return err
 	}

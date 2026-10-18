@@ -281,17 +281,16 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	holder, _ := f.scope(t)
 	waiter, _ := f.scope(t)
 	old := f.e.storage[f.base.address].versions[0]
-	resource := lockResource{ObjectRef: f.baseRef, row: old.row}
-	if request, err := f.e.locks.startAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
+	resource := lockResource{ObjectRef: f.baseRef, Row: old.row}
+	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
-	request, err := f.e.locks.startAcquire(waiter.op.Context(), waiter.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	request, err := f.e.locks.StartAcquire(waiter.op.Context(), waiter.ticket, resource, noKeyUpdate, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal("not actually queued", request, err)
 	}
-	f.e.locks.mu.Lock()
-	pending := len(f.e.locks.entries[resource].pending)
-	f.e.locks.mu.Unlock()
+	lockState := f.e.locks.Inspect()
+	pending := len(lockState.Resources[resource].Pending)
 	if pending != 1 {
 		t.Fatal("missing physical queue", pending)
 	}
@@ -303,7 +302,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := holder.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := request.wait(); err != nil {
+	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
 	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{rowVersion: old, slot: 0})
@@ -330,8 +329,8 @@ func TestViewWriteCancellation(t *testing.T) {
 	holder, _ := f.scope(t)
 	scope, _ := f.scope(t)
 	originals := f.e.storage[f.base.address].versions
-	resource := lockResource{ObjectRef: f.baseRef, row: originals[0].row}
-	if request, err := f.e.locks.startAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
+	resource := lockResource{ObjectRef: f.baseRef, Row: originals[0].row}
+	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
 	row := append([]sqltype.Value(nil), originals[1].values...)
@@ -340,12 +339,12 @@ func TestViewWriteCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())
-	request, err := f.e.locks.startAcquire(ctx, scope.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	request, err := f.e.locks.StartAcquire(ctx, scope.ticket, resource, noKeyUpdate, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal("missing actual pending row", request, err)
 	}
 	cancel()
-	if err := request.wait(); !errors.Is(err, context.Canceled) {
+	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {
@@ -355,11 +354,10 @@ func TestViewWriteCancellation(t *testing.T) {
 	if current[0].version != originals[0].version || current[1].version != originals[1].version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}
-	f.e.locks.mu.Lock()
-	entry := f.e.locks.entries[resource]
-	pending := len(entry.pending)
-	hold := entry.holders[holder.ticket].mode
-	f.e.locks.mu.Unlock()
+	lockState := f.e.locks.Inspect()
+	entry := lockState.Resources[resource]
+	pending := len(entry.Pending)
+	hold := entry.Holders[holder.ticket].Mode
 	if pending != 0 || hold != noKeyUpdate {
 		t.Fatal("cancel damaged holder or leaked queue", pending, hold)
 	}

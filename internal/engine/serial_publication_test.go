@@ -56,16 +56,15 @@ func TestSerialDefaultUnpublishedProviderHold(t *testing.T) {
 					t.Fatalf("DROP reached publication before unpublished default released its provider: %v", err)
 				default:
 				}
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive
 				held := false
 				if entry != nil {
-					for _, mode := range entry.holders {
-						held = held || mode.mode&accessShare != 0
+					for _, mode := range entry.Holders {
+						held = held || mode.Mode&accessShare != 0
 					}
 				}
-				e.locks.mu.Unlock()
 				if queued {
 					if !held {
 						t.Fatal("default lacks retained provider AS")
@@ -110,10 +109,9 @@ func TestSerialDefaultProviderDropFirstAndCancellation(t *testing.T) {
 				defer cancel()
 				waiting := lockAsync(e, b, ctx, serialPublicationQuery(alter), false)
 				lockPending(t, e, 1)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare
 				if !queued {
 					t.Fatal("default did not queue on captured provider")
 				}

@@ -165,7 +165,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision, prepared)
 			}()
 			if err == nil {
-				target.locks.fence(target.CatalogRead().Epoch())
+				target.locks.Fence(target.CatalogRead().Epoch())
 			}
 			if ctx.Err() != context.Canceled || !boundary.observed || target.domain != owner {
 				t.Fatal("boundary not exercised", boundary.observed, err)
