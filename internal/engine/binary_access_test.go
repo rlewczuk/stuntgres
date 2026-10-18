@@ -45,7 +45,7 @@ func TestBinaryAccessResolution(t *testing.T) {
 			}
 		}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Pos: parser.Position{Character: 8}, Args: args}
-		got, err := b.bindBinaryFunction(raw, true)
+		got, err := functions.BindBinary(b, raw, true)
 		if tc.code != "" {
 			var state interface{ SQLState() string }
 			if !errors.As(err, &state) || state.SQLState() != tc.code {
@@ -148,7 +148,7 @@ func bitAccessBindingProperties(t *testing.T) {
 					args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
 				}
 				raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
-				node, err := b.bindBinaryFunction(raw, true)
+				node, err := functions.BindBinary(b, raw, true)
 				if err != nil {
 					t.Fatal(name, unknown, defaults, err)
 				}
@@ -162,7 +162,7 @@ func bitAccessBindingProperties(t *testing.T) {
 				// DEFAULT admission must not widen the adjacent BYTEA family.
 				b.defaultConsumer = true
 				raw.Args[0] = parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x80"}}, TypeName: parser.TypeName{Name: "bytea"}}
-				_, err = b.bindBinaryFunction(raw, true)
+				_, err = functions.BindBinary(b, raw, true)
 				var state interface{ SQLState() string }
 				if !errors.As(err, &state) || state.SQLState() != "0A000" {
 					t.Fatal("BYTEA default boundary", name, err)
@@ -178,7 +178,7 @@ func bitAccessBindingProperties(t *testing.T) {
 		if name == "set_bit" {
 			raw.Args = append(raw.Args, parser.ParameterExpr{Number: 2})
 		}
-		node, err := b.bindBinaryFunction(raw, true)
+		node, err := functions.BindBinary(b, raw, true)
 		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable || b.parameters[1].Type.ID() != sqltype.Int4 {
 			t.Fatal("parameter propagation", name, node, err)
 		}
@@ -198,7 +198,7 @@ func bitAccessBindingProperties(t *testing.T) {
 				operands = append(operands, functions.Argument{Expression: literalExpression{expressionInfo: expressionInfo{Usage: u}, value: v}, Usage: u})
 			}
 			var types functions.BinaryTypes
-			node, err := b.finishBinary(name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
+			node, err := functions.FinishBinary(b, name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
 			if err != nil {
 				t.Fatal(name, family, err)
 			}

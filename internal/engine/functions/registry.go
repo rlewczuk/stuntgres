@@ -57,6 +57,7 @@ var definitions = [...]Definition{
 	{Names: stringVariadicNames[:], Claims: StringVariadicFunctionName, Bind: bindStringVariadic},
 	{Names: []string{"parse_ident"}, Bind: bindParseIdent},
 	{Names: []string{"lower", "upper"}, Bind: bindLowerUpper},
+	{Names: binaryNames[:], ExactSpelling: true, SharedGates: true, Bind: bindBinary},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

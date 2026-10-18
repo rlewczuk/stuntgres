@@ -115,12 +115,19 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 		}
 	}
 	// similar_to_escape is dispatched by call syntax, not by name.
+	// Binary data functions sat in the final switch with exact spelling.
+	for _, name := range []string{"convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates || definition.OwnsLabels {
+			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
+		}
+	}
 	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
 		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "pg_sleep", "now", "TO_NUMBER",
 		"LIKE_ESCAPE", "REGEXP_MATCH", "regexp", "similar_to_escape", "similar_escape",
-		// substring routes through the binary family.
-		"LEFT", "Trim", "String_To_Table", "substring", "substr"} {
+		"LEFT", "Trim", "String_To_Table",
+		"SUBSTRING", "Substr", "Encode", "sha1", "get_bits", "convert_to_text", "pg_size_bytes"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}

@@ -172,7 +172,8 @@ Tier C has a refined plan.
   operators, SQL/JSON constructors and `IS JSON` remain) [x] arrays [x] ranges (`a46ee7c5c` seam,
   `48d987da7`/`62f610cb1` arrays, `050805a1e`/`a5be023f9` ranges, then the
   docs commit) [x] UUID [x] format
-  [ ] binary [x] numeric formatting (`b6dc6c486` move; regexp and variadic
+  [x] binary (`6e15eb725` seam, `8e4f3177b` port, `0d43b5592` move, then
+  the docs commit) [x] numeric formatting (`b6dc6c486` move; regexp and variadic
   string registration: `2dbf3742f` seam, `7c8508c0b`, `528ac1aeb`; then the
   docs commit) [ ] pgcrypto [ ] fuzzystrmatch
   [ ] unaccent [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
@@ -192,8 +193,9 @@ generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
 `CaptureComparisonInput` (arrays and ranges); `Literal`, `Context`,
 `AdmitSetReturning` and `CaptureTypeInput` (JSON calls); `ConstantValue`
 (datetime), `BuiltinOperatorVisible` and `CallSignatureError` (pattern) and
-`FinishBinary` (string, a leak the binary port removes). Reasons for every
-method are in the `functions` README.
+`FinishBinary` (string, a leak the binary port removed); `LiteralNull` and
+`NoteVisibilitySnapshot` (binary). Reasons for every method are in the
+`functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 `functions/routine_provider.go`; the engine keeps `routineProvider` and
@@ -606,7 +608,7 @@ Notes for later steps (datetime, pattern, string):
 - `Lookup` now holds 23 definitions and 207 names plus the JSON and variadic
   string predicates; a throwaway benchmark measured 0.6 to 1 µs per miss with
   no allocations. A sorted static table would keep it `init()`-free.
-- The binary port removes `FinishBinary`.
+- The binary port removes `FinishBinary` (done).
 - Still engine-dispatched over exported entry points: `age`/`isfinite`
   (Tier C), `overlaps` (an F2 inline-safety hook) and `similar_to_escape`
   (needs a syntax-keyed definition). `regexp_*`, the variadic string family
@@ -655,6 +657,63 @@ Notes for later steps (JSON):
 - The JSON operator binders can reuse `BuiltinOperatorRoutineInfo` (arrays
   and ranges) but still need the engine's operator diagnostics
   (`arrayMembershipError`, `comparisonError`) before they can port.
+
+F4/F5 binary record, measured on `7af01d85b` (after the datetime, pattern,
+string and JSON ports; an earlier attempt from `684513b33` was redone on it,
+because the string and pattern ports had already moved the substring routes)
+and rebased onto `ec3fcadd4` (regexp, variadic string and `to_number`
+registration) and `f7860fa60` (F2 session 1):
+
+- Ported: `bindBinaryFunction` and `finishBinary` (`binary_expression.go`,
+  deleted) for 18 names in the final `switch name`: `convert`,
+  `convert_from`, `convert_to`, `encode`, `decode`, `substring`, `substr`,
+  `crc32`, `crc32c`, `sha224`..`sha512`, `bit_count`, `get_bit`, `get_byte`,
+  `set_bit`, `set_byte`. They register with `ExactSpelling` and
+  `SharedGates`; `bindBinary` checks builtin visibility after the gates, as
+  the switch did. No earlier predicate or registered definition claims these
+  names (the parser's `binary*Function` lists are admission lists; the
+  registry test checks the claims).
+- Beyond the existing `Binder` it needed the engine's literal-NULL predicate
+  (`randomLiteralNull`) and the visibility-snapshot demand of `convert*`:
+  `LiteralNull` and `NoteVisibilitySnapshot`. Everything else already
+  existed (`BuiltinOperatorRoutineInfo` for `||`, `CollatedInfo`,
+  `DefaultConsumer`, `SupplyBinaryTypes`, and the string and pattern ports'
+  `FinishString`, `BindPosixSubstring` and `BindSimilarSubstring`).
+- `FinishBinary` is now a plain function: `functions.BindString` and the
+  engine's `||` binder call it, and the `Binder.FinishBinary` leak is gone.
+  `BindBinary` takes a precomputed visibility, like `BindUUIDGeneration`.
+- Kept in the engine: `renderBinaryCall` (`binary_render.go`, deparse; F2).
+
+Tests in F4/F5 binary: `TestLookupClaimsRegisteredNames` gained the 18
+binary claims; `substring`/`substr` left its unclaimed list, which gained
+other spellings (`SUBSTRING`, `Substr`, `Encode`) and near names (`sha1`,
+`get_bits`, `convert_to_text`, `pg_size_bytes`). It failed before
+registration. Engine tests stay: `binary_access_test.go`,
+`bitstring_functions_test.go`, `bitstring_operators_test.go` and
+`string_slice_test.go` call `functions.BindBinary(b, raw, true)` and
+`functions.FinishBinary(b, ...)` instead of the deleted binder methods. No
+test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. Quick mode and
+`REFERENCE=1` passed for
+`^TestReference(Binary|BitAccess|BitString|BitOperators|StringSlice|StringCore|StringPad|Similar|Posix|LikeBinary|Bytea|Pgcrypto|SearchPath|Conversion)`,
+except the `/postgres` subtests of `TestReferenceStringCoreNormalization` and
+`TestReferenceStringCoreValuesSourceConsumerRoutes`, which fail identically
+on master (18.6 oracle drift, below). Bench median 1.52 ms/op on the branch
+and on master `7af01d85b` in back-to-back runs, both with 7,769 allocs/op
+(allocations unchanged; startup code untouched; still above the 1 ms target
+as on master). During the redo, two full `quickcheck` runs on a heavily
+loaded machine failed only timing witnesses unrelated to binding
+(`TestReferenceTimeoutChainPrepared/aborted-ROLLBACK/memory`,
+`TestDatetimeSleepCleanup`); both pass in isolation, and the
+`reference/session_state` package passed 2 of 2 on master too. Racecheck
+skipped at the user's request.
+
+Notes for later steps (binary):
+
+- `Lookup` now scans 24 definitions with 225 names, plus the JSON and
+  variadic string predicates.
 
 - Oracle drift on the pinned PostgreSQL 18.6 image, failing on master too,
   in the `/postgres` subtests only: `TestReferenceJSONStripNullsFeatureSmoke`

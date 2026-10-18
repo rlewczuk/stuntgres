@@ -163,7 +163,7 @@ func FinishString(b Binder, raw parser.FunctionExpr, visible bool, operands []Ar
 			if raw.StringSyntax == parser.TrimStringSyntax {
 				syntax = parser.SQLFunctionSyntax
 			}
-			return b.FinishBinary(name, family, raw.Pos, operands, syntax, &binaryTypes)
+			return FinishBinary(b, name, family, raw.Pos, operands, syntax, &binaryTypes)
 		}
 	}
 	targets := StringTargets{Text: b.Type(sqltype.Text).Usage()}

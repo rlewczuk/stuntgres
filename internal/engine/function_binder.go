@@ -149,9 +149,9 @@ func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
 	return b.functionSignatureError(raw)
 }
 
-func (b *expressionBinder) FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (expr.Expr, error) {
-	return b.finishBinary(name, family, pos, operands, syntax, types)
-}
+func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return randomLiteralNull(arg) }
+
+func (b *expressionBinder) NoteVisibilitySnapshot() { b.visibilitySnapshot = true }
 
 func (b *expressionBinder) Frame() uint32 { return b.frameID() }
 
