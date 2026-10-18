@@ -221,3 +221,31 @@ func (e JSONKeys) PlanningFold() expr.Fold      { return expr.FoldNever }
 func (e JSONEach) PlanningFold() expr.Fold      { return expr.FoldNever }
 func (e JSONElements) PlanningFold() expr.Fold  { return expr.FoldNever }
 func (e JSONBElements) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = JSONKeys{}
+
+// Render implements expr.Renderable.
+func (e JSONKeys) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONKeys " + e.Plan.Name(), Inputs: e.Args}, nil
+}
+
+var _ expr.Renderable = JSONBElements{}
+
+// Render implements expr.Renderable.
+func (e JSONBElements) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONBElements " + e.Plan.Name(), Inputs: e.Args}, nil
+}
+
+var _ expr.Renderable = JSONEach{}
+
+// Render implements expr.Renderable.
+func (e JSONEach) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONEach " + e.Plan.Name(), Inputs: e.Args}, nil
+}
+
+var _ expr.Renderable = JSONElements{}
+
+// Render implements expr.Renderable.
+func (e JSONElements) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONElements " + e.Plan.Name(), Inputs: e.Args}, nil
+}

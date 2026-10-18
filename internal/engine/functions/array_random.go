@@ -215,3 +215,10 @@ func (e ArrayRandom) IntrinsicVolatility() expr.Volatility { return expr.Volatil
 func (e ArrayRandom) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (e ArrayRandom) ValidateStoredProvider() error { return e.Validate() }
+
+var _ expr.Renderable = ArrayRandom{}
+
+// Render implements expr.Renderable.
+func (e ArrayRandom) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "ArrayRandom " + e.Kind.Name() + " namespace " + e.Namespace, Inputs: e.Args}, nil
+}

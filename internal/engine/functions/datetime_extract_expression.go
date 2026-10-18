@@ -194,3 +194,10 @@ func (e DatetimeExtract) Retag(info expr.Info, children []expr.Expr, changed boo
 	node, planChanged, err := e.Reconstruct(info, args, env.Type)
 	return retagged(node, changed || planChanged, err)
 }
+
+var _ expr.Renderable = DatetimeExtract{}
+
+// Render implements expr.Renderable.
+func (e DatetimeExtract) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Datetime extraction " + e.Plan.Name(), Inputs: e.Arguments()}, nil
+}

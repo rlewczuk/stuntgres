@@ -245,3 +245,31 @@ func (e JSONBPathQuery) PlanningFold() expr.Fold { return expr.FoldNever }
 func (e JSONBPathExists) ValidateStoredProvider() error     { return nil }
 func (e JSONBPathMatch) ValidateStoredProvider() error      { return nil }
 func (e JSONBPathQueryFirst) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONBPathExists{}
+
+// Render implements expr.Renderable.
+func (e JSONBPathExists) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+}
+
+var _ expr.Renderable = JSONBPathMatch{}
+
+// Render implements expr.Renderable.
+func (e JSONBPathMatch) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+}
+
+var _ expr.Renderable = JSONBPathQueryFirst{}
+
+// Render implements expr.Renderable.
+func (e JSONBPathQueryFirst) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+}
+
+var _ expr.Renderable = JSONBPathQuery{}
+
+// Render implements expr.Renderable.
+func (e JSONBPathQuery) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+}

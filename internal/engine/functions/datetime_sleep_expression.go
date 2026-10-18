@@ -260,3 +260,10 @@ func (x DatetimeSleep) Retag(info expr.Info, children []expr.Expr, changed bool,
 	node, err := x.Reconstruct(info, children[0], clock)
 	return retagged(node, true, err)
 }
+
+var _ expr.Renderable = DatetimeSleep{}
+
+// Render implements expr.Renderable.
+func (e DatetimeSleep) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "DatetimeSleep " + e.Kind.Name(), Inputs: []expr.Expr{e.Arg}}, nil
+}

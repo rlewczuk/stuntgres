@@ -231,3 +231,10 @@ func (e DatetimeAgeFinite) Retag(info expr.Info, children []expr.Expr, changed b
 	node, planChanged, err := e.Reconstruct(info, args, env.Type)
 	return retagged(node, changed || planChanged, err)
 }
+
+var _ expr.Renderable = DatetimeAgeFinite{}
+
+// Render implements expr.Renderable.
+func (e DatetimeAgeFinite) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Datetime " + e.Plan.Name(), Inputs: e.Arguments()}, nil
+}

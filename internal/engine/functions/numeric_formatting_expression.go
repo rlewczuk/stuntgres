@@ -87,3 +87,10 @@ func NumericFormattingIntrinsicRule() expr.IntrinsicPropertyRule { return expr.E
 func (e NumericFormatting) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e NumericFormatting) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = NumericFormatting{}
+
+// Render implements expr.Renderable.
+func (e NumericFormatting) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "NumericFormatting " + e.Plan.Name(), Inputs: e.Args[:]}, nil
+}

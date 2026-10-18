@@ -101,3 +101,13 @@ func (e VersionInformation) Rebuild(info expr.Info, children []expr.Expr) (expr.
 func (e VersionInformation) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
 
 func (e VersionInformation) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = VersionInformation{}
+
+// Render implements expr.Renderable.
+func (e VersionInformation) Render() (expr.Rendering, error) {
+	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
+		return expr.Rendering{}, err
+	}
+	return expr.Rendering{Tree: fmt.Sprintf("VersionInformation kind %d", e.Kind)}, nil
+}

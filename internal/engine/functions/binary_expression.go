@@ -535,3 +535,17 @@ func (e Binary) Retag(info expr.Info, children []expr.Expr, changed bool, _ expr
 	node, err := e.Reconstruct(info, children)
 	return retagged(node, true, err)
 }
+
+var _ expr.Renderable = Binary{}
+
+// Render implements expr.Renderable.
+func (e Binary) Render() (expr.Rendering, error) {
+	if err := e.ValidateSyntax(); err != nil {
+		return expr.Rendering{}, err
+	}
+	tree := "Binary " + e.Plan.Name()
+	if e.Syntax == parser.SQLFunctionSyntax && (e.Plan.Name() == "btrim" || e.Plan.Name() == "ltrim" || e.Plan.Name() == "rtrim") {
+		tree += " syntax TRIM"
+	}
+	return expr.Rendering{Tree: tree, Inputs: e.Args}, nil
+}

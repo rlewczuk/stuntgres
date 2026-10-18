@@ -346,3 +346,10 @@ func (e DatetimeOverlaps) Retag(info expr.Info, children []expr.Expr, changed bo
 	node, planChanged, err := e.Reconstruct(info, args, env.Type, sqltype.Value.Retag)
 	return retagged(node, changed || planChanged, err)
 }
+
+var _ expr.Renderable = DatetimeOverlaps{}
+
+// Render implements expr.Renderable.
+func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Arguments()}, nil
+}

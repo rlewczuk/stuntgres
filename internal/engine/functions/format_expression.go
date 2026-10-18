@@ -128,3 +128,10 @@ func (e Format) Retag(info expr.Info, children []expr.Expr, changed bool, env ex
 	e.Info, e.Args, e.Int4 = info, children, int4
 	return e, changed, nil
 }
+
+var _ expr.Renderable = Format{}
+
+// Render implements expr.Renderable.
+func (e Format) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("Format variadic %t", e.Variadic), Inputs: e.Args}, nil
+}

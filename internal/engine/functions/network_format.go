@@ -92,3 +92,10 @@ func NetworkFormatIntrinsicRule() expr.IntrinsicPropertyRule { return expr.Exact
 func (e NetworkFormat) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e NetworkFormat) ValidateStoredProvider() error { return e.Validate() }
+
+var _ expr.Renderable = NetworkFormat{}
+
+// Render implements expr.Renderable.
+func (e NetworkFormat) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "NetworkFormat " + e.Kind.Name(), Inputs: e.Args[:e.Kind.Arity()]}, nil
+}

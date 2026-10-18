@@ -69,3 +69,10 @@ func (e JSONStripNulls) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 func (e JSONStripNulls) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e JSONStripNulls) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONStripNulls{}
+
+// Render implements expr.Renderable.
+func (e JSONStripNulls) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSON stripping", Inputs: e.Args[:]}, nil
+}

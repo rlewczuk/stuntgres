@@ -184,3 +184,10 @@ func (e DatetimeMake) IntrinsicVolatility() expr.Volatility {
 func (e DatetimeMake) StrictNull() expr.Strict { return expr.StrictAfter }
 
 func (e DatetimeMake) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = DatetimeMake{}
+
+// Render implements expr.Renderable.
+func (e DatetimeMake) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Datetime constructor " + e.Plan.Name(), Inputs: e.Args[:e.Count]}, nil
+}

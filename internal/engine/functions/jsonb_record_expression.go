@@ -221,3 +221,10 @@ func (e JSONBRecord) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 func (e JSONBRecord) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e JSONBRecord) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = JSONBRecord{}
+
+// Render implements expr.Renderable.
+func (e JSONBRecord) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONBRecord " + e.Name, Inputs: e.Args}, nil
+}

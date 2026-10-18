@@ -72,3 +72,10 @@ func NewJSONRecord(info expr.Info, name string, baseIndex int, args []expr.Expr)
 func (e JSONRecord) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e JSONRecord) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = JSONRecord{}
+
+// Render implements expr.Renderable.
+func (e JSONRecord) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONRecord " + e.Plan.Name(), Inputs: e.Args}, nil
+}

@@ -75,3 +75,10 @@ func (e JSONBPathQueryArray) Rebuild(info expr.Info, children []expr.Expr) (expr
 func (e JSONBPathQueryArray) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONBPathQueryArray) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONBPathQueryArray{}
+
+// Render implements expr.Renderable.
+func (e JSONBPathQueryArray) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONPath array query", Inputs: e.Args[:]}, nil
+}

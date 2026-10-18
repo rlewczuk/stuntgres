@@ -96,3 +96,13 @@ func (e CurrentDateTime) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 func (e CurrentDateTime) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
 
 func (e CurrentDateTime) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = CurrentDateTime{}
+
+// Render implements expr.Renderable.
+func (e CurrentDateTime) Render() (expr.Rendering, error) {
+	if err := e.Validate(expr.PropertiesMatch(e.Property, CurrentDateTimeIntrinsicRule())); err != nil {
+		return expr.Rendering{}, err
+	}
+	return expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision)}, nil
+}

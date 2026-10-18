@@ -125,3 +125,10 @@ func UUIDExtractIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactIm
 func (e UUIDExtract) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e UUIDExtract) ValidateStoredProvider() error { return e.Validate() }
+
+var _ expr.Renderable = UUIDExtract{}
+
+// Render implements expr.Renderable.
+func (e UUIDExtract) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "UUIDExtract " + e.Kind.Name(), Inputs: []expr.Expr{e.Arg}}, nil
+}

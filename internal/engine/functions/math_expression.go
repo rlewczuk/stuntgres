@@ -372,3 +372,10 @@ func (e Math) Retag(info expr.Info, children []expr.Expr, changed bool, env expr
 	node.WrapperContext = mathWrapperContext(node.Plan.Name(), node.Args)
 	return node, true, nil
 }
+
+var _ expr.Renderable = Math{}
+
+// Render implements expr.Renderable.
+func (e Math) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Math " + e.Plan.Name(), Inputs: e.Args}, nil
+}

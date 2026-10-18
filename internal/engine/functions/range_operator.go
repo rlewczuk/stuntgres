@@ -65,3 +65,10 @@ func (e RangeOperator) Validate() error {
 func (e RangeOperator) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e RangeOperator) ValidateStoredProvider() error { return e.Validate() }
+
+var _ expr.Renderable = RangeOperator{}
+
+// Render implements expr.Renderable.
+func (e RangeOperator) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "RangeOperator " + e.Plan.Name() + " namespace " + e.Namespace, Inputs: e.Args[:]}, nil
+}

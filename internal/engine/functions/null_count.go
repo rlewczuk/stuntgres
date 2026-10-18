@@ -144,3 +144,10 @@ func (e NullCount) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, err
 func (e NullCount) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e NullCount) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = NullCount{}
+
+// Render implements expr.Renderable.
+func (e NullCount) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("NullCount %d", e.Kind), Inputs: e.Args}, nil
+}

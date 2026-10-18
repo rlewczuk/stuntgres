@@ -186,3 +186,10 @@ func (e DatetimeTrunc) Retag(info expr.Info, children []expr.Expr, changed bool,
 	node, planChanged, err := e.Reconstruct(info, args, env.Type)
 	return retagged(node, changed || planChanged, err)
 }
+
+var _ expr.Renderable = DatetimeTrunc{}
+
+// Render implements expr.Renderable.
+func (e DatetimeTrunc) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Datetime truncation", Inputs: e.Arguments()}, nil
+}

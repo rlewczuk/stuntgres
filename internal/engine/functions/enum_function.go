@@ -130,3 +130,10 @@ func EnumIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 func (e Enum) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e Enum) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = Enum{}
+
+// Render implements expr.Renderable.
+func (e Enum) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Enum " + e.Plan.Name(), Inputs: e.Args}, nil
+}

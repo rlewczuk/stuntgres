@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -167,4 +169,18 @@ func (e PosixSubstring) Retag(info expr.Info, children []expr.Expr, changed bool
 	copy(args[:], children)
 	node, err := e.Reconstruct(info, args)
 	return retagged(node, true, err)
+}
+
+var _ expr.Renderable = Posix{}
+
+// Render implements expr.Renderable.
+func (e Posix) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("Posix %s namespace %q", e.Operator, e.Namespace), Inputs: []expr.Expr{e.Left, e.Right}}, nil
+}
+
+var _ expr.Renderable = PosixSubstring{}
+
+// Render implements expr.Renderable.
+func (e PosixSubstring) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("PosixSubstring syntax %d", e.Syntax), Inputs: e.Args[:]}, nil
 }

@@ -122,3 +122,10 @@ func RangeInspectIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactI
 func (e RangeInspect) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e RangeInspect) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = RangeInspect{}
+
+// Render implements expr.Renderable.
+func (e RangeInspect) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "RangeInspect " + e.Plan.Name(), Inputs: e.Args}, nil
+}

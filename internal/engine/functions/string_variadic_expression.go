@@ -259,3 +259,10 @@ func (e StringVariadic) WithAnnotation(origin any) expr.Expr {
 	e.Origin = origin
 	return e
 }
+
+var _ expr.Renderable = StringVariadic{}
+
+// Render implements expr.Renderable.
+func (e StringVariadic) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("StringVariadic %s variadic %t anyelement %t", e.Name, e.Variadic, e.AnyElement), Inputs: e.Args}, nil
+}

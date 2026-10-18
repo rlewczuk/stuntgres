@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -311,4 +313,32 @@ func (e LikeEscape) Retag(info expr.Info, children []expr.Expr, changed bool, en
 	}
 	node, err := e.Reconstruct(info, children[0], children[1])
 	return retagged(node, true, err)
+}
+
+var _ expr.Renderable = LikeEscape{}
+
+// Render implements expr.Renderable.
+func (e LikeEscape) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "LikeEscape", Inputs: []expr.Expr{e.Pattern, e.Escape}}, nil
+}
+
+var _ expr.Renderable = Similar{}
+
+// Render implements expr.Renderable.
+func (e Similar) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Similar " + e.Operator, Inputs: []expr.Expr{e.Left, e.Right}}, nil
+}
+
+var _ expr.Renderable = SimilarEscape{}
+
+// Render implements expr.Renderable.
+func (e SimilarEscape) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("SimilarEscape omitted %t", e.Omitted), Inputs: []expr.Expr{e.Pattern, e.Escape}}, nil
+}
+
+var _ expr.Renderable = SimilarSubstring{}
+
+// Render implements expr.Renderable.
+func (e SimilarSubstring) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("SimilarSubstring syntax %d", e.Syntax), Inputs: e.Args[:]}, nil
 }

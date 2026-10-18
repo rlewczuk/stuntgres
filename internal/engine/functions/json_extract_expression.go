@@ -89,3 +89,10 @@ func (e JSONExtract) Validate() error {
 func (e JSONExtract) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONExtract) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONExtract{}
+
+// Render implements expr.Renderable.
+func (e JSONExtract) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSON extraction " + e.Plan.Name(), Inputs: e.Arguments()}, nil
+}

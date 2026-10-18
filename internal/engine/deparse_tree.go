@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -75,21 +73,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			return err
 		}
 		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
-	case functions.CurrentDateTime:
-		if err := n.Validate(expr.PropertiesMatch(n.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.Kind, n.HasPrecision, n.Precision)
-	case functions.VersionInformation:
-		if err := n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "VersionInformation kind %d", n.Kind)
-	case functions.TransactionTime:
-		if err := n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "TransactionTime kind %d", n.Kind)
 	case domainValueExpression:
 		fmt.Fprint(out, "DomainValue")
 	case columnExpression:
@@ -147,24 +130,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case likeExpression:
 		fmt.Fprintf(out, "Like %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
-	case functions.LikeEscape:
-		fmt.Fprintf(out, "LikeEscape")
-		err = pair(n.Pattern, n.Escape)
-	case functions.Posix:
-		fmt.Fprintf(out, "Posix %s namespace %q", n.Operator, n.Namespace)
-		err = pair(n.Left, n.Right)
-	case functions.Similar:
-		fmt.Fprintf(out, "Similar %s", n.Operator)
-		err = pair(n.Left, n.Right)
-	case functions.SimilarEscape:
-		fmt.Fprintf(out, "SimilarEscape omitted %t", n.Omitted)
-		err = pair(n.Pattern, n.Escape)
-	case functions.PosixSubstring:
-		fmt.Fprintf(out, "PosixSubstring syntax %d", n.Syntax)
-		err = args(n.Args[:])
-	case functions.SimilarSubstring:
-		fmt.Fprintf(out, "SimilarSubstring syntax %d", n.Syntax)
-		err = args(n.Args[:])
 	case rowComparisonExpression:
 		fmt.Fprintf(out, "RowCompare %s", n.operator)
 		for _, comparison := range n.comparisons {
@@ -172,12 +137,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 				break
 			}
 		}
-	case functions.Regexp:
-		fmt.Fprintf(out, "Regexp %s", n.Plan.Name())
-		err = args(n.Args)
-	case functions.RegexpSet:
-		fmt.Fprintf(out, "RegexpSet %s", n.Plan.Name())
-		err = args(n.Args)
 	case scalarArrayComparisonExpression:
 		fmt.Fprintf(out, "ScalarArrayCompare %s namespace %q all %t", n.operator, n.namespace, n.all)
 		err = child(n.left)
@@ -200,24 +159,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			fmt.Fprint(out, "Unnest")
 		}
 		err = args(n.args)
-	case functions.JSONKeys:
-		fmt.Fprintf(out, "JSONKeys %s", n.Plan.Name())
-		err = args(n.Args)
-	case functions.JSONBRecord:
-		fmt.Fprintf(out, "JSONBRecord %s", n.Name)
-		err = args(n.Args)
-	case functions.JSONBElements:
-		fmt.Fprintf(out, "JSONBElements %s", n.Plan.Name())
-		err = args(n.Args)
-	case functions.JSONRecord:
-		fmt.Fprintf(out, "JSONRecord %s", n.Plan.Name())
-		err = args(n.Args)
-	case functions.JSONEach:
-		fmt.Fprintf(out, "JSONEach %s", n.Plan.Name())
-		err = args(n.Args)
-	case functions.JSONElements:
-		fmt.Fprintf(out, "JSONElements %s", n.Plan.Name())
-		err = args(n.Args)
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
@@ -255,18 +196,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if err == nil {
 			err = child(n.otherwise)
 		}
-	case functions.ArrayRandom:
-		out.WriteString("ArrayRandom " + n.Kind.Name() + " namespace " + n.Namespace)
-		err = args(n.Args)
-	case functions.ArrayTransform:
-		fmt.Fprintf(out, "ArrayTransform %s namespace %s slots %v labels %v operator %t", n.Kind.Name(), n.Namespace, n.Slots, n.Labels, n.Operator)
-		err = args(n.Args)
-	case functions.ArrayInspect:
-		out.WriteString("ArrayInspect " + n.Kind.Name() + " namespace " + n.Namespace)
-		err = args(n.Args)
-	case functions.ArraySearch:
-		out.WriteString("ArraySearch " + n.Plan.Name() + " namespace " + n.Namespace)
-		err = args(n.Args)
 	case catalogUserNameExpression:
 		if failure := n.validate(); failure != nil {
 			return failure
@@ -288,97 +217,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if n.arg != nil {
 			err = child(n.arg)
 		}
-	case functions.UUIDExtract:
-		out.WriteString("UUIDExtract " + n.Kind.Name())
-		err = child(n.Arg)
-	case functions.NetworkFormat:
-		out.WriteString("NetworkFormat " + n.Kind.Name())
-		err = args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator:
-		out.WriteString("RangeOperator " + n.Plan.Name() + " namespace " + n.Namespace)
-		err = args(n.Args[:])
-	case functions.RangeInspect:
-		out.WriteString("RangeInspect " + n.Plan.Name())
-		err = args(n.Args)
-	case functions.Enum:
-		out.WriteString("Enum " + n.Plan.Name())
-		err = args(n.Args)
-	case functions.Math:
-		out.WriteString("Math " + n.Plan.Name())
-		err = args(n.Args)
-	case functions.DatetimeJustify:
-		out.WriteString("Datetime " + n.Plan.Name())
-		err = args(n.Arguments())
-	case functions.DatetimeExtract:
-		out.WriteString("Datetime extraction " + n.Plan.Name())
-		err = args(n.Arguments())
-	case functions.DatetimeOverlaps:
-		out.WriteString("Datetime overlaps")
-		err = args(n.Arguments())
-	case functions.DatetimeBin:
-		out.WriteString("Datetime binning")
-		err = args(n.Arguments())
-	case functions.DatetimeTrunc:
-		out.WriteString("Datetime truncation")
-		err = args(n.Arguments())
-	case functions.DatetimeZoneCalendar:
-		out.WriteString("Datetime " + n.Name)
-		err = args(n.Arguments())
-	case functions.DatetimeAgeFinite:
-		out.WriteString("Datetime " + n.Plan.Name())
-		err = args(n.Arguments())
-	case functions.JSONStripNulls:
-		out.WriteString("JSON stripping")
-		err = args(n.Arguments())
-	case functions.JSONExtract:
-		out.WriteString("JSON extraction " + n.Plan.Name())
-		err = args(n.Arguments())
-	case functions.JSONBPathQueryArray:
-		out.WriteString("JSONPath array query")
-		err = args(n.Arguments())
-	case functions.JSONBPathExists:
-		out.WriteString("JSONPath query")
-		err = args(n.Arguments())
-	case functions.JSONBPathMatch:
-		out.WriteString("JSONPath query")
-		err = args(n.Arguments())
-	case functions.JSONBPathQueryFirst:
-		out.WriteString("JSONPath query")
-		err = args(n.Arguments())
-	case functions.JSONBPathQuery:
-		out.WriteString("JSONPath query")
-		err = args(n.Arguments())
-	case functions.JSONBSet:
-		out.WriteString("JSONB replacement " + n.Plan.Name())
-		err = args(n.Arguments())
-	case functions.DatetimeMake:
-		out.WriteString("Datetime constructor " + n.Plan.Name())
-		err = args(n.Arguments())
-	case functions.DatetimeFormatting:
-		out.WriteString("Datetime " + n.Plan.Name())
-		err = args(n.Args[:])
-	case functions.NumericFormatting:
-		out.WriteString("NumericFormatting " + n.Plan.Name())
-		err = args(n.Args[:])
-	case functions.String:
-		out.WriteString("String " + n.Plan.Name())
-		err = args(n.Args)
-	case functions.Binary:
-		if err := n.ValidateSyntax(); err != nil {
-			return err
-		}
-		out.WriteString("Binary ")
-		out.WriteString(n.Plan.Name())
-		if n.Syntax == parser.SQLFunctionSyntax && (n.Plan.Name() == "btrim" || n.Plan.Name() == "ltrim" || n.Plan.Name() == "rtrim") {
-			out.WriteString(" syntax TRIM")
-		}
-		err = args(n.Args)
-	case functions.Random:
-		out.WriteString("Random " + n.Name)
-		err = args(n.Args)
-	case functions.DatetimeSleep:
-		out.WriteString("DatetimeSleep " + n.Kind.Name())
-		err = args([]expr.Expr{n.Arg})
 	case advisoryExpression:
 		if n.lifetime == advisoryTransaction {
 			out.WriteString("AdvisoryTransaction " + n.name)
@@ -386,12 +224,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			out.WriteString("AdvisorySession " + n.name)
 		}
 		err = args(n.args)
-	case functions.UUIDGeneration:
-		out.WriteString("UUIDGeneration " + n.Name)
-		err = args(n.Args)
-	case functions.NullCount:
-		fmt.Fprintf(out, "NullCount %d", n.Kind)
-		err = args(n.Args)
 	case installedSoundexFunctionExpression:
 		fmt.Fprintf(out, "InstalledSoundex %d %s", n.ref.Address.ObjectID, n.procedure.signature)
 		err = args(n.Args)
@@ -415,15 +247,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case jsonPredicateExpression:
 		fmt.Fprintf(out, "IS JSON %s unique %t not %t", n.kind, n.unique, n.not)
 		err = args([]expr.Expr{n.child})
-	case functions.JSONCreate:
-		fmt.Fprintf(out, "JSONCreate %s variadic %t", n.Kind.Name(), n.Variadic)
-		err = args(n.Args)
-	case functions.StringVariadic:
-		fmt.Fprintf(out, "StringVariadic %s variadic %t anyelement %t", n.Name, n.Variadic, n.AnyElement)
-		err = args(n.Args)
-	case functions.Format:
-		fmt.Fprintf(out, "Format variadic %t", n.Variadic)
-		err = args(n.Args)
 	case visibilityInquiryExpression:
 		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
 			return fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
@@ -484,19 +307,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case sequenceCallExpression:
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
 		err = args(n.args)
-	case functions.Timezone:
-		if n.Function {
-			out.WriteString("Datetime timezone")
-			err = args(n.Arguments())
-			break
-		}
-		if n.Local {
-			out.WriteString("AtLocal")
-			err = child(n.Value)
-		} else {
-			out.WriteString("AtTimeZone")
-			err = pair(n.Value, n.Zone)
-		}
 	case indexPropertyExpression:
 		if err := validateStoredIndexPropertyExpression(n); err != nil {
 			return err
@@ -506,6 +316,18 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case deparseExpression:
 		fmt.Fprintf(out, "Deparse signature %d", n.signature)
 		err = args(n.args)
+	case expr.Renderable:
+		// Function nodes describe themselves; engine wrappers that embed one
+		// keep their explicit cases above.
+		spec, failure := n.Render()
+		if failure != nil {
+			return failure
+		}
+		if spec.Tree == "" {
+			return fmt.Errorf("stuntgres: unsupported structural node %T", node)
+		}
+		out.WriteString(spec.Tree)
+		err = args(spec.Inputs)
 	default:
 		return fmt.Errorf("stuntgres: unsupported structural node %T", node)
 	}

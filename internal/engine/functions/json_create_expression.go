@@ -201,3 +201,10 @@ func (e JSONCreate) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 func (e JSONCreate) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (e JSONCreate) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONCreate{}
+
+// Render implements expr.Renderable.
+func (e JSONCreate) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("JSONCreate %s variadic %t", e.Kind.Name(), e.Variadic), Inputs: e.Args}, nil
+}

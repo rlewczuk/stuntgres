@@ -391,3 +391,10 @@ func (e String) Retag(info expr.Info, children []expr.Expr, changed bool, env ex
 	node, err := e.Reconstruct(info, children, text)
 	return retagged(node, changed, err)
 }
+
+var _ expr.Renderable = String{}
+
+// Render implements expr.Renderable.
+func (e String) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "String " + e.Plan.Name(), Inputs: e.Args}, nil
+}

@@ -359,3 +359,10 @@ func (e ArrayTransform) Retag(info expr.Info, children []expr.Expr, changed bool
 	node, err := e.Reconstruct(info, children, next, conflict)
 	return retagged(node, true, err)
 }
+
+var _ expr.Renderable = ArrayTransform{}
+
+// Render implements expr.Renderable.
+func (e ArrayTransform) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: fmt.Sprintf("ArrayTransform %s namespace %s slots %v labels %v operator %t", e.Kind.Name(), e.Namespace, e.Slots, e.Labels, e.Operator), Inputs: e.Args}, nil
+}

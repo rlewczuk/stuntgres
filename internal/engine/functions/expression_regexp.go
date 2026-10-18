@@ -232,3 +232,17 @@ func (e RegexpSet) Retag(info expr.Info, children []expr.Expr, changed bool, env
 	call, err := e.retag(info, children, env)
 	return retagged(RegexpSet{call}, changed, err)
 }
+
+var _ expr.Renderable = Regexp{}
+
+// Render implements expr.Renderable.
+func (e Regexp) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "Regexp " + e.Plan.Name(), Inputs: e.Args}, nil
+}
+
+var _ expr.Renderable = RegexpSet{}
+
+// Render implements expr.Renderable.
+func (e RegexpSet) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "RegexpSet " + e.Plan.Name(), Inputs: e.Args}, nil
+}

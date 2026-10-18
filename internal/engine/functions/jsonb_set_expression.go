@@ -76,3 +76,10 @@ func (e JSONBSet) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, erro
 func (e JSONBSet) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONBSet) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONBSet{}
+
+// Render implements expr.Renderable.
+func (e JSONBSet) Render() (expr.Rendering, error) {
+	return expr.Rendering{Tree: "JSONB replacement " + e.Plan.Name(), Inputs: e.Args[:e.Count]}, nil
+}
