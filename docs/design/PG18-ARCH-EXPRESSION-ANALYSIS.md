@@ -46,7 +46,7 @@ type BoundExpr interface {
     ResultUsage() sqltype.Usage
     SourcePosition() parser.Position
     Properties() ExprProperties
-    Eval(*EvalContext) (sqltype.Value, error)
+    Eval(ExprContext) (sqltype.Value, error) // implemented by *EvalContext; see docs/ENGINE-SPLIT.md
 }
 type Volatility uint8
 const (Immutable Volatility = iota; Stable; Volatile)

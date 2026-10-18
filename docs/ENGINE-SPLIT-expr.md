@@ -121,11 +121,56 @@ evaluation regression. 2d completes the step.
 
 ## Status
 
-- [ ] 2a — Evaluation through an interface; `routineRecipe` cut
+- [x] 2a — Evaluation through an interface; `routineRecipe` cut (`52d15cad4`
+  seam, `a7bc48424` port, `d0fb3f388` recipe cut)
 - [ ] 2b — `expr` created, contract moved, aliases in place
 - [ ] 2c — Node protocol landed with the walk switch as first adopter
 - [ ] 2d — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases: none yet. The engine-local `ExprContext`
+(`internal/engine/expression_context.go`) becomes `expr.Context` in 2b.
 
-Notes for later steps: none yet.
+Corrections to this prompt, measured at the 2a start:
+
+- The interface has 25 methods: the 24 `Function*` capabilities plus
+  `WholeRowNullPresence`. `CheckDomain` stays off it; it is the engine's
+  `sqltype` domain-check hook.
+- Instantiation references: 1,323 production and 313 test, in 169 files. The
+  two-parameter `TransactionTime`, `VersionInformation` and `CurrentDateTime`
+  instantiations compile with any context, so a leftover would make a type
+  switch case silently miss. A throwaway `go/types` scan of
+  `types.Info.Instances` confirmed that no `*EvalContext` type argument
+  remains.
+- 60 production and 14 test `Eval` methods. Six production nodes only
+  forward the context (collation, null test, truth test, selected operator)
+  or never use it (aggregate and foreign-key placeholders), so they skip the
+  recovery.
+
+Tests adapted in 2a: the 14 test `Eval` fakes; `deparse_review_identity_test.go`,
+`logical_test.go` and `transaction_time_test.go` pass `(*EvalContext)(nil)`
+where they passed `nil`; `query_recursive_test.go` and `query_set_test.go`
+wrap `original.Eval` for the `*EvalContext` probe helper. None were moved or
+deleted.
+
+Notes for later steps:
+
+- 2b: `functions.RandomOwner` and `functions.IntrinsicPropertyRule` move to
+  `expr`, because `expr.Context` names them and `expr` cannot import
+  `functions`. Both depend only on the standard library.
+- 2b: an untyped nil `ExprContext` makes `functions` nodes panic in
+  `c.FunctionContext()`, where a nil `*EvalContext` returned "missing
+  expression context". Production never passes one. Decide in 2b whether
+  `expr` makes nil contexts safe.
+- F1: `functions/pgcrypto.go` checks entropy, UUID and FIPS capabilities with
+  `any(c).(interface{...})`. Once nodes take `expr.Context`, these become
+  direct calls.
+- Outside the split: `SELECT 1 + abs(1)` and `SELECT abs(1) + 1` fail with
+  "syntax error at end of input"; `SELECT 1 + length('a')` and
+  `SELECT 1 + (abs(1))` work. This is a compatibility bug and needs reference
+  coverage in a normal session.
+- Outside the split: with the pinned 18.6 image, these `REFERENCE=1` tests fail
+  on the PostgreSQL side only: `TestReferenceStringCaseReviewSigma` (final sigma
+  case mapping), `TestReferenceUUIDGeneration{StoredConsumersAndControls,
+  FeatureSmoke,GuardDiagnostics}` (they expect 18.0's unchecked UUIDv7 shifts)
+  and `TestReferenceCheckReview{2SchemaPrivateDropOutcomes,
+  DependencyPrivateDeletionNonwaiting}` (bad connection after 5 s).
