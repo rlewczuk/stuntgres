@@ -60,9 +60,9 @@ func TestPGNamespaceShape(t *testing.T) {
 		t.Fatal("namespace relation shape", d)
 	}
 	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}
-	ids := [...]sqltype.ID{26, 19, 26, 1034}
+	typeIDs := [...]sqltype.ID{26, 19, 26, 1034}
 	for i, column := range d.columns {
-		typ, ok := c.LookupType(ids[i])
+		typ, ok := c.LookupType(typeIDs[i])
 		collation := uint32(0)
 		if i == 1 {
 			collation = 950

@@ -42,11 +42,11 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}
-	ids := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}
+	typeIDs := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950, 0}
 	nulls := [...]bool{false, false, false, false, false, true, true, false, true, true, true, true, false, false, true, true, true, true}
 	for i, column := range d.columns {
-		typ, ok := catalog.LookupType(ids[i])
+		typ, ok := catalog.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != nulls[i] || !column.NullabilityKnown || column.OriginTable != 1262 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}

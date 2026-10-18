@@ -171,7 +171,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Rows.Close()
-	ids := []sqltype.ID{sqltype.Regoper, sqltype.Regoperator}
+	typeIDs := []sqltype.ID{sqltype.Regoper, sqltype.Regoperator}
 	texts := []string{"#=#", "#=#(integer,integer)"}
 	// Hold the unread finalized cursor across successful reanalysis.
 	sessionSQL(t, s, "SET search_path TO regop_b,regop_a")
@@ -179,14 +179,14 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newValues := regoperatorPreparedValues(t, next, ids, texts)
+	newValues := regoperatorPreparedValues(t, next, typeIDs, texts)
 	next.Rows.Close()
 	for _, c := range d.regtypes.constants {
 		if c.id != 91001 {
 			t.Fatal("effective operator path did not reanalyze", c)
 		}
 	}
-	oldValues := regoperatorPreparedValues(t, r, ids, texts)
+	oldValues := regoperatorPreparedValues(t, r, typeIDs, texts)
 	for i := range oldValues {
 		oldOID, _ := oldValues[i].OperatorOID()
 		newOID, _ := newValues[i].OperatorOID()
@@ -221,7 +221,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	regoperatorPreparedValues(t, recovered, ids, texts)
+	regoperatorPreparedValues(t, recovered, typeIDs, texts)
 	recovered.Rows.Close()
 }
 

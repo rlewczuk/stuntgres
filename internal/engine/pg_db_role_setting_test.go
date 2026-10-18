@@ -43,10 +43,10 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}
-	ids := [...]sqltype.ID{26, 26, 1009}
+	typeIDs := [...]sqltype.ID{26, 26, 1009}
 	collations := [...]uint32{0, 0, 950}
 	for i, column := range d.columns {
-		typ, ok := catalog.LookupType(ids[i])
+		typ, ok := catalog.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i == 2) || !column.NullabilityKnown || column.OriginTable != 2964 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}
@@ -55,7 +55,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		if i == 2 {
 			dimensions = 1
 		}
-		if metadata.name != names[i] || metadata.typeID != uint32(ids[i]) || metadata.number != int32(i+1) || metadata.typmod != -1 || metadata.notNull != (i < 2) || metadata.dimensions != dimensions || metadata.collation != collations[i] {
+		if metadata.name != names[i] || metadata.typeID != uint32(typeIDs[i]) || metadata.number != int32(i+1) || metadata.typmod != -1 || metadata.notNull != (i < 2) || metadata.dimensions != dimensions || metadata.collation != collations[i] {
 			t.Fatal("catalog attribute projection", i, metadata)
 		}
 	}

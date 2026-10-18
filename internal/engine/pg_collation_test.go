@@ -29,10 +29,10 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 		t.Fatal("catalog identity", d)
 	}
 	names := [...]string{"oid", "collname", "collnamespace", "collowner", "collprovider", "collisdeterministic", "collencoding", "collcollate", "collctype", "colllocale", "collicurules", "collversion"}
-	ids := [...]sqltype.ID{26, 19, 26, 26, 18, 16, 23, 25, 25, 25, 25, 25}
+	typeIDs := [...]sqltype.ID{26, 19, 26, 26, 18, 16, 23, 25, 25, 25, 25, 25}
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950}
 	for i, column := range d.columns {
-		typ, ok := catalog.LookupType(ids[i])
+		typ, ok := catalog.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i >= 7) || !column.NullabilityKnown || column.OriginTable != 3456 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
 			t.Error("release attribute", i+1, column)
 		}

@@ -28,9 +28,9 @@ func TestPGSequencesDescriptors(t *testing.T) {
 		t.Fatal(d)
 	}
 	names := []string{"schemaname", "sequencename", "sequenceowner", "data_type", "start_value", "min_value", "max_value", "increment_by", "cycle", "cache_size", "last_value"}
-	ids := []sqltype.ID{sqltype.Name, sqltype.Name, sqltype.Name, sqltype.Regtype, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Bool, sqltype.Int8, sqltype.Int8}
+	typeIDs := []sqltype.ID{sqltype.Name, sqltype.Name, sqltype.Name, sqltype.Regtype, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Bool, sqltype.Int8, sqltype.Int8}
 	for i, column := range d.columns {
-		if column.Name != names[i] || column.Usage.Type.ID() != ids[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 12048 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) {
+		if column.Name != names[i] || column.Usage.Type.ID() != typeIDs[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 12048 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) {
 			t.Fatal(i, column)
 		}
 		if i < 3 && column.Usage.Collation.ID != 950 {

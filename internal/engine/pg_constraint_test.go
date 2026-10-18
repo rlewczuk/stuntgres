@@ -116,12 +116,12 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	source, ref := pgConstraintUnitSource(t, e)
 	view := e.CatalogRead()
 	names := []string{"oid", "conname", "connamespace", "contype", "condeferrable", "condeferred", "conenforced", "convalidated", "conrelid", "contypid", "conindid", "conparentid", "confrelid", "confupdtype", "confdeltype", "confmatchtype", "conislocal", "coninhcount", "connoinherit", "conperiod", "conkey", "confkey", "conpfeqop", "conppeqop", "conffeqop", "confdelsetcols", "conexclop", "conbin"}
-	ids := []sqltype.ID{26, 19, 26, 18, 16, 16, 16, 16, 26, 26, 26, 26, 26, 18, 18, 18, 16, 21, 16, 16, 1005, 1005, 1028, 1028, 1028, 1005, 1028, 194}
+	typeIDs := []sqltype.ID{26, 19, 26, 18, 16, 16, 16, 16, 26, 26, 26, 26, 26, 18, 18, 18, 16, 21, 16, 16, 1005, 1005, 1028, 1028, 1028, 1005, 1028, 194}
 	if source.rowType != 10003 || source.attributeHighWater != 28 || len(source.columns) != 28 || source.namespace.ObjectID != 11 {
 		t.Fatal("source shape", source)
 	}
 	for i, column := range source.columns {
-		owned, ok := view.LookupType(ids[i])
+		owned, ok := view.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != owned || column.Usage.Typmod != -1 || column.Nullable != (i >= 20) || !column.NullabilityKnown || column.OriginTable != 2606 || column.OriginAttribute != int16(i+1) || source.attributes[i] != int32(i+1) || source.index[column.Name] != i {
 			t.Fatal("descriptor", i, column)
 		}

@@ -18,12 +18,12 @@ func TestPgClassProjection(t *testing.T) {
 	catalog := e.CatalogRead()
 	source := pgClassUnitSource(t, e)
 	names := []string{"oid", "relname", "relnamespace", "reltype", "reloftype", "relowner", "relam", "relfilenode", "reltablespace", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relhasindex", "relisshared", "relpersistence", "relkind", "relnatts", "relchecks", "relhasrules", "relhastriggers", "relhassubclass", "relrowsecurity", "relforcerowsecurity", "relispopulated", "relreplident", "relispartition", "relrewrite", "relfrozenxid", "relminmxid", "relacl", "reloptions", "relpartbound"}
-	ids := []sqltype.ID{26, 19, 26, 26, 26, 26, 26, 26, 26, 23, 700, 23, 23, 26, 16, 16, 18, 18, 21, 21, 16, 16, 16, 16, 16, 16, 18, 16, 26, 28, 28, 1034, 1009, 194}
+	typeIDs := []sqltype.ID{26, 19, 26, 26, 26, 26, 26, 26, 26, 23, 700, 23, 23, 26, 16, 16, 18, 18, 21, 21, 16, 16, 16, 16, 16, 16, 18, 16, 26, 28, 28, 1034, 1009, 194}
 	if len(source.columns) != 34 || source.attributeHighWater != 34 {
 		t.Fatal("full catalog schema", source.columns, source.attributeHighWater)
 	}
 	for i, column := range source.columns {
-		if column.Name != names[i] || column.Usage.Type.ID() != ids[i] || !column.NullabilityKnown || column.Nullable != (i >= 31) || column.OriginTable != 1259 || column.OriginAttribute != int16(i+1) {
+		if column.Name != names[i] || column.Usage.Type.ID() != typeIDs[i] || !column.NullabilityKnown || column.Nullable != (i >= 31) || column.OriginTable != 1259 || column.OriginAttribute != int16(i+1) {
 			t.Fatal("descriptor", i, column)
 		}
 	}

@@ -28,11 +28,11 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 		t.Fatal("relation identity", d, owner)
 	}
 	names := [8]string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}
-	ids := [8]sqltype.ID{26, 19, 26, 26, 16, 25, 1028, 1009}
+	typeIDs := [8]sqltype.ID{26, 19, 26, 26, 16, 25, 1028, 1009}
 	collations := [8]uint32{0, 950, 0, 0, 0, 950, 0, 950}
 	for i, c := range d.columns {
-		owned, ok := e.CatalogRead().LookupType(ids[i])
-		if !ok || c.Name != names[i] || c.Usage.Type != owned || c.Usage.Type.ID() != ids[i] || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collations[i] || c.Nullable != (i >= 6) || !c.NullabilityKnown || c.OriginTable != 3079 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+		owned, ok := e.CatalogRead().LookupType(typeIDs[i])
+		if !ok || c.Name != names[i] || c.Usage.Type != owned || c.Usage.Type.ID() != typeIDs[i] || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collations[i] || c.Nullable != (i >= 6) || !c.NullabilityKnown || c.OriginTable != 3079 || c.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
 			t.Fatal("column", i, c)
 		}
 	}

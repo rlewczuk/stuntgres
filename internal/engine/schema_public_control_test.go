@@ -188,15 +188,15 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 						t.Fatal("new namespace owner/ACL", name, namespace)
 					}
 				}
-				ids := make(map[OID]ObjectAddress)
+				byObjectID := make(map[OID]ObjectAddress)
 				for address := range after.state.descriptors {
 					if address.ClassID != NamespaceClassID && address.ClassID != RelationClassID {
 						continue
 					}
-					if prior, exists := ids[address.ObjectID]; exists {
+					if prior, exists := byObjectID[address.ObjectID]; exists {
 						t.Fatal("shared identity collision", prior, address)
 					}
-					ids[address.ObjectID] = address
+					byObjectID[address.ObjectID] = address
 				}
 				for _, tc := range []struct {
 					table string

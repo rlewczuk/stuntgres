@@ -7,12 +7,12 @@ import (
 )
 
 func TestUserOperatorDumpFinalGraph(t *testing.T) {
-	for _, ids := range [][4]OID{{90001, 90002, 90003, 90004}, {90003, 90004, 90001, 90002}} {
+	for _, oids := range [][4]OID{{90001, 90002, 90003, 90004}, {90003, 90004, 90001, 90002}} {
 		e := New()
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		// D.neg=C is asymmetric; A.comm=B is asymmetric; B/C are reciprocal
 		// in both kinds. Allocation order must not become link-establishment order.
-		d, c, a, b := ids[0], ids[1], ids[2], ids[3]
+		d, c, a, b := oids[0], oids[1], oids[2], oids[3]
 		operators := []*operatorDescriptor{
 			{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: d}, name: "#!#", function: 144, result: 16, negator: c},
 			{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: c}, name: "#?#", function: 65, result: 16, commutator: b, negator: b},

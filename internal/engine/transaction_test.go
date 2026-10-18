@@ -89,13 +89,13 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 		t.Fatal("retained result widened")
 	}
 	e.mu.Lock()
-	var ids []rowVersion
+	var versions []rowVersion
 	for _, store := range e.storage {
-		ids = append(ids, store.versions...)
+		versions = append(versions, store.versions...)
 	}
 	e.mu.Unlock()
 	seen := map[RowID]bool{}
-	for _, v := range ids {
+	for _, v := range versions {
 		if v.row == 0 || v.version == 0 || v.born == 0 || seen[v.row] {
 			t.Fatal("invalid/duplicate identity", v)
 		}

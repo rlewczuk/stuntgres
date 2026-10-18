@@ -61,12 +61,12 @@ func TestPGAttributeShape(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgAttributeUnitSource(t, e, catalog)
 	names := []string{"attrelid", "attname", "atttypid", "attlen", "attnum", "atttypmod", "attndims", "attbyval", "attalign", "attstorage", "attcompression", "attnotnull", "atthasdef", "atthasmissing", "attidentity", "attgenerated", "attisdropped", "attislocal", "attinhcount", "attcollation", "attstattarget", "attacl", "attoptions", "attfdwoptions", "attmissingval"}
-	ids := []sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
+	typeIDs := []sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
 	if d.rowType != 75 || d.attributeHighWater != 25 || len(d.columns) != 25 || !d.hasIndexes || d.virtualView {
 		t.Fatal("released identity", d)
 	}
 	for i, c := range d.columns {
-		if c.Name != names[i] || c.Usage.Type.ID() != ids[i] || c.Nullable != (i >= 20) || !c.NullabilityKnown || c.OriginTable != 1249 || c.OriginAttribute != int16(i+1) {
+		if c.Name != names[i] || c.Usage.Type.ID() != typeIDs[i] || c.Nullable != (i >= 20) || !c.NullabilityKnown || c.OriginTable != 1249 || c.OriginAttribute != int16(i+1) {
 			t.Fatal("column", i, c)
 		}
 	}

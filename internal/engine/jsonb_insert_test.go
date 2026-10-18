@@ -15,8 +15,8 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	node := jsonbSetUnitBind(t, b, "SELECT jsonb_insert($1,$2,$3,$4)")
 	e := node.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
-	ids := [4]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool}
-	for i, id := range ids {
+	typeIDs := [4]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool}
+	for i, id := range typeIDs {
 		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id || e.Args[i].ResultUsage().Typmod != -1 {
 			t.Fatal("formal inference", i)
 		}
@@ -75,7 +75,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 				t.Fatal("presentation lost", r)
 			}
 			for i, arg := range r.Arguments() {
-				if arg.ResultUsage().Type != fresh[ids[i]] || n.Args[i].ResultUsage().Type == arg.ResultUsage().Type {
+				if arg.ResultUsage().Type != fresh[typeIDs[i]] || n.Args[i].ResultUsage().Type == arg.ResultUsage().Type {
 					t.Fatal("descriptor remapping", i)
 				}
 			}

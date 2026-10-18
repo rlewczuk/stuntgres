@@ -13,18 +13,18 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]registe
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	ids := []sqltype.ID{sqltype.Name, sqltype.Text, sqltype.Text, sqltype.Text}
+	typeIDs := []sqltype.ID{sqltype.Name, sqltype.Text, sqltype.Text, sqltype.Text}
 	switch source.address.ObjectID {
 	case 12081:
 	case 12085:
-		ids = []sqltype.ID{sqltype.Name, sqltype.Text, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Name, 1003, sqltype.Text}
+		typeIDs = []sqltype.ID{sqltype.Name, sqltype.Text, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Name, 1003, sqltype.Text}
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid available extension source")
 	}
-	if len(source.columns) != len(ids) {
+	if len(source.columns) != len(typeIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid available extension source shape")
 	}
-	for i, id := range ids {
+	for i, id := range typeIDs {
 		owned, ok := catalog.LookupType(id)
 		if !ok || owned != source.columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign available extension source type")

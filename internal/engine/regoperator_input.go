@@ -148,7 +148,7 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 		return n, err
 	}
 	var name string
-	var ids [2]OID
+	var oids [2]OID
 	count := 0
 	types := r.types
 	types.qualified = r.qualified
@@ -175,8 +175,8 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 		if count >= 100 {
 			return sqlError("54023", "too many arguments")
 		}
-		if count < len(ids) {
-			ids[count] = OID(id)
+		if count < len(oids) {
+			oids[count] = OID(id)
 		}
 		count++
 		return nil
@@ -198,7 +198,7 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 		return 0, err
 	}
 	for _, d := range candidates {
-		if d.left == ids[0] && d.right == ids[1] {
+		if d.left == oids[0] && d.right == oids[1] {
 			return uint32(d.address.ObjectID), nil
 		}
 	}
