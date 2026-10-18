@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -629,11 +629,11 @@ func fullJoinComparisonOperator(operator string, negate bool) string {
 
 // Slots, including descendant synthetic merged slots, belong to child frames.
 // Physical origins are deliberately irrelevant to FULL path capability.
-func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, error) {
-	if expr == nil {
+func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, error) {
+	if node == nil {
 		return 0, nil
 	}
-	if e, ok := expr.(columnExpression); ok {
+	if e, ok := node.(columnExpression); ok {
 		if e.slot < 0 || e.slot >= leftWidth+rightWidth {
 			return 0, fmt.Errorf("stuntgres: invalid join expression slot")
 		}
@@ -649,10 +649,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		return err
 	}
 	var children []BoundExpr
-	switch e := expr.(type) {
-	case functions.VersionInformation:
-		return 0, nil
-	case literalExpression, parameterExpression, identityExpression, functions.CurrentDateTime, functions.TransactionTime:
+	switch e := node.(type) {
+	case literalExpression, parameterExpression, identityExpression:
 		return 0, nil
 	case rowExpression:
 		children = e.fields
@@ -736,90 +734,12 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case unnestExpression:
 		children = e.args
-	case functions.LikeEscape:
-		children = []BoundExpr{e.Pattern, e.Escape}
-	case functions.Posix:
-		children = []BoundExpr{e.Left, e.Right}
-	case functions.Similar:
-		children = []BoundExpr{e.Left, e.Right}
-	case functions.SimilarEscape:
-		children = []BoundExpr{e.Pattern, e.Escape}
-	case functions.PosixSubstring:
-		children = e.Args[:]
-	case functions.SimilarSubstring:
-		children = e.Args[:]
-	case functions.Regexp:
-		children = e.Args
-	case functions.RegexpSet:
-		children = e.Args
-	case functions.JSONKeys:
-		children = e.Args
-	case functions.JSONBRecord:
-		children = e.Args
-	case functions.JSONBElements:
-		children = e.Args
-	case functions.JSONRecord:
-		children = e.Args
-	case functions.JSONEach:
-		children = e.Args
-	case functions.JSONElements:
-		children = e.Args
 	case nullTestExpression:
 		children = []BoundExpr{e.child}
 	case truthTestExpression:
 		children = []BoundExpr{e.child}
-	case functions.Timezone:
-		children = []BoundExpr{e.Value, e.Zone}
 	case conditionalExpression:
 		children = e.args
-	case functions.Binary:
-		children = e.Args
-	case functions.DatetimeJustify:
-		children = e.Arguments()
-	case functions.DatetimeExtract:
-		children = e.Arguments()
-	case functions.DatetimeOverlaps:
-		children = e.Arguments()
-	case functions.DatetimeBin:
-		children = e.Arguments()
-	case functions.DatetimeTrunc:
-		children = e.Arguments()
-	case functions.DatetimeZoneCalendar:
-		children = e.Arguments()
-	case functions.DatetimeAgeFinite:
-		children = e.Arguments()
-	case functions.JSONStripNulls:
-		children = e.Arguments()
-	case functions.JSONExtract:
-		children = e.Arguments()
-	case functions.JSONBPathQueryArray:
-		children = e.Arguments()
-	case functions.JSONBPathExists:
-		children = e.Arguments()
-	case functions.JSONBPathMatch:
-		children = e.Arguments()
-	case functions.JSONBPathQueryFirst:
-		children = e.Arguments()
-	case functions.JSONBPathQuery:
-		children = e.Arguments()
-	case functions.JSONBSet:
-		children = e.Arguments()
-	case functions.DatetimeMake:
-		children = e.Arguments()
-	case functions.DatetimeFormatting:
-		children = e.Args[:]
-	case functions.NumericFormatting:
-		children = e.Args[:]
-	case functions.String:
-		children = e.Args
-	case functions.ArrayRandom:
-		children = e.Args
-	case functions.ArrayTransform:
-		children = e.Args
-	case functions.ArrayInspect:
-		children = e.Args
-	case functions.ArraySearch:
-		children = e.Args
 	case catalogUserNameExpression:
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
 	case catalogForeignKeysExpression:
@@ -834,26 +754,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 			return 0, nil
 		}
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
-	case functions.UUIDExtract:
-		return joinExpressionSides(e.Arg, leftWidth, rightWidth)
-	case functions.NetworkFormat:
-		children = e.Args[:e.Kind.Arity()]
-	case functions.RangeOperator:
-		children = e.Args[:]
-	case functions.RangeInspect:
-		children = e.Args
-	case functions.Enum:
-		children = e.Args
-	case functions.Math:
-		children = e.Args
-	case functions.Random:
-		children = e.Args
-	case functions.DatetimeSleep:
-		children = []BoundExpr{e.Arg}
 	case advisoryExpression:
 		children = e.args
-	case functions.UUIDGeneration:
-		children = e.Args
 	case sequenceCallExpression:
 		children = e.args
 	case indexPropertyExpression:
@@ -862,8 +764,6 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case commentInquiryExpression:
 		children = e.args
-	case functions.NullCount:
-		children = e.Args
 	case installedSoundexFunctionExpression:
 		children = e.Args
 	case installedMetaphoneFunctionExpression:
@@ -880,12 +780,6 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case jsonPredicateExpression:
 		children = []BoundExpr{e.child}
-	case functions.JSONCreate:
-		children = e.Args
-	case functions.StringVariadic:
-		children = e.Args
-	case functions.Format:
-		children = e.Args
 	case currentSchemasExpression:
 		children = []BoundExpr{e.arg}
 	case objectAddressExpression:
@@ -918,8 +812,11 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 			}
 		}
 		return result, nil
+	case expr.Composite:
+		// Last, so the explicit cases above keep precedence over embedded nodes.
+		children = e.Children()
 	default:
-		return 0, fmt.Errorf("stuntgres: unsupported join dependency expression %T", expr)
+		return 0, fmt.Errorf("stuntgres: unsupported join dependency expression %T", node)
 	}
 	for _, e := range children {
 		if err := child(e); err != nil {
