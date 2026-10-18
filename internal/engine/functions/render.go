@@ -1,12 +1,58 @@
 package functions
 
 import (
+	"errors"
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
 )
 
 // Shared builders for the nodes' expr.Rendering values.
+
+// unsupportedReplay refuses nodes stored scalar SQL has no form for, such as
+// set-returning calls.
+func unsupportedReplay() error { return errors.New("stuntgres: unsupported stored default node") }
+
+// refuseReplay is a replay check that always fails with message.
+func refuseReplay(message string) func() error {
+	return func() error { return errors.New(message) }
+}
+
+// catalogArguments reports whether an argument's type holds catalog
+// identifiers, so a call over it reads catalog names.
+func catalogArguments(args []expr.Expr) bool {
+	for _, arg := range args {
+		if catalogArgument(arg) {
+			return true
+		}
+	}
+	return false
+}
+
+func catalogArgument(arg expr.Expr) bool {
+	if arg == nil {
+		return false
+	}
+	t := arg.ResultUsage().Type
+	return t != nil && t.ContainsCatalogIdentifier()
+}
+
+// missingArgument reports a nil argument.
+func missingArgument(args []expr.Expr) bool {
+	for _, arg := range args {
+		if arg == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// transportArgs sets the replay transport of every argument.
+func transportArgs(args []expr.RenderArg, transport expr.Transport) {
+	for i := range args {
+		args[i].Transport = transport
+	}
+}
 
 // callRendering is an ordinary call whose arguments show implicit coercions.
 func callRendering(tree string, inputs []expr.Expr, name string, args []expr.Expr) expr.Rendering {
@@ -68,9 +114,9 @@ func infixRendering(tree string, inputs []expr.Expr, namespace, operator string,
 	return expr.Rendering{Tree: tree, Inputs: inputs, Form: expr.FormInfix, Name: operator, Namespace: namespace, Args: hiddenArgs(left, right)}
 }
 
-// syntaxPieces are the SQL-standard spellings of OVERLAY, SUBSTRING, POSITION
+// SyntaxPieces are the SQL-standard spellings of OVERLAY, SUBSTRING, POSITION
 // and TRIM over count arguments; the TRIM forms list the source first.
-func syntaxPieces(name string, count int) ([]expr.Piece, error) {
+func SyntaxPieces(name string, count int) ([]expr.Piece, error) {
 	text, arg := expr.TextPiece, expr.ArgPiece
 	switch name {
 	case "overlay":
@@ -100,13 +146,13 @@ func syntaxPieces(name string, count int) ([]expr.Piece, error) {
 		if count != 2 {
 			break
 		}
-		return trimPieces(name, count)
+		return TrimPieces(name, count)
 	}
 	return nil, fmt.Errorf("stuntgres: invalid SQL binary syntax")
 }
 
-// trimPieces is TRIM(direction [set] FROM source) over (source[, set]).
-func trimPieces(name string, count int) ([]expr.Piece, error) {
+// TrimPieces is TRIM(direction [set] FROM source) over (source[, set]).
+func TrimPieces(name string, count int) ([]expr.Piece, error) {
 	direction := ""
 	switch name {
 	case "btrim":

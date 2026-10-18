@@ -371,6 +371,7 @@ func (e ArrayTransform) Render() (expr.Rendering, error) {
 		Tree:   fmt.Sprintf("ArrayTransform %s namespace %s slots %v labels %v operator %t", e.Kind.Name(), e.Namespace, e.Slots, e.Labels, e.Operator),
 		Inputs: e.Args, Args: listedArgs(e.Args),
 	}
+	spec.Replay.QuoteNamespace = true
 	if e.Operator {
 		spec.Form, spec.Name, spec.Namespace, spec.Grouping = expr.FormInfix, "||", e.Namespace, expr.GroupAlways
 		return spec, nil
@@ -381,5 +382,6 @@ func (e ArrayTransform) Render() (expr.Rendering, error) {
 		}
 	}
 	spec.Form, spec.Name, spec.Quote, spec.LabelQuote, spec.SimpleCast = expr.FormCall, "pg_catalog."+e.Kind.Name(), expr.QuoteVerbatim, expr.QuoteVerbatim, true
+	spec.Replay.Name = e.Kind.Name()
 	return spec, nil
 }

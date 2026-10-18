@@ -244,7 +244,9 @@ var _ expr.Renderable = RegexpSet{}
 
 // Render implements expr.Renderable.
 func (e RegexpSet) Render() (expr.Rendering, error) {
-	return e.RegexpCall.rendering("RegexpSet "), nil
+	spec := e.RegexpCall.rendering("RegexpSet ")
+	spec.Replay.Validate = unsupportedReplay
+	return spec, nil
 }
 
 // rendering lists the written arguments with their labels.

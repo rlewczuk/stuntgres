@@ -182,5 +182,6 @@ var _ expr.Renderable = ArrayInspect{}
 func (e ArrayInspect) Render() (expr.Rendering, error) {
 	spec := callRendering("ArrayInspect "+e.Kind.Name()+" namespace "+e.Namespace, e.Args, e.Kind.Name(), e.Args)
 	spec.SimpleCast = true
+	spec.Replay.Validate = e.Validate
 	return spec, nil
 }

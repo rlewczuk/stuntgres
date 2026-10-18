@@ -271,5 +271,6 @@ func (e DatetimeSleep) Render() (expr.Rendering, error) {
 	args := []expr.Expr{e.Arg}
 	spec := callRendering("DatetimeSleep "+e.Kind.Name(), args, e.Kind.Name(), args)
 	spec.SimpleCast = true
+	spec.Replay.Types = []*sqltype.Descriptor{e.ClockUsage.Type}
 	return spec, nil
 }

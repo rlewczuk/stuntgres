@@ -210,6 +210,10 @@ func (e JSONCreate) Render() (expr.Rendering, error) {
 	spec.UnknownTexts = true
 	for i := range spec.Args {
 		spec.Args[i].UnknownText = e.UnknownArgument(i)
+		if !spec.Args[i].UnknownText {
+			spec.Args[i].Transport = expr.TransportLiteral
+		}
 	}
+	spec.Replay.CatalogSnapshot = catalogArguments(e.Args)
 	return spec, nil
 }

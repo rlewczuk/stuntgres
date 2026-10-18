@@ -264,7 +264,10 @@ var _ expr.Renderable = StringVariadic{}
 
 // Render implements expr.Renderable.
 func (e StringVariadic) Render() (expr.Rendering, error) {
-	return variadicRendering(fmt.Sprintf("StringVariadic %s variadic %t anyelement %t", e.Name, e.Variadic, e.AnyElement), e.Name, e.Args, e.Variadic), nil
+	spec := variadicRendering(fmt.Sprintf("StringVariadic %s variadic %t anyelement %t", e.Name, e.Variadic, e.AnyElement), e.Name, e.Args, e.Variadic)
+	transportArgs(spec.Args, expr.TransportAmbiguous)
+	spec.Replay.CatalogSnapshot = catalogArguments(e.Args)
+	return spec, nil
 }
 
 // variadicRendering is a variadic-capable call in function-argument position,

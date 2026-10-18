@@ -153,5 +153,17 @@ func (e NullCount) Render() (expr.Rendering, error) {
 	if e.Kind == CountNonnulls {
 		name = "num_nonnulls"
 	}
-	return callRendering(fmt.Sprintf("NullCount %d", e.Kind), e.Args, name, e.Args), nil
+	spec := callRendering(fmt.Sprintf("NullCount %d", e.Kind), e.Args, name, e.Args)
+	switch {
+	case !e.ValidSignature():
+		spec.Replay.Validate = refuseReplay("stuntgres: invalid stored null count signature")
+	case e.Name() == "":
+		spec.Replay.Validate = refuseReplay("stuntgres: invalid stored null count")
+	case e.DotBuiltin && len(e.Args) != 1:
+		spec.Replay.Validate = refuseReplay("stuntgres: invalid stored dot builtin signature")
+	case e.DotBuiltin:
+		// Replay keeps the admitted field-notation spelling.
+		spec.Replay.Pieces = []expr.Piece{expr.TextPiece("("), expr.ArgPiece(0), expr.TextPiece(")."), expr.IdentifierPiece(name)}
+	}
+	return spec, nil
 }

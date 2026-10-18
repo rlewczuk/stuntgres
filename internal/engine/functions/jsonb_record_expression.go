@@ -228,5 +228,6 @@ var _ expr.Renderable = JSONBRecord{}
 func (e JSONBRecord) Render() (expr.Rendering, error) {
 	spec := callRendering("JSONBRecord "+e.Name, e.Args, e.Name, e.Args)
 	spec.Quote = expr.QuoteWhenNeeded
+	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }

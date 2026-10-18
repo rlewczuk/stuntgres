@@ -135,5 +135,14 @@ var _ expr.Renderable = Enum{}
 
 // Render implements expr.Renderable.
 func (e Enum) Render() (expr.Rendering, error) {
-	return callRendering("Enum "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args), nil
+	spec := callRendering("Enum "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args)
+	switch {
+	case len(e.Args) < 1 || len(e.Args) > 2:
+		spec.Replay.Validate = refuseReplay("stuntgres: invalid stored enum arity")
+	case missingArgument(e.Args):
+		spec.Replay.Validate = refuseReplay("stuntgres: missing enum operand")
+	default:
+		spec.Replay.Validate = e.Validate
+	}
+	return spec, nil
 }

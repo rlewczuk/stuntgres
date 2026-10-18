@@ -228,6 +228,7 @@ var _ expr.Renderable = JSONKeys{}
 func (e JSONKeys) Render() (expr.Rendering, error) {
 	spec := callRendering("JSONKeys "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
 	spec.Quote = expr.QuoteWhenNeeded
+	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
 
@@ -237,6 +238,7 @@ var _ expr.Renderable = JSONBElements{}
 func (e JSONBElements) Render() (expr.Rendering, error) {
 	spec := callRendering("JSONBElements "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
 	spec.Quote = expr.QuoteWhenNeeded
+	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
 
@@ -246,6 +248,7 @@ var _ expr.Renderable = JSONEach{}
 func (e JSONEach) Render() (expr.Rendering, error) {
 	spec := callRendering("JSONEach "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
 	spec.Quote = expr.QuoteWhenNeeded
+	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
 
@@ -255,5 +258,6 @@ var _ expr.Renderable = JSONElements{}
 func (e JSONElements) Render() (expr.Rendering, error) {
 	spec := callRendering("JSONElements "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
 	spec.Quote = expr.QuoteWhenNeeded
+	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }

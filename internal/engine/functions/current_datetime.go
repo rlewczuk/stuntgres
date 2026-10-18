@@ -107,5 +107,7 @@ func (e CurrentDateTime) Render() (expr.Rendering, error) {
 	if err != nil {
 		return expr.Rendering{}, err
 	}
-	return expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision), Form: expr.FormLeaf, Text: strings.ToUpper(text)}, nil
+	spec := expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision), Form: expr.FormLeaf, Text: strings.ToUpper(text)}
+	spec.Replay.Text = text
+	return spec, nil
 }

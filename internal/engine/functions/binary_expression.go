@@ -540,6 +540,27 @@ var _ expr.Renderable = Binary{}
 
 // Render implements expr.Renderable.
 func (e Binary) Render() (expr.Rendering, error) {
+	spec, err := e.rendering()
+	if err != nil {
+		return spec, err
+	}
+	spec.Replay.Validate = e.replayFault
+	spec.Replay.VisibilitySnapshot = !e.Plan.Immutable()
+	return spec, nil
+}
+
+// replayFault is the stored provider validation.
+func (e Binary) replayFault() error {
+	if len(e.Args) < 1 || len(e.Args) > 4 {
+		return fmt.Errorf("stuntgres: invalid stored binary arity")
+	}
+	if missingArgument(e.Args) {
+		return fmt.Errorf("stuntgres: missing binary operand")
+	}
+	return e.Validate()
+}
+
+func (e Binary) rendering() (expr.Rendering, error) {
 	if err := e.ValidateSyntax(); err != nil {
 		return expr.Rendering{}, err
 	}
@@ -549,10 +570,11 @@ func (e Binary) Render() (expr.Rendering, error) {
 		tree += " syntax TRIM"
 	}
 	if e.Operator() {
-		return infixRendering(tree, e.Args, "", name, e.Args[0], e.Args[1]), nil
+		// Replay always qualifies the operator; display shows it bare.
+		return infixRendering(tree, e.Args, "pg_catalog", name, e.Args[0], e.Args[1]), nil
 	}
 	if e.Syntax == parser.SQLFunctionSyntax {
-		pieces, err := syntaxPieces(name, len(e.Args))
+		pieces, err := SyntaxPieces(name, len(e.Args))
 		if err != nil {
 			return expr.Rendering{}, err
 		}

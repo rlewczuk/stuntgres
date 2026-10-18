@@ -320,14 +320,36 @@ var _ expr.Renderable = LikeEscape{}
 // Render implements expr.Renderable.
 func (e LikeEscape) Render() (expr.Rendering, error) {
 	inputs := []expr.Expr{e.Pattern, e.Escape}
-	return expr.Rendering{Tree: "LikeEscape", Inputs: inputs, Form: expr.FormCall, Name: "pg_catalog.like_escape", Quote: expr.QuoteVerbatim, Args: hiddenArgs(inputs...)}, nil
+	spec := expr.Rendering{Tree: "LikeEscape", Inputs: inputs, Form: expr.FormCall, Name: "pg_catalog.like_escape", Quote: expr.QuoteVerbatim, Args: hiddenArgs(inputs...)}
+	spec.Replay.Name = "like_escape"
+	return spec, nil
 }
 
 var _ expr.Renderable = Similar{}
 
 // Render implements expr.Renderable.
 func (e Similar) Render() (expr.Rendering, error) {
-	return infixRendering("Similar "+e.Operator, []expr.Expr{e.Left, e.Right}, "", e.Operator, e.Left, e.Right), nil
+	spec := infixRendering("Similar "+e.Operator, []expr.Expr{e.Left, e.Right}, "", e.Operator, e.Left, e.Right)
+	// PostgreSQL displays the normalizer call; replay writes the SQL syntax
+	// over its inputs, and the normalizer's routine is still recorded.
+	normalizer, ok := e.Right.(SimilarEscape)
+	if !ok {
+		spec.Replay.Validate = refuseReplay("stuntgres: invalid stored SIMILAR normalizer")
+		return spec, nil
+	}
+	operator := " SIMILAR TO "
+	if e.Operator == "!~" {
+		operator = " NOT SIMILAR TO "
+	}
+	text, arg := expr.TextPiece, expr.ArgPiece
+	spec.Replay.Args = []expr.RenderArg{{Expr: e.Left}, {Expr: normalizer, Absorbed: true}, {Expr: normalizer.Pattern}}
+	spec.Replay.Pieces = []expr.Piece{text("("), arg(0), text(operator), arg(2)}
+	if !normalizer.Omitted {
+		spec.Replay.Args = append(spec.Replay.Args, expr.RenderArg{Expr: normalizer.Escape})
+		spec.Replay.Pieces = append(spec.Replay.Pieces, text(" ESCAPE "), arg(3))
+	}
+	spec.Replay.Pieces = append(spec.Replay.Pieces, text(")"))
+	return spec, nil
 }
 
 var _ expr.Renderable = SimilarEscape{}
@@ -338,7 +360,9 @@ func (e SimilarEscape) Render() (expr.Rendering, error) {
 	if e.Omitted {
 		args = args[:1]
 	}
-	return expr.Rendering{Tree: fmt.Sprintf("SimilarEscape omitted %t", e.Omitted), Inputs: []expr.Expr{e.Pattern, e.Escape}, Form: expr.FormCall, Name: "similar_to_escape", Quote: expr.QuoteVerbatim, Args: args}, nil
+	spec := expr.Rendering{Tree: fmt.Sprintf("SimilarEscape omitted %t", e.Omitted), Inputs: []expr.Expr{e.Pattern, e.Escape}, Form: expr.FormCall, Name: "similar_to_escape", Quote: expr.QuoteVerbatim, Args: args}
+	spec.Replay.Validate = refuseReplay("stuntgres: standalone stored SIMILAR normalizer")
+	return spec, nil
 }
 
 var _ expr.Renderable = SimilarSubstring{}

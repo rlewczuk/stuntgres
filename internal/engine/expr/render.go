@@ -3,9 +3,9 @@ package expr
 import "stuntgres/internal/sqltype"
 
 // Renderable nodes describe their own presentation. One Rendering value serves
-// every engine renderer that lists nodes: the node-tree output and the
-// PostgreSQL deparser. The renderers own quoting, literal transport and
-// parenthesization; the node only states what it looks like.
+// every engine renderer that lists nodes: the node-tree output, the PostgreSQL
+// deparser and stored scalar SQL (replay). The renderers own quoting, literal
+// transport and parenthesization; the node only states what it looks like.
 type Renderable interface {
 	// Render validates the node and returns its presentation. Its errors are
 	// integrity errors of a corrupted node; a node bound by the engine renders.
@@ -49,6 +49,48 @@ type Rendering struct {
 	// SimpleCast is set for calls whose explicit cast the deparser displays
 	// without parentheses around the call in pretty mode.
 	SimpleCast bool
+
+	// Replay is how stored scalar SQL writes the node where that differs from
+	// the display form above.
+	Replay Replay
+}
+
+// Replay is the stored scalar SQL form of a node. Stored SQL renders every
+// argument in order before assembling the form, ignores the display-only
+// argument fields (HideImplicit, Listed, UnknownText, Cast), qualifies call
+// names with pg_catalog and always parenthesizes infix operators. The zero
+// value replays the display form that way.
+type Replay struct {
+	// Validate, when set, checks the node before stored SQL replays it. Its
+	// error is the integrity error stored SQL reports instead: a stored
+	// provider that no longer validates, or a node with no stored form
+	// (set-returning calls, a standalone SIMILAR normalizer). Display
+	// renderers never call it.
+	Validate func() error
+	// Name is the FormCall function name after "pg_catalog." when it differs
+	// from Name; replay writes it as given.
+	Name string
+	// Text is the FormLeaf text when it differs from Text.
+	Text string
+	// Pieces, when set, replay the node as a template over Args.
+	Pieces []Piece
+	// Args are the replay arguments when they differ from Rendering.Args.
+	Args []RenderArg
+	// QuoteNamespace always quotes a FormInfix operator schema; otherwise
+	// replay quotes it only when needed.
+	QuoteNamespace bool
+	// CatalogSnapshot marks a call whose result reads catalog names, so its
+	// stored definition demands a catalog snapshot.
+	CatalogSnapshot bool
+	// VisibilitySnapshot marks a call that reads visibility state unless a
+	// literal NULL argument decides it.
+	VisibilitySnapshot bool
+	// RelationOnly accepts the call only in an expression a relation owns;
+	// elsewhere stored SQL reports a volatile stored default.
+	RelationOnly bool
+	// Types are types the node holds besides its arguments and result; stored
+	// SQL checks that each belongs to the definition's catalog.
+	Types []*sqltype.Descriptor
 }
 
 // Form is a node's SQL shape.
@@ -118,7 +160,41 @@ type RenderArg struct {
 	// CastForm is when the displayed cast keeps the argument unparenthesized
 	// in pretty mode.
 	CastForm CastForm
+	// Transport is how replay keeps the argument's type.
+	Transport Transport
+	// TransportType is the TransportCast target.
+	TransportType sqltype.Usage
+	// Absorbed marks a replay argument that the replay form spells through its
+	// own inputs: stored SQL records its routine but does not render it.
+	Absorbed bool
 }
+
+// Transport is how stored scalar SQL keeps an argument's type on replay,
+// where its literal spelling alone would resolve differently. Every kind but
+// TransportCast leaves arguments alone while the renderer transports
+// literals privately (CHECK rebinding).
+type Transport uint8
+
+const (
+	// TransportNone writes the argument as rendered.
+	TransportNone Transport = iota
+	// TransportCast always casts the argument to TransportType, selecting the
+	// stored overload.
+	TransportCast
+	// TransportName casts a NAME literal to NAME.
+	TransportName
+	// TransportLiteral casts a typed literal of a non-domain type to its type.
+	TransportLiteral
+	// TransportAmbiguous casts a typed literal of a non-domain type whose SQL
+	// spelling does not already select it: anything except text, integer,
+	// boolean, regclass, regtype, operator and text-search aliases and bit.
+	TransportAmbiguous
+	// TransportAmbiguousText is TransportAmbiguous that also casts text.
+	TransportAmbiguousText
+	// TransportIntervalNulls writes NULL interval literals anywhere in the
+	// argument as typed NULLs.
+	TransportIntervalNulls
+)
 
 // CastForm is when a displayed argument cast leaves its argument bare in
 // pretty mode.

@@ -378,10 +378,20 @@ var _ expr.Renderable = Math{}
 // Render implements expr.Renderable.
 func (e Math) Render() (expr.Rendering, error) {
 	spec := callRendering("Math "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args)
+	switch {
+	case len(e.Args) > 4:
+		spec.Replay.Validate = refuseReplay("stuntgres: invalid stored math arity")
+		return spec, nil
+	case missingArgument(e.Args):
+		spec.Replay.Validate = refuseReplay("stuntgres: missing math operand")
+		return spec, nil
+	}
+	spec.Replay.Validate = e.Validate
 	if e.Plan.Name() == "pg_size_pretty" {
 		// PostgreSQL displays the selected bigint or numeric overload.
 		spec.Quote, spec.Args = expr.QuoteVerbatim, hiddenArgs(e.Args[0])
 		spec.Args[0].Cast = e.Args[0].ResultUsage()
+		spec.Args[0].Transport, spec.Args[0].TransportType = expr.TransportCast, e.Args[0].ResultUsage()
 	}
 	return spec, nil
 }
