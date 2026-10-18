@@ -14,7 +14,7 @@ func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, er
 }
 func (c *EvalContext) FunctionSleepArgumentPresent(arg BoundExpr) bool { return arg != nil }
 
-func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeSleep(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	var small [1]functions.Argument
 	operands := small[:min(len(raw.Args), 1)]
 	if len(raw.Args) > 1 && len(raw.Args) <= 100 {
@@ -30,38 +30,39 @@ func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bo
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
+	// The sleep family's 42883 never notes the missing signature.
 	signature := func() error {
 		names := make([]string, len(operands))
 		for i, operand := range operands {
 			names[i] = functions.NamedArgumentType(raw, i, functions.DiagnosticNameOrUnknown(operand.Usage.Type))
 		}
-		return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return functions.ResolutionError(raw.Name, raw.Pos, names, false)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind, id := functions.DatetimeSleepDefinition(name)
 	if !functions.DatetimeSleepShape(raw, visible, kind) {
 		return nil, signature()
 	}
-	usage := b.typ(id).Usage()
+	usage := b.Type(id).Usage()
 	if !functions.DatetimeSleepCompatible(operands[0].Usage, usage) {
 		return nil, signature()
 	}
 	if decoration := functions.DatetimeSleepDecoration(raw); decoration != "" {
 		if decoration == "(*)" {
-			return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+			return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 		}
-		return nil, expressionError("42809", decoration+" specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", decoration+" specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
 	arg, err := functions.CoerceDatetimeSleepArgument(b, operands[0], usage)
 	if err != nil {
 		return nil, err
 	}
-	properties := mergeExpressionProperties(expr.IntrinsicProperties(functions.DatetimeSleepIntrinsicRule()), arg.Properties())
-	clockUsage := b.typ(sqltype.Timestamptz).Usage()
-	info := b.info(b.typ(sqltype.Void).Usage(), raw.Pos, properties)
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, id)
+	properties := expr.MergeProperties(expr.IntrinsicProperties(functions.DatetimeSleepIntrinsicRule()), arg.Properties())
+	clockUsage := b.Type(sqltype.Timestamptz).Usage()
+	info := b.Info(b.Type(sqltype.Void).Usage(), raw.Pos, properties)
+	info, err = b.BuiltinRoutineInfo(info, functions.DatetimeRoutineProvider, name, id)
 	if err != nil {
 		return nil, err
 	}

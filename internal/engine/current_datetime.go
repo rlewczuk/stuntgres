@@ -5,21 +5,20 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
-func (b *expressionBinder) bindCurrentDateTime(raw parser.CurrentDateTimeExpr) (BoundExpr, error) {
+// bindCurrentDateTime binds a SQL value function. A precision warning is
+// returned for the caller to deliver, so a held description's re-analysis
+// can stay silent.
+func bindCurrentDateTime(b functions.Binder, raw parser.CurrentDateTimeExpr) (expr.Expr, *sqlstate.Error, error) {
 	if !functions.CurrentDateTimeShape(raw) {
-		return nil, fmt.Errorf("stuntgres: invalid current datetime expression")
+		return nil, nil, fmt.Errorf("stuntgres: invalid current datetime expression")
 	}
-	usage, warning, err := functions.ResolveCurrentDateTimeUsage(raw, b.typ(functions.CurrentDateTimeType(raw.Kind)).Usage())
+	usage, warning, err := functions.ResolveCurrentDateTimeUsage(raw, b.Type(functions.CurrentDateTimeType(raw.Kind)).Usage())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// A held description already analyzed this syntax. Execute must still
-	// bind fresh descriptors and evaluate fresh transaction/session values.
-	if warning != nil && b.op != nil && b.expected == nil {
-		b.op.emitNotice(levelWarning, *warning)
-	}
-	info := b.info(usage, raw.Pos, expr.IntrinsicProperties(functions.CurrentDateTimeIntrinsicRule()))
-	return functions.CurrentDateTime{Info: info, Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, nil
+	info := b.Info(usage, raw.Pos, expr.IntrinsicProperties(functions.CurrentDateTimeIntrinsicRule()))
+	return functions.CurrentDateTime{Info: info, Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, warning, nil
 }

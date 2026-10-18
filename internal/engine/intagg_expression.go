@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) intaggArguments(raw parser.FunctionExpr) ([]functions.Argument, error) {
+// analyzeIntaggArguments analyzes intagg call operands, then checks the
+// argument limit and labels.
+func analyzeIntaggArguments(b functions.Binder, raw parser.FunctionExpr) ([]functions.Argument, error) {
 	var small [1]functions.Argument
 	var operands []functions.Argument
 	if len(raw.Args) <= 1 {
@@ -28,79 +31,87 @@ func (b *expressionBinder) intaggArguments(raw parser.FunctionExpr) ([]functions
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	issue := functions.FunctionLabels(raw)
-	if issue.Malformed {
-		return nil, fmt.Errorf("invalid function argument labels")
-	}
-	if issue.Positional {
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	}
-	if issue.Duplicate != "" {
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
+	if err := functions.CallLabelError(raw); err != nil {
+		return nil, err
 	}
 	return operands, nil
 }
 
-func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []functions.Argument) (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
-	var small [1]string
-	var names []string
-	if len(operands) <= 1 {
-		names = small[:len(operands)]
-	} else {
-		names = make([]string, len(operands))
-	}
+// resolveIntagg selects the installed intagg routine for one operand:
+// int_array_enum(integer[]) or int_array_aggregate(integer). Search path
+// errors precede signature errors; the operand is coerced to the formal.
+func resolveIntagg(b functions.Binder, raw parser.FunctionExpr, operands []functions.Argument) (expr.Expr, functions.InstalledRoutine, error) {
+	names := make([]string, len(operands))
 	for i, o := range operands {
 		names[i] = "unknown"
 		if o.Usage.Type != nil {
-			names[i] = b.diagnosticTypeName(o.Usage.Type)
+			names[i] = b.DiagnosticTypeName(o.Usage.Type)
 		}
 		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
-	failure := func() (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
-		return nil, nil, ids.ObjectRef{}, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
-	}
-	auth, err := b.bindingAuthorization()
-	if err != nil {
-		return nil, nil, ids.ObjectRef{}, err
-	}
-	path, err := b.engine.lookupNamespacesSnapshot(auth, raw.Name, installedFunctionLookup)
-	if err != nil {
-		return nil, nil, ids.ObjectRef{}, err
-	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	formal := b.typ(sqltype.Int4).Usage()
-	signature := procedureSignature("23")
+	formal, signature := b.Type(sqltype.Int4).Usage(), "23"
 	if strings.EqualFold(name, "int_array_enum") {
-		array, ok := b.definitionArray(b.typ(sqltype.Int4))
+		formal, signature = sqltype.Usage{}, "1007"
+	}
+	routine, err := b.InstalledRoutine(raw.Name, functions.IntaggExtension, signature)
+	if err != nil {
+		return nil, nil, err
+	}
+	if formal.Type == nil {
+		array, ok := b.ArrayType(b.Type(sqltype.Int4))
 		if !ok {
-			return nil, nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing integer array descriptor")
+			return nil, nil, fmt.Errorf("stuntgres: missing integer array descriptor")
 		}
-		formal, signature = array.Usage(), "1007"
+		formal = array.Usage()
 	}
 	if raw.Star || len(operands) != 1 || len(raw.ArgNames) != 0 {
-		return failure()
+		return nil, nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if operands[0].Usage.Type != nil {
 		if _, err := sqltype.PlanCoercion(operands[0].Usage, formal, sqltype.Implicit); err != nil {
-			return failure()
+			return nil, nil, b.SignatureError(raw.Name, raw.Pos, names)
 		}
 	}
-	proc := procedureInNamespaces(auth.catalog, path, name, signature)
-	if proc == nil || proc.intagg != stockIntagg {
-		return failure()
+	if routine == nil {
+		return nil, nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	if err := stockIntagg.validateProcedure(auth.catalog, proc); err != nil {
-		return nil, nil, ids.ObjectRef{}, err
+	if err := routine.Validate(); err != nil {
+		return nil, nil, err
 	}
 	arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.DirectFormalArgument, Target: formal})
 	if err != nil {
-		return nil, nil, ids.ObjectRef{}, err
+		return nil, nil, err
 	}
-	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
-	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
-	return arg, proc, ref, nil
+	return arg, routine, nil
+}
+
+// resolveIntaggAggregate analyzes an int_array_aggregate call's operands, its
+// FILTER and its installed routine, and records the routine's identity.
+func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.FunctionExpr) (BoundExpr, *procedureDescriptor, ids.ObjectRef, BoundExpr, error) {
+	operands, err := analyzeIntaggArguments(b, call)
+	if err != nil {
+		return nil, nil, ids.ObjectRef{}, nil, err
+	}
+	filter, err := b.bindAggregateFilter(raw)
+	if err != nil {
+		return nil, nil, ids.ObjectRef{}, nil, err
+	}
+	arg, routine, err := resolveIntagg(b, call, operands)
+	if err != nil {
+		return nil, nil, ids.ObjectRef{}, nil, err
+	}
+	installed, ok := routine.(installedExtensionRoutine)
+	if !ok {
+		return nil, nil, ids.ObjectRef{}, nil, fmt.Errorf("stuntgres: invalid installed intagg routine")
+	}
+	proc, ref, err := installed.intaggIdentity()
+	if err != nil {
+		return nil, nil, ids.ObjectRef{}, nil, err
+	}
+	return arg, proc, ref, filter, nil
 }
 
 func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
@@ -119,15 +130,7 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 		defer func() { b.queryNamespace, b.queryHidden = nil, hidden }()
 	}
 	callRaw := parser.FunctionExpr{Name: name, Args: raw.Args, Star: raw.Star, Variadic: raw.Variadic, Pos: raw.Pos}
-	operands, err := b.intaggArguments(callRaw)
-	if err != nil {
-		return nil, err
-	}
-	filter, err := b.bindAggregateFilter(raw)
-	if err != nil {
-		return nil, err
-	}
-	arg, proc, ref, err := b.resolveIntagg(callRaw, operands)
+	arg, proc, ref, filter, err := b.resolveIntaggAggregate(raw, callRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -142,38 +145,27 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	return b.finishAggregate(raw, call, filter, info)
 }
 
-func (b *expressionBinder) bindIntaggFunction(raw parser.FunctionExpr) (BoundExpr, error) {
-	operands, err := b.intaggArguments(raw)
+// bindIntagg binds intagg's installed routines called as functions. Only
+// int_array_enum is one; int_array_aggregate called this way is missing.
+func bindIntagg(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	operands, err := analyzeIntaggArguments(b, raw)
 	if err != nil {
 		return nil, err
 	}
-	arg, proc, ref, err := b.resolveIntagg(raw, operands)
+	arg, routine, err := resolveIntagg(b, raw, operands)
 	if err != nil {
 		return nil, err
 	}
-	if proc.name != "int_array_enum" {
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, []string{b.diagnosticTypeName(arg.ResultUsage().Type)})
+	// The installed routine's name is the written name, found exactly.
+	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "int_array_enum" {
+		return nil, b.SignatureError(raw.Name, raw.Pos, []string{b.DiagnosticTypeName(arg.ResultUsage().Type)})
 	}
 	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	if b.executeParameters {
-		return nil, expressionError("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
-	}
-	if b.policyConsumer && b.queryFrame == 0 {
-		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
-	}
-	if err := b.stringSetAllowed(raw.Pos); err != nil {
-		return nil, err
-	}
-	switch b.aggregateClause {
-	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.queryHasTargetSet = true
-	}
-	properties := mergeExpressionProperties(ExprProperties{Volatility: Immutable, StageDependent: true}, arg.Properties())
-	info := b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties)
-	info.RoutineReference = proc
-	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}, procedure: proc, ref: ref}, nil
+	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Immutable, StageDependent: true}, arg.Properties())
+	info := b.Info(b.Type(sqltype.Int4).Usage(), raw.Pos, properties)
+	return routine.Attach(functions.IntaggEnumeration{Info: info, Arg: arg})
 }
 
 func sameIntaggIdentity(a *procedureDescriptor, ar ids.ObjectRef, b *procedureDescriptor, br ids.ObjectRef) bool {

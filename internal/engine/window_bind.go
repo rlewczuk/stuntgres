@@ -362,14 +362,7 @@ func (b *expressionBinder) resolveRowNumberSignature(raw parser.AggregateExpr, n
 func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateExpr, name parser.ObjectName, argument *BoundExpr) (sqltype.Usage, error) {
 	if raw.Name == "int_array_aggregate" {
 		call := parser.FunctionExpr{Name: name, Args: raw.Args, Star: raw.Star, Variadic: raw.Variadic, Pos: raw.Pos}
-		operands, err := b.intaggArguments(call)
-		if err != nil {
-			return sqltype.Usage{}, err
-		}
-		if _, err := b.bindAggregateFilter(raw); err != nil {
-			return sqltype.Usage{}, err
-		}
-		arg, _, _, err := b.resolveIntagg(call, operands)
+		arg, _, _, _, err := b.resolveIntaggAggregate(raw, call)
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
