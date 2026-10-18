@@ -52,9 +52,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	case functions.BinaryFunctionsUnsupported:
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	case functions.BinaryPosixSubstring:
-		return b.bindPosixSubstring(raw, operands)
+		return bindPosixSubstring(b, raw, operands)
 	case functions.BinarySimilarSubstring:
-		return b.bindSimilarSubstring(raw, operands)
+		return bindSimilarSubstring(b, raw, operands)
 	case functions.BinaryTextSubstring:
 		return b.finishStringFunction(raw, visible, operands)
 	case functions.BinaryTextUnsupported:
