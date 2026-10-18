@@ -123,7 +123,7 @@ func (b *expressionBinder) bindArrayInspect(raw parser.FunctionExpr) (BoundExpr,
 	if err != nil {
 		return nil, err
 	}
-	e := functions.ArrayInspect{Info: functionInfo(info), Kind: kind, Args: args, Namespace: namespace}
+	e := functions.ArrayInspect{Info: info, Kind: kind, Args: args, Namespace: namespace}
 	return e, e.Validate()
 }
 

@@ -96,7 +96,7 @@ func (b *expressionBinder) bindInstalledLevenshtein(raw parser.FunctionExpr) (Bo
 	}
 	info := b.info(integer, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewLevenshtein(functionInfo(info), canonical, args)
+	call, err := functions.NewLevenshtein(info, canonical, args)
 	if err != nil {
 		return nil, err
 	}

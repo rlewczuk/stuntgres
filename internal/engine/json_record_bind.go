@@ -133,7 +133,7 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
 	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainChecks(usage.Type)
 	info := b.info(usage, raw.Pos, properties)
-	record, err := functions.NewJSONRecord(functionInfo(info), name, baseIndex, args)
+	record, err := functions.NewJSONRecord(info, name, baseIndex, args)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	record.Info = functionInfo(info)
+	record.Info = info
 	return record, nil
 }
 

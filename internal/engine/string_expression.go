@@ -40,7 +40,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if result.Collation.ID != 0 {
 		info = inputInfo
 	}
-	node, err := functions.NewString(functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.CollationConflict)
+	node, err := functions.NewString(info, name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	if err := b.capturePolymorphicBody(node); err != nil {
 		return nil, err
 	}

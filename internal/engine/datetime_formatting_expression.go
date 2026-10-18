@@ -100,7 +100,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeFormatting{Info: functionInfo(info), Plan: plan, Args: args}, nil
+	return functions.DatetimeFormatting{Info: info, Plan: plan, Args: args}, nil
 }
 func datetimeFormattingTypeName(d *sqltype.Descriptor) string {
 	if d != nil {

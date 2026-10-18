@@ -305,5 +305,5 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewLikeEscape(functionInfo(info), pattern, escape)
+	return functions.NewLikeEscape(info, pattern, escape)
 }

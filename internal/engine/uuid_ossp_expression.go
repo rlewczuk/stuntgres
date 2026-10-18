@@ -80,7 +80,7 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 	}
 	info := b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})
 	info.RoutineReference = proc
-	call, err := functions.NewUUIDGeneration(functionInfo(info), "uuidv4", nil, nil)
+	call, err := functions.NewUUIDGeneration(info, "uuidv4", nil, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -31,7 +31,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.String{
-			Info: functionInfo(expressionInfo{Usage: usage, CollationConflict: conflict}),
+			Info: expressionInfo{Usage: usage, CollationConflict: conflict},
 			Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 			Args: []BoundExpr{literalExpression{expressionInfo{Usage: usage}, sqltype.String(text, "ß")}},
 		}
@@ -82,7 +82,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	// Runtime once-only/Unicode assertions live in functions.TestStringCaseRuntimeDemand;
 	// this fixture retains the generic owner's nested collation authority.
 	node := functions.String{
-		Info: functionInfo(expressionInfo{Usage: usage, Property: ExprProperties{Volatility: Immutable, RowDependent: true}}),
+		Info: expressionInfo{Usage: usage, Property: ExprProperties{Volatility: Immutable, RowDependent: true}},
 		Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 		Args: []BoundExpr{literalExpression{expressionInfo{Usage: usage}, sqltype.String(text, "İ")}},
 	}

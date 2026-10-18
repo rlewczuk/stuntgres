@@ -77,7 +77,7 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
-	e.Info = functionInfo(info)
+	e.Info = info
 	var zone *sqltype.Descriptor
 	if e.Count == 3 {
 		zone = b.typ(sqltype.Text)
@@ -92,6 +92,6 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }

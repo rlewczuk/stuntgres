@@ -74,7 +74,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 		result = b.typ(sqltype.Text).Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	node, err := functions.NewBinary(functionInfo(info), name, args[:], parser.OrdinaryFunctionSyntax)
+	node, err := functions.NewBinary(info, name, args[:], parser.OrdinaryFunctionSyntax)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }
 func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
@@ -204,7 +204,7 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	e.Plan = plan
 	return e, nil
 }

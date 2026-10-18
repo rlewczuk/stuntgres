@@ -61,7 +61,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		result = array.Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	node, err := functions.NewEnum(functionInfo(info), name, args, b.diagnosticTypeName(selected))
+	node, err := functions.NewEnum(info, name, args, b.diagnosticTypeName(selected))
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +70,6 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }

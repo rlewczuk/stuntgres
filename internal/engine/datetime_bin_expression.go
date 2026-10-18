@@ -62,7 +62,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
-	e.Info = functionInfo(info)
+	e.Info = info
 	plan, err := sqltype.BindDatetimeBin(b.typ(sqltype.Interval), b.typ(selected), e.Usage.Type)
 	if err != nil {
 		return nil, err
@@ -72,6 +72,6 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }

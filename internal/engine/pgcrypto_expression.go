@@ -151,7 +151,7 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	}
 	info := b.info(result, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewPgcrypto(functionInfo(info), canonical, args)
+	call, err := functions.NewPgcrypto(info, canonical, args)
 	if err != nil {
 		return nil, err
 	}

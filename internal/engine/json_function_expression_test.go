@@ -28,7 +28,7 @@ func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input s
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.JSONKeys{Info: functionInfo(expressionInfo{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: ExprProperties{StageDependent: true}}), Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
+	return functions.JSONKeys{Info: expressionInfo{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: ExprProperties{StageDependent: true}}, Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
 }
 
 func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {

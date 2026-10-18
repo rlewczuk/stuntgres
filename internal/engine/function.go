@@ -365,7 +365,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if err != nil {
 		return nil, err
 	}
-	return functions.NullCount{Info: functionInfo(info), Kind: kind, Args: args}, nil
+	return functions.NullCount{Info: info, Kind: kind, Args: args}, nil
 }
 
 type currentSchemasExpression struct {

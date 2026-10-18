@@ -107,7 +107,7 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 		typ := b.typ(sqltype.Bool)
 		e.Args[1] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, false)}
 	}
-	e.Info = functionInfo(b.info(b.typ(sqltype.JSON).Usage(), raw.Pos, properties))
+	e.Info = b.info(b.typ(sqltype.JSON).Usage(), raw.Pos, properties)
 	plan, err := sqltype.BindJSONStripNulls(e.Usage, e.Args[0].ResultUsage(), e.Args[1].ResultUsage())
 	if err != nil {
 		return nil, err

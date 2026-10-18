@@ -56,7 +56,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	}
 	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
 	// genuine STABLE/group/retag owner invariants with executable literals.
-	n := functions.NumericFormatting{Info: functionInfo(expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+	n := functions.NumericFormatting{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: [2]BoundExpr{
 		literalExpression{expressionInfo: expressionInfo{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
 		literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, mask)},
 	}}

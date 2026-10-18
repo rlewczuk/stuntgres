@@ -101,7 +101,7 @@ func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundE
 	}
 	info := b.info(result, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewSoundex(functionInfo(info), canonical, args)
+	call, err := functions.NewSoundex(info, canonical, args)
 	if err != nil {
 		return nil, err
 	}

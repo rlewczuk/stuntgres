@@ -169,7 +169,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		properties.StageDependent = true
 	}
 	info := b.info(result, raw.Pos, properties)
-	call := functions.JSONBRecord{Info: functionInfo(info), Name: name, Args: args, Unresolved: unresolved}
+	call := functions.JSONBRecord{Info: info, Name: name, Args: args, Unresolved: unresolved}
 	call, err = call.Reconstruct(call.Info, args)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 	if err != nil {
 		return nil, err
 	}
-	call.Info = functionInfo(info)
+	call.Info = info
 	return call, nil
 }
 

@@ -96,7 +96,7 @@ func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (Boun
 	}
 	info := b.info(text, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewMetaphone(functionInfo(info), canonical, args)
+	call, err := functions.NewMetaphone(info, canonical, args)
 	if err != nil {
 		return nil, err
 	}

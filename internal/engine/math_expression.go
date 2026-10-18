@@ -70,7 +70,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 	}
 	usage := b.typ(signature.Result).Usage()
 	info := b.info(usage, raw.Pos, properties)
-	node, err := functions.NewMath(functionInfo(info), name, args)
+	node, err := functions.NewMath(info, name, args)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	node.WrapperContext = mathWrapperContext(name, args)
 	return node, nil
 }
@@ -196,5 +196,5 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 	if err != nil {
 		return nil, err
 	}
-	return functions.Math{Info: functionInfo(info), Plan: plan, Args: args}, nil
+	return functions.Math{Info: info, Plan: plan, Args: args}, nil
 }

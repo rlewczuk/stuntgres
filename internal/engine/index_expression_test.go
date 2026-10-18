@@ -19,7 +19,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := functions.String{Info: functionInfo(column.expressionInfo), Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
+	node := functions.String{Info: column.expressionInfo, Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
 	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}, ready: true, valid: true, live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}

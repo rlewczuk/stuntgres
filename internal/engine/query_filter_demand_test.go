@@ -23,7 +23,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			calls := 0
-			producer := functions.Enum{Info: functionInfo(expressionInfo{Usage: mood.Usage()}), Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			producer := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			project := *query.Root.(*projectNode)
 			project.querySchema = []ColumnDescriptor{{Name: "v", Usage: mood.Usage()}}
 			project.expressions = []BoundExpr{producer}

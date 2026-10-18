@@ -83,7 +83,7 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 	if err != nil {
 		return nil, err
 	}
-	return functions.TransactionTime{Info: functionInfo(info), Kind: kind}, nil
+	return functions.TransactionTime{Info: info, Kind: kind}, nil
 }
 
 // Only selected time leaves may introduce volatility into this closed default.

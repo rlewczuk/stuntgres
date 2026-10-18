@@ -98,7 +98,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 	}
 	result := functions.DatetimeAgeFiniteResult(name)
 	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
-	e.Info = functionInfo(info)
+	e.Info = info
 	plan, err := sqltype.BindDatetimeAgeFinite(name, target, e.Usage.Type, b.typ(sqltype.Date), e.Count)
 	if err != nil {
 		return nil, err
@@ -109,6 +109,6 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }

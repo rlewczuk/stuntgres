@@ -159,28 +159,28 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathExists{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathExists{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_match" {
 		plan, err := sqltype.BindJSONBPathMatch(b.typ(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathMatch{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathMatch{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_query_first" {
 		plan, err := sqltype.BindJSONBPathQueryFirst(b.typ(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathQueryFirst{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathQueryFirst{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_query" {
 		plan, err := sqltype.BindJSONBPathQuery(b.typ(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathQuery{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathQuery{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	return nil, fmt.Errorf("invalid JSONPath query provider")
 }

@@ -197,7 +197,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := functions.ArrayTransform{
-		Info: functionInfo(b.info(usage, parser.Position{}, ExprProperties{})),
+		Info: b.info(usage, parser.Position{}, ExprProperties{}),
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: plan,
 		Args: []BoundExpr{literalExpression{expressionInfo: b.info(usage, parser.Position{}, ExprProperties{}), value: value}},
 	}

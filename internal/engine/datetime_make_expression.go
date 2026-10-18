@@ -98,7 +98,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 		}
 	}
 	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
-	e.Info = functionInfo(info)
+	e.Info = info
 	plan, err := sqltype.BindDatetimeMake(name, e.Usage.Type, e.Count)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }
 

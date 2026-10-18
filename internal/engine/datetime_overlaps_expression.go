@@ -71,7 +71,7 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	e.WrapperContext = !overlapsInlineSafe(e)
 	return e, nil
 }

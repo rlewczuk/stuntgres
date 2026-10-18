@@ -103,7 +103,7 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 	if id == sqltype.Text {
 		info = inputInfo
 	}
-	node, err := functions.NewBinary(functionInfo(info), name, args, syntax)
+	node, err := functions.NewBinary(info, name, args, syntax)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }
 

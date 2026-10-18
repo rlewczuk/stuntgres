@@ -74,7 +74,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
-	node := functions.String{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
+	node := functions.String{Info: expressionInfo{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
 		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "a")},
 		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "b")},
 	}}

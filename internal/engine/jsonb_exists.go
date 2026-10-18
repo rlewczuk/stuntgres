@@ -65,5 +65,5 @@ func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (BoundExp
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}
-	return functions.NewBinary(functionInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)), name, args, parser.OrdinaryFunctionSyntax)
+	return functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), name, args, parser.OrdinaryFunctionSyntax)
 }

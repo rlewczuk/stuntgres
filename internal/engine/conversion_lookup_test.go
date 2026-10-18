@@ -61,7 +61,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := functions.Binary{Info: functionInfo(expressionInfo{Usage: bytea.Usage()}), Plan: plan, Args: []BoundExpr{
+	node := functions.Binary{Info: expressionInfo{Usage: bytea.Usage()}, Plan: plan, Args: []BoundExpr{
 		literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "é")},
 		literalExpression{expressionInfo: expressionInfo{Usage: name.Usage()}, value: sqltype.String(name, "LATIN1")},
 	}}

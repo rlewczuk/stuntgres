@@ -17,7 +17,7 @@ func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUI
 		t.Fatal(err)
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
-	node, err := functions.NewUUIDExtract(functionInfo(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), kind, BoundExpr(arg))
+	node, err := functions.NewUUIDExtract(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable}), kind, BoundExpr(arg))
 	if err != nil {
 		t.Fatal(err)
 	}

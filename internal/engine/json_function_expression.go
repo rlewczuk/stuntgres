@@ -110,14 +110,14 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		info.Property = properties
 		if definition.Elements {
 			if definition.Input == sqltype.JSONB {
-				return functions.NewJSONBElements(functionInfo(info), name, arg)
+				return functions.NewJSONBElements(info, name, arg)
 			}
-			return functions.NewJSONElements(functionInfo(info), name, arg)
+			return functions.NewJSONElements(info, name, arg)
 		}
 		if definition.Each {
-			return functions.NewJSONEach(functionInfo(info), name, arg)
+			return functions.NewJSONEach(info, name, arg)
 		}
-		return functions.NewJSONKeys(functionInfo(info), name, arg)
+		return functions.NewJSONKeys(info, name, arg)
 	}
-	return functions.NewBinary(functionInfo(info), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
+	return functions.NewBinary(info, name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
 }

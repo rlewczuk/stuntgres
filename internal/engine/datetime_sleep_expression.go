@@ -65,5 +65,5 @@ func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bo
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewDatetimeSleep(functionInfo(info), kind, arg, clockUsage)
+	return functions.NewDatetimeSleep(info, kind, arg, clockUsage)
 }

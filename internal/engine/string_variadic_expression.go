@@ -147,7 +147,7 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	if err := b.capturePolymorphicBody(node); err != nil {
 		return nil, err
 	}

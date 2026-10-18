@@ -127,7 +127,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[0].SourcePosition())
 	}
 	info := b.info(b.typ(functions.JSONCreateResult(kind)).Usage(), raw.Pos, properties)
-	node, err := functions.NewJSONCreate(functionInfo(info), kind, args, raw.Variadic, unknown)
+	node, err := functions.NewJSONCreate(info, kind, args, raw.Variadic, unknown)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +150,6 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }

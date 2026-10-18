@@ -122,7 +122,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 		typ := b.typ(sqltype.Text)
 		e.Args[4] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.String(typ, "use_json_null")}
 	}
-	e.Info = functionInfo(b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties))
+	e.Info = b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties)
 	var usages [5]sqltype.Usage
 	for i := range count {
 		usages[i] = e.Args[i].ResultUsage()
@@ -135,7 +135,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	e.Plan = plan
 	return e, nil
 }

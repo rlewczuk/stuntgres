@@ -30,7 +30,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.DatetimeFormatting{Info: functionInfo(expressionInfo{Usage: result.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+		node := functions.DatetimeFormatting{Info: expressionInfo{Usage: result.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: [2]BoundExpr{
 			literalExpression{expressionInfo{Usage: source.Usage()}, sqltype.Null(source)},
 			literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, template)},
 		}}

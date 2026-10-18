@@ -281,7 +281,7 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 		namespace = raw.Name.Parts[0].Text
 	}
 	e := functions.ArrayTransform{
-		Info: functionInfo(info), Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
+		Info: info, Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
 	}
 	if kind == functions.ArraySort && !targets[0].CatalogNullUsage() {
 		if err := b.captureComparisonDiagnosticInput(targets[0].Type); err != nil {

@@ -36,7 +36,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	literal := func(value sqltype.Value) BoundExpr {
 		return literalExpression{expressionInfo: expressionInfo{Usage: value.Type().Usage()}, value: value}
 	}
-	expr := functions.Enum{Info: functionInfo(expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
+	expr := functions.Enum{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := expr.Eval(&EvalContext{Context: ctx})
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := functions.Enum{Info: functionInfo(expressionInfo{Usage: result}), Plan: provider, Args: arguments, EnumName: "mood"}
+		call := functions.Enum{Info: expressionInfo{Usage: result}, Plan: provider, Args: arguments, EnumName: "mood"}
 		if generationImmutable(call) || plannedVolatility(call) != Stable {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
@@ -140,7 +140,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	}
 	var order []int
 	first, _ := sqltype.BindEnumSupport("enum_first", mood.Usage(), mood.Usage())
-	unary := functions.Enum{Info: functionInfo(expressionInfo{Usage: mood.Usage()}), Plan: first, Args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
+	unary := functions.Enum{Info: expressionInfo{Usage: mood.Usage()}, Plan: first, Args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
 	volatile := unary
 	volatile.Args = []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{Usage: mood.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(mood), order: &order}}
 	if plannedVolatility(volatile) != Volatile {

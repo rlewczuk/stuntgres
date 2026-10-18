@@ -29,7 +29,7 @@ func regexpSetUnitCall(t *testing.T, text *sqltype.Descriptor, source BoundExpr,
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.RegexpCall{Info: functionInfo(expressionInfo{Usage: text.Usage(), Pos: parser.Position{Offset: source.SourcePosition().Offset + 1}}), Plan: plan, Args: args, WrittenSlots: [7]uint8{0, 1}}
+	return functions.RegexpCall{Info: expressionInfo{Usage: text.Usage(), Pos: parser.Position{Offset: source.SourcePosition().Offset + 1}}, Plan: plan, Args: args, WrittenSlots: [7]uint8{0, 1}}
 }
 func regexpSetUnitRows(t *testing.T, stage *indexedStage) [][]string {
 	t.Helper()
@@ -140,7 +140,7 @@ func TestRegexpSetProjection(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				length := functions.String{Info: functionInfo(expressionInfo{Usage: integer.Usage()}), Plan: plan, Args: []BoundExpr{setColumn}, Textual: [4]bool{true}}
+				length := functions.String{Info: expressionInfo{Usage: integer.Usage()}, Plan: plan, Args: []BoundExpr{setColumn}, Textual: [4]bool{true}}
 				project := &projectNode{querySchema: querySchema{{Usage: integer.Usage()}}, child: tc.root, expressions: []BoundExpr{length}, frame: 1}
 				stage, err := openQueryProjectStage(context.Background(), state, project)
 				if err != nil {
@@ -230,7 +230,7 @@ func TestRegexpSetProjection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := functions.RegexpCall{Info: functionInfo(expressionInfo{Usage: typ.Usage()}), Args: args, Plan: plan, WrittenSlots: [7]uint8{0, 1, 2}}
+			call := functions.RegexpCall{Info: expressionInfo{Usage: typ.Usage()}, Args: args, Plan: plan, WrittenSlots: [7]uint8{0, 1, 2}}
 			from := &functionFromNode{querySchema: querySchema{{Usage: typ.Usage()}}, calls: regexpSetUnitSources(call), frame: 1}
 			stage, err := openFunctionFromNode(context.Background(), state, from)
 			if err != nil {
@@ -279,7 +279,7 @@ func TestRegexpSetNested(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wrapper := functions.String{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Plan: plan, Args: []BoundExpr{outer}, Textual: [4]bool{true}}
+		wrapper := functions.String{Info: expressionInfo{Usage: text.Usage()}, Plan: plan, Args: []BoundExpr{outer}, Textual: [4]bool{true}}
 		root, outputs, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{wrapper}, 1)
 		if err != nil {
 			t.Fatal(err)
@@ -568,7 +568,7 @@ func TestFunctionSourceMixedRows(t *testing.T) {
 	}
 }
 func regexpCallForNull(plan sqltype.RegexpPlan, result *sqltype.Descriptor, source, pattern BoundExpr) functions.RegexpCall {
-	return functions.RegexpCall{Info: functionInfo(expressionInfo{Usage: result.Usage()}), Plan: plan, Args: []BoundExpr{source, pattern}, WrittenSlots: [7]uint8{0, 1}}
+	return functions.RegexpCall{Info: expressionInfo{Usage: result.Usage()}, Plan: plan, Args: []BoundExpr{source, pattern}, WrittenSlots: [7]uint8{0, 1}}
 }
 
 func TestQuerySetMixedAttemptOwnership(t *testing.T) {
@@ -586,7 +586,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				selected = functions.String{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Plan: plan, Args: []BoundExpr{selected}, Textual: [4]bool{true}}
+				selected = functions.String{Info: expressionInfo{Usage: text.Usage()}, Plan: plan, Args: []BoundExpr{selected}, Textual: [4]bool{true}}
 			}
 			outputs := []BoundExpr{scalar, stringCall, selected}
 			root, err := b.lowerQuerySets(&singletonNode{}, outputs, nil, true)

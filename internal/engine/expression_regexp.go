@@ -102,14 +102,14 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 		info.Usage.Collation = input.Usage.Collation
 		info.CollationConflict = input.CollationConflict
 	}
-	call, err = functions.NewRegexpCall(functionInfo(info), name, call.Args, call.WrittenSlots, call.Labels, input.Usage.Collation, input.CollationConflict)
+	call, err = functions.NewRegexpCall(info, name, call.Args, call.WrittenSlots, call.Labels, input.Usage.Collation, input.CollationConflict)
 	if err == nil && call.Plan.ReturnsSet() {
 		err = b.regexpPlacement(call)
 	}
 	if err == nil {
 		info, err = b.builtinRoutineInfo(info, regexpRoutineProvider, name, types[:len(operands)]...)
 		if err == nil {
-			call.Info = functionInfo(info)
+			call.Info = info
 		}
 	}
 	return call, err
@@ -141,7 +141,7 @@ func mapRegexpChildren(call functions.RegexpCall, view CatalogRead, info express
 	if err != nil {
 		return call, err
 	}
-	return call.Reconstruct(functionInfo(info), call.Args, input.Usage.Collation, input.CollationConflict)
+	return call.Reconstruct(info, call.Args, input.Usage.Collation, input.CollationConflict)
 }
 func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive bool) (functions.RegexpCall, bool, error) {
 	var args []BoundExpr

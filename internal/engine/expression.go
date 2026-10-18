@@ -77,16 +77,6 @@ func foldedExpressionInfo(node BoundExpr) expressionInfo {
 	return info
 }
 
-func functionInfo(info expressionInfo) expressionInfo {
-	return expressionInfo{
-		Usage: info.Usage, Pos: info.Pos, Property: info.Property,
-		CollationConflict: info.CollationConflict, CollationExplicit: info.CollationExplicit,
-		CollationLeft: info.CollationLeft, CollationRight: info.CollationRight,
-		CollationConflictPos:   info.CollationConflictPos,
-		RoutineReference:       info.RoutineReference,
-		RoutineRecipeReference: info.CallRoutineRecipeReference(),
-	}
-}
 func (c *EvalContext) FunctionContext() context.Context {
 	if c == nil {
 		return nil

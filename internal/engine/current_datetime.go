@@ -22,7 +22,7 @@ func (b *expressionBinder) bindCurrentDateTime(raw parser.CurrentDateTimeExpr) (
 		b.op.emitNotice(levelWarning, *warning)
 	}
 	info := b.info(usage, raw.Pos, expr.IntrinsicProperties(functions.CurrentDateTimeIntrinsicRule()))
-	return functions.CurrentDateTime{Info: functionInfo(info), Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, nil
+	return functions.CurrentDateTime{Info: info, Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, nil
 }
 
 func currentDateTimeSQL(e functions.CurrentDateTime) (string, error) {

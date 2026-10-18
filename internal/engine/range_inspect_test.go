@@ -23,7 +23,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}
 	result := b.typ(sqltype.Numeric)
-	original, err := functions.NewRangeInspect(functionInfo(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeLower, []BoundExpr{arg})
+	original, err := functions.NewRangeInspect(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable}), sqltype.RangeLower, []BoundExpr{arg})
 	if err != nil {
 		t.Fatal(err)
 	}

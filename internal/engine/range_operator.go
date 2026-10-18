@@ -92,7 +92,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 		namespace = raw.Name.Parts[0].Text
 	}
 	info := b.info(result.Usage(), parser.ExpressionStart(raw), properties)
-	node, err := functions.NewRangeOperator(functionInfo(info), op, args, namespace)
+	node, err := functions.NewRangeOperator(info, op, args, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }
 func rangeOperatorSQL(e functions.RangeOperator, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {

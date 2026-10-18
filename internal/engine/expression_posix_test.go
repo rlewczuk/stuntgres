@@ -13,8 +13,8 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	text, boolean := similarUnitTypes()
 	source := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 0}
 	pattern := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 1}
-	predicate := functions.Posix{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: source, Right: pattern, Operator: "~"}
-	extraction := functions.PosixSubstring{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Args: [2]BoundExpr{source, pattern}}
+	predicate := functions.Posix{Info: expressionInfo{Usage: boolean.Usage()}, Left: source, Right: pattern, Operator: "~"}
+	extraction := functions.PosixSubstring{Info: expressionInfo{Usage: text.Usage()}, Args: [2]BoundExpr{source, pattern}}
 	for _, node := range []BoundExpr{predicate, extraction} {
 		var slots []int
 		walkBoundExpression(node, func(n BoundExpr) {
@@ -58,8 +58,8 @@ func TestPosixCommonStatementOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &EvalContext{Context: context.Background(), pgRegex: sqltype.PGRegexExecution{}}
-	p := functions.Posix{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
-	s := functions.Similar{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
+	p := functions.Posix{Info: expressionInfo{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
+	s := functions.Similar{Info: expressionInfo{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
 	for _, node := range []BoundExpr{p, s, p} {
 		value, err := node.Eval(c)
 		if err != nil {

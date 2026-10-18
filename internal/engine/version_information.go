@@ -66,5 +66,5 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (Boun
 	if err != nil {
 		return nil, err
 	}
-	return functions.VersionInformation{Info: functionInfo(info), Kind: kind}, nil
+	return functions.VersionInformation{Info: info, Kind: kind}, nil
 }

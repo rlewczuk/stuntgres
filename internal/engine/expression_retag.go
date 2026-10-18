@@ -183,11 +183,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		rebound = n
 	case functions.Regexp:
 		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.RegexpSet:
 		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case seriesExpression:
 		n.args = children(n.args)
@@ -219,16 +219,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, err
 		}
 		if changed {
-			n, err = n.Reconstruct(functionInfo(info), n.Args)
+			n, err = n.Reconstruct(info, n.Args)
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.JSONBRecord:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBElements:
 		n.Args = children(n.Args)
@@ -236,16 +236,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, err
 		}
 		if changed {
-			n, err = n.Reconstruct(functionInfo(info), n.Args)
+			n, err = n.Reconstruct(info, n.Args)
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.JSONRecord:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONEach:
 		n.Args = children(n.Args)
@@ -253,9 +253,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, err
 		}
 		if changed {
-			n, err = n.Reconstruct(functionInfo(info), n.Args)
+			n, err = n.Reconstruct(info, n.Args)
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.JSONElements:
 		n.Args = children(n.Args)
@@ -263,9 +263,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, err
 		}
 		if changed {
-			n, err = n.Reconstruct(functionInfo(info), n.Args)
+			n, err = n.Reconstruct(info, n.Args)
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case installedSoundexFunctionExpression:
 		n.Args = children(n.Args)
@@ -279,7 +279,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || n.procedure != proc
 		n.procedure = proc
-		n.Soundex, err = n.Reconstruct(functionInfo(info), n.Args)
+		n.Soundex, err = n.Reconstruct(info, n.Args)
 		if err == nil {
 			err = n.validate(view)
 		}
@@ -296,7 +296,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || n.procedure != proc
 		n.procedure = proc
-		n.Metaphone, err = n.Reconstruct(functionInfo(info), n.Args)
+		n.Metaphone, err = n.Reconstruct(info, n.Args)
 		if err == nil {
 			err = n.validate(view)
 		}
@@ -313,7 +313,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || n.procedure != proc
 		n.procedure = proc
-		n.Levenshtein, err = n.Reconstruct(functionInfo(info), n.Args)
+		n.Levenshtein, err = n.Reconstruct(info, n.Args)
 		if err == nil {
 			err = n.validate(view)
 		}
@@ -326,7 +326,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || n.procedure != proc
 		n.procedure = proc
-		n.Info = functionInfo(info)
+		n.Info = info
 		err = n.validate(view)
 		rebound = n
 	case installedCryptoFunctionExpression:
@@ -341,7 +341,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || n.procedure != proc
 		n.procedure = proc
-		n.Pgcrypto, err = n.Reconstruct(functionInfo(info), n.Args)
+		n.Pgcrypto, err = n.Reconstruct(info, n.Args)
 		if err == nil {
 			err = n.validate(view)
 		}
@@ -553,15 +553,15 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			changed = changed || nextType != n.Timestamp
 			n.Timestamp = nextType
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Args, n.Timestamp)
+				n, err = n.Reconstruct(info, n.Args, n.Timestamp)
 			}
 		} else {
-			n.Info = functionInfo(info)
+			n.Info = info
 		}
 		rebound = n
 	case functions.Random:
 		n.Args = children(n.Args)
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.DatetimeSleep:
 		n.Arg = child(n.Arg)
@@ -569,9 +569,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		changed = changed || clockType != n.ClockUsage.Type
 		n.ClockUsage.Type = clockType
 		if err == nil && changed {
-			n, err = n.Reconstruct(functionInfo(info), n.Arg, n.ClockUsage)
+			n, err = n.Reconstruct(info, n.Arg, n.ClockUsage)
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case advisoryExpression:
 		n.args = children(n.args)
@@ -711,14 +711,14 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.DatetimeJustify:
 		n.Arg = child(n.Arg)
 		if err != nil {
 			return node, false, err
 		}
-		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Arg, retainedType)
+		mapped, planChanged, failure := n.Reconstruct(info, n.Arg, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -734,7 +734,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return node, false, err
 		}
-		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
+		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -750,7 +750,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return node, false, err
 		}
-		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType, sqltype.Value.Retag)
+		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType, sqltype.Value.Retag)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -766,7 +766,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return node, false, err
 		}
-		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
+		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -782,7 +782,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return node, false, err
 		}
-		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
+		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -798,7 +798,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return node, false, err
 		}
-		mapped, providerChanged, failure := n.Reconstruct(functionInfo(info), n.Args)
+		mapped, providerChanged, failure := n.Reconstruct(info, n.Args)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -814,7 +814,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return node, false, err
 		}
-		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
+		mapped, planChanged, failure := n.Reconstruct(info, n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
@@ -833,7 +833,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONExtract:
 		var did bool
@@ -844,7 +844,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed && !did {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBPathQueryArray:
 		for i := range n.Arguments() {
@@ -856,7 +856,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBPathExists:
 		for i := range n.Arguments() {
@@ -868,7 +868,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBPathMatch:
 		for i := range n.Arguments() {
@@ -880,7 +880,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBPathQueryFirst:
 		for i := range n.Arguments() {
@@ -892,7 +892,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBPathQuery:
 		for i := range n.Arguments() {
@@ -904,7 +904,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.JSONBSet:
 		for i := range n.Arguments() {
@@ -916,7 +916,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.DatetimeMake:
 		for i := range n.Arguments() {
@@ -928,7 +928,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.DatetimeFormatting:
 		for i := range n.Args {
@@ -940,7 +940,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.NumericFormatting:
 		for i := range n.Args {
@@ -952,7 +952,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.String:
 		n.Args = children(n.Args)
@@ -975,7 +975,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed && text == n.Plan.TextUsage() {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args, text)
+		n, err = n.Reconstruct(info, n.Args, text)
 		rebound = n
 	case functions.ArrayRandom:
 		n.Args = children(n.Args)
@@ -985,7 +985,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.ArrayTransform:
 		ref, conflict := n.Sort.InputCollation()
@@ -997,7 +997,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args, ref, conflict)
+		n, err = n.Reconstruct(info, n.Args, ref, conflict)
 		rebound = n
 	case functions.ArrayInspect:
 		n.Args = children(n.Args)
@@ -1007,7 +1007,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.ArraySearch:
 		ref, conflict := n.Plan.InputCollation()
@@ -1021,7 +1021,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.Usage.Type, integer, ref, conflict)
+		n, err = n.Reconstruct(info, n.Args, array, info.Usage.Type, integer, ref, conflict)
 		rebound = n
 	case catalogUserNameExpression:
 		n.arg = child(n.arg)
@@ -1075,7 +1075,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Arg)
+		n, err = n.Reconstruct(info, n.Arg)
 		rebound = n
 	case functions.NetworkFormat:
 		for i := range n.Kind.Arity() {
@@ -1087,7 +1087,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.RangeOperator:
 		for i := range n.Args {
@@ -1099,7 +1099,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.RangeInspect:
 		n.Args = children(n.Args)
@@ -1114,7 +1114,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				return node, false, fmt.Errorf("stuntgres: invalid remapped range inspection argument")
 			}
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.Enum:
 		n.Args = children(n.Args)
@@ -1129,7 +1129,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				return node, false, fmt.Errorf("stuntgres: invalid remapped enum argument")
 			}
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(info, n.Args)
 		rebound = n
 	case functions.Math:
 		ref, conflict := n.Plan.InputCollation()
@@ -1146,7 +1146,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				return node, false, fmt.Errorf("stuntgres: invalid remapped math argument")
 			}
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args, ref, conflict)
+		n, err = n.Reconstruct(info, n.Args, ref, conflict)
 		if err == nil {
 			n.WrapperContext = mathWrapperContext(n.Plan.Name(), n.Args)
 		}
@@ -1161,7 +1161,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		rebound = n
 	case functions.NullCount:
 		n.Args = children(n.Args)
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case sqlJSONExpression:
 		n.args = children(n.args)
@@ -1175,7 +1175,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case functions.JSONCreate:
 		n.Args = children(n.Args)
 		if err == nil {
-			n, err = n.Reconstruct(functionInfo(info), n.Args)
+			n, err = n.Reconstruct(info, n.Args)
 		}
 		rebound = n
 	case functions.StringVariadic:
@@ -1184,7 +1184,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			n.Args[i] = child(n.Args[i])
 		}
 		if err == nil {
-			n, err = n.Reconstruct(functionInfo(info), n.Args)
+			n, err = n.Reconstruct(info, n.Args)
 		}
 		rebound = n
 	case functions.Format:
@@ -1192,7 +1192,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		int4 := retainedType(n.Int4)
 		changed = changed || int4 != n.Int4
 		n.Int4 = int4
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
@@ -1274,13 +1274,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.expressionInfo = info
 		rebound = n
 	case functions.CurrentDateTime:
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.VersionInformation:
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.TransactionTime:
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case domainValueExpression:
 		if !changed {
@@ -1317,7 +1317,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, err
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case collationExpression:
 		n.child = child(n.child)
@@ -1409,10 +1409,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err == nil {
 			info, err = collatedInfo(view, info, n.Pattern, n.Escape)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Pattern, n.Escape)
+				n, err = n.Reconstruct(info, n.Pattern, n.Escape)
 			}
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.Posix:
 		n.Left, n.Right = child(n.Left), child(n.Right)
@@ -1423,10 +1423,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			var collation expressionInfo
 			collation, err = collatedInfo(view, expressionInfo{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
+				n, err = n.Reconstruct(info, n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
 			}
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.Similar:
 		n.Left, n.Right = child(n.Left), child(n.Right)
@@ -1437,10 +1437,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			var collation expressionInfo
 			collation, err = collatedInfo(view, expressionInfo{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
+				n, err = n.Reconstruct(info, n.Left, n.Right, collation.Usage.Collation, collation.CollationConflict)
 			}
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.SimilarEscape:
 		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
@@ -1450,10 +1450,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err == nil {
 			info, err = collatedInfo(view, info, n.Pattern, n.Escape)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Pattern, n.Escape)
+				n, err = n.Reconstruct(info, n.Pattern, n.Escape)
 			}
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.PosixSubstring:
 		for i := range n.Args {
@@ -1465,10 +1465,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err == nil {
 			info, err = collatedInfo(view, info, n.Args[:]...)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Args)
+				n, err = n.Reconstruct(info, n.Args)
 			}
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case functions.SimilarSubstring:
 		for i := range n.Args {
@@ -1480,10 +1480,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err == nil {
 			info, err = collatedInfo(view, info, n.Args[:]...)
 			if err == nil {
-				n, err = n.Reconstruct(functionInfo(info), n.Args)
+				n, err = n.Reconstruct(info, n.Args)
 			}
 		}
-		n.Info = functionInfo(info)
+		n.Info = info
 		rebound = n
 	case rowComparisonExpression:
 		var pairs []comparisonExpression

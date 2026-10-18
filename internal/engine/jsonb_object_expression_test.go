@@ -34,7 +34,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: args}
+		original := functions.Binary{Info: expressionInfo{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: args}
 		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
@@ -98,7 +98,7 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := functions.Binary{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
+	expr := functions.Binary{Info: expressionInfo{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: []BoundExpr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
 	if err != nil {

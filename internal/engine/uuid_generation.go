@@ -98,7 +98,7 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }
 

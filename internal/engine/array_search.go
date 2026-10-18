@@ -255,7 +255,7 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 	if len(rawName.Parts) == 2 {
 		namespace = rawName.Parts[0].Text
 	}
-	return functions.NewArraySearch(functionInfo(info), plan, args, namespace), nil
+	return functions.NewArraySearch(info, plan, args, namespace), nil
 }
 
 func arraySearchSQL(e functions.ArraySearch, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {

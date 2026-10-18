@@ -41,7 +41,7 @@ func (b *expressionBinder) bindPosix(raw parser.OperatorExpr) (BoundExpr, error)
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	node, err := functions.NewPosix(functionInfo(info), l, r, op, namespace, collation.Usage.Collation, collation.CollationConflict)
+	node, err := functions.NewPosix(info, l, r, op, namespace, collation.Usage.Collation, collation.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (b *expressionBinder) bindPosix(raw parser.OperatorExpr) (BoundExpr, error)
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }
 
@@ -67,5 +67,5 @@ func (b *expressionBinder) bindPosixSubstring(raw parser.FunctionExpr, operands 
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewPosixSubstring(functionInfo(info), args, raw.Syntax)
+	return functions.NewPosixSubstring(info, args, raw.Syntax)
 }

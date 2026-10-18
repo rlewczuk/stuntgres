@@ -74,7 +74,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewNetworkFormat(functionInfo(info), kind, args)
+	return functions.NewNetworkFormat(info, kind, args)
 }
 
 func mapNetworkFormatChildren(e functions.NetworkFormat, mapChild func(BoundExpr) (BoundExpr, bool, error)) (functions.NetworkFormat, bool, error) {

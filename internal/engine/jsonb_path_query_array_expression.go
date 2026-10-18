@@ -126,7 +126,7 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 		typ := b.typ(sqltype.Bool)
 		e.Args[3] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, false)}
 	}
-	e.Info = functionInfo(b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties))
+	e.Info = b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties)
 	var usages [4]sqltype.Usage
 	for i := range count {
 		usages[i] = e.Args[i].ResultUsage()
@@ -139,7 +139,7 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	e.Plan = plan
 	return e, nil
 }
