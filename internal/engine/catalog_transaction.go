@@ -133,7 +133,9 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	}
 	n := cloneCatalog(e.state)
 	n.defaultACLs = overlayDefaultACLs(e.state.defaultACLs, c.defaultACLs)
+	operators := operatorIndexEdit{index: e.state.operatorNames}
 	for a, d := range c.descriptors {
+		operators.replace(e.state.descriptors[a], d)
 		if old := n.descriptors[a]; old != nil {
 			delete(n.names, descriptorNameKey(old))
 		}
@@ -149,6 +151,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 			n.names[descriptorNameKey(d)] = d.Address()
 		}
 	}
+	n.operatorNames = operators.index
 	c.cachedBase, c.cached = e.state, CatalogRead{e, n}
 	return c.cached
 }

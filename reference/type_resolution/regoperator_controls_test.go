@@ -56,7 +56,7 @@ func regoperatorPersistentSetup(t *testing.T, p *fixture.Pair, b fixture.Backend
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, update)
 	// A bad later tuple cannot publish the valid first tuple.
 	q := "INSERT INTO regop_data VALUES(7,'597','597'),(8,'597','++(int4,int4)')"
-	s := regoperatorError(q, "42883", "operator does not exist: ++(int4,int4)", "", "", "")
+	s := fixture.RegOperatorError(q, "42883", "operator does not exist: ++(int4,int4)", "", "", "")
 	_, e := c.ExecContext(p.Ctx, q)
 	if e == nil {
 		t.Fatal("bad later tuple succeeded")

@@ -189,6 +189,7 @@ type catalogState struct {
 	namespaceGeneration uint64
 	descriptors         map[ObjectAddress]Descriptor
 	names               map[NameKey]ObjectAddress
+	operatorNames       *operatorNameIndex
 	defaultACLs         map[defaultACLKey]*defaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
@@ -934,6 +935,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	ds := make(map[ObjectAddress]Descriptor, len(s.base.state.descriptors)+len(s.descriptors))
 	ns := make(map[NameKey]ObjectAddress, len(s.base.state.names)+len(s.names))
+	operators := operatorIndexEdit{index: s.base.state.operatorNames}
 	for k, v := range s.base.state.descriptors {
 		ds[k] = v
 	}
@@ -942,6 +944,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	}
 	for a, removal := range s.removals {
 		d := removal.descriptor
+		operators.replace(s.base.state.descriptors[a], s.descriptors[a])
 		delete(ds, a)
 		delete(ns, descriptorNameKey(d))
 	}
@@ -949,6 +952,9 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 		delete(ns, k)
 	}
 	for k, v := range s.descriptors {
+		if _, removed := s.removals[k]; !removed {
+			operators.replace(s.base.state.descriptors[k], v)
+		}
 		ds[k] = v
 	}
 	for k, v := range s.names {
@@ -963,7 +969,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 			}
 		}
 	}
-	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs), dumpPriorities: priorities}}
+	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.index, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs), dumpPriorities: priorities}}
 }
 func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil {
@@ -1276,12 +1282,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		e.mu.Unlock()
 		next := cloneCatalog(current)
 		next.defaultACLs = overlayDefaultACLs(current.defaultACLs, s.defaultACLs)
+		operators := operatorIndexEdit{index: current.operatorNames}
 		storage := make(map[ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
 		for a, v := range currentStorage {
 			storage[a] = v
 		}
 		for a, removal := range s.removals {
 			d := removal.descriptor
+			operators.replace(current.descriptors[a], s.descriptors[a])
 			delete(next.descriptors, a)
 			delete(next.dumpPriorities, a)
 			delete(next.names, descriptorNameKey(d))
@@ -1291,6 +1299,9 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			delete(next.names, k)
 		}
 		for a, d := range s.descriptors {
+			if _, removed := s.removals[a]; !removed {
+				operators.replace(current.descriptors[a], d)
+			}
 			next.descriptors[a] = d
 			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind.stored() && storage[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
@@ -1309,6 +1320,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for k, a := range s.names {
 			next.names[k] = a
 		}
+		next.operatorNames = operators.index
 		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
 			return ChangeSet{}, err
 		}
@@ -1940,6 +1952,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 func cloneCatalog(s *catalogState) *catalogState {
 	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[NameKey]ObjectAddress, len(s.names))}
 	n.defaultACLs = s.defaultACLs
+	n.operatorNames = s.operatorNames
 	for k, v := range s.descriptors {
 		n.descriptors[k] = v
 	}

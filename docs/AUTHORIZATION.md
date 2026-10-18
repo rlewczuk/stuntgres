@@ -168,6 +168,7 @@ SET SCHEMA checks destination CREATE before operator ownership. REASSIGN OWNED,
 DROP OWNED and DROP ROLE use the shared ownership/dependency lifecycle.
 Commutator/negator are links rather than normal dependency edges; retiring a peer
 clears reciprocal fields without cascading the surviving definition.
+See [operator authorization scenarios and selected proof](../reference/operators/README.md#testing).
 
 
 Conversion and routine owners use the extracted authorization domain's opaque

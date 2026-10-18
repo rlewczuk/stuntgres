@@ -264,3 +264,25 @@ both modes, with external 900-second deadlines:
 make check RUN='^TestReferenceFDW'
 make check REFERENCE=1 RUN='^TestReferenceFDW'
 ```
+
+### Shared operator-alias assertions
+
+`regoperator.go` owns the existing `RegOperatorRows`, `RegOperatorMetadata`,
+`RegOperatorDiagnosticRoutes`, `RegOperatorError`, `RegOperatorLiteral` and
+`RegOperatorContext` contracts shared by
+[operator definition proofs](../operators/README.md#testing) and
+[operator OID alias proofs](../type_resolution/README.md#operator-oid-aliases).
+They preserve raw alias/OID transport, full metadata and all literal,
+direct/held inferred-parameter and direct/prepared runtime-text diagnostic routes.
+No scenario body or backend implementation is duplicated.
+
+Root selectively runs all callers in both modes after helper migration
+(external 900-second deadline per invocation):
+
+```sh
+make check RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|ParserEdges|NamespaceAuthorization|Inventory)$' REFERENCE=1
+make check RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|ParserEdges|NamespaceAuthorization|Inventory)$'
+make check RUN='^TestReferenceRegOperator(ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceRegOperator(ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$'
+```
+

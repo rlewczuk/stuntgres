@@ -178,9 +178,9 @@ type sqlSymType struct {
 	partitionData             []PartitionDatum
 	extensionOptions          []ExtensionOption
 	extensionOption           ExtensionOption
-	operatorOption            OperatorOption
+	operatorOption            *OperatorOption
 	operatorOptions           []OperatorOption
-	operatorSignature         OperatorSignature
+	operatorSignature         *OperatorSignature
 	operatorSignatures        []OperatorSignature
 	alterOperator             *AlterOperator
 }
@@ -15598,22 +15598,24 @@ sqldefault:
 	case 708:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.operatorOptions = []OperatorOption{sqlDollar[1].operatorOption}
+			sqlVAL.operatorOptions = []OperatorOption{*sqlDollar[1].operatorOption}
 		}
 	case 709:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.operatorOptions = append(sqlDollar[1].operatorOptions, sqlDollar[3].operatorOption)
+			sqlVAL.operatorOptions = append(sqlDollar[1].operatorOptions, *sqlDollar[3].operatorOption)
 		}
 	case 710:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = operatorTypeOption(sqlDollar[1].tok, sqlDollar[3].typ)
+			option := operatorTypeOption(sqlDollar[1].tok, sqlDollar[3].typ)
+			sqlVAL.operatorOption = &option
 		}
 	case 711:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = operatorTypeOption(sqlDollar[1].tok, sqlDollar[4].typ)
+			option := operatorTypeOption(sqlDollar[1].tok, sqlDollar[4].typ)
+			sqlVAL.operatorOption = &option
 			sqlVAL.operatorOption.Type.Setof = true
 			sqlVAL.operatorOption.Kind = OperatorOptionTypeArgument
 			sqlVAL.operatorOption.ValuePos = sqlDollar[3].tok.pos
@@ -15621,67 +15623,70 @@ sqldefault:
 	case 712:
 		sqlDollar = sqlS[sqlpt-8 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}, {Text: sqlDollar[7].tok.text, Pos: sqlDollar[7].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
+			sqlVAL.operatorOption = &OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}, {Text: sqlDollar[7].tok.text, Pos: sqlDollar[7].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
 		}
 	case 713:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
+			sqlVAL.operatorOption = &OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
 		}
 	case 714:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, {Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
+			sqlVAL.operatorOption = &OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, {Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
 		}
 	case 715:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, {Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
+			sqlVAL.operatorOption = &OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionNameArgument, Reference: ObjectName{Parts: []Identifier{{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, {Text: sqlDollar[5].tok.text, Pos: sqlDollar[5].tok.pos}}}, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
 		}
 	case 716:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionStringArgument, Value: sqlDollar[3].tok.text, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
+			sqlVAL.operatorOption = &OperatorOption{Name: sqlDollar[1].tok.text, HasValue: true, Kind: OperatorOptionStringArgument, Value: sqlDollar[3].tok.text, Pos: sqlDollar[1].tok.pos, ValuePos: sqlDollar[3].tok.pos}
 		}
 	case 717:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = operatorNumericOption(sqlDollar[1].tok, sqlDollar[3].tok, "", sqlDollar[3].tok.pos)
+			option := operatorNumericOption(sqlDollar[1].tok, sqlDollar[3].tok, "", sqlDollar[3].tok.pos)
+			sqlVAL.operatorOption = &option
 		}
 	case 718:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = operatorNumericOption(sqlDollar[1].tok, sqlDollar[4].tok, "+", sqlDollar[3].tok.pos)
+			option := operatorNumericOption(sqlDollar[1].tok, sqlDollar[4].tok, "+", sqlDollar[3].tok.pos)
+			sqlVAL.operatorOption = &option
 		}
 	case 719:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = operatorNumericOption(sqlDollar[1].tok, sqlDollar[4].tok, "-", sqlDollar[3].tok.pos)
+			option := operatorNumericOption(sqlDollar[1].tok, sqlDollar[4].tok, "-", sqlDollar[3].tok.pos)
+			sqlVAL.operatorOption = &option
 		}
 	case 720:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.operatorOption = OperatorOption{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.operatorOption = &OperatorOption{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
 		}
 	case 744:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.operatorSignature = OperatorSignature{Name: sqlDollar[1].objectName, Left: sqlDollar[3].typ, Right: sqlDollar[5].typ, Pos: sqlDollar[1].objectName.Parts[0].Pos}
+			sqlVAL.operatorSignature = &OperatorSignature{Name: sqlDollar[1].objectName, Left: sqlDollar[3].typ, Right: sqlDollar[5].typ, Pos: sqlDollar[1].objectName.Parts[0].Pos}
 		}
 	case 745:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.operatorSignatures = []OperatorSignature{sqlDollar[1].operatorSignature}
+			sqlVAL.operatorSignatures = []OperatorSignature{*sqlDollar[1].operatorSignature}
 		}
 	case 746:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.operatorSignatures = append(sqlDollar[1].operatorSignatures, sqlDollar[3].operatorSignature)
+			sqlVAL.operatorSignatures = append(sqlDollar[1].operatorSignatures, *sqlDollar[3].operatorSignature)
 		}
 	case 747:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.alterOperator = &AlterOperator{Signature: sqlDollar[3].operatorSignature, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.alterOperator = &AlterOperator{Signature: *sqlDollar[3].operatorSignature, Pos: sqlDollar[1].tok.pos}
 		}
 	case 748:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]

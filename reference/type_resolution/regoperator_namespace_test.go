@@ -16,7 +16,7 @@ func TestReferenceRegOperatorNamespaceAuthorization(t *testing.T) {
 		}
 		for _, tc := range []struct{ alias, input string }{{"regoper", "regop_private.+"}, {"regoperator", "regop_private.+(integer,integer)"}, {"regoperator", "pg_catalog.+(regop_private.secret,integer)"}} {
 			t.Run("allowed/"+tc.input, func(t *testing.T) {
-				regoperatorDiagnosticRoutes(t, p, b, c, tc.alias, tc.input, "42883", "operator does not exist: "+tc.input, "")
+				fixture.RegOperatorDiagnosticRoutes(t, p, b, c, tc.alias, tc.input, "42883", "operator does not exist: "+tc.input, "")
 			})
 		}
 		q := "SELECT $1::regoperator AS v,$1::regoperator::oid AS o"
@@ -29,20 +29,20 @@ func TestReferenceRegOperatorNamespaceAuthorization(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER SCHEMA regop_private OWNER TO regop_owner_b", 0))
 		for _, tc := range []struct{ alias, input string }{{"regoper", "regop_private.+"}, {"regoperator", "regop_private.+(integer,integer)"}, {"regoperator", "pg_catalog.+(regop_private.secret,integer)"}} {
 			t.Run("denied/"+tc.input, func(t *testing.T) {
-				regoperatorDiagnosticRoutes(t, p, b, c, tc.alias, tc.input, "42501", "permission denied for schema regop_private", "")
+				fixture.RegOperatorDiagnosticRoutes(t, p, b, c, tc.alias, tc.input, "42501", "permission denied for schema regop_private", "")
 			})
 		}
-		regoperatorDiagnosticRoutes(t, p, b, c, "regoperator", "pg_catalog.+(secret,integer)", "42704", `type "secret" does not exist`, "")
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG, "551"))
+		fixture.RegOperatorDiagnosticRoutes(t, p, b, c, "regoperator", "pg_catalog.+(secret,integer)", "42704", `type "secret" does not exist`, "")
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG, "551"))
 		var db string
 		if e := c.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&db); e != nil {
 			t.Fatal(e)
 		}
-		regoperatorDiagnosticRoutes(t, p, b, c, "regoper", fixture.RegtypeIdentifier(db)+".regop_private.+", "42501", "permission denied for schema regop_private", "")
+		fixture.RegOperatorDiagnosticRoutes(t, p, b, c, "regoper", fixture.RegtypeIdentifier(db)+".regop_private.+", "42501", "permission denied for schema regop_private", "")
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER SCHEMA regop_private OWNER TO regop_owner_a", 0))
-		s := regoperatorError(q, "42883", "operator does not exist: pg_catalog.+(regop_private.secret,integer)", "", "", "unnamed portal parameter $1 = '...'", "pg_catalog.+(regop_private.secret,integer)")
+		s := fixture.RegOperatorError(q, "42883", "operator does not exist: pg_catalog.+(regop_private.secret,integer)", "", "", "unnamed portal parameter $1 = '...'", "pg_catalog.+(regop_private.secret,integer)")
 		s.ErrorStage = "execute"
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
-		fixture.RunStep(t, p.Ctx, held, b.Recorder, regoperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG, "+(integer,integer)"))
+		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.RegOperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG, "+(integer,integer)"))
 	})
 }

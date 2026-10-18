@@ -14,9 +14,10 @@ type operatorGroups map[string][]*operatorDescriptor
 
 func collectOperatorGroups(view CatalogRead) operatorGroups {
 	groups := make(operatorGroups)
-	for _, descriptor := range view.state.descriptors {
-		if d, ok := descriptor.(*operatorDescriptor); ok {
-			groups[d.name] = append(groups[d.name], d)
+	for key, addresses := range view.state.operatorNames.buckets {
+		for _, address := range addresses {
+			d := view.state.descriptors[address].(*operatorDescriptor)
+			groups[key.name] = append(groups[key.name], d)
 		}
 	}
 	return groups

@@ -24,7 +24,7 @@ rows or broadening lookup-only seed execution. Selected calls bind the actual
 routine/provider and retain operator identity for dependencies and live SQL names.
 RESTRICT/JOIN are truthful released metadata, not optimizer invocation. New
 reference selectors and native emitted-script replay are documented in
-`reference/type_resolution/README.md`; verification remains root-owned.
+`reference/operators/README.md`; verification remains root-owned.
 
 Shell completion replaces owner and all supplied/omitted definition fields at
 the original OID; omitted commutator/negator links become zero, even when peers
@@ -646,3 +646,82 @@ oracle-first proof; tests-34 adds PostgreSQL-first batching/stored-constructor
 proof and native red for R14/R15. Fresh both-mode verification, actual emitted
 SQL replay and complete review remain root-owned; this note claims no passing
 implementation checks.
+
+## Immutable operator membership lookup
+
+Catalog roots share a derived operator-only `(namespace, name)` address index.
+The descriptor/name maps remain authoritative: scalar selection and alias-group
+capture dereference addresses in the **same captured root**. Buckets contain no
+descriptor pointers, principals, signatures, ACL decisions, winners or providers.
+All fixed seed address buckets are shared read-only across engines; descriptors
+and their principal provenance remain engine-owned. Bootstrap attaches the index
+before builtin-domain binding.
+
+Stage reads, committed publication and private transaction overlays apply final
+membership deltas once. Clones share the immutable index; a membership-changing
+batch copies its map once and only touched bucket arrays. Owner, revision,
+signature, result, options and shell completion at an unchanged address/name/
+namespace retain the index but expose the current descriptor. Namespace or
+address moves remove old membership and insert new membership. Unrelated DDL
+does not copy the index.
+
+Persistent replacement removes TEMP membership with its descriptors. Collision
+reconstruction rebuilds membership before imported expressions, exclusions or
+generated definitions can bind, and the final retained TEMP overlay applies its
+own membership deltas before later validation. Principal-only remapping shares
+the address index while replacing descriptors. No lazy repair, full-scan lookup
+fallback, permission cache, additional epoch or alternative resolver is used.
+
+The lookup still applies current authorization, path order, unary/binary
+filtering and identical ordered-signature masking before the existing type
+resolver and provider boundary. `TestUserOperatorIndex` units compare every
+bucket against an independent descriptor projection and retain predecessor/
+sibling roots, including a shared bucket with spare capacity. This bounded
+implementation removes heterogeneous catalog scans from operator candidate and
+alias-group collection; it makes no measured speedup or startup-target claim.
+
+## R17 whole-signature generic viability
+
+Released REL_18_6 `can_coerce_type` invokes `check_generic_type_consistency`
+across the complete signature, both during initial operator candidate matching
+and after final unknown-assume-known substitution. Independent per-position shape
+checks cannot distinguish array concatenate from append/prepend when both actual
+inputs are arrays. `operatorImplicitInputs` now owns those two-slot relationships
+in the existing sqltype resolver; candidate indices, exact/domain shortcuts,
+preferred/category scoring and actual provider dispatch remain unchanged.
+
+Simple ANYELEMENT/NONARRAY/ENUM relationships use exact logical element identity.
+Outer array/range/multirange domains flatten for container matching, but an
+array-of-domain retains its logical element. Existing range/subtype and
+multirange/member links constrain the same simple state. Compatible scalar/array
+formals contribute scalar/element leaves instead, preserving identical domains,
+otherwise selecting a common base candidate and verifying every known input's
+implicit coercibility. Initial unknowns supply no constraints. RECORD remains
+an independent shape check, not a shared identity variable.
+
+`sqltype.CommonTypeCategory`, `CommonTypePreferred` and `CommonTypeCandidate`
+are the single owner of the existing descriptor common-choice policy. Engine
+common expression binding retains its Usage/domain/typmod/collation handling,
+diagnostic positions and downstream conversion phase; the pair fold's Boolean
+means category compatibility, not guaranteed coercibility. In particular ordinary
+TIME/TIMESTAMP VALUES still fail late with 42846. Generic viability alone verifies
+all compatible leaves. Operator equality scoring and series-specific preferences
+retain their different existing policies.
+
+State is fixed to the two operator inputs, with no new candidate collection,
+catalog lookup, synthetic expression or provider. Identity-first leaf checks
+preserve identical lookup-only facts without invalid Usage probes; missing array
+elements and temporal-multirange links are guarded. Canonical ANYARRAY remains
+outside concrete-array shape admission, with unresolved comparison diagnostics
+still owned by the existing comparison binder. No absent compatible-range family,
+lookup codec, general function runtime or result instantiation is introduced.
+
+The owning operator README records the public regression and exact selected
+normal/race/reference commands. Root tests-46 supplies PostgreSQL-first and actual
+native-before evidence, not remedy approval. Pure resolver/common-choice units
+supplement the unchanged R16/R17 public bodies. The internal TIME/TIMESTAMP SQL
+loop was removed in favor of already complete shared
+`TestReferenceInsertSelectValuesDiagnostics`; its pure common-type matrix remains.
+Fresh dual-mode proof, full quickcheck, smoke and complete cumulative review
+remain root-owned.
+

@@ -28,10 +28,12 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 		}
 	}
 	next := cloneCatalog(view.state)
+	operators := operatorIndexEdit{index: view.state.operatorNames}
 	for a, d := range view.state.descriptors {
 		ns, isNamespace := d.(*namespaceDescriptor)
 		parent, hasParent := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
 		if isNamespace && ns.temporary != (SessionToken{}) || hasParent && parent.temporary != (SessionToken{}) {
+			operators.replace(d, nil)
 			delete(next.descriptors, a)
 		}
 	}
@@ -41,6 +43,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 			delete(next.names, key)
 		}
 	}
+	next.operatorNames = operators.index
 	pruneNamespaceDefaults(view.state, next, nil)
 	return CatalogRead{owner: view.owner, state: next}, nil
 }
@@ -493,6 +496,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			next.descriptors[target] = d
 			next.names[descriptorNameKey(d)] = target
 		}
+		next.operatorNames = rebuildOperatorNames(next.descriptors)
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
 		oldStorage := make(map[ObjectAddress]*relationStorage, len(storage))
 		for a, s := range storage {
@@ -527,7 +531,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp, indexes); err != nil {
 		return err
 	}
+	operators := operatorIndexEdit{index: next.operatorNames}
 	for a, d := range temporary {
+		operators.replace(next.descriptors[a], d)
 		next.descriptors[a] = d
 		next.names[descriptorNameKey(d)] = a
 		if rows := e.storage[a]; rows != nil {
@@ -537,6 +543,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			sequences[a] = g
 		}
 	}
+	next.operatorNames = operators.index
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok || len(relation.policies) == 0 && len(relation.rules) == 0 {

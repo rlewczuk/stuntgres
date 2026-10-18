@@ -1101,4 +1101,5 @@ Dump/Restore reconstructs ordinary operator DDL, options, owners and shells, and
 remaps known custom REGOPER/REGOPERATOR values by exact qualified signature,
 including mixed nested containers. Existing fixed/unknown OIDs remain numeric;
 old returned Rows retain their original spelling and type snapshot.
+See [operator lifecycle and replay proof](../reference/operators/README.md#testing).
 

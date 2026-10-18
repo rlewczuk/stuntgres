@@ -2744,6 +2744,7 @@ Those consumers retain their existing grouping and nested-call boundaries; use
 explicit `OPERATOR(schema.+)` for a custom `+` with direct selected-call operands.
 The unquoted word `operator` remains an ordinary identifier outside operator DDL
 and the qualified operator opener.
+See [user-operator testing contracts and selected proof](../reference/operators/README.md#testing).
 REGCONFIG/REGDICTIONARY scalar numeric identities are executable, with lookup-only
 companion arrays. Symbolic REGDICTIONARY resolution uses only actual installed
 unaccent objects; native does not fabricate builtin `simple`/language dictionaries.

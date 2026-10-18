@@ -57,7 +57,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	e, _, view, auth, namespaces := regTSUnitSnapshot(t)
 	for _, alias := range []sqltype.ID{sqltype.Regconfig, sqltype.Regdictionary} {
 		typ, ok := view.LookupType(alias)
-		if !ok || typeCategory(typ) != 'N' {
+		if !ok || sqltype.CommonTypeCategory(typ) != 'N' {
 			t.Fatal("text-search numeric category", alias)
 		}
 	}

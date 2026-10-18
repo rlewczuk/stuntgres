@@ -18,7 +18,7 @@ func TestCharacterSourceValuesCommonUsage(t *testing.T) {
 		return d.Usage()
 	}
 	for _, id := range []sqltype.ID{sqltype.Text, sqltype.BPChar, sqltype.VarChar} {
-		if got := typeCategory(usage(id).Type); got != 'S' {
+		if got := sqltype.CommonTypeCategory(usage(id).Type); got != 'S' {
 			t.Errorf("type %d category=%q want S", id, got)
 		}
 	}

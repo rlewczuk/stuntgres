@@ -27,6 +27,99 @@ func operatorImplicitInput(source *Descriptor, target ID) bool {
 	return equalityImplicit(source.ID(), target)
 }
 
+// operatorImplicitInputs checks potential coercibility of a complete declared
+// signature. Unknowns add no constraints; generic result instantiation remains
+// the binder's responsibility.
+func operatorImplicitInputs(left, right *Descriptor, declared OperatorInputs, unary bool) bool {
+	sources := [2]*Descriptor{left, right}
+	targets := [2]ID{declared.Left, declared.Right}
+	var element, array, rangeType, multirange *Descriptor
+	var compatible [2]*Descriptor
+	count := 0
+	for i, source := range sources {
+		if unary && i == 0 || source == nil {
+			continue
+		}
+		target := targets[i]
+		if !operatorImplicitInput(source, target) {
+			return false
+		}
+		base := source.BaseType()
+		var leaf *Descriptor
+		switch target {
+		case 2283, 2776:
+			leaf = source
+		case 3500:
+			// A domain over an enum is not itself an enum.
+			if !source.IsEnum() {
+				return false
+			}
+			leaf = source
+		case 2277:
+			if !operatorSameType(&array, base) {
+				return false
+			}
+			leaf = base.Element()
+			if leaf == nil {
+				return false
+			}
+		case 3831:
+			if !operatorSameType(&rangeType, base) || base.rangeSubtype == nil {
+				return false
+			}
+			leaf = base.rangeSubtype
+		case 4537:
+			member := base.multirangeRange
+			if member == nil || member.rangeSubtype == nil ||
+				!operatorSameType(&multirange, base) || !operatorSameType(&rangeType, member) {
+				return false
+			}
+			leaf = member.rangeSubtype
+		case 5077, 5078:
+			leaf = source
+			if target == 5078 {
+				leaf = base.Element()
+				if leaf == nil {
+					return false
+				}
+			}
+			compatible[count] = leaf
+			count++
+			continue
+		}
+		if leaf != nil && !operatorSameType(&element, leaf) {
+			return false
+		}
+	}
+	if count < 2 || compatible[0] == compatible[1] {
+		return true
+	}
+	// Identical domains were preserved above; differing leaves follow the
+	// same base-domain common selection as ordinary expression binding.
+	first, second := compatible[0].BaseType(), compatible[1].BaseType()
+	chosen, ok := CommonTypeCandidate(first, second)
+	if !ok {
+		return false
+	}
+	for _, source := range compatible {
+		if source == chosen {
+			continue
+		}
+		if _, err := PlanCoercion(source.Usage(), chosen.Usage(), Implicit); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func operatorSameType(known **Descriptor, actual *Descriptor) bool {
+	if *known == nil {
+		*known = actual
+		return true
+	}
+	return (*known).ID() == actual.ID()
+}
+
 // ResolveOperator chooses an index, retaining the caller's catalog identity.
 // Candidate collection owns search-path masking; this function owns §10.2 type
 // selection. Unknown input is nil. Only direct implicit conversions are viable.
@@ -87,7 +180,7 @@ func ResolveOperator(candidates []OperatorInputs, left, right *Descriptor, unary
 		if unary != (s.Left == 0) {
 			continue
 		}
-		if (unary || operatorImplicitInput(left, s.Left)) && operatorImplicitInput(right, s.Right) {
+		if operatorImplicitInputs(left, right, s, unary) {
 			active = append(active, i)
 		}
 	}
@@ -195,14 +288,15 @@ func ResolveOperator(candidates []OperatorInputs, left, right *Descriptor, unary
 		}
 	}
 	if !unary && (left == nil) != (right == nil) {
-		known := base[0]
-		if left == nil {
-			known = base[1]
+		known := left
+		if known == nil {
+			known = right
 		}
+		known = known.BaseType()
 		chosen := -1
 		for _, i := range active {
 			s := candidates[i]
-			if equalityImplicit(known, s.Left) && equalityImplicit(known, s.Right) {
+			if operatorImplicitInputs(known, known, s, false) {
 				if chosen >= 0 {
 					return -1, failure("42725", "operator is not unique")
 				}

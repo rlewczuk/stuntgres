@@ -6,43 +6,6 @@ import (
 	"testing"
 )
 
-func regoperatorError(q, code, message, hint, position, portal string, args ...any) fixture.Step {
-	d := fixture.ControlsReferenceDiagnostic(code, message)
-	d.Hint = hint
-	d.Position = position
-	d.Context = portal
-	s := fixture.ErrorDiagnostic(q, d, args...)
-	s.SelectRows = true
-	return s
-}
-func regoperatorDiagnosticRoutes(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, alias, input, code, message, hint string) {
-	t.Helper()
-	ctx := regoperatorContext(p, b)
-	literal := "SELECT " + regoperatorLiteral(input) + "::" + alias
-	s := regoperatorError(literal, code, message, hint, "8", "")
-	fixture.RunStep(t, ctx, c, b.Recorder, s)
-	s = fixture.Prepared(s)
-	s.ErrorStage = "prepare"
-	fixture.RunStep(t, ctx, c, b.Recorder, s)
-	q := "SELECT $1::" + alias
-	stmt, e := c.PrepareContext(ctx, q)
-	if e != nil {
-		t.Fatal("parameter Prepare", e)
-	}
-	defer stmt.Close()
-	portal := "unnamed portal parameter $1 = '...'"
-	if input == "" {
-		portal = "unnamed portal parameter $1 = ''"
-	}
-	s = regoperatorError(q, code, message, hint, "", portal, input)
-	s.ErrorStage = "execute"
-	fixture.RunStep(t, ctx, c, b.Recorder, s)
-	fixture.RunStep(t, ctx, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, b.Recorder, s)
-	s = regoperatorError("SELECT $1::text::"+alias, code, message, hint, "", "", input)
-	s.ErrorStage = "execute"
-	fixture.RunStep(t, ctx, c, b.Recorder, s)
-	fixture.RunStep(t, ctx, c, b.Recorder, fixture.Prepared(s))
-}
 func TestReferenceRegOperatorDiagnostics(t *testing.T) {
 	regoperatorScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct{ alias, input, code, message, hint string }{
@@ -60,10 +23,10 @@ func TestReferenceRegOperatorDiagnostics(t *testing.T) {
 			{"regoperator", "+(integer[ ,integer)", "22P02", "improper type name", ""},
 		} {
 			t.Run(tc.alias+"/"+tc.input, func(t *testing.T) {
-				regoperatorDiagnosticRoutes(t, p, b, c, tc.alias, tc.input, tc.code, tc.message, tc.hint)
+				fixture.RegOperatorDiagnosticRoutes(t, p, b, c, tc.alias, tc.input, tc.code, tc.message, tc.hint)
 			})
 		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorError("SELECT 'é' AS prefix, '||//'::regoper", "42883", "operator does not exist: ||//", "", "23", ""))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorError("SELECT 'é' AS prefix, '||//'::regoper", "42883", "operator does not exist: ||//", "", "23", ""))
 		// These full operand records were independently observed on pinned PostgreSQL 18.0.
 		for _, tc := range []struct{ input, code, message, context string }{
 			{`+("NONE",integer)`, "42704", `type "NONE" does not exist`, ""},
@@ -72,7 +35,7 @@ func TestReferenceRegOperatorDiagnostics(t *testing.T) {
 			{"+(numeric(-1),integer)", "22023", "NUMERIC precision -1 must be between 1 and 1000", ""},
 			{"+(123,integer)", "42601", `syntax error at or near "123"`, `invalid type name "123"`},
 		} {
-			s := regoperatorError("SELECT "+regoperatorLiteral(tc.input)+"::regoperator", tc.code, tc.message, "", "8", tc.context)
+			s := fixture.RegOperatorError("SELECT "+fixture.RegOperatorLiteral(tc.input)+"::regoperator", tc.code, tc.message, "", "8", tc.context)
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 			s = fixture.Prepared(s)
 			s.ErrorStage = "prepare"
@@ -84,7 +47,7 @@ func TestReferenceRegOperatorDiagnostics(t *testing.T) {
 				{"1.2::numeric", "42846", "cannot cast type numeric to " + alias, "20"},
 				{"(-1)::bigint", "22003", "OID out of range", ""},
 			} {
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorError("SELECT "+tc.expression+"::"+alias, tc.code, tc.message, "", tc.position, ""))
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorError("SELECT "+tc.expression+"::"+alias, tc.code, tc.message, "", tc.position, ""))
 			}
 		}
 	})

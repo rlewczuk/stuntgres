@@ -175,9 +175,9 @@ package parser
  partitionData []PartitionDatum
  extensionOptions []ExtensionOption
  extensionOption ExtensionOption
- operatorOption OperatorOption
+ operatorOption *OperatorOption
  operatorOptions []OperatorOption
- operatorSignature OperatorSignature
+ operatorSignature *OperatorSignature
  operatorSignatures []OperatorSignature
  alterOperator *AlterOperator
 }
@@ -1379,18 +1379,18 @@ drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Na
 create_operator: CREATE OPERATOR operator_name '(' operator_options ')' {$$=&CreateOperator{Name:$3,Options:$5,Pos:$1.pos}} ;
 operator_name: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
  | name '.' operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}}} ;
-operator_options: operator_option {$$=[]OperatorOption{$1}} | operator_options ',' operator_option {$$=append($1,$3)} ;
-operator_option: col_label '=' type {$$=operatorTypeOption($1,$3)}
- | col_label '=' SETOF_TYPE type {$$=operatorTypeOption($1,$4);$$.Type.Setof=true;$$.Kind=OperatorOptionTypeArgument;$$.ValuePos=$3.pos}
- | col_label '=' QUALIFIED_OPERATOR '(' name '.' operator_symbol ')' {$$=OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos},{Text:$7.text,Pos:$7.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
- | col_label '=' operator_symbol {$$=OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
- | col_label '=' type_name '.' operator_symbol {$$=OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
- | col_label '=' operator_option_schema_keyword '.' operator_symbol {$$=OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
- | col_label '=' STRING {$$=OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionStringArgument,Value:$3.text,Pos:$1.pos,ValuePos:$3.pos}}
- | col_label '=' NUMBER {$$=operatorNumericOption($1,$3,"",$3.pos)}
- | col_label '=' '+' NUMBER {$$=operatorNumericOption($1,$4,"+",$3.pos)}
- | col_label '=' '-' NUMBER {$$=operatorNumericOption($1,$4,"-",$3.pos)}
- | col_label {$$=OperatorOption{Name:$1.text,Pos:$1.pos}} ;
+operator_options: operator_option {$$=[]OperatorOption{*$1}} | operator_options ',' operator_option {$$=append($1,*$3)} ;
+operator_option: col_label '=' type {option:=operatorTypeOption($1,$3);$$=&option}
+ | col_label '=' SETOF_TYPE type {option:=operatorTypeOption($1,$4);$$=&option;$$.Type.Setof=true;$$.Kind=OperatorOptionTypeArgument;$$.ValuePos=$3.pos}
+ | col_label '=' QUALIFIED_OPERATOR '(' name '.' operator_symbol ')' {$$=&OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos},{Text:$7.text,Pos:$7.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
+ | col_label '=' operator_symbol {$$=&OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
+ | col_label '=' type_name '.' operator_symbol {$$=&OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
+ | col_label '=' operator_option_schema_keyword '.' operator_symbol {$$=&OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionNameArgument,Reference:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,ValuePos:$3.pos}}
+ | col_label '=' STRING {$$=&OperatorOption{Name:$1.text,HasValue:true,Kind:OperatorOptionStringArgument,Value:$3.text,Pos:$1.pos,ValuePos:$3.pos}}
+ | col_label '=' NUMBER {option:=operatorNumericOption($1,$3,"",$3.pos);$$=&option}
+ | col_label '=' '+' NUMBER {option:=operatorNumericOption($1,$4,"+",$3.pos);$$=&option}
+ | col_label '=' '-' NUMBER {option:=operatorNumericOption($1,$4,"-",$3.pos);$$=&option}
+ | col_label {$$=&OperatorOption{Name:$1.text,Pos:$1.pos}} ;
 /* Share type_name before '.' with type/function option values. The remaining
  * ColumnName keywords are disjoint from type_name and retain schema legality
  * without the competing name reduction at every identifier token. */
@@ -1399,9 +1399,9 @@ operator_option_schema_keyword: AT | BIGINT | BOOLEAN | INOUT_ARG | INTEGER | IN
  | ROLE_CONNECTION | ROLE_ENCRYPTED | ROLE_PASSWORD | ROLE_UNENCRYPTED | ROLE_VALID
  | SQLJSON_ARRAY | SQLJSON_OBJECT | SQLJSON_SCALAR | SQLJSON_SERIALIZE
  | TEXT | TIME | TIMESTAMP | VIEW ;
-operator_signature: operator_name '(' type ',' type ')' {$$=OperatorSignature{Name:$1,Left:$3,Right:$5,Pos:$1.Parts[0].Pos}} ;
-operator_signatures: operator_signature {$$=[]OperatorSignature{$1}} | operator_signatures ',' operator_signature {$$=append($1,$3)} ;
-operator_alter_head: ALTER OPERATOR operator_signature {$$=&AlterOperator{Signature:$3,Pos:$1.pos}} ;
+operator_signature: operator_name '(' type ',' type ')' {$$=&OperatorSignature{Name:$1,Left:$3,Right:$5,Pos:$1.Parts[0].Pos}} ;
+operator_signatures: operator_signature {$$=[]OperatorSignature{*$1}} | operator_signatures ',' operator_signature {$$=append($1,*$3)} ;
+operator_alter_head: ALTER OPERATOR operator_signature {$$=&AlterOperator{Signature:*$3,Pos:$1.pos}} ;
 alter_operator: operator_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
  | operator_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
  | operator_alter_head SET '(' operator_options ')' {$1.Action="options";$1.Options=$4;$$=$1} ;

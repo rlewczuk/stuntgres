@@ -83,9 +83,9 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, descriptor := range auth.catalog.state.descriptors {
-			d, ok := descriptor.(*operatorDescriptor)
-			if !ok || d.namespace != path.at(i) || d.name != spelling || (d.left == 0) != unary {
+		for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
+			d := auth.catalog.state.descriptors[address].(*operatorDescriptor)
+			if (d.left == 0) != unary {
 				continue
 			}
 			key := operatorSignature{d.left, d.right}

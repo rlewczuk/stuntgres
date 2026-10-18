@@ -117,7 +117,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 			}
 			if id == s.args[i] {
 				exact++
-			} else if seriesPreferred(s.args[i]) && typeCategory(input.Type) == typeCategory(target) {
+			} else if seriesPreferred(s.args[i]) && sqltype.CommonTypeCategory(input.Type) == sqltype.CommonTypeCategory(target) {
 				preferred++
 			}
 		}
@@ -136,10 +136,10 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		if !u || len(candidates) < 2 {
 			continue
 		}
-		category := typeCategory(b.typ(candidates[0].args[i]))
+		category := sqltype.CommonTypeCategory(b.typ(candidates[0].args[i]))
 		consistent, hasString := true, false
 		for _, s := range candidates {
-			cat := typeCategory(b.typ(s.args[i]))
+			cat := sqltype.CommonTypeCategory(b.typ(s.args[i]))
 			consistent = consistent && cat == category
 			hasString = hasString || cat == 'S'
 		}
@@ -150,11 +150,11 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		}
 		preferred := false
 		for _, s := range candidates {
-			preferred = preferred || typeCategory(b.typ(s.args[i])) == category && seriesPreferred(s.args[i])
+			preferred = preferred || sqltype.CommonTypeCategory(b.typ(s.args[i])) == category && seriesPreferred(s.args[i])
 		}
 		filtered := candidates[:0]
 		for _, s := range candidates {
-			if typeCategory(b.typ(s.args[i])) == category && (!preferred || seriesPreferred(s.args[i])) {
+			if sqltype.CommonTypeCategory(b.typ(s.args[i])) == category && (!preferred || seriesPreferred(s.args[i])) {
 				filtered = append(filtered, s)
 			}
 		}

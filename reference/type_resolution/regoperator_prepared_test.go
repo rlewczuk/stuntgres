@@ -27,15 +27,15 @@ func TestReferenceRegOperatorPreparedLifetime(t *testing.T) {
 					input, text, bad, oid = "-(NONE,int4)", "-(NONE,integer)", "++(int4,int4)", 558
 				}
 				for _, value := range []any{input, []byte(input), oidReferenceValuer{value: input}} {
-					fixture.RunStep(t, p.Ctx, held, b.Recorder, regoperatorRows(q, alias, text, oid, b.PG, value))
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.RegOperatorRows(q, alias, text, oid, b.PG, value))
 				}
-				s := regoperatorError(q, "42883", "operator does not exist: "+bad, "", "", "unnamed portal parameter $1 = '...'", bad)
+				s := fixture.RegOperatorError(q, "42883", "operator does not exist: "+bad, "", "", "unnamed portal parameter $1 = '...'", bad)
 				s.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, regoperatorRows(q, alias, text, oid, b.PG, input))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.RegOperatorRows(q, alias, text, oid, b.PG, input))
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"v", "o"}, []string{map[string]string{"regoper": "REGOPER", "regoperator": "REGOPERATOR"}[alias], "OID"}, [][]any{{nil, nil}}, nil))
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"v", "o"}, []string{map[string]string{"regoper": "REGOPER", "regoperator": "REGOPERATOR"}[alias], "OID"}, [][]any{{nil, nil}}, []byte(nil)))
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, regoperatorRows(q, alias, text, oid, b.PG, input))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.RegOperatorRows(q, alias, text, oid, b.PG, input))
 			}()
 		}
 		q := "SELECT '+(int4,int4)'::regoperator AS v,'+(int4,int4)'::regoperator::oid AS o"
@@ -49,10 +49,10 @@ func TestReferenceRegOperatorPreparedLifetime(t *testing.T) {
 			}
 		}()
 		held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
-		fixture.RunStep(t, p.Ctx, held, b.Recorder, regoperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG))
+		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.RegOperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET search_path TO public,pg_catalog", 0))
-		fixture.RunStep(t, p.Ctx, held, b.Recorder, regoperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT $1::text::regoperator AS v,$1::text::regoperator::oid AS o", "regoperator", "+(integer,integer)", 551, b.PG, "+(int,int)"))
+		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.RegOperatorRows(q, "regoperator", "+(integer,integer)", 551, b.PG))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT $1::text::regoperator AS v,$1::text::regoperator::oid AS o", "regoperator", "+(integer,integer)", 551, b.PG, "+(int,int)"))
 	})
 }
 
@@ -78,7 +78,7 @@ func TestReferenceRegOperatorPreparedAnalysis(t *testing.T) {
 				return true
 			}
 			step.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-				regoperatorMetadata(t, rows, b.PG, step.Columns, step.Types)
+				fixture.RegOperatorMetadata(t, rows, b.PG, step.Columns, step.Types)
 			}
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, step)
 			rows, err := stmt.QueryContext(p.Ctx, "-(NONE,int4)")
@@ -105,7 +105,7 @@ func TestReferenceRegOperatorPreparedAnalysis(t *testing.T) {
 			}
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET search_path TO public,pg_catalog", 0))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, step)
-			bad := regoperatorError(query, "42883", "operator does not exist: ++(int4,int4)", "", "", "", "++(int4,int4)")
+			bad := fixture.RegOperatorError(query, "42883", "operator does not exist: ++(int4,int4)", "", "", "", "++(int4,int4)")
 			bad.ErrorStage = "execute"
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, bad)
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, step)

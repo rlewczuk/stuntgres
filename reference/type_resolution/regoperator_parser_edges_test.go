@@ -39,7 +39,7 @@ func TestReferenceRegOperatorParserEdges(t *testing.T) {
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					regoperatorParserEdgeRoutes(t, p, b, c, tc.input, func(q, position, portal string, args ...any) fixture.Step {
-						return regoperatorError(q, tc.code, tc.message, "", position, portal, args...)
+						return fixture.RegOperatorError(q, tc.code, tc.message, "", position, portal, args...)
 					})
 				})
 			}
@@ -52,7 +52,7 @@ func TestReferenceRegOperatorParserEdges(t *testing.T) {
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					regoperatorParserEdgeRoutes(t, p, b, c, tc.input, func(q, _, _ string, args ...any) fixture.Step {
-						return regoperatorRows("SELECT v,v::oid AS o FROM ("+q+" AS v) AS regop_edge", "regoperator", tc.text, tc.oid, b.PG, args...)
+						return fixture.RegOperatorRows("SELECT v,v::oid AS o FROM ("+q+" AS v) AS regop_edge", "regoperator", tc.text, tc.oid, b.PG, args...)
 					})
 				})
 			}
@@ -65,14 +65,14 @@ func TestReferenceRegOperatorParserEdges(t *testing.T) {
 // mismatch; no golden is learned and no diagnostic field is discarded.
 func regoperatorParserEdgeRoutes(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, input string, step func(string, string, string, ...any) fixture.Step) {
 	t.Helper()
-	ctx := regoperatorContext(p, b)
+	ctx := fixture.RegOperatorContext(p, b)
 	for _, route := range []struct {
 		name, query, position, portal string
 		prepared, held                bool
 		args                          []any
 	}{
-		{"literal_query", "SELECT " + regoperatorLiteral(input) + "::regoperator", "8", "", false, false, nil},
-		{"literal_prepare", "SELECT " + regoperatorLiteral(input) + "::regoperator", "8", "", true, false, nil},
+		{"literal_query", "SELECT " + fixture.RegOperatorLiteral(input) + "::regoperator", "8", "", false, false, nil},
+		{"literal_prepare", "SELECT " + fixture.RegOperatorLiteral(input) + "::regoperator", "8", "", true, false, nil},
 		{"inferred_query", "SELECT $1::regoperator", "", "unnamed portal parameter $1 = '...'", false, false, []any{input}},
 		{"inferred_held", "SELECT $1::regoperator", "", "unnamed portal parameter $1 = '...'", false, true, []any{input}},
 		{"runtime_query", "SELECT $1::text::regoperator", "", "", false, false, []any{input}},

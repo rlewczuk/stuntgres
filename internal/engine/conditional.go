@@ -212,18 +212,15 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 		if u.Type == candidate.Type {
 			continue
 		}
-		if typeCategory(candidate.Type) != typeCategory(u.Type) {
+		chosen, compatible := sqltype.CommonTypeCandidate(candidate.Type, u.Type)
+		if !compatible {
 			if label == "" {
 				return sqltype.Usage{}, nil
 			}
 			return sqltype.Usage{}, expressionError("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(candidate.Type), typeName(u.Type)), commonOperandStart(o))
 		}
-		if !preferredType(candidate.Type) {
-			_, forward := sqltype.PlanCoercion(candidate.Type.Usage(), u.Type.Usage(), sqltype.Implicit)
-			_, reverse := sqltype.PlanCoercion(u.Type.Usage(), candidate.Type.Usage(), sqltype.Implicit)
-			if forward == nil && reverse != nil {
-				candidate = u
-			}
+		if chosen == u.Type {
+			candidate = u
 		}
 	}
 	if candidate.Type == nil {

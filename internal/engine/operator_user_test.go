@@ -256,6 +256,56 @@ func TestUserOperatorResolutionUnknownPositions(t *testing.T) {
 		})
 	}
 }
+func TestUserOperatorResolutionPolymorphicUnknown(t *testing.T) {
+	array, ok := New().CatalogRead().LookupType(sqltype.ID(1007))
+	if !ok {
+		t.Fatal("missing INT4[] descriptor")
+	}
+	domain, err := sqltype.Domain(90000, "array_domain", "public.array_domain", array.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	arraySignature := sqltype.OperatorInputs{Left: 2277, Right: 2277}
+	for _, input := range []struct {
+		name string
+		typ  *sqltype.Descriptor
+	}{
+		{"array", array},
+		{"domain", domain},
+	} {
+		for _, side := range []string{"known_left", "known_right"} {
+			for _, order := range []string{"array_first", "array_last"} {
+				t.Run(input.name+"/"+side+"/"+order, func(t *testing.T) {
+					// ANYELEMENT accepts the known array initially, but the
+					// assumed array cannot satisfy the unknown ANYRANGE side.
+					rangeSignature := sqltype.OperatorInputs{Left: 2283, Right: 3831}
+					left, right := input.typ, (*sqltype.Descriptor)(nil)
+					if side == "known_right" {
+						left, right = nil, input.typ
+						rangeSignature.Left, rangeSignature.Right = rangeSignature.Right, rangeSignature.Left
+					}
+					candidates := []sqltype.OperatorInputs{
+						arraySignature, rangeSignature,
+						{Left: sqltype.Int4, Right: sqltype.Int4},
+					}
+					want := 0
+					if order == "array_last" {
+						candidates[0], candidates[2] = candidates[2], candidates[0]
+						want = 2
+					}
+					index, err := sqltype.ResolveOperator(candidates, left, right, false)
+					if err != nil || index != want {
+						t.Fatalf("got index %d, error %v; want array signature at %d", index, err, want)
+					}
+					if candidates[index] != arraySignature {
+						t.Fatalf("selected %v; want ANYARRAY/ANYARRAY", candidates[index])
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()

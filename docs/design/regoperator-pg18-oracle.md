@@ -34,6 +34,9 @@ The real custom DROP record is encoded in full: ERROR/ERROR, SQLSTATE2BP01, prim
 ## Shared definitions and first discovery
 
 The definitions in `reference/type_resolution/regoperator_*_test.go` reuse the existing public fixture/driver/control APIs. Nine required top-level entrypoints exist. Root completed pinned discovery in tests-4: every selected definition passed, including regoperator typed-nil byte input as SQL NULL. The temporary PostgreSQL-only filter and observation logging were removed before tests-5 recorded the failing native-before-production regression (unsupported alias column type).
+`TestReferenceRegOperatorExternalBoundary` now lives in
+`reference/operators/regoperator_external_test.go`; the other alias scenarios
+remain in `reference/type_resolution`.
 
 ```sh
 make check REFERENCE=1 RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|NamespaceAuthorization|Inventory|ExternalBoundary|PreparedLifetime)$'
@@ -107,5 +110,5 @@ quoted/literal none remains a name. Operand identity resolution and type USAGE
 are separate CREATE checkpoints, preserving utility signature authorization.
 The positioned AST/extraction contract and new root-owned dual-mode selectors
 are documented in [the operator design](pg-operator-pg18-oracle.md) and
-[selected reference proof](../../reference/type_resolution/README.md#user-defined-operators).
+[selected reference proof](../../reference/operators/README.md#testing).
 This does not broaden alias-array, general type-input or routine capabilities.

@@ -139,3 +139,40 @@ func TestReferenceUserOperatorLookupOnlySeedOverload(t *testing.T) {
 		userOperatorValue(t, p, b, c, "SELECT oprcode::oid::int8 AS v FROM pg_operator WHERE oid=3247", "INT8", int64(4047))
 	})
 }
+
+func TestReferenceUserOperatorNamespaceArity(t *testing.T) {
+	fixture.SchemaReferenceCleanup(t, "userop_arity_first", "userop_arity_later", "userop_arity_moved")
+	userOperatorScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		userOperatorExec(t, p, b, c,
+			"CREATE SCHEMA userop_arity_first", "CREATE SCHEMA userop_arity_later", "CREATE SCHEMA userop_arity_moved",
+			"CREATE OPERATOR userop_arity_first.#~# (RIGHTARG=int4,FUNCTION=pg_catalog.int4um)",
+			"CREATE OPERATOR userop_arity_first.#~# (LEFTARG=int4,RIGHTARG=int4,FUNCTION=pg_catalog.int4mi)",
+			"CREATE OPERATOR userop_arity_later.#~# (RIGHTARG=int4,FUNCTION=pg_catalog.int4um)",
+			"CREATE OPERATOR userop_arity_later.#~# (LEFTARG=int4,RIGHTARG=int4,FUNCTION=pg_catalog.int4pl)")
+		for _, tc := range []struct {
+			first, later string
+			binary       int64
+		}{
+			{"userop_arity_first", "userop_arity_later", -1},
+			{"userop_arity_later", "userop_arity_first", 5},
+		} {
+			userOperatorExec(t, p, b, c, "SET search_path TO "+tc.first+","+tc.later+",pg_catalog,public")
+			userOperatorValue(t, p, b, c, "SELECT #~# 3 AS v", "INT4", int64(-3))
+			userOperatorValue(t, p, b, c, "SELECT 2 #~# 3 AS v", "INT4", tc.binary)
+			userOperatorValue(t, p, b, c, "SELECT '#~#(NONE,int4)'::regoperator::oid = '"+tc.first+".#~#(NONE,int4)'::regoperator::oid AS v", "BOOL", true)
+			userOperatorValue(t, p, b, c, "SELECT '#~#(int4,int4)'::regoperator::oid = '"+tc.first+".#~#(int4,int4)'::regoperator::oid AS v", "BOOL", true)
+		}
+		userOperatorExec(t, p, b, c, "SET search_path TO userop_arity_first,userop_arity_later,pg_catalog,public",
+			"ALTER OPERATOR userop_arity_first.#~# (int4,int4) SET SCHEMA userop_arity_moved")
+		userOperatorValue(t, p, b, c, "SELECT 2 #~# 3 AS v", "INT4", int64(5))
+		userOperatorValue(t, p, b, c, "SELECT 2 OPERATOR(userop_arity_moved.#~#) 3 AS v", "INT4", int64(-1))
+		userOperatorValue(t, p, b, c, "SELECT '#~#(NONE,int4)'::regoperator::oid = 'userop_arity_first.#~#(NONE,int4)'::regoperator::oid AS v", "BOOL", true)
+		userOperatorExec(t, p, b, c, "DROP OPERATOR userop_arity_first.#~# (NONE,int4)")
+		userOperatorValue(t, p, b, c, "SELECT #~# 3 AS v", "INT4", int64(-3))
+		userOperatorValue(t, p, b, c, "SELECT '#~#(NONE,int4)'::regoperator::oid = 'userop_arity_later.#~#(NONE,int4)'::regoperator::oid AS v", "BOOL", true)
+		userOperatorExec(t, p, b, c, "DROP OPERATOR userop_arity_later.#~# (int4,int4)")
+		userOperatorError(t, p, b, c, "SELECT 2 #~# 3 AS v", "42883", "operator does not exist: integer #~# integer", "", "No operator matches the given name and argument types. You might need to add explicit type casts.", "10", true)
+		userOperatorValue(t, p, b, c, "SELECT #~# 3 AS v", "INT4", int64(-3))
+		userOperatorValue(t, p, b, c, "SELECT 2 OPERATOR(userop_arity_moved.#~#) 3 AS v", "INT4", int64(-1))
+	})
+}

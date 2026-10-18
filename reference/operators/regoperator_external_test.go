@@ -31,14 +31,14 @@ func TestReferenceRegOperatorExternalBoundary(t *testing.T) {
 			alias, text string
 			oid         int64
 		}{{"regoper", `"Reg Op".#=#`, first}, {"regoperator", `"Reg Op".#=#(integer,integer)`, first}, {"regoperator", `"Reg Op".##-(NONE,integer)`, prefix}} {
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT $1::oid::"+tc.alias+" AS v,$1::oid AS o", tc.alias, tc.text, tc.oid, b.PG, fmt.Sprint(tc.oid)))
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT $1::oid::"+tc.alias+" AS v,$1::oid AS o", tc.alias, tc.text, tc.oid, b.PG, fmt.Sprint(tc.oid)))
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`SET search_path TO "Reg Op",regop_later,public`, 0))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT '#=#'::regoper AS v,'#=#'::regoper::oid AS o", "regoper", "#=#", first, b.PG))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT $1::oid::regoperator AS v,$1::oid AS o", "regoperator", "regop_later.#=#(integer,integer)", later, b.PG, fmt.Sprint(later)))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT '#=#'::regoper AS v,'#=#'::regoper::oid AS o", "regoper", "#=#", first, b.PG))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT $1::oid::regoperator AS v,$1::oid AS o", "regoperator", "regop_later.#=#(integer,integer)", later, b.PG, fmt.Sprint(later)))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`CREATE OPERATOR regop_later.#=# (LEFTARG=bigint,RIGHTARG=bigint,FUNCTION=pg_catalog.int8eq)`, 0))
-		regoperatorDiagnosticRoutes(t, p, b, c, "regoper", "#=#", "42725", "more than one operator named #=#", "")
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT '#=#(integer,integer)'::regoperator AS v,'#=#(integer,integer)'::regoperator::oid AS o", "regoperator", "#=#(integer,integer)", first, b.PG))
+		fixture.RegOperatorDiagnosticRoutes(t, p, b, c, "regoper", "#=#", "42725", "more than one operator named #=#", "")
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT '#=#(integer,integer)'::regoperator AS v,'#=#(integer,integer)'::regoperator::oid AS o", "regoperator", "#=#(integer,integer)", first, b.PG))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`CREATE VIEW regop_later.identity_view AS SELECT '"Reg Op".#=#(integer,integer)'::regoperator AS v`, 0))
 		drop := fixture.ControlsReferenceDiagnostic("2BP01", "cannot drop operator #=#(integer,integer) because other objects depend on it")
 		drop.Detail = "view identity_view depends on operator #=#(integer,integer)"

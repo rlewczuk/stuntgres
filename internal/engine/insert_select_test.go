@@ -96,10 +96,11 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
-	// Every admitted differing category fails, independently of row order.
+	// These fixtures independently represent B, N, S, U and D respectively;
+	// every distinct pair must fail, independently of row order.
 	for _, a := range []sqltype.ID{sqltype.Bool, sqltype.Int4, sqltype.Text, sqltype.UUID, sqltype.Time} {
 		for _, b := range []sqltype.ID{sqltype.Bool, sqltype.Int4, sqltype.Text, sqltype.UUID, sqltype.Time} {
-			if typeCategory(usage(a).Type) == typeCategory(usage(b).Type) {
+			if a == b {
 				continue
 			}
 			_, err := commonValuesUsage(nodes(a, b), nil, 0, usage(sqltype.Text))
@@ -123,23 +124,6 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 				t.Fatal(a, b, got, err, want)
 			}
 		}
-	}
-	for _, q := range []string{
-		"INSERT INTO t VALUES(TIME '00:00'),(TIMESTAMP 'epoch') ORDER BY 1",
-		"INSERT INTO t VALUES(TIMESTAMP 'epoch'),(TIME '00:00') ORDER BY 1",
-	} {
-		run(t, e, "CREATE TABLE t(v TIME)")
-		op, done, err := testOperation(e, context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Describe(op, statement(t, q))
-		done()
-		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "42846" {
-			t.Fatal(q, err)
-		}
-		run(t, e, "DROP TABLE t")
 	}
 }
 

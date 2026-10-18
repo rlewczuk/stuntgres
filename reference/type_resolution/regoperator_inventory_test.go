@@ -44,7 +44,7 @@ func TestReferenceRegOperatorInventory(t *testing.T) {
 			t.Run(r[0], func(t *testing.T) {
 				oid, _ := strconv.ParseInt(r[0], 10, 64)
 				for _, tc := range []struct{ alias, input, text string }{{"regoper", r[0], r[6]}, {"regoperator", r[0], r[7]}, {"regoperator", r[5], r[7]}} {
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT $1::"+tc.alias+" AS v,$1::"+tc.alias+"::oid AS o", tc.alias, tc.text, oid, b.PG, tc.input))
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT $1::"+tc.alias+" AS v,$1::"+tc.alias+"::oid AS o", tc.alias, tc.text, oid, b.PG, tc.input))
 				}
 			})
 		}
@@ -52,7 +52,7 @@ func TestReferenceRegOperatorInventory(t *testing.T) {
 		for _, r := range inventory {
 			if r[2] == "+" && r[3] == "1700" && r[4] == "1700" {
 				oid, _ := strconv.ParseInt(r[0], 10, 64)
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, regoperatorRows("SELECT $1::regoperator AS v,$1::regoperator::oid AS o", "regoperator", r[7], oid, b.PG, "+(numeric(10,2),numeric(8,3))"))
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.RegOperatorRows("SELECT $1::regoperator AS v,$1::regoperator::oid AS o", "regoperator", r[7], oid, b.PG, "+(numeric(10,2),numeric(8,3))"))
 			}
 		}
 	})

@@ -1109,6 +1109,7 @@ the actual registered function provider. Schema moves/rename, shell links, store
 dependencies and native logical replay preserve operator identity. Known custom
 aliases dump by qualified signature; fixed builtin and unknown OIDs remain
 lossless numeric identities. Companion arrays remain lookup-only declarations.
+See [user-operator selected proof and smoke](reference/operators/README.md#testing).
 
 Change note: `pg_catalog.pg_operator` exposes all 15 released metadata columns
 for 545 scalar-executable exact overloads plus the exclusion-only INET `&&`
