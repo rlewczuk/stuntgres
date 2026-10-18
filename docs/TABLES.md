@@ -779,7 +779,7 @@ providers; included payload requires storage validity, not key comparison. Unrel
 slot compaction preserves roots and attributes; real dependencies drive retirement.
 Schema moves publish the complete index/owned-sequence closure after collision checks.
 Maintenance rebuilds selected roots atomically without changing rows or definition/
-version identities; failed waits/builds preserve prior roots. Detached CatalogRead
+version identities; failed waits/builds preserve prior roots. Detached `catalog.Read`
 metadata retains full vectors, provider identity and analyzed expressions. Physical
 index options/storage, WAL and optimizer parity are not implied. See
 [B-tree design](design/PG18-INDEX-BTREE.md), [hash design](design/PG18-INDEX-HASH.md)
@@ -813,7 +813,7 @@ Disabling or removing the last policy does not discard the flags. Native control
 serialize protected raw rows/policies before restoring nondefault flags, under a
 narrow replay whitelist. See [authorization](AUTHORIZATION.md#row-security-metadata-and-enforcement-limits).
 
-`Engine.Comment` exposes immutable local metadata of a `CatalogRead` at stable class/object/SubID
+`Engine.Comment` exposes immutable local metadata of a `catalog.Read` at stable class/object/SubID
 addresses; `RoleRead` exposes shared role text separately. The description catalog
 is derived, not dumped as inserted rows. Column comments retain sparse attribute
 numbers through compaction, rename, supported type changes and schema moves.

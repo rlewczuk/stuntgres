@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Retain the published maps, not merely a CatalogRead pointing at mutable maps.
+// Retain the published maps, not merely a catalog.Read pointing at mutable maps.
 type temporaryProjectionCatalog struct {
 	view        catalog.Read
 	descriptors map[ids.ObjectAddress]catalog.Descriptor

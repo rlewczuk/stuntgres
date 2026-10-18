@@ -4,7 +4,7 @@ import "stuntgres/internal/engine/ids"
 
 // operatorMetadata is the released metadata projection of existing executable
 // providers. Identity (name, namespace and ordered operands) remains owned by
-// builtinOperators/operatorDescriptor, including all identity-only aliases.
+// builtinOperators/catalog.Operator, including all identity-only aliases.
 // Values below are fixed REL_18_0 catalog facts, not scan-time provider probes.
 type operatorMetadata struct {
 	oid                                               ids.OID

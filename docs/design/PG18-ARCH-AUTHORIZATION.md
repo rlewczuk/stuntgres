@@ -14,7 +14,7 @@ Current code determines extension points; PostgreSQL 18 manuals and release C de
 |---|---|
 | `driver.go:17-58` | Exact opaque DSN maps to one Engine inside one Driver; Connect currently creates `conn{engine:e}`. Preserve this lifetime/isolation; never parse the DSN as credentials. |
 | `conn.go:12-117`; `stmt.go:11-48` | Prepare uses Describe; direct execution and both prepared methods share `conn.execute`. These are the one operation attachment and reevaluation boundary. |
-| `internal/engine/engine.go` Engine/describe/Execute; `catalog.go` CatalogStage, `internal/engine/catalog` Read (CatalogRead) | Existing descriptor authority, identity-keyed storage, shared binder, staged INSERT and retained snapshots. Extend these paths with authorization; string-keyed Engine.tables is already gone. |
+| `internal/engine/engine.go` Engine/describe/Execute; `catalog.go` CatalogStage, `internal/engine/catalog` Read | Existing descriptor authority, identity-keyed storage, shared binder, staged INSERT and retained snapshots. Extend these paths with authorization; string-keyed Engine.tables is already gone. |
 | `internal/parser/ast.go:3-78`; `grammar.y:1-85`; `lexer.go:17-64` | Positioned closed statement set, whole-input parsing, unsupported registries, identifier folding/truncation. Command owners extend these paths, never SQL-substring recognition. |
 | `internal/engine/control.go:14-44,128-171`; root `control.go:11-65` | Reset/replacement and isolated Restore staging use native host authority; adapter releases borrowed connection before external I/O. No authorization-free alternate SQL executor. |
 | `internal/sqlstate/error.go` Error; `engine.go` sqlError | Complete structured error fields already exist. sqlError still attaches public when table is nonempty; authorization must not copy that assumption into new denials. |
@@ -226,7 +226,7 @@ MAINTAIN alone does **not** satisfy the release information_schema.tables mask. 
 
 Do not additionally require schema USAGE for information_schema table/column exposure: these release predicates intentionally differ. A column grant can expose metadata while qualified SELECT still fails schema USAGE. Schema visibility alone never exposes protected relation/column rows. Search-path visibility, metadata exposure, object existence and access are four different questions. pg_catalog name discovery is not universally privilege-hidden; protected catalog surfaces specify their own actual restrictions. Never turn catalog existence into permission or hide all catalogs under information-schema rules.
 
-Providers retain the same `CatalogRead` and `AuthorizationView`; no mutable current ACL map escapes and no separately writable metadata tables exist. Owner ordinary SELECT revocation does not itself hide owner metadata, because ownership and ordinary ACL use remain distinct.
+Providers retain the same `catalog.Read` and `AuthorizationView`; no mutable current ACL map escapes and no separately writable metadata tables exist. Owner ordinary SELECT revocation does not itself hide owner metadata, because ownership and ordinary ACL use remain distinct.
 
 ## 7. Security-definer boundary
 

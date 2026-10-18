@@ -102,7 +102,7 @@ provider registry, validation of core kinds, and a pure copy-on-write overlay
 Replace the aliases area by area with a tool aware of `go/types`. This is a
 broad rewrite (§8).
 
-### 5g — Optional: regroup `relationDescriptor` (needs user approval)
+### 5g — Optional: regroup `catalog.Relation` (needs user approval)
 
 Group its fields into sub-records (column metadata, constraints, security,
 kind payloads) as a separate readability change. Ask before starting.
@@ -177,8 +177,10 @@ startup regression. 5f completes the step; 5g is optional.
   `CatalogStage` (`eb68d288b`, `fa79f1917`, `0f3bad42b`, `eb612a052`,
   `3b5d2b883`, `943e7a42d`, then the commit that records this status)
   *(racecheck skipped at user request; targeted RACE=1 runs passed)*
-- [ ] 5f — Aliases removed
-- [ ] 5g — Optional `relationDescriptor` regrouping
+- [x] 5f — Aliases removed (`2772419e7`, `c4b8068fc`, `0b9103f6d`,
+  `69fb93a49`, `353528e2d`, `78ec4daeb`, then the commit that records this
+  status) *(racecheck skipped at user request)*
+- [ ] 5g — Optional `catalog.Relation` regrouping
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 
@@ -199,16 +201,16 @@ field). The descriptor identity fields that collide with the `Descriptor`
 methods are `ObjectAddress`, `ObjectNamespace`, `ObjectName` and
 `ObjectRevision` (user decision).
 
-Outstanding aliases (5e, removed by 5f): `internal/engine/catalog_aliases.go`
-holds 97 type aliases and 45 constant aliases under the old engine names
-(`relationDescriptor = catalog.Relation`, `catalogState = catalog.State`,
-`CatalogRead = catalog.Read`, `tableRelation = catalog.TableRelation`, ...).
-Exported ones (`Descriptor`, `CatalogRead`, `CatalogProvider`,
-`CatalogConflict`, `ColumnDescriptor`, the FDW types and kinds) are the
-public facade and stay as aliases for the root package. Moved functions and
-variables have no aliases; engine code calls `catalog.X`.
+Outstanding aliases: none. 5e kept 97 type and 45 constant aliases in
+`internal/engine/catalog_aliases.go`; 5f removed them all, including the
+exported ones (user decision). The 5e note that `Descriptor`, `CatalogRead`,
+`CatalogProvider` and `CatalogConflict` were the root package's facade was
+wrong: only `ColumnDescriptor` and the FDW types and kinds were used outside
+the engine. The root package (`fdw.go`, `rows.go`) and `cmd/stuntgres` now
+name `catalog.Column` and `catalog.Foreign*` directly, as they already name
+`ids`; the public `stuntgres.Foreign*` aliases are unchanged.
 `functions.RoutineProvider` is an alias of `expr.RoutineProvider` (5e) and
-keeps its constants.
+keeps its constants; it is not a catalog alias.
 
 5a results:
 
@@ -534,20 +536,70 @@ keeps its constants.
   medians about 1.55 ms on both, over the <1 ms target that `master`
   already misses. `make deps` lists only module paths.
 
+5f results:
+
+- **Scope.** Measured on `b99d84bdf` with go/types: 141 aliases with uses
+  (`ForeignWrapper`, `ForeignServer` and `ForeignUserMapping` had none in the
+  engine) and about 9,800 alias references in 906 engine files, the largest
+  `relationDescriptor` (1,956), `routineIdentity` (1,264), `functionRoutine`
+  (1,114), `CatalogRead` (684; the other grep hits are the
+  `Engine.CatalogRead()` method) and `ColumnDescriptor` (401). No
+  `engine_test` package uses an alias: its `engine.CatalogRead()` hits are
+  method calls on a local named `engine`.
+- **Shadowing** (`2772419e7`). 160 locals named `catalog` would have
+  captured an inserted `catalog.X`. They became `view` or `catalogView`
+  (`catalog.Read`), `state` or `snapshot` (`*catalog.State`), `candidate`,
+  `changes` (`*catalogChanges`), `catalogAddress` and `catalogKindRef` in
+  three tests, by type with a free-name check: 948 edits in 126 files.
+- **Rewrite**, one commit per area: relation types, kinds, constraints,
+  column, index, partition, inheritance, physical NOT NULL, policy and view
+  and rule payloads (`c4b8068fc`, 4,647 edits in 636 files); routines,
+  operators and signatures (`0b9103f6d`, 3,201 in 120); the other
+  descriptor kinds and their providers (`69fb93a49`, 822 in 218); the core
+  types `State`, `Read`, `Owner`, `Candidate`, `Conflict`, `Provider`,
+  `Descriptor` (`353528e2d`, 1,315 in 462); `Column` and the FDW types with
+  the root package and `cmd/stuntgres`, and deletion of
+  `catalog_aliases.go` (`78ec4daeb`). Imports were added to 706 files.
+- **Embedded fields** follow their type name: `catalogStore.Owner`,
+  `CatalogStage.Candidate`, `createUniqueConstraint.UniqueConstraint`, the
+  NOT NULL binding's `NotNullConstraint`, and `Provider` in four test
+  fixtures that embed a provider.
+- **Tool.** Scratchpad `aliasx` (go/types; modes `count`, `shadow`,
+  `apply`, `locals`). Each write reloads the package with its tests,
+  requires zero type errors and compares every object's use count before and
+  after, mapped through the edits. Only the alias objects may lose uses and
+  only their `catalog` targets may gain them. Comments that named the old
+  types were already rewritten by 5e's move; two were left and fixed by hand.
+- **Tests.** Adapted mechanically by the same tool; none moved, deleted or
+  rewritten by hand.
+- **Docs.** The catalog and authorization READMEs, `TABLES.md`, the
+  authorization prompt, and the design notes for transaction visibility,
+  authorization, type system, query execution, index maintenance and the
+  operator oracle now name `catalog.Read`, `catalog.Relation`,
+  `catalog.Procedure` and `catalog.Column` where they meant current code.
+  Pseudocode for target contracts and records of earlier steps keep the old
+  names. `AGENTS.md` is unchanged (100 lines).
+- **Verification.** `make build` and targeted `make check` selections after
+  each commit; `quickcheck` passed on the full rewrite. `racecheck` skipped
+  at the user's request. No `REFERENCE=1` selection is required for a pure
+  rename. `make bench` (interleaved): 7,768 allocations and about 2.07 MB/op
+  on both; best 1.504 ms on `master` and 1.476 ms on the branch, over the
+  <1 ms target that `master` already misses. `make deps` lists only module
+  paths. `catalog` still imports only `ids`, `expr`, `authorization`,
+  `sqltype`, `parser` and the standard library.
+
 Notes for later steps:
 
-- 5f and later broad rewrites: the `fieldx` approach (rename table, then
-  a before/after per-object use census) is fast (about 10 s per run on the
-  engine package) and catches shadowing; prefer it to per-identifier
-  gopls runs.
-
-- 5f: about 390 other engine locals are named `catalog`; replacing type
-  aliases with `catalog.X` in their scopes needs the same scope check (the
-  `move` tool's `LookupParent` test) and a rename such as the 5e
-  `unshadow` pass. Docs still name `CatalogRead`, `CatalogStage` and the
-  descriptor types by their engine names (TABLES.md, design notes).
-- 5f: `catalog_aliases.go` is the to-do list. Remove type and constant
-  aliases area by area; the exported public-facade aliases stay.
+- Later broad rewrites: the `fieldx`/`aliasx` approach (rename table, then
+  a before/after per-object use census) is fast (about 20 s per run on the
+  engine package with tests) and catches shadowing; prefer it to
+  per-identifier gopls runs.
+- About 230 engine locals are still named `catalog` (5f renamed only the
+  160 that would capture a `catalog.X` reference). New code that names the
+  package inside their scope must rename the local first.
+- The engine keeps one local alias, `routineProvider =
+  functions.RoutineProvider` (`routine_declaration.go`), which predates the
+  split.
 - Later: the relation, type, extension, operator and parameter validators
   can move once the catalog has a narrow seam for stored-SQL rendering,
   expression-node walks and the operator and settings inventories.

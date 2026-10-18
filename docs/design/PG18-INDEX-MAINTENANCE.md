@@ -140,7 +140,7 @@ pointers, complete typed tuples and live version identities directly.
 
 ## One coherent metadata projection
 
-`projectIndexMetadata(context, CatalogRead, ObjectRef)` projects both internal
+`projectIndexMetadata(context, catalog.Read, ObjectRef)` projects both internal
 `indexMetadata` and `indexesMetadata`; `indexCatalogMetadata` is the enumeration
 owner for ACL-neutral structural consumers. It registers no SQL source,
 vector codec, node-tree list API or driver API. Every field and deparse operation
