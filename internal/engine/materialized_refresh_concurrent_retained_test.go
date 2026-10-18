@@ -74,11 +74,11 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	}
 	changed := *current
 	changed.ObjectName = "renamed"
-	e.catalog.state.setDescriptor(current.Address(), &changed)
+	e.catalog.state.SetDescriptor(current.Address(), &changed)
 	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.Address()]) {
 		t.Fatal("source definition retargeted")
 	}
-	e.catalog.state.setDescriptor(current.Address(), current)
+	e.catalog.state.SetDescriptor(current.Address(), current)
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()

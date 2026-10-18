@@ -85,7 +85,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return fmt.Errorf("stuntgres: dump cannot serialize SQL/MED foreign metadata")
 		}
 	}
-	if len(e.catalog.state.defaultACLs) != 0 {
+	if e.catalog.state.DefaultACLCount() != 0 {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
 	}
@@ -281,7 +281,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if !t.seeded() {
+				if !operatorSeeded(t) {
 					operators = append(operators, t)
 				}
 				continue
@@ -396,7 +396,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if !t.seeded() {
+				if !t.Seeded() {
 					collations = append(collations, t)
 				}
 				continue
@@ -405,7 +405,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if !t.seeded() {
+				if !t.Seeded() {
 					conversions = append(conversions, t)
 				}
 				continue
@@ -890,7 +890,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// Capture collision-remap provenance from the same immutable snapshot as
 	// the graph, before any dump-private naming substitutions.
 	var priorities map[ids.OID]ids.OID
-	for address, priority := range originalCatalog.state.dumpPriorities {
+	for address, priority := range originalCatalog.State().DumpPriorities() {
 		if _, emitted := viewDependencies[dumpEventKey{oid: address.ObjectID}]; emitted {
 			if priorities == nil {
 				priorities = make(map[ids.OID]ids.OID)
@@ -1328,7 +1328,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 							return err
 						}
 					}
-					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.sql())
+					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.SQL())
 				}
 				if identity, exists := t.identities[t.attributes[i]]; exists {
 					mode := "ALWAYS"
@@ -1363,7 +1363,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						line.WriteString(", ")
 					}
 					localElements++
-					slot := t.descriptor.indexForAttribute(constraint.Attribute)
+					slot := t.descriptor.IndexForAttribute(constraint.Attribute)
 					line.WriteString("CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name))
 				}
 			}

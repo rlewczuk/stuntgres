@@ -40,7 +40,7 @@ func domainUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -83,13 +83,13 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	if len(original.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.Get(a.Address()) != a {
 		t.Fatal("retained catalog mutated")
 	}
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	duplicate := statement(t, "CREATE DOMAIN public.amount AS missing_base")
 	e.mu.Lock()
 	_, err := e.stageSchemaLocked(op, duplicate, sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42710", `type "amount" already exists`)
-	if e.CatalogRead().state != before {
+	if e.CatalogRead().State() != before {
 		t.Fatal("failed CREATE published")
 	}
 	foreignBase, _ := New().CatalogRead().LookupType(sqltype.Int4)
@@ -103,7 +103,7 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	if err = stage.Create(&forged); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.ValidateCatalogStage(context.Background(), stage); err == nil || e.CatalogRead().state != before {
+	if _, err = e.ValidateCatalogStage(context.Background(), stage); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("foreign physical base accepted", err)
 	}
 }
@@ -128,13 +128,13 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, change)
-	before := e.CatalogRead().state
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: chain.base.Epoch()}); err == nil || e.CatalogRead().state != before {
+	before := e.CatalogRead().State()
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: chain.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("base authorization generation lost", err)
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ids.ObjectAddress{a.Address()}
-	if err = drop.removeObject(e.catalog.Domain.Ref(drop.base.Epoch(), a.Address()), false); err != nil {
+	if err = drop.removeObject(e.catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -153,8 +153,8 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, table)
-	before = e.CatalogRead().state
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: drop.base.Epoch()}); err == nil || e.CatalogRead().state != before {
+	before = e.CatalogRead().State()
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: drop.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("DROP lost new dependent column", err)
 	}
 	canceled := domainUnitStage(t, e, op, "CREATE DOMAIN public.canceled AS integer")
@@ -164,7 +164,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().state != before {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal("canceled domain published", err)
 	}
 }
@@ -206,14 +206,14 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	withPublicSchemaUnitOwner(t, e, "reader", func() {
 		auth = catalogAuthorization(e, e.CatalogRead())
 		auth.state.CurrentUser = reader
-		before := e.CatalogRead().state
+		before := e.CatalogRead().State()
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 		e.mu.Lock()
 		stage = e.BeginCatalogStage(auth.catalog)
 		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
-		if e.CatalogRead().state != before || len(stage.descriptors) != 0 {
+		if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
 			t.Fatal("denied base published")
 		}
 	})
@@ -231,12 +231,12 @@ func TestDomainExcludedClausesNeverPublishInternal(t *testing.T) {
 		"CREATE DOMAIN public.denied AS integer NOT NULL",
 	} {
 		raw := statement(t, q)
-		before := e.CatalogRead().state
+		before := e.CatalogRead().State()
 		e.mu.Lock()
 		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "0A000", "domain constraints and defaults are unsupported")
-		if e.CatalogRead().state != before {
+		if e.CatalogRead().State() != before {
 			t.Fatal("excluded clause published", q)
 		}
 	}
@@ -257,7 +257,7 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	for _, named := range []bool{false, true} {
 		for _, nullsNotDistinct := range []bool{false, true} {
 			suffix := "UNIQUE"
@@ -286,7 +286,7 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Position != "49" {
 				t.Fatal("lost nested UNIQUE source position", err)
 			}
-			if e.CatalogRead().state != before || len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "rejected"})) != 0 {
+			if e.CatalogRead().State() != before || len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "rejected"})) != 0 {
 				t.Fatal("invalid domain AST changed catalog")
 			}
 		}

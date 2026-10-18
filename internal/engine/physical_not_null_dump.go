@@ -24,7 +24,7 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, pri
 	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
 	keys := make([]string, len(primary.Attributes))
 	for i, attribute := range primary.Attributes {
-		keys[i] = table.Columns[table.indexForAttribute(attribute)].Name
+		keys[i] = table.Columns[table.IndexForAttribute(attribute)].Name
 	}
 	if err := setOwner("postgres"); err != nil {
 		return err
@@ -33,7 +33,7 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, pri
 		if _, physical := table.PhysicalNotNull[attribute]; !physical {
 			continue
 		}
-		column := table.Columns[table.indexForAttribute(attribute)].Name
+		column := table.Columns[table.IndexForAttribute(attribute)].Name
 		if err := emit(physicalNotNullCleanupSQL(qualified, column, primary.Name, keys) + ";\n"); err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 		if _, physical := t.descriptor.PhysicalNotNull[attribute]; !physical || physicalPrimaryForAttribute(t.descriptor, attribute) != nil {
 			continue
 		}
-		column := t.columns[t.descriptor.indexForAttribute(attribute)].Name
+		column := t.columns[t.descriptor.IndexForAttribute(attribute)].Name
 		if err := setOwner(t.owner); err != nil {
 			return err
 		}

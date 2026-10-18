@@ -15,21 +15,6 @@ import (
 	"unicode/utf8"
 )
 
-// A CHECK is a typed immutable current-row expression. Its dependencies retain
-// stable attribute and provider identities, never a name-keyed SQL cache.
-type checkConstraint struct {
-	OID       ids.OID
-	Name      string
-	NoInherit bool
-	NotValid  bool
-	// Declaration order is independent of alphabetical enforcement order.
-	Ordinal            int
-	Expression         expr.Expr
-	Dependencies       []expressionDependency
-	CommentSnapshot    bool
-	VisibilitySnapshot bool
-}
-
 func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment, inherited map[string]checkConstraint) error {
 	var raw []*parser.CheckConstraint
 	for _, element := range syntax.Elements {
@@ -95,7 +80,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
 		if altering {
 			e.mu.Lock()
-			if auth.catalog.Epoch() != e.catalog.state.epoch {
+			if auth.catalog.Epoch() != e.catalog.state.Epoch() {
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}
@@ -224,7 +209,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 					return err
 				}
 			}
-			if relation, ok := provider.(*relationDescriptor); ok && dep.Ref.Address.SubID != 0 && !relation.hasAttribute(dep.Ref.Address.SubID) {
+			if relation, ok := provider.(*relationDescriptor); ok && dep.Ref.Address.SubID != 0 && !relation.HasAttribute(dep.Ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing check provider attribute")
 			}
 		}
@@ -247,22 +232,22 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if address.ClassID != ids.RelationClassID || d != nil && address == d.Address() {
 			return nil
 		}
-		if _, incumbent := stage.base.Find(address); !incumbent {
+		if _, incumbent := stage.Base.Find(address); !incumbent {
 			// Newly created providers belong to the private atomic candidate.
-			provider, staged := stage.descriptors[address].(*relationDescriptor)
-			if !staged || provider.Address() != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.base.Epoch() {
+			provider, staged := stage.Descriptors[address].(*relationDescriptor)
+			if !staged || provider.Address() != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.Base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
 			return nil
 		}
-		valid := storedReferenceEpochValid(stage.base, d, ref)
+		valid := storedReferenceEpochValid(stage.Base, d, ref)
 		if d != nil && d.View != nil {
 			// The stage's evolved consumer retains the incumbent definition's
 			// immutable provenance; old epochs never become generic stage refs.
-			incumbent, _ := stage.base.Relation(d.Address())
-			valid = incumbent != nil && incumbent.View == d.View && storedViewReferenceValid(stage.base, incumbent, ref)
-			if ref.Epoch == stage.base.Epoch() {
-				valid = storedViewReferenceValid(stage.base, d, ref)
+			incumbent, _ := stage.Base.Relation(d.Address())
+			valid = incumbent != nil && incumbent.View == d.View && storedViewReferenceValid(stage.Base, incumbent, ref)
+			if ref.Epoch == stage.Base.Epoch() {
+				valid = storedViewReferenceValid(stage.Base, d, ref)
 			}
 		}
 		if !valid {
@@ -270,25 +255,25 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		}
 		// Prove the original attribute reference before using a whole-object lock.
 		ref.Address = address
-		if ref.Epoch != stage.base.Epoch() {
+		if ref.Epoch != stage.Base.Epoch() {
 			if retained == nil {
 				retained = make(map[ids.ObjectAddress]Descriptor)
 			}
-			retained[ref.Address] = stage.base.Get(ref.Address)
+			retained[ref.Address] = stage.Base.Get(ref.Address)
 		}
-		ref.Epoch = stage.base.Epoch()
+		ref.Epoch = stage.Base.Epoch()
 		if !slices.Contains(refs, ref) {
 			refs = append(refs, ref)
 		}
 		return nil
 	}
 	for _, descriptor := range stage.likeSources {
-		ref := stage.owner.catalog.Domain.Ref(stage.base.Epoch(), descriptor.Address())
+		ref := stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), descriptor.Address())
 		if err := add(ref, nil); err != nil {
 			return err
 		}
 	}
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -358,7 +343,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	e := s.op.session.Engine()
 	for _, ref := range refs {
 		mode := lock.AccessShare
-		for _, descriptor := range stage.descriptors {
+		for _, descriptor := range stage.Descriptors {
 			if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, ref.Address) {
 				mode = lock.ShareUpdateExclusive
 				break
@@ -371,7 +356,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		auth, err := e.authorizationLocked(s.op)
 		if err == nil {
 			provider, ok := auth.catalog.Relation(ref.Address)
-			original, existed := stage.base.Relation(ref.Address)
+			original, existed := stage.Base.Relation(ref.Address)
 			if !ok && existed {
 				// The provider existed when the definition was analyzed and was
 				// dropped while this statement waited for it (PostgreSQL 18.6).
@@ -439,7 +424,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 			address := dep.Ref.Address
 			address.SubID = 0
 			if address == d.Address() {
-				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.hasAttribute(dep.Ref.Address.SubID) {
+				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.HasAttribute(dep.Ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
 			} else {

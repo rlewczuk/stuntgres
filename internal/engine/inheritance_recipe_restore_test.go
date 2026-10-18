@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -127,8 +128,8 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	child := *before.MustRelation(refs["c"].Address)
 	child.Inheritance = cloneInheritance(child.Inheritance)
 	child.Inheritance.Columns[2] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: refs["q"].Address, Attribute: 1}}}
-	changed := cloneCatalog(before)
-	changed.setDescriptor(child.Address(), &child)
+	changed := catalog.CloneState(before)
+	changed.SetDescriptor(child.Address(), &child)
 	e.catalog.state = changed
 	childRaw := statement(t, "ALTER TABLE ONLY public.c ALTER g SET EXPRESSION AS(a+1)").(*parser.AlterTable)
 	if err := e.pairRestoredGeneration(op, childRaw, origins); err == nil || e.catalog.state != changed {

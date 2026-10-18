@@ -18,7 +18,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef
 	if !ok {
 		t.Fatal("missing pg_am")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][]any {
@@ -97,12 +97,12 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		}
 	}
 	checkDescriptor(catalog, d)
-	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
+	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
+	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	facts := pgAMUnitFacts(t, rows, d)

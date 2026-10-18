@@ -4,43 +4,12 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-// extensionControl is a registered extension's control-file metadata.
-type extensionControl struct {
-	Version                         string
-	Trusted, Superuser, Relocatable bool
-	Comment, Schema                 *string
-	Requires                        []string
-}
-
-// detached returns a copy that shares no storage with c.
-func (c extensionControl) detached() extensionControl {
-	if c.Comment != nil {
-		value := *c.Comment
-		c.Comment = &value
-	}
-	if c.Schema != nil {
-		value := *c.Schema
-		c.Schema = &value
-	}
-	c.Requires = append([]string(nil), c.Requires...)
-	return c
-}
-
-// extensionImplementation is one registered extension. The catalog owner
-// record and every member descriptor hold the same instance, so pointer
-// identity proves which implementation installed a member.
-type extensionImplementation interface {
-	// Control returns the extension's control metadata as a detached copy.
-	Control() extensionControl
-	// ValidateExtension checks an installed extension's manifest.
-	ValidateExtension(CatalogRead, *extensionDescriptor) error
-}
 
 // extensionInstaller is the engine side of an implementation: staging needs
 // the engine and its catalog stage, which catalog code never names.
@@ -86,15 +55,15 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	}
 	e.mu.Lock()
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	for a, d := range stage.descriptors {
+	for a, d := range stage.Descriptors {
 		e.catalogChangeLocked(changes, a, d)
 	}
-	for key, original := range stage.touched {
+	for key, original := range stage.Touched {
 		changes.names[key] = original
 	}
-	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.Get(stage.extensionNamespace), database: stage.databasePredecessor})
+	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.Base.Get(stage.extensionNamespace), database: stage.databasePredecessor})
 	scope.catalog = changes
-	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
+	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: catalog.CurrentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
 	return Result{}, nil
 }
@@ -178,7 +147,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		if !registration.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress), false)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +215,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if i < 2 {
 			proc.Dictionary = ext.Members[5]
 		}
-		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
+		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return extensionMemberConflict(proc, ext.TargetNamespace)
 		}
 		if err := stage.Create(proc); err != nil {
@@ -283,7 +252,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	tmpl := &tsTemplateDescriptor{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
-	if stage.lookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
+	if stage.LookupName(catalog.DescriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(tmpl, ext.TargetNamespace)
 	}
 	if err := stage.Create(tmpl); err != nil {
@@ -294,7 +263,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	dict := &tsDictionaryDescriptor{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p}
-	if stage.lookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
+	if stage.LookupName(catalog.DescriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(dict, ext.TargetNamespace)
 	}
 	return stage.Create(dict)

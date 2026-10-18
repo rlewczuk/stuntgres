@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
@@ -17,9 +16,9 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			e, _, parent, index := primaryKeyUnitFixture(t)
 			view := e.CatalogRead()
-			state := *view.state
-			state.descriptors = maps.Clone(view.state.descriptors)
-			view.state = &state
+			state := *view.State()
+			state.CloneDescriptors()
+			view = view.WithState(&state)
 			next := *parent
 			next.Columns = slices.Clone(parent.Columns)
 			next.UniqueConstraints = slices.Clone(parent.UniqueConstraints)
@@ -27,8 +26,8 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			definition := *index.SQLIndex
 			constraint := *definition.Constraint
 			definition.Constraint, backing.SQLIndex = &constraint, &definition
-			state.setDescriptor(next.Address(), &next)
-			state.setDescriptor(backing.Address(), &backing)
+			state.SetDescriptor(next.Address(), &next)
+			state.SetDescriptor(backing.Address(), &backing)
 			switch mode {
 			case "nullable":
 				next.Columns[0].Nullable = true
@@ -51,7 +50,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				otherDefinition := definition
 				otherDefinition.Constraint = uniqueBacking(&second)
 				other.SQLIndex = &otherDefinition
-				state.setDescriptor(other.Address(), &other)
+				state.SetDescriptor(other.Address(), &other)
 				next.UniqueConstraints = append(next.UniqueConstraints, second)
 			}
 			err := validateUniques(view, &next, map[string]bool{})
@@ -164,7 +163,7 @@ func TestPrimaryKeyIdentityGuardPrecedence(t *testing.T) {
 	} {
 		next, err := notNullCandidate(nil, view, parent, tc.action, notNullDirect)
 		nullCountUnitDiagnostic(t, err, tc.diagnostic)
-		if next != nil || e.CatalogRead().state != view.state || parent.Columns[0].Nullable || !parent.UniqueConstraints[0].Primary {
+		if next != nil || e.CatalogRead().State() != view.State() || parent.Columns[0].Nullable || !parent.UniqueConstraints[0].Primary {
 			t.Fatal("identity/PK route guard changed state", next)
 		}
 	}

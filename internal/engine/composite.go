@@ -40,7 +40,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
-	if stage.lookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
+	if stage.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
 	if len(s.Members) > 1600 {
@@ -132,7 +132,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	var column string
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.RelationKind.stored() {
+		if !ok || !table.RelationKind.Stored() {
 			continue
 		}
 		for _, c := range table.Columns {

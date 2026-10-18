@@ -195,7 +195,7 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	for ref, node := range e.serializable.nodes {
-		if ref.Domain() != e.catalog.Domain || ref.Epoch() != e.catalog.state.epoch || ref.Session() != (e.catalog.Domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch() != e.catalog.state.Epoch() || ref.Session() != (e.catalog.Domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
 		}
 		var values []sqltype.Value

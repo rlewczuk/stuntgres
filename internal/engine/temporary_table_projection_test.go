@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -43,7 +44,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), provider.Address())
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), provider.Address())
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
@@ -151,9 +152,9 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	maximumStore := *originalStore
 	maximumStore.generation = ^uint64(0)
-	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.setDescriptor(survivor.Address(), &maximum)
-	e.catalog.state.setDescriptor(index.Address(), &maximumIndex)
+	e.catalog.state = catalog.CloneState(original)
+	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
+	e.catalog.state.SetDescriptor(index.Address(), &maximumIndex)
 	e.storage[survivor.Address()] = &maximumStore
 	t.Cleanup(func() {
 		if e.catalog.state.Get(provider.Address()) != nil {
@@ -163,8 +164,8 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	})
 	stage, indexes := temporaryProjectionStage(t, e, provider)
 	projected := stage.rowShapes[survivor.Address()].replacement
-	next := stage.descriptors[survivor.Address()].(*relationDescriptor)
-	nextIndex := stage.descriptors[index.Address()].(*relationDescriptor)
+	next := stage.Descriptors[survivor.Address()].(*relationDescriptor)
+	nextIndex := stage.Descriptors[index.Address()].(*relationDescriptor)
 	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.generation != maximumStore.generation || projected.ends != maximumStore.ends || sameVersionRoot(projected.versions, retained) {
 		t.Fatal("terminal maxima require fresh descriptor/store/vector and unchanged history")
 	}
@@ -254,17 +255,17 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 			maximum := *survivor
 			maximumIndex := *index
 			maximumStore := *store
-			e.catalog.state = cloneCatalog(original)
+			e.catalog.state = catalog.CloneState(original)
 			switch counter {
 			case "Table":
 				maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.setDescriptor(survivor.Address(), &maximum)
+				e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 			case "Storage":
 				maximumStore.generation = ^uint64(0)
 				e.storage[survivor.Address()] = &maximumStore
 			case "Index":
 				maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.setDescriptor(index.Address(), &maximumIndex)
+				e.catalog.state.SetDescriptor(index.Address(), &maximumIndex)
 			}
 			captured := e.catalog.state
 			t.Cleanup(func() {
@@ -297,8 +298,8 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			definition := *index.SQLIndex
 			definition.Ready, definition.Valid = ready, false
 			changed.SQLIndex = &definition
-			e.catalog.state = cloneCatalog(e.catalog.state)
-			e.catalog.state.setDescriptor(index.Address(), &changed)
+			e.catalog.state = catalog.CloneState(e.catalog.state)
+			e.catalog.state.SetDescriptor(index.Address(), &changed)
 			previous := e.indexRoots[index.Address()]
 			if !ready {
 				delete(e.indexRoots, index.Address())

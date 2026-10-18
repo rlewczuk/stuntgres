@@ -14,35 +14,6 @@ import (
 	"unicode/utf8"
 )
 
-// Definitions use stable parent attributes; roots own current live identities.
-// Hash equality uses captured immutable buckets; all other reads retain scans.
-type indexKey struct {
-	Attribute        int32
-	Desc, NullsFirst bool
-	Derived          *derivedIndexKey
-	Collation        uint32
-	CollationRef     sqltype.CollationRef
-	Class            sqltype.IndexClass
-	ExplicitClass    bool
-}
-type indexDefinition struct {
-	Method             indexMethod
-	Parent             ids.ObjectAddress
-	PartitionParent    ids.ObjectAddress
-	Keys               []indexKey
-	Include            []int32
-	Unique             bool
-	NullsNotDistinct   bool
-	Constraint         *backingConstraint
-	Ready, Valid, Live bool
-	Predicate          *indexPredicate
-	Exclusion          []sqltype.ExclusionOperator
-}
-
-func (d *indexDefinition) publicationState() (ready, valid, live bool) {
-	return d.Ready, d.Valid, d.Live
-}
-
 type logicalIndexEntry struct {
 	keys     []sqltype.Value
 	row      ids.RowID
@@ -372,7 +343,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
-	validate := (d.Unique || d.isExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
+	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
@@ -408,7 +379,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 			}
 			entry = logicalIndexEntry{keys: output.keys, row: row.row, version: row.version}
 		} else {
-			if d.hasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
+			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced index row")
 			}
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)

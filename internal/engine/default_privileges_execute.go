@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -95,7 +96,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			key := defaultACLKey{Creator: creator, Schema: schema, Class: class}
 			old, exists := updates[key]
 			if !exists {
-				old = v.catalog.state.defaultACLs[key]
+				old = v.catalog.State().DefaultACL(key)
 			}
 			var acl authorization.ACLValue
 			if old != nil {
@@ -121,7 +122,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		}
 	}
 	for key, record := range updates {
-		old := v.catalog.state.defaultACLs[key]
+		old := v.catalog.State().DefaultACL(key)
 		if old == record || old != nil && record != nil && authorization.EqualACL(old.ACL, record.ACL) {
 			delete(updates, key)
 		}
@@ -129,11 +130,11 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	if len(updates) == 0 {
 		return Result{}, op.Context().Err()
 	}
-	candidate := *v.catalog.state
-	candidate.defaultACLs = overlayDefaultACLs(v.catalog.state.defaultACLs, updates)
+	candidate := *v.catalog.State()
+	candidate.OverlayDefaultACLs(v.catalog.State(), updates)
 	candidateCatalog := e.catalog.read(&candidate)
 	candidateRoles := e.roleRead(candidateCatalog, v.roleRecord)
-	if err := validateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
+	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
 	if v.roleRecord.revision == ^uint64(0) {

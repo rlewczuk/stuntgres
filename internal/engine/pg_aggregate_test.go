@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -10,20 +11,20 @@ import (
 
 func TestPGAggregateCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
-	source := catalog.MustRelation(address)
-	ref := e.catalog.Domain.Ref(catalog.Epoch(), address)
+	source := view.MustRelation(address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), address)
 	if source.RowType != 10027 || source.VirtualView || !source.HasIndexes || len(source.Columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
-	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027})
-	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026})
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026})
 	if row.OwningRelation != address || array.OwningRelation != address || row.Array != 10026 || array.SQLType.Element() != row.SQLType || row.Owner != source.Owner || array.Owner != source.Owner {
 		t.Fatal("aggregate row/array ownership")
 	}
 	nextOID, nextRevision := e.catalog.nextOID, e.catalog.nextRevision
-	captured, err := capturePGAggregate(context.Background(), catalog, ref, source)
+	captured, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 			t.Fatal("aggregate attribute facts", i, c)
 		}
 	}
-	second, err := capturePGAggregate(context.Background(), catalog, ref, source)
+	second, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,12 +59,12 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if captured.anonymous[0][0].IsNull() || captured.anonymous[1][1].IsNull() || second.anonymous[0][1].IsNull() {
 		t.Fatal("aggregate row slots alias")
 	}
-	if e.catalog.state != catalog.state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
+	if e.catalog.state != view.State() || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
 		t.Fatal("catalog observation changed frontiers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := capturePGAggregate(ctx, catalog, ref, source); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := capturePGAggregate(ctx, view, ref, source); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source publication", got, err)
 	}
 	foreign := New().CatalogRead()
@@ -74,18 +75,18 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		ref     ids.ObjectRef
 		source  *relationDescriptor
 	}{
-		{CatalogRead{}, ref, source}, {foreign, ref, source}, {catalog, badRef, source}, {catalog, ref, nil},
+		{CatalogRead{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
 	} {
 		if got, err := capturePGAggregate(context.Background(), tc.catalog, tc.ref, tc.source); got != nil || err == nil {
 			t.Fatal("foreign/stale source admitted", got, err)
 		}
 	}
 	for i := range source.Columns {
-		state := cloneCatalog(catalog.state)
+		state := catalog.CloneState(view.State())
 		bad := *source
 		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
-		state.setDescriptor(address, &bad)
+		state.SetDescriptor(address, &bad)
 		if got, err := capturePGAggregate(context.Background(), e.catalog.read(state), ref, &bad); got != nil || err == nil {
 			t.Fatal("foreign column generation admitted", i, err)
 		}

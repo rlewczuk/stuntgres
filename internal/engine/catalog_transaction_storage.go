@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +45,7 @@ type catalogAuthority struct {
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
 func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor Descriptor) *catalogAuthority {
-	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roleRecord.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.Get(currentDatabaseAddress), databasePredecessor: v.databasePredecessor}
+	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roleRecord.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.Get(catalog.CurrentDatabaseAddress), databasePredecessor: v.databasePredecessor}
 }
 
 // Statement authority expires at successful Finish, never at outer Commit.
@@ -58,14 +59,14 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 		return CatalogConflict{}
 	}
 	if a.databasePredecessor != nil {
-		if e.catalog.state.Get(currentDatabaseAddress) != a.databasePredecessor {
+		if e.catalog.state.Get(catalog.CurrentDatabaseAddress) != a.databasePredecessor {
 			return CatalogConflict{}
 		}
 		if c != nil {
-			if original, ok := c.originals[currentDatabaseAddress]; ok && original != a.databasePredecessor {
+			if original, ok := c.originals[catalog.CurrentDatabaseAddress]; ok && original != a.databasePredecessor {
 				return CatalogConflict{}
 			}
-			c.originals[currentDatabaseAddress] = a.databasePredecessor
+			c.originals[catalog.CurrentDatabaseAddress] = a.databasePredecessor
 		}
 	}
 	for _, observed := range a.observations {

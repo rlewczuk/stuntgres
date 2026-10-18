@@ -96,8 +96,8 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 				return false, err
 			}
 		} else {
-			slot := in.targetSlots[parent.indexForAttribute(key.Attribute)]
-			ref := catalog.owner.Domain.Ref(catalog.Epoch(), relation.Address())
+			slot := in.targetSlots[parent.IndexForAttribute(key.Attribute)]
+			ref := catalog.Owner().Domain.Ref(catalog.Epoch(), relation.Address())
 			ref.Address.SubID = relation.Attributes[slot]
 			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}

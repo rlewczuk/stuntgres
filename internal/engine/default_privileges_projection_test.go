@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -16,7 +17,7 @@ import (
 func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
-	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.Address())
+	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
 	rows, err := captureTablePrivileges(context.Background(), catalog, auth, "unit_database", ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +49,7 @@ func defaultUnitSortRows(rows [][]string) {
 
 func TestDefaultPrivilegesProjection(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	ownerSelect := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege}
 	publicInsert := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.InsertPrivilege}
 	memberUpdate := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.member}, Privileges: authorization.UpdatePrivilege}
@@ -75,18 +76,18 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		if spec.name == "proof_column_only" {
 			d.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
-		state.setDescriptor(d.Address(), d)
+		state.SetDescriptor(d.Address(), d)
 	}
-	catalog := f.e.catalog.read(state)
+	view := f.e.catalog.read(state)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = catalog
+	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
-	held, got := defaultUnitProjection(t, catalog, auth)
+	held, got := defaultUnitProjection(t, view, auth)
 	var want [][]string
 	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
 		hierarchy := "NO"
@@ -108,7 +109,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal("projection origins/kinds/bits/options", got, want)
 	}
 	auth.state.CurrentUser = f.reader
-	_, readerRows := defaultUnitProjection(t, catalog, auth)
+	_, readerRows := defaultUnitProjection(t, view, auth)
 	readerWant := [][]string{
 		{"default_owner", "default_reader", "unit_database", "default_schema", "proof_named", "SELECT", "YES", "YES"},
 		{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"},
@@ -120,7 +121,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal("grantee visibility was filtered by namespace/table SELECT or invented inherited origins", readerRows)
 	}
 	auth.state.CurrentUser = f.member
-	_, memberRows := defaultUnitProjection(t, catalog, auth)
+	_, memberRows := defaultUnitProjection(t, view, auth)
 	if !reflect.DeepEqual(memberRows, want) {
 		t.Fatal("inherited grantor visibility", memberRows)
 	}
@@ -134,8 +135,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	setFixtureEdges(roles, edges)
 	auth.roleRecord = roles
-	auth.recaptureCatalog(catalog)
-	_, setRows := defaultUnitProjection(t, catalog, auth)
+	auth.recaptureCatalog(view)
+	_, setRows := defaultUnitProjection(t, view, auth)
 	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(setWant)
 	if !reflect.DeepEqual(setRows, setWant) {
@@ -147,10 +148,10 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	for i, row := range held.anonymous {
 		before[i] = append([]sqltype.Value(nil), row...)
 	}
-	changed := cloneCatalog(state)
+	changed := catalog.CloneState(state)
 	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
 	named.ACL = authorization.ACLValue{Explicit: true}
-	changed.setDescriptor(named.Address(), &named)
+	changed.SetDescriptor(named.Address(), &named)
 	actor := cloneRoleFixture(roles)
 	renamed := fixtureRole(actor, f.reader)
 	renamed.Name = "renamed_reader"
@@ -184,8 +185,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := captureTablePrivileges(canceled, catalog, AuthorizationView{}, "unit_database", ref, source)
+	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
+	rows, err := captureTablePrivileges(canceled, view, AuthorizationView{}, "unit_database", ref, source)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

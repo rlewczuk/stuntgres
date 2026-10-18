@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	first.conflict.markAffected(ids.RowID(42), 0)
 	first.conflict.selected = append(first.conflict.selected, sink.Address())
 	first.conflict.frame = make([]sqltype.Value, 4)
-	first.conflict.catalog = auth.catalog.state
+	first.conflict.catalog = auth.catalog.State()
 	first.conflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
 	second, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
@@ -53,8 +54,8 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	current.Attributes = []int32{2, 1}
 	current.Columns = []ColumnDescriptor{sink.Columns[1], sink.Columns[0]}
 	current.Index = map[string]int{"v": 0, "id": 1}
-	catalog := cloneCatalog(auth.catalog.state)
-	catalog.setDescriptor(sink.Address(), &current)
+	catalog := catalog.CloneState(auth.catalog.State())
+	catalog.SetDescriptor(sink.Address(), &current)
 	view := e.catalog.read(catalog)
 	check := func(next binding) {
 		t.Helper()

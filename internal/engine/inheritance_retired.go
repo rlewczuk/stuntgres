@@ -8,27 +8,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Retired support is not a live provider edge. PostgreSQL retains its historical
-// coninhcount when a parent's column disappears but this physical column stays.
-// Source rank/fact identities belong to the archived lifetime, not to compacted
-// attribute numbers in a later logical import. The current parent reference and
-// this physical constraint's identity remain exact live authority.
-type retiredInheritanceOrigin struct {
-	Parent     ids.ObjectRef
-	Attribute  int32
-	Column     string
-	Name       string
-	Constraint ids.OID
-	Lifetime   uint64
-	Archive    uint64
-	Own        ids.OID
-	Check      bool
-	// Logical import retains the archived source lifetime, not fresh OID/ranks.
-	Replayed bool
-}
-
-func (p inheritedConstraint) count() int { return len(p.Origins) + len(p.Retired) }
-
 func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p inheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
 		parent, ok := view.Relation(history.Parent.Address)
@@ -40,7 +19,7 @@ func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p i
 		}
 		if !history.Replayed {
 			tombstone, exists := parent.DroppedAttributes[history.Attribute]
-			if !exists || !tombstone.Dropped || parent.hasAttribute(history.Attribute) || definitionOIDUsed(parent, history.Constraint) {
+			if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || definitionOIDUsed(parent, history.Constraint) {
 				return fmt.Errorf("stuntgres: retired inheritance source was not removed")
 			}
 		}
@@ -55,7 +34,7 @@ func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p i
 			}
 		}
 	}
-	if p.count() > 32767 {
+	if p.Count() > 32767 {
 		return fmt.Errorf("stuntgres: too many inherited constraint contributions")
 	}
 	return nil
@@ -64,14 +43,14 @@ func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p i
 func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *relationDescriptor, graph *tableInheritance, attribute int32) {
 	view := state.definition.base
 	if state.stage != nil {
-		view = state.stage.base
+		view = state.stage.Base
 	}
 	for _, parent := range graph.Parents {
 		for _, event := range state.events[parent] {
 			if event.action.Action != parser.DropColumn {
 				continue
 			}
-			parentRef := view.owner.Domain.Ref(view.Epoch(), parent)
+			parentRef := view.Owner().Domain.Ref(view.Epoch(), parent)
 			for _, source := range event.retiredNotNull {
 				for _, own := range child.NotNullConstraints {
 					if own.Attribute != attribute {
@@ -170,7 +149,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 				}
 				record.Own = newOID
 				record.Parent = e.catalog.Domain.Ref(record.Parent.Epoch, record.Parent.Address)
-				record.Parent.Epoch = next.epoch
+				record.Parent.Epoch = next.Epoch()
 				record.Replayed = true
 			}
 			return p, nil
@@ -219,7 +198,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 		}
 		copy := *table
 		copy.Inheritance = graph
-		next.setDescriptor(address, &copy)
+		next.SetDescriptor(address, &copy)
 	}
 	return nil
 }
@@ -368,7 +347,7 @@ func releaseRetiredTypeConstraints(old *relationDescriptor, actions []parser.Alt
 				}
 				next.PhysicalNotNull[fact.Attribute] = proof
 			} else {
-				next.Columns[next.indexForAttribute(fact.Attribute)].Nullable = true
+				next.Columns[next.IndexForAttribute(fact.Attribute)].Nullable = true
 			}
 		}
 	}

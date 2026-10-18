@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -97,11 +98,11 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	_, err := e.Execute(op, statement(t, "DROP ROLE acl_reader"), 0, nil)
 	state(t, err, "2BP01")
 	owner, _ := e.Roles().Lookup("schema_owner")
-	replacement := cloneCatalog(e.CatalogRead().state)
+	replacement := catalog.CloneState(e.CatalogRead().State())
 	nsaddr := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	ns := *replacement.MustNamespace(nsaddr)
 	ns.Owner = owner.Ref
-	replacement.setDescriptor(nsaddr, &ns)
+	replacement.SetDescriptor(nsaddr, &ns)
 	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +149,7 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 				t.Fatal("loser exposed result", result)
 			}
 			after := e.CatalogRead()
-			if winner.state == nil || after.state != winner.state || roleTableRef(t, e, tc.identifier) != winnerRef {
+			if winner.State() == nil || after.State() != winner.State() || roleTableRef(t, e, tc.identifier) != winnerRef {
 				t.Fatal("winner identity changed")
 			}
 			if _, present := after.Descriptor(loser); present || e.storage[loser] != nil {

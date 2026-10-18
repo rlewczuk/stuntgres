@@ -5,29 +5,12 @@ import (
 	"sort"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-type operatorDescriptor struct {
-	ObjectAddress, ObjectNamespace                           ids.ObjectAddress
-	ObjectRevision                                           ids.DefinitionRevision
-	ObjectName                                               string
-	Left, Right                                              ids.OID
-	Owner                                                    authorization.PrincipalRef
-	Result, Function, Commutator, Negator, Restriction, Join ids.OID
-	Hash, Merge                                              bool
-}
-
-func (d *operatorDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *operatorDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
-func (d *operatorDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (d *operatorDescriptor) Name() string                     { return d.ObjectName }
-func (*operatorDescriptor) Kind() ids.ObjectKind               { return ids.OperatorObject }
-func (d *operatorDescriptor) signature() string {
-	return strconv.FormatUint(uint64(d.Left), 10) + "," + strconv.FormatUint(uint64(d.Right), 10)
-}
-func (d *operatorDescriptor) seeded() bool {
+func operatorSeeded(d *operatorDescriptor) bool {
 	index := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= d.Address().ObjectID })
 	if index == len(builtinOperators) {
 		return false
@@ -41,7 +24,7 @@ type operatorProvider struct{}
 func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
 func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*operatorDescriptor)
-	if !ok || d.Address().ClassID != ids.OperatorClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(descriptorNameKey(d)) != d.Address() {
+	if !ok || d.Address().ClassID != ids.OperatorClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")
 	}
 	if _, ok := v.Namespace(d.Namespace()); !ok {
@@ -57,7 +40,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	if d.Right == 0 || (d.Function == 0) != (d.Result == 0) {
 		return fmt.Errorf("stuntgres: invalid operator definition")
 	}
-	seeded := d.seeded()
+	seeded := operatorSeeded(d)
 	if seeded {
 		// Released metadata can refer to lookup-only routine identities. It is
 		// not a declaration of a callable implementation provider.
@@ -112,12 +95,12 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	return nil
 }
 func (e *Engine) initializeOperators() {
-	e.catalog.state.operatorNames = seededOperatorNames
+	e.catalog.state.SetOperatorNames(seededOperatorNames)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	for _, row := range supportedOperatorMetadata {
 		d := e.catalog.state.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})

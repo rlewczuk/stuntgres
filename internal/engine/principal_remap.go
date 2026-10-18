@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -61,7 +62,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *foreignDescriptor:
 			n := *d
 			var err error
@@ -82,15 +83,15 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				}
 			}
 			if d.Address().ClassID == ids.ForeignMappingClassID {
-				n.ObjectName = foreignMappingName(n.Server, n.MappedRole)
-				state.unbindName(descriptorNameKey(d))
-				state.bindName(descriptorNameKey(&n), n.Address())
+				n.ObjectName = catalog.ForeignMappingName(n.Server, n.MappedRole)
+				state.UnbindName(catalog.DescriptorNameKey(d))
+				state.BindName(catalog.DescriptorNameKey(&n), n.Address())
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *procedureDescriptor:
 			n := *d
 			var err error
-			n.Owner, err = seedOwner(d.Owner, d.seeded() || d.Foreign != nil)
+			n.Owner, err = seedOwner(d.Owner, d.Seeded() || d.Foreign != nil)
 			if err != nil {
 				return nil, err
 			}
@@ -98,7 +99,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *parameterDescriptor:
 			n := *d
 			var err error
@@ -122,7 +123,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *tsDictionaryDescriptor:
 			n := *d
 			var err error
@@ -130,7 +131,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *typeDescriptor:
 			n := *d
 			var err error
@@ -143,31 +144,31 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *collationDescriptor:
 			n := *d
 			var err error
-			n.Owner, err = seedOwner(d.Owner, d.seeded())
+			n.Owner, err = seedOwner(d.Owner, d.Seeded())
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *conversionDescriptor:
 			n := *d
 			var err error
-			n.Owner, err = seedOwner(d.Owner, d.seeded())
+			n.Owner, err = seedOwner(d.Owner, d.Seeded())
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *operatorDescriptor:
 			n := *d
 			var err error
-			n.Owner, err = seedOwner(d.Owner, d.seeded())
+			n.Owner, err = seedOwner(d.Owner, operatorSeeded(d))
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *namespaceDescriptor:
 			n := *d
 			var err error
@@ -179,7 +180,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		case *relationDescriptor:
 			n := *d
 			var err error
@@ -216,14 +217,14 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 					}
 				}
 			}
-			state.setDescriptor(addr, &n)
+			state.SetDescriptor(addr, &n)
 		default:
 			return nil, fmt.Errorf("stuntgres: catalog provider has no principal remapping contract")
 		}
 	}
-	if len(state.defaultACLs) != 0 {
-		next := make(map[defaultACLKey]*defaultACLRecord, len(state.defaultACLs))
-		for key, record := range state.defaultACLs {
+	if state.DefaultACLCount() != 0 {
+		next := make(map[defaultACLKey]*defaultACLRecord, state.DefaultACLCount())
+		for key, record := range state.DefaultACLs() {
 			creator, err := remap(key.Creator)
 			if err != nil {
 				return nil, err
@@ -235,9 +236,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			key.Creator = creator
 			next[key] = &defaultACLRecord{ACL: value}
 		}
-		state.defaultACLs = next
+		state.SetDefaultACLs(next)
 	}
-	if err := validateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -275,7 +276,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
-	database := e.catalog.state.MustDatabase(currentDatabaseAddress)
+	database := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
@@ -293,7 +294,7 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.catalog.state.setDescriptor(currentDatabaseAddress, &retainedDatabase)
+	stage.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &retainedDatabase)
 	stage.roles = &roleCatalog{root: roles, revision: sourceRoles.revision}
 	stage.nextPrincipal = nextPrincipal
 	return stage

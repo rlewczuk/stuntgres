@@ -29,14 +29,14 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	parent := pgDependUnitAddress(1259, 48001, 0)
 	column := parent
 	column.SubID = 3
-	catalog.state.setDescriptor(parent, &relationDescriptor{ObjectAddress: parent, RelationKind: tableRelation, Attributes: []int32{3}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
+	catalog.State().SetDescriptor(parent, &relationDescriptor{ObjectAddress: parent, RelationKind: tableRelation, Attributes: []int32{3}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
 	provider := pgDependUnitAddress(1259, 48002, 0)
-	catalog.state.setDescriptor(provider, &relationDescriptor{ObjectAddress: provider, RelationKind: tableRelation})
+	catalog.State().SetDescriptor(provider, &relationDescriptor{ObjectAddress: provider, RelationKind: tableRelation})
 	domain, err := sqltype.Domain(48003, "d", "public.d", integer.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog.state.setDescriptor(pgDependUnitAddress(1247, 48003, 0), &typeDescriptor{SQLType: domain})
+	catalog.State().SetDescriptor(pgDependUnitAddress(1247, 48003, 0), &typeDescriptor{SQLType: domain})
 	regclass, ok := catalog.LookupType(sqltype.Regclass)
 	if !ok {
 		t.Fatal("regclass")
@@ -46,7 +46,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 		t.Fatal("regclass array")
 	}
 	ref := func(a ids.ObjectAddress) ids.ObjectRef {
-		return e.catalog.Domain.Ref(catalog.state.epoch, a)
+		return e.catalog.Domain.Ref(catalog.State().Epoch(), a)
 	}
 	variable := columnExpression{Info: expr.Info{Usage: domain.Usage()}, origin: ref(column)}
 	scalar := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref(provider)}}
@@ -104,8 +104,8 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	table := pgDependUnitAddress(1259, 49001, 0)
 	column := table
 	column.SubID = 4
-	catalog.state.setDescriptor(table, &relationDescriptor{ObjectAddress: table, RelationKind: tableRelation, Attributes: []int32{4}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
-	ref := e.catalog.Domain.Ref(catalog.state.epoch, table)
+	catalog.State().SetDescriptor(table, &relationDescriptor{ObjectAddress: table, RelationKind: tableRelation, Attributes: []int32{4}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
+	ref := e.catalog.Domain.Ref(catalog.State().Epoch(), table)
 	source := &sourceNode{ref: ref}
 	relationOnly := &BoundQuery{Root: source}
 	got, err := pgDependQueryRefs(context.Background(), catalog, relationOnly)

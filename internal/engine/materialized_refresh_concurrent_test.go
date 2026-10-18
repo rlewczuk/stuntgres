@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -425,14 +426,14 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				case "definition":
 					copy := *d
 					copy.Owner = authorization.PrincipalRef{}
-					e.catalog.state.setDescriptor(d.Address(), &copy)
+					e.catalog.state.SetDescriptor(d.Address(), &copy)
 				case "index_set":
 					materializedConcurrentUnitIndex(t, e, d, "unit_second", "i", "")
 				case "frontier":
 					e.commitSeq = ids.CommitSeq(math.MaxUint64)
 				}
 				beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage[d.Address()], e.commitSeq
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				if e.catalog.state != beforeCatalog || e.storage[d.Address()] != beforeStore || e.commitSeq != beforeFrontier {
 					t.Fatal("veto changed publication")
 				}
@@ -465,7 +466,7 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 		stage.materializedReplacement.concurrent = concurrent
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 		message := fmt.Sprintf(`could not create unique index "%s"`, index.Name())
 		if concurrent {
@@ -505,10 +506,10 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}
-	current := cloneCatalog(e.catalog.state)
+	current := catalog.CloneState(e.catalog.state)
 	changed := *index
 	changed.ObjectRevision++
-	current.setDescriptor(index.Address(), &changed)
+	current.SetDescriptor(index.Address(), &changed)
 	if err := stage.validateIndexMaintenance(current); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("same-count replacement accepted changed index identity", err)
 	}

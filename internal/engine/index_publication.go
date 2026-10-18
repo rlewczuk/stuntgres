@@ -27,7 +27,7 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	definition := index.SQLIndex
 	reconstruct := false
 	dependentAttribute := func(attribute int32) bool {
-		if !parent.hasAttribute(attribute) {
+		if !parent.HasAttribute(attribute) {
 			return false
 		}
 		for _, transformation := range transformations {
@@ -177,8 +177,8 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	// Preserve the incumbent map walk. In particular an unrelated staged
 	// relation must not allocate an adapter/iterator/yield closure.
-	provider := dropProvider{base: stage.base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
-	for address, descriptor := range stage.base.Descriptors() {
+	provider := dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
+	for address, descriptor := range stage.Base.Descriptors() {
 		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
 		if !affected {
 			continue
@@ -425,7 +425,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 			}
 			rebuild = false
 		}
-		if index.SQLIndex.hasRuntimeDomainConversion() && indexAuth.engine != nil {
+		if index.SQLIndex.HasRuntimeDomainConversion() && indexAuth.engine != nil {
 			needsEvaluation := rebuild
 			for _, publication := range publications {
 				if publication.address != parent.Address() {
@@ -460,7 +460,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				if err := validateIndexDefinition(e.catalog.read(next), index); err != nil {
 					return nil, err
 				}
-				root, err = buildHashIndexRoot(evaluation, parent, index.SQLIndex, storage[parent.Address()], materialize || index.SQLIndex.isExclusion(), nil)
+				root, err = buildHashIndexRoot(evaluation, parent, index.SQLIndex, storage[parent.Address()], materialize || index.SQLIndex.IsExclusion(), nil)
 				if err != nil {
 					return nil, err
 				}
@@ -470,13 +470,13 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 					continue
 				}
 				reconstruct := !produced && (rebuildParents[parent.Address()] || old == nil) && index.SQLIndex.Valid
-				root, err = mergeHashIndexRoot(evaluation, parent, index, root, &publications[i], reconstruct, materialize || index.SQLIndex.isExclusion())
+				root, err = mergeHashIndexRoot(evaluation, parent, index, root, &publications[i], reconstruct, materialize || index.SQLIndex.IsExclusion())
 				if err != nil {
 					return nil, err
 				}
 				break
 			}
-			if index.SQLIndex.isExclusion() {
+			if index.SQLIndex.IsExclusion() {
 				namespace := next.MustNamespace(parent.Namespace())
 				if err := validateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, indexAuth, rebuild && !runtime); err != nil {
 					return nil, err
@@ -499,7 +499,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				return nil, err
 			}
 			root = nil
-			if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
+			if index.SQLIndex.Unique || index.SQLIndex.IsExclusion() {
 				// Namespace metadata belongs to integrity diagnostics, not ordinary
 				// key construction. Replacement also accepts reduced validated
 				// parent/index catalogues for ordinary nonintegrity roots.
@@ -518,7 +518,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				continue
 			}
 			schema := ""
-			if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
+			if index.SQLIndex.Unique || index.SQLIndex.IsExclusion() {
 				schema = next.MustNamespace(parent.Namespace()).Name()
 			}
 			reconstruct := !produced && (rebuildParents[parent.Address()] || old == nil) && index.SQLIndex.Valid
@@ -584,7 +584,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	}
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -602,7 +602,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.hasRuntimeDomainConversion() || len(s.stage.rows[index.SQLIndex.Parent]) == 0 {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.HasRuntimeDomainConversion() || len(s.stage.rows[index.SQLIndex.Parent]) == 0 {
 			continue
 		}
 		auth := programmeAuth
@@ -646,7 +646,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 				continue
 			}
 		}
-		pending := index.SQLIndex.hasRuntimeDomainConversion()
+		pending := index.SQLIndex.HasRuntimeDomainConversion()
 		var ordering indexOrdering
 		var hash hashIndexBinding
 		var preparation indexExecutionPreparation

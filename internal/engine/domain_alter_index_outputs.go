@@ -33,7 +33,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, orig
 				if err != nil {
 					return nil, err
 				}
-				mapped.key, err = reownDomainDatum(output.key, usage.Type, nil, next.scalarImports, next.aclItemImport)
+				mapped.key, err = reownDomainDatum(output.key, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return nil, err
 				}
@@ -43,7 +43,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, orig
 				if err != nil {
 					return nil, err
 				}
-				rebound, err := reownDomainDatum(value, usage.Type, nil, next.scalarImports, next.aclItemImport)
+				rebound, err := reownDomainDatum(value, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return nil, err
 				}

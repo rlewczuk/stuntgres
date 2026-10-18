@@ -77,7 +77,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, catalog CatalogRead, candidate *relationDescriptor, jobs []partitionAttachScan) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	capture := func(d *relationDescriptor) error {
@@ -147,7 +147,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 				child = ancestor
 			}
 		}
-		ref := catalog.owner.Domain.Ref(catalog.Epoch(), job.leaf.Address())
+		ref := catalog.Owner().Domain.Ref(catalog.Epoch(), job.leaf.Address())
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err

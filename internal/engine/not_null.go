@@ -450,7 +450,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err != nil {
 		return Result{}, err
 	}
-	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
+	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || len(stage.Descriptors) == 0 && len(stage.Removals) == 0 && len(stage.generators) == 0) {
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
@@ -466,12 +466,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// generator. This statement overlay is discarded on failure, never installed
 	// in the owner before Finish. Keep the exact generator pointers through merge.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if stage != nil {
-		for address, descriptor := range stage.descriptors {
+		for address, descriptor := range stage.Descriptors {
 			sequence, ok := descriptor.(*relationDescriptor)
 			if !ok || sequence.RelationKind != sequenceRelation {
 				continue
@@ -487,8 +487,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			e.catalogChangeLocked(changes, address, descriptor)
 			changes.generators[address] = stage.generators[address]
 		}
-		for address, removal := range stage.removals {
-			sequence, ok := removal.descriptor.(*relationDescriptor)
+		for address, removal := range stage.Removals {
+			sequence, ok := removal.Descriptor.(*relationDescriptor)
 			if !ok || sequence.RelationKind != sequenceRelation {
 				continue
 			}
@@ -536,7 +536,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// Complete TYPE provider rebinding before adding queued FK definitions.
 	// Their selected supporting keys now have the final private key shape.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -652,7 +652,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			shape.fills[attribute] = value
 		}
 		for attribute := range shape.fills {
-			if !next.hasAttribute(attribute) {
+			if !next.HasAttribute(attribute) {
 				delete(shape.fills, attribute)
 			}
 		}
@@ -740,7 +740,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
+			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}
@@ -775,7 +775,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var dependencyTargets []ids.ObjectAddress
 	for _, attribute := range old.Attributes {
-		if !next.hasAttribute(attribute) {
+		if !next.HasAttribute(attribute) {
 			target := ref.Address
 			target.SubID = attribute
 			dependencyTargets = append(dependencyTargets, target)
@@ -791,7 +791,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		target.SubID = attribute
 		dependencyTargets = append(dependencyTargets, target)
 	}
-	for a := range stage.removals {
+	for a := range stage.Removals {
 		if _, identity := stage.identityOriginals[a]; identity {
 			continue
 		}
@@ -809,24 +809,24 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// Validation closes the type graph before transferring it to private catalog
 	// changes. Include dependent holder stores as well as the directly altered row.
 	for address, rebound := range stage.rowShapes {
-		consumer := stage.descriptors[address].(*relationDescriptor)
+		consumer := stage.Descriptors[address].(*relationDescriptor)
 		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if hasAttachments || len(addedIndexes) != 0 {
-		for name := range stage.touched {
+		for name := range stage.Touched {
 			if e.catalog.state.NameAddress(name) != grantCatalog.NameAddress(name) {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
 		}
 	}
-	for a, d := range stage.descriptors {
+	for a, d := range stage.Descriptors {
 		original := grantCatalog.Get(a)
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
@@ -837,7 +837,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
-	for a := range stage.removals {
+	for a := range stage.Removals {
 		original := grantCatalog.Get(a)
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
@@ -850,7 +850,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		delete(changes.generators, a)
 	}
 	for a, generator := range stage.generators {
-		if _, removed := stage.removals[a]; !removed {
+		if _, removed := stage.Removals[a]; !removed {
 			changes.generators[a] = generator
 		}
 	}
@@ -874,7 +874,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		indexOutputRows = indexOutputRows || transported
 	}
-	if err := prepareAlterIndexRoots(&indexEvaluation, changes, stage.base, next, replacement, indexBuilds, metadataOnly); err != nil {
+	if err := prepareAlterIndexRoots(&indexEvaluation, changes, stage.Base, next, replacement, indexBuilds, metadataOnly); err != nil {
 		return Result{}, err
 	}
 	if err := scope.prepareExclusionShape(old, next, e.stageRead(stage), projectedWrites, projectedDeletes); err != nil {

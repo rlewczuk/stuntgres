@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -44,8 +45,8 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	nonmember := *n.procedure
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
-	foreignState := cloneCatalog(e.catalog.state)
-	foreignState.setDescriptor(nonmember.Address(), &nonmember)
+	foreignState := catalog.CloneState(e.catalog.state)
+	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
 	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
@@ -86,10 +87,10 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		},
 		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 	} {
-		state := cloneCatalog(e.catalog.state)
+		state := catalog.CloneState(e.catalog.state)
 		bad := *n.procedure
 		mutate(&bad)
-		state.setDescriptor(n.ref.Address, &bad)
+		state.SetDescriptor(n.ref.Address, &bad)
 		forged := n
 		forged.procedure = &bad
 		if err := forged.validate(e.catalog.read(state)); err == nil {
@@ -161,20 +162,20 @@ func TestLevenshteinRemap(t *testing.T) {
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
-	next := cloneCatalog(before.state)
+	next := catalog.CloneState(before.State())
 	for address := range mapping {
-		next.unbindName(descriptorNameKey(before.Get(address)))
-		next.removeDescriptor(address)
+		next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
+		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
 		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
-		next.setDescriptor(destination, descriptor)
-		next.bindName(descriptorNameKey(descriptor), destination)
+		next.SetDescriptor(destination, descriptor)
+		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
-	next.setDescriptor(address, consumer)
-	next.epoch++
+	next.SetDescriptor(address, consumer)
+	next.SetEpoch(next.Epoch() + 1)
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +183,7 @@ func TestLevenshteinRemap(t *testing.T) {
 	relocated := next.MustRelation(address)
 	for _, node := range []expr.Expr{relocated.Defaults[1].Expression, relocated.Generations[2].Expression, relocated.Generations[2].Planned} {
 		n := node.(installedLevenshteinFunctionExpression)
-		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) {
+		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.Epoch() || n.procedure != next.Get(n.ref.Address) {
 			t.Fatal("stale remapped authority", n.ref)
 		}
 		if err := n.validate(view); err != nil {

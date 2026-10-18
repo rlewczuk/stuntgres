@@ -187,7 +187,7 @@ func TestCheckReviewScalarNoInquirySnapshotDemand(t *testing.T) {
 	e.mu.Lock()
 	e.captureCheckCommentSnapshotLocked(scope, relation)
 	e.mu.Unlock()
-	if scope.commentCatalog.state != nil || scope.deparseAuth.roleRecord != nil {
+	if scope.commentCatalog.State() != nil || scope.deparseAuth.roleRecord != nil {
 		t.Fatal("unrelated CHECK captured comment metadata")
 	}
 }

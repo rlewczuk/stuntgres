@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -143,8 +144,8 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "epoch":
-				next := cloneCatalog(e.catalog.state)
-				next.epoch++
+				next := catalog.CloneState(e.catalog.state)
+				next.SetEpoch(next.Epoch() + 1)
 				e.catalog.state = next
 			case "ref":
 				stale := s.transactions.ref
@@ -161,10 +162,10 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				copy := *original
 				e.storage[target.Address] = &copy
 			case "descriptor":
-				next := cloneCatalog(e.catalog.state)
+				next := catalog.CloneState(e.catalog.state)
 				copy := *next.MustRelation(target.Address)
 				copy.ObjectRevision++
-				next.setDescriptor(target.Address, &copy)
+				next.SetDescriptor(target.Address, &copy)
 				e.catalog.state = next
 			case "roles":
 				copy := *e.roles

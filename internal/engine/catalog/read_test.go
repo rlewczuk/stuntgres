@@ -1,4 +1,4 @@
-package engine
+package catalog
 
 import (
 	"runtime"
@@ -7,13 +7,13 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func catalogReadFixture() (*catalogState, *namespaceDescriptor, *relationDescriptor) {
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 900}, ObjectName: "s", ObjectRevision: 1}
-	rel := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, ObjectNamespace: ns.Address(), ObjectName: "t", ObjectRevision: 1}
-	s := &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
+func catalogReadFixture() (*State, *Namespace, *Relation) {
+	ns := &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 900}, ObjectName: "s", ObjectRevision: 1}
+	rel := &Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, ObjectNamespace: ns.Address(), ObjectName: "t", ObjectRevision: 1}
+	s := &State{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
 	for _, d := range []Descriptor{ns, rel} {
-		s.descriptors[d.Address()] = d
-		s.names[descriptorNameKey(d)] = d.Address()
+		s.SetDescriptor(d.Address(), d)
+		s.BindName(DescriptorNameKey(d), d.Address())
 	}
 	return s, ns, rel
 }
@@ -46,7 +46,7 @@ func expectNilDereferencePanic(t *testing.T, name string, f func()) {
 
 func TestCatalogReadTypedAccessors(t *testing.T) {
 	state, ns, rel := catalogReadFixture()
-	read := CatalogRead{state: state}
+	read := Read{state: state}
 	missing := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999}
 
 	if got, ok := read.Relation(rel.Address()); !ok || got != rel {
@@ -71,7 +71,7 @@ func TestCatalogReadTypedAccessors(t *testing.T) {
 
 func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
 	state, ns, rel := catalogReadFixture()
-	read := CatalogRead{state: state}
+	read := Read{state: state}
 	missing := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999}
 
 	if read.Get(rel.Address()) != rel || read.Get(missing) != nil {
@@ -83,7 +83,7 @@ func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
 	if d, ok := read.Find(missing); ok || d != nil {
 		t.Fatalf("Find(absent) = %v, %v", d, ok)
 	}
-	key := descriptorNameKey(rel)
+	key := DescriptorNameKey(rel)
 	if a, ok := read.LookupName(key); !ok || a != rel.Address() || read.NameAddress(key) != rel.Address() {
 		t.Fatalf("LookupName(present) = %v, %v", a, ok)
 	}
@@ -116,7 +116,7 @@ func TestCatalogReadUntypedAndNameAccessors(t *testing.T) {
 }
 
 func TestCatalogReadAccessorsRequirePopulatedRead(t *testing.T) {
-	var zero CatalogRead
+	var zero Read
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1}
 	if d, ok := zero.Descriptor(a); ok || d != nil {
 		t.Fatal("guarded Descriptor changed on a zero read")

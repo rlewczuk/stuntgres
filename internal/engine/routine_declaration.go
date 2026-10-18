@@ -1,19 +1,7 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
-)
-
-// SQL routine kind is independent of the catalog's ProcedureObject class.
-type routineKind byte
-
-const (
-	functionRoutine  routineKind = 'f'
-	aggregateRoutine routineKind = 'a'
-	windowRoutine    routineKind = 'w'
-	procedureRoutine routineKind = 'p'
 )
 
 func grantRoutineKindMatches(target string, kind routineKind) bool {
@@ -28,25 +16,10 @@ func grantRoutineKindMatches(target string, kind routineKind) bool {
 	return false
 }
 
-func (d *procedureDescriptor) returnsSet() bool {
+func procedureReturnsSet(d *procedureDescriptor) bool {
 	return d.Builtin != nil && d.Builtin.ReturnsSet ||
-		d.intaggProvider() == stockIntagg && d.RoutineKind == functionRoutine &&
+		intaggProviderOf(d) == stockIntagg && d.RoutineKind == functionRoutine &&
 			d.Name() == "int_array_enum" && d.Signature == "1007" && d.Result == 23
-}
-
-// A provider association describes an already-implemented declaration, not an
-// execution capability. It cannot make a lookup-only signature callable.
-type builtinRoutineDeclaration struct {
-	Identity   routineIdentity
-	Kind       routineKind
-	Result     ids.OID
-	Strict     bool
-	Volatility expr.Volatility
-	Parallel   byte
-	ReturnsSet bool
-	Variadic   ids.OID
-	Defaults   uint8
-	Providers  routineProvider
 }
 
 // Temporary aliases for the provider vocabulary that moved to functions in
@@ -78,11 +51,3 @@ const (
 	embeddedRoutineProvider  = functions.EmbeddedRoutineProvider
 	networkRoutineProvider   = functions.NetworkRoutineProvider
 )
-
-func (d *procedureDescriptor) seeded() bool {
-	return d.Builtin != nil || d.Conversion.Name() != ""
-}
-
-// Published descriptors are pointer-owned catalog payloads. They remain stable
-// across binder dependency-slice growth and carry no cached permission decision.
-func (d *procedureDescriptor) RoutineOID() uint32 { return uint32(d.Address().ObjectID) }

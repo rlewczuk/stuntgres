@@ -242,7 +242,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		return err
 	}
 	var relations []ids.ObjectAddress
-	for address := range stage.removals {
+	for address := range stage.Removals {
 		if address.ClassID == ids.RelationClassID {
 			relations = append(relations, address)
 		}
@@ -258,7 +258,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 			if i != 0 && address == relations[i-1] {
 				continue
 			}
-			if _, removed := stage.removals[address]; !removed {
+			if _, removed := stage.Removals[address]; !removed {
 				continue
 			}
 			if err := s.discardTemporaryCursorPreflight(stage, address); err != nil {
@@ -287,7 +287,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 // Both destructive utilities check the actual selected closure. Exhausted
 // portals retain source pins; failed and exported HOLD roots do not.
 func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, address ids.ObjectAddress) error {
-	return s.relationCursorPreflight(stage.base, address, "DROP TABLE")
+	return s.relationCursorPreflight(stage.Base, address, "DROP TABLE")
 }
 
 func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address ids.ObjectAddress, command string) error {
@@ -297,7 +297,7 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address id
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.Domain() != catalog.owner.Domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
+			if leaf.ref.Domain() != catalog.Owner().Domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
 			relation, ok := catalog.Relation(address)

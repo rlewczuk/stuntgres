@@ -54,7 +54,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				}
 				copy := *d
 				copy.SQLType, copy.ObjectNamespace, copy.Extension, copy.Array = typ, namespace, extension, associated
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 				changed = true
 			}
 			visited[address] = true
@@ -85,7 +85,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				copy := *d
 				copy.SQLType, copy.ObjectNamespace = typ, namespace
 				copy.Array = associated
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 				changed = true
 			}
 			visited[address] = true
@@ -163,7 +163,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				}
 				copy := *d
 				copy.SQLType, copy.ObjectNamespace, copy.OwningRelation, copy.Array = typ, namespace, owner, associated
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 				changed = true
 			}
 			delete(active, address)
@@ -189,7 +189,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				copy := *d
 				copy.SQLType = sqltype.LookupOnly(sqltype.ID(target.ObjectID), d.Name(), associated)
 				copy.ObjectNamespace, copy.OwningRelation, copy.Array = namespace, relation, associated
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 				changed = true
 			}
 			visited[address] = true
@@ -273,7 +273,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if destination, ok := mapping[copy.OwningRelation]; ok {
 				copy.OwningRelation = destination
 			}
-			next.setDescriptor(address, &copy)
+			next.SetDescriptor(address, &copy)
 			changed = true
 		}
 		delete(active, address)
@@ -375,13 +375,13 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}]; ok {
 			copy := *d
 			copy.RowType = sqltype.ID(destination.ObjectID)
-			next.setDescriptor(address, &copy)
+			next.SetDescriptor(address, &copy)
 			d = &copy
 		}
 		if destination, ok := mapping[d.OfType]; ok {
 			copy := *d
 			copy.OfType = destination
-			next.setDescriptor(address, &copy)
+			next.SetDescriptor(address, &copy)
 			d = &copy
 		}
 		var columns []ColumnDescriptor
@@ -409,7 +409,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		if columns != nil {
 			copy := *d
 			copy.Columns = columns
-			next.setDescriptor(address, &copy)
+			next.SetDescriptor(address, &copy)
 		}
 	}
 	for address, relation := range storage {
@@ -424,8 +424,8 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 				rebound := value
 				changed := target != value.Type()
 				var err error
-				if changed || next.aclItemImport != nil && value.Type().ContainsACLItem() {
-					rebound, err = reownDomainDatum(value, target, collation, next.scalarImports, next.aclItemImport)
+				if changed || next.ACLItemImport() != nil && value.Type().ContainsACLItem() {
+					rebound, err = reownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
 					if err != nil {
 						return err
 					}

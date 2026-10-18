@@ -9,23 +9,6 @@ import (
 
 const pgAggregateOID ids.OID = 2600
 
-// An aggregate definition belongs to its implemented routine. Optional seeds
-// distinguish SQL NULL from an empty string without allocating seed pointers.
-type aggregateDefinition struct {
-	Function                       ids.OID
-	Kind                           string
-	DirectArgs                     int16
-	Functions                      [8]ids.OID // transition, final, combine, serialize, deserialize, moving, inverse, moving-final
-	FinalExtra, MovingFinalExtra   bool
-	FinalModify, MovingFinalModify string
-	SortOperator, TransitionType   ids.OID
-	TransitionSpace                int32
-	MovingType                     ids.OID
-	MovingSpace                    int32
-	Initial, MovingInitial         string
-	HasInitial, HasMovingInitial   bool
-}
-
 var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Regproc, sqltype.Char, sqltype.Int2, sqltype.Regproc, sqltype.Regproc,
 	sqltype.Regproc, sqltype.Regproc, sqltype.Regproc, sqltype.Regproc, sqltype.Regproc,
@@ -37,7 +20,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source || len(source.Columns) != len(aggregateColumnTypes) {
+	if catalog.Owner() == nil || catalog.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.Owner().Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source || len(source.Columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {

@@ -36,7 +36,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	if _, exists := private.Find(index.Address()); exists {
 		t.Fatal("old backing retained in candidate")
 	}
-	if e.CatalogRead().state != base.state || !reflect.DeepEqual(parent.UniqueConstraints[0], old) || index.SQLIndex.Constraint.OID != old.OID || parent.NotNullConstraints[0].OID == next.NotNullConstraints[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if e.CatalogRead().State() != base.State() || !reflect.DeepEqual(parent.UniqueConstraints[0], old) || index.SQLIndex.Constraint.OID != old.OID || parent.NotNullConstraints[0].OID == next.NotNullConstraints[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate changed retained source/savepoint state")
 	}
 	for _, transformations := range [][]columnTransformation{nil, {{attribute: parent.Attributes[2]}}} {

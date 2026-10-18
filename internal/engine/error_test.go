@@ -81,7 +81,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 		t.Fatalf("losing Execute exposed result: %#v", result)
 	}
 	after := e.CatalogRead()
-	if winnerView.state == nil || after.state != winnerView.state {
+	if winnerView.State() == nil || after.State() != winnerView.State() {
 		t.Fatal("losing Execute replaced the winning catalog")
 	}
 	if _, ok := after.Descriptor(loser); ok || e.storage[loser] != nil {

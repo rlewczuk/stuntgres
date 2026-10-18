@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -43,7 +44,7 @@ func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captu
 // against the principal domain of view's own engine, which is what the
 // engine's committed role root would check.
 func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
-	if _, ok := view.Database(currentDatabaseAddress); !ok || view.owner == nil || captured.Owner.ID() == 0 || captured.Owner != view.owner.Principals.Principal(captured.Owner.ID()) {
+	if _, ok := view.Database(catalog.CurrentDatabaseAddress); !ok || view.Owner() == nil || captured.Owner.ID() == 0 || captured.Owner != view.Owner().Principals.Principal(captured.Owner.ID()) {
 		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
 	}
 	return currentRoutineDeclaration(view, captured)
@@ -65,8 +66,6 @@ func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
 		current.Conversion == captured.Conversion
 }
-
-func (d *relationDescriptor) RoutineRecipeOID() uint32 { return uint32(d.Address().ObjectID) }
 
 func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
 	carrier, ok := node.(interface {

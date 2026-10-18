@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -23,7 +24,7 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogSt
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
 	if err == nil {
-		next.aclItemImport = nil
+		next.SetACLItemImport(nil)
 	}
 	return prepared, err
 }
@@ -32,11 +33,11 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogSt
 // its internal lifetime and row identities. Allocator frontiers advance only
 // after comparison, root construction and cancellation have all succeeded.
 func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (map[ids.ObjectAddress]*logicalIndexRoot, uint64, uint64, error) {
-	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
+	retained := catalog.NewState(0)
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
 		if temporary && namespace.Temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {
-			retained.setDescriptor(address, descriptor)
+			retained.SetDescriptor(address, descriptor)
 			continue
 		}
 		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
@@ -108,7 +109,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		schema := ""
-		if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
+		if index.SQLIndex.Unique || index.SQLIndex.IsExclusion() {
 			namespace := next.Get(parent.Namespace())
 			if namespace == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced

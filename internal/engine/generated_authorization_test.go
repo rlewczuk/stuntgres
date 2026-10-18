@@ -156,13 +156,13 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			}
 			check(ownerAuth, false)
 			if tc.denied {
-				before := auth.catalog.state
+				before := auth.catalog.State()
 				generatedAuthorizationGrant(t, e, admin, actor, ref, tc.grantOn, tc.grant)
 				granted, err := actor.Authorization()
 				if err != nil {
 					t.Fatal(err)
 				}
-				if granted.catalog.state == before {
+				if granted.catalog.State() == before {
 					t.Fatal("grant did not publish an immutable catalog replacement")
 				}
 				// The same retained binding is now allowed by current authority;

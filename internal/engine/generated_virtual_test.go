@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -164,9 +165,9 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}
-	next := cloneCatalog(view.state)
-	next.epoch++
-	next.setDescriptor(d.Address(), d)
+	next := catalog.CloneState(view.State())
+	next.SetEpoch(next.Epoch() + 1)
+	next.SetDescriptor(d.Address(), d)
 	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}

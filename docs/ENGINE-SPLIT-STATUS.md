@@ -5,18 +5,18 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `423c4a9da`.
+Last verified against `master` at `48f850e68`.
 
 ## Next ready sub-steps
 
-- **F2 stored scalar SQL** — adopt `expr.Rendering` in
-  `scalar_function_sql.go`/`default.go` (needs F2 deparse ✓) *(broad
-  rewrite)*.
-- **5e** — `catalog` created, types moved, `Candidate` split from
-  `CatalogStage` (needs 5d ✓).
+- **5f** — catalog aliases removed (needs 5e ✓) *(broad rewrite)*.
+- **6a** — `storageStore` state ownership (needs 5e ✓) *(broad rewrite in
+  practice, like 5a)*.
+- **B0** — `access` refined and approved, no code changes (needs 5e ✓).
 
-They may run in parallel on separate branches. F2 is a broad rewrite: do
-not run it alongside another broad rewrite or any alias removal (§8).
+They may run in parallel on separate branches, except that 5f and 6a are
+broad rewrites and must not run alongside each other or another broad
+rewrite (§8).
 
 ## Task tree
 
@@ -55,7 +55,7 @@ not run it alongside another broad rewrite or any alias removal (§8).
     - [x] conditional plan (`4c54eaf54`)
     - [x] join legality (`144458647`; protocol membership `c6de24e8f`, docs
       `ec2fba8bd`)
-    - [ ] stored scalar SQL
+    - [x] stored scalar SQL (`2e7673441`, `cca30a78c`, docs `b0d07f5e5`)
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
@@ -128,8 +128,10 @@ not run it alongside another broad rewrite or any alias removal (§8).
   - [x] 5d — Descriptor names decided, fields exported (`a7c3461ce`,
     `b69a715b2`, `31ca756a9`, `4a6055b85`, then the docs commit)
     *(racecheck skipped at user request)*
-  - [ ] 5e — `catalog` created, types moved, `Candidate` split from
-    `CatalogStage`
+  - [x] 5e — `catalog` created, types moved, `Candidate` split from
+    `CatalogStage` (`eb68d288b`, `fa79f1917`, `0f3bad42b`, `eb612a052`,
+    `3b5d2b883`, `943e7a42d`, then the docs commit) *(racecheck skipped at
+    user request; targeted RACE=1 runs passed)*
   - [ ] 5f — Aliases removed *(broad rewrite)*
   - [ ] 5g — Optional `relationDescriptor` regrouping *(needs user approval)*
 - [ ] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)

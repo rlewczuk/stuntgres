@@ -11,7 +11,7 @@ import (
 func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	e := New()
 	run(t,e,`CREATE SEQUENCE q`)
-	base := e.CatalogRead().state
+	base := e.CatalogRead().State()
 	target := roleTableRef(t,e,"q").Address
 	run(t,e,`CREATE TABLE t(id INT DEFAULT nextval('q'))`)
 	changes := newCatalogChanges()

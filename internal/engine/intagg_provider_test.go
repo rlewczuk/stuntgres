@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"testing"
@@ -54,10 +55,10 @@ func TestIntaggProviderManifest(t *testing.T) {
 				p.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
 			},
 		} {
-			state := cloneCatalog(e.catalog.state)
+			state := catalog.CloneState(e.catalog.state)
 			bad := *proc
 			mutate(&bad)
-			state.setDescriptor(address, &bad)
+			state.SetDescriptor(address, &bad)
 			if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
@@ -107,10 +108,10 @@ func TestIntaggProviderManifest(t *testing.T) {
 			if member == nil {
 				t.Fatal("missing procedure fixture")
 			}
-			state := cloneCatalog(other.catalog.state)
+			state := catalog.CloneState(other.catalog.state)
 			bad := *member
 			bad.Implementation = stockIntagg
-			state.setDescriptor(member.Address(), &bad)
+			state.SetDescriptor(member.Address(), &bad)
 			if err := other.catalog.Extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}

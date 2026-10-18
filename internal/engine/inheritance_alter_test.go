@@ -67,7 +67,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					}
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
-					stage.descriptors[p.Address()] = &next
+					stage.Descriptors[p.Address()] = &next
 					state := &inheritanceAlterState{stage: stage, root: p, targets: []*relationDescriptor{p, c}, selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 					(&StatementScope{inheritanceAlter: state}).recordInheritanceAlterAction(p, &next, action)
 					actions, graph, err := e.inheritedAlterActions(state, c)
@@ -133,7 +133,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("stale later child observation validated")
 	}
-	if e.CatalogRead().state != before.state || e.storage[p.Address()] != parentStore || e.storage[c.Address()] != childStore {
+	if e.CatalogRead().State() != before.State() || e.storage[p.Address()] != parentStore || e.storage[c.Address()] != childStore {
 		t.Fatal("late child veto partially published catalog/store identities")
 	}
 	if !reflect.DeepEqual(parentRows, parentStore.versions) || !reflect.DeepEqual(childRows, childStore.versions) {
@@ -297,7 +297,7 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 			if kind == "check" {
 				expectError(t, e, "ALTER TABLE ONLY p DROP CONSTRAINT fact,ADD CONSTRAINT fact CHECK(missing>0)", "42703")
 			}
-			if e.CatalogRead().state != before.state || retiredUnitTable(t, e, "p") != parent || retiredUnitTable(t, e, "c") != child {
+			if e.CatalogRead().State() != before.State() || retiredUnitTable(t, e, "p") != parent || retiredUnitTable(t, e, "c") != child {
 				t.Fatal("ONLY phase-local prohibition published partial DROP")
 			}
 		})
@@ -328,7 +328,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23514" || diagnostic.Table != "leaf" {
 		t.Fatal("actual later CHECK veto missing", err)
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("failed CHECK replacement published catalog")
 	}
 	for name, original := range originals {

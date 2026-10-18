@@ -129,11 +129,11 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 				initial, _ := concurrentUnitIndex(t, e, "ui", false, false)
 				_, err = e.Execute(owner, statement(t, "REINDEX INDEX ui"), 0, nil)
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
-				before := e.CatalogRead().state
+				before := e.CatalogRead().State()
 				_, err = e.Execute(owner, statement(t, "ALTER TABLE t ALTER n TYPE BIGINT USING 0"), 0, nil)
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: typeDetail, Schema: "public", Table: "t", Constraint: "ui"})
 				unchanged, _ := concurrentUnitIndex(t, e, "ui", false, false)
-				if e.CatalogRead().state != before || unchanged != initial {
+				if e.CatalogRead().State() != before || unchanged != initial {
 					t.Fatal("failed standalone TYPE changed committed authority")
 				}
 				roleExecute(t, e, admin, "DELETE FROM t")

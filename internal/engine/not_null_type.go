@@ -9,7 +9,7 @@ import (
 // TYPE recreates affected NN identities without changing names or validity.
 // New attachments already describe the completed shape and are not recreated.
 func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relationDescriptor, changes []columnTransformation) (*relationDescriptor, error) {
-	original, ok := stage.base.Relation(parent.Address())
+	original, ok := stage.Base.Relation(parent.Address())
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}

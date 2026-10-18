@@ -13,7 +13,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	e.mu.Lock()
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	if scope.txRef.Epoch() != e.catalog.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
@@ -139,7 +139,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 // Stage observations are checked against the exact current catalog before any
 // work is prepared. The publication loop also fences that catalog at install.
 func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
-	if (len(s.indexParents) > 0 || len(s.indexRebuilds) > 0 || len(s.indexSets) > 0) && current.epoch != s.base.Epoch() {
+	if (len(s.indexParents) > 0 || len(s.indexRebuilds) > 0 || len(s.indexSets) > 0) && current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for address, observed := range s.indexParents {
@@ -148,7 +148,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		}
 	}
 	for address, observed := range s.indexRebuilds {
-		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.base.Get(address) != observed {
+		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.Base.Get(address) != observed {
 			return CatalogConflict{}
 		}
 	}
@@ -162,7 +162,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 			// Replacement observes the existing complete index set; it does
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedReplacement
-			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.base.Get(address) != d) {
+			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
 				return CatalogConflict{}
 			}
 			actual++

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -213,13 +214,13 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	for i, helper := range aggregate.Aggregate.Helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
-	next := cloneCatalog(before.state)
+	next := catalog.CloneState(before.State())
 	for address := range before.Descriptors() {
 		if _, moved := mapping[address]; !moved {
 			continue
 		}
-		next.unbindName(descriptorNameKey(before.Get(address)))
-		next.removeDescriptor(address)
+		next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
+		next.RemoveDescriptor(address)
 	}
 	for address, original := range before.Descriptors() {
 		destination, moved := mapping[address]
@@ -227,13 +228,13 @@ func TestIntaggIdentityRemap(t *testing.T) {
 			continue
 		}
 		descriptor := remapExtensionDescriptor(original, mapping)
-		next.setDescriptor(destination, descriptor)
-		next.bindName(descriptorNameKey(descriptor), destination)
+		next.SetDescriptor(destination, descriptor)
+		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
-	next.epoch++
+	next.SetEpoch(next.Epoch() + 1)
 	view := e.catalog.read(next)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
-		old.Epoch = next.epoch
+		old.Epoch = next.Epoch()
 		if address, ok := mapping[old.Address]; ok {
 			old.Address = address
 		}
@@ -267,7 +268,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	if call.procedure != before.Get(call.ref.Address) || enum.ref.Epoch != before.Epoch() {
 		t.Fatal("source authority mutated")
 	}
-	next.removeDescriptor(n.ref.Address)
+	next.RemoveDescriptor(n.ref.Address)
 	if err := validateIntaggIdentity(view, n.procedure, n.ref, "int_array_enum"); err == nil {
 		t.Fatal("missing destination procedure accepted")
 	}

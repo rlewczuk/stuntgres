@@ -436,7 +436,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if x.name == "lastval" {
 		e.mu.Lock()
-		ref = e.catalog.Domain.Ref(e.catalog.state.epoch, scope.op.session.lastSequence)
+		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), scope.op.session.lastSequence)
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")

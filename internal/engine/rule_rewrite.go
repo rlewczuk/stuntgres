@@ -1198,7 +1198,7 @@ func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescri
 		if !(column.scope == 0 && column.frame == 0) && !(column.scope == 1 && column.frame == 1) {
 			return expr, false, nil
 		}
-		slot := current.indexForAttribute(column.origin.Address.SubID)
+		slot := current.IndexForAttribute(column.origin.Address.SubID)
 		if slot < 0 {
 			return nil, false, ids.ErrCatalogReplaced
 		}

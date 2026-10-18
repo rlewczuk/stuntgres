@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -110,7 +111,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
-	remapped, err := other.remapPreparedCatalog(cloneCatalog(view.state), e.roles.root.Read(authorization.PrincipalRef{}), other.roles.root.Read(authorization.PrincipalRef{}), nil)
+	remapped, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.root.Read(authorization.PrincipalRef{}), other.roles.root.Read(authorization.PrincipalRef{}), nil)
 	if err != nil {
 		t.Fatal("principal remap", err)
 	}
@@ -197,7 +198,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					}
 					currentView := e.CatalogRead()
 					current := domainUnitType(t, currentView, "acl_setter_type")
-					if current == old || currentView.state == oldView.state {
+					if current == old || currentView.State() == oldView.State() {
 						t.Error("setter did not publish a new immutable catalog descriptor")
 					}
 					if !reflect.DeepEqual(current.ACL, want) {

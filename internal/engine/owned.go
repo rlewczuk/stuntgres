@@ -208,11 +208,11 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	// Pin roots and automatic associations before producing private candidates.
-	for _, a := range ownershipRelationLocks(stage.base, roots) {
+	for _, a := range ownershipRelationLocks(stage.Base, roots) {
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		ref := e.catalog.Domain.Ref(stage.base.Epoch(), a)
+		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), a)
 		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
@@ -221,7 +221,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	providersChanged := false
 	if reassign {
 		for _, a := range roots {
-			d := stage.base.Get(a)
+			d := stage.Base.Get(a)
 			owner, _, _ := descriptorACL(d)
 			if owner == target {
 				continue
@@ -236,7 +236,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
 			case *namespaceDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
 				}
@@ -244,7 +244,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					err = ownershipDatabaseCreate(auth)
 				}
 			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
 				}
@@ -261,15 +261,15 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			}
 		}
 		if err == nil && providersChanged {
-			candidate := e.stageRead(stage).state
+			candidate := e.stageRead(stage).State()
 			err = e.reownCatalogExpressions(candidate, nil, false)
 			if err == nil {
 				for a, d := range candidate.Descriptors() {
-					if old := stage.descriptors[a]; old != nil {
+					if old := stage.Descriptors[a]; old != nil {
 						if old == d {
 							continue
 						}
-					} else if stage.base.Get(a) == d {
+					} else if stage.Base.Get(a) == d {
 						continue
 					}
 					if err = stage.Replace(d); err != nil {
@@ -280,7 +280,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	} else {
 		for _, a := range roots {
-			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
 				break
 			}
 		}
@@ -302,7 +302,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = scope.stageExpressionDependents(stage, roots, mode, nil); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" {
 				if primaryRoot != (ids.ObjectAddress{}) {
-					diagnostic.Message = "cannot drop " + dependencyObject(stage.base, primaryRoot, stage.dependencyPath) + " because other objects depend on it"
+					diagnostic.Message = "cannot drop " + dependencyObject(stage.Base, primaryRoot, stage.dependencyPath) + " because other objects depend on it"
 				} else {
 					diagnostic.Message = "cannot drop desired object(s) because other objects depend on them"
 				}

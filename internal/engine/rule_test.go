@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -26,15 +27,15 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 		return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, AttributeHighWater: 2, RelationKind: tableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
-	next := cloneCatalog(e.catalog.state)
-	next.setDescriptor(src.Address(), src)
-	next.setDescriptor(sink.Address(), sink)
+	next := catalog.CloneState(e.catalog.state)
+	next.SetDescriptor(src.Address(), src)
+	next.SetDescriptor(sink.Address(), sink)
 	e.catalog.state = next
 	return e, AuthorizationView{engine: e, catalog: e.catalog.read(next)}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
-	return e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 }
 func ruleUnitInt(d *relationDescriptor, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
@@ -514,9 +515,9 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10
-	next := cloneCatalog(auth.catalog.state)
-	next.setDescriptor(newSrc.Address(), &newSrc)
-	next.setDescriptor(newSink.Address(), &newSink)
+	next := catalog.CloneState(auth.catalog.State())
+	next.SetDescriptor(newSrc.Address(), &newSrc)
+	next.SetDescriptor(newSink.Address(), &newSink)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{src.Address(): newSrc.Address(), sink.Address(): newSink.Address()}
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		whole := old.Address
@@ -526,7 +527,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 			old.Address = a
 		}
 		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
-		old.Epoch = next.epoch
+		old.Epoch = next.Epoch()
 		return old
 	}
 	mapped, err := remapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)

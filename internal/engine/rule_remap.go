@@ -73,7 +73,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 					if slot < 0 || slot >= len(old.Attributes) {
 						return nil, ids.ErrCatalogReplaced
 					}
-					next[i].uses[j] = next[i].relation.indexForAttribute(old.Attributes[slot])
+					next[i].uses[j] = next[i].relation.IndexForAttribute(old.Attributes[slot])
 					if next[i].uses[j] < 0 {
 						return nil, ids.ErrCatalogReplaced
 					}
@@ -267,7 +267,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.Domain.Ref(old.Epoch, old.Address)
+			old = view.Owner().Domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -77,7 +78,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if proc.uuidOsspProvider() != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
+	if uuidOsspProviderOf(proc) != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -275,10 +276,10 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority
-		auth.catalog.state = cloneCatalog(auth.catalog.state)
+		auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
 		bad := *captured
 		mutate(&bad)
-		auth.catalog.state.setDescriptor(n.ref.Address, &bad)
+		auth.catalog.State().SetDescriptor(n.ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -301,20 +302,20 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000},
 		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
 	}
-	state := cloneCatalog(evaluation.catalog.state)
+	state := catalog.CloneState(evaluation.catalog.State())
 	for address := range mapping {
-		state.unbindName(descriptorNameKey(state.Get(address)))
-		state.removeDescriptor(address)
+		state.UnbindName(catalog.DescriptorNameKey(state.Get(address)))
+		state.RemoveDescriptor(address)
 	}
 	for address, dest := range mapping {
 		d := remapExtensionDescriptor(evaluation.catalog.Get(address), mapping)
-		state.setDescriptor(dest, d)
-		state.bindName(descriptorNameKey(d), dest)
+		state.SetDescriptor(dest, d)
+		state.BindName(catalog.DescriptorNameKey(d), dest)
 	}
-	state.epoch++
+	state.SetEpoch(state.Epoch() + 1)
 	view := e.catalog.read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
-		ref.Epoch = state.epoch
+		ref.Epoch = state.Epoch()
 		if dest, ok := mapping[ref.Address]; ok {
 			ref.Address = dest
 		}

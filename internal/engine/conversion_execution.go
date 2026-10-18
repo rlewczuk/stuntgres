@@ -14,7 +14,7 @@ type conversionDefault struct {
 // A statement lazily projects its immutable snapshot exactly once, only for
 // nonempty nonidentity conversion. Rows do no catalog scanning or path allocation.
 func (s *StatementScope) conversionProcedure(source, destination int) (*procedureDescriptor, error) {
-	if s == nil || s.visibilityCatalog.state == nil {
+	if s == nil || s.visibilityCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
 	}
 	if s.conversionDefaults == nil {

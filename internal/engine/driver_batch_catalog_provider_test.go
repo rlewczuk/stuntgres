@@ -38,7 +38,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				} else {
 					s.transactions.mu.Unlock()
 				}
-				if candidate.state == before {
+				if candidate.State() == before {
 					t.Error("provider received committed root instead of full private candidate")
 				}
 			}}

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -182,10 +183,10 @@ func TestPartitionDetachPublication(t *testing.T) {
 				authority.mu.Unlock()
 			}
 			if veto == "revision" {
-				next := cloneCatalog(f.e.catalog.state)
+				next := catalog.CloneState(f.e.catalog.state)
 				p := *f.parent
 				p.ObjectRevision++
-				next.setDescriptor(p.Address(), &p)
+				next.SetDescriptor(p.Address(), &p)
 				f.e.catalog.state = next
 			}
 			before := f.e.catalog.state
@@ -193,7 +194,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			if veto == "cancel" {
 				cancel()
 			}
-			_, err = f.e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = f.e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if veto == "complete_then_cancel" {
 				if err != nil {
 					t.Fatal(err)
@@ -237,9 +238,9 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)
-	next.state.removeDescriptor(f.child.Address())
-	next.state.removeDescriptor(f.leaf.Address())
-	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{}}, next.state, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	next.State().RemoveDescriptor(f.child.Address())
+	next.State().RemoveDescriptor(f.leaf.Address())
+	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, catalog.NewState(0), next.State(), nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.Address()] != nil || f.parent.SQLIndex.Valid {
 		t.Fatal("virtual invalid-complete required root or promotion", err)
 	}

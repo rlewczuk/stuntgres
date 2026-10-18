@@ -151,7 +151,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		return rowVersion{}, err
 	}
 	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
+	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
@@ -159,7 +159,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.epoch || e.privateCatalogLocked(s.owner.catalog).state != binding.catalog {
+	if ref.Epoch != e.catalog.state.Epoch() || e.privateCatalogLocked(s.owner.catalog).State() != binding.catalog {
 		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
@@ -276,7 +276,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.catalog)
-	if ref.Epoch != e.catalog.state.epoch || view.state != binding.catalog {
+	if ref.Epoch != e.catalog.state.Epoch() || view.State() != binding.catalog {
 		return exclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -315,7 +315,7 @@ func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.Obje
 		}
 	}
 	store := e.privateStorageLocked(s.owner.catalog, scan.parent)
-	return scan.generation == e.exclusionGeneration && scan.view.state == e.privateCatalogLocked(s.owner.catalog).state && scan.root == root && store == scan.store && store.generation == scan.storeGeneration && len(store.versions) == len(scan.versions) && store.ends == scan.ends
+	return scan.generation == e.exclusionGeneration && scan.view.State() == e.privateCatalogLocked(s.owner.catalog).State() && scan.root == root && store == scan.store && store.generation == scan.storeGeneration && len(store.versions) == len(scan.versions) && store.ends == scan.ends
 }
 func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, candidate rowVersion, recheck bool, purpose indexProbePurpose) (uniqueConflict, bool, error) {
 	index := bound.index
@@ -360,7 +360,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			if err != nil || !match {
 				return err
 			}
-			if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+			if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 				if err := bound.ordering.fillKeys(entry.row.values, bound.scratch, &evaluation); err != nil {
 					return err
 				}
@@ -385,7 +385,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			}
 			if hit.index == nil {
 				existing := entry.keys
-				if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+				if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 					existing = slices.Clone(bound.scratch)
 				} else if committed && scan.root.hash != nil {
 					existing = slices.Clone(existing)
@@ -484,7 +484,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		}
 		indexRef := ref
 		indexRef.Address = index.Address()
-		if index.SQLIndex.exactEqualityClaims() {
+		if index.SQLIndex.ExactEqualityClaims() {
 			if err := s.acquireUnique(indexRef, bound, keys); err != nil {
 				return uniqueConflict{}, err
 			}

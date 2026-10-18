@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
@@ -23,10 +24,10 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDesc
 	ownershipUnitPublish(t, e, setup)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.roleRevision = e.roles.revision
-	if err := stageOwnedCleanup(context.Background(), stage, e.roleRead(stage.base, e.roles), e.roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	if err := stageOwnedCleanup(context.Background(), stage, e.roleRead(stage.Base, e.roles), e.roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
-	if stage.roleCandidate == nil || stage.descriptors[ns.Address()] == nil {
+	if stage.roleCandidate == nil || stage.Descriptors[ns.Address()] == nil {
 		t.Fatal("fixture lacks both private candidates")
 	}
 	return e, stage, ns
@@ -87,16 +88,16 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				}
 				ownershipUnitPublish(t, e, other)
 			case "database":
-				replacement := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+				replacement := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 				replacement.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.ObjectRevision++
 				other := e.BeginCatalogStage(e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {
 					t.Fatal(err)
 				}
-				roles, epoch := e.roles, e.catalog.state.epoch
+				roles, epoch := e.roles, e.catalog.state.Epoch()
 				ownershipUnitPublish(t, e, other)
-				if e.roles != roles || e.catalog.state.epoch != epoch {
+				if e.roles != roles || e.catalog.state.Epoch() != epoch {
 					t.Fatal("database-only publication changed role authority or epoch")
 				}
 			case "reset":
@@ -108,8 +109,8 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.authSession.authorization.revision++
 				stage.authSession.mu.Unlock()
 			case "namespace-headroom":
-				next := cloneCatalog(e.catalog.state)
-				next.namespaceGeneration = ^uint64(0)
+				next := catalog.CloneState(e.catalog.state)
+				next.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = next
 			case "role-headroom":
 				next := *e.roles
@@ -123,7 +124,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.roleCandidate = &next
 			}
 			state, roles := e.catalog.state, e.roles
-			if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()}); err == nil {
+			if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("stale/exhausted publication succeeded")
 			}
 			if e.catalog.state != state || e.roles != roles {
@@ -172,7 +173,7 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	state, roles := e.catalog.state, e.roles
 	ctx.armed = true
 	result := make(chan error, 1)
-	go func() { _, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()}); result <- err }()
+	go func() { _, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); result <- err }()
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	select {
@@ -245,7 +246,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	go func() {
 		close(ready)
 		<-release
-		_, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()})
 		result <- err
 	}()
 	<-ready

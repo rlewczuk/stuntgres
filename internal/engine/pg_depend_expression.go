@@ -36,7 +36,7 @@ func (r *pgDependRefs) add(address ids.ObjectAddress) {
 	}
 	if address.SubID != 0 {
 		relation, ok := d.(*relationDescriptor)
-		if !ok || address.SubID != -6 && !relation.hasAttribute(address.SubID) {
+		if !ok || address.SubID != -6 && !relation.HasAttribute(address.SubID) {
 			r.err = fmt.Errorf("stuntgres: missing dependency attribute")
 			return
 		}

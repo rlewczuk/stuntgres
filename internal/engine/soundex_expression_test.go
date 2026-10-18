@@ -5,10 +5,11 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"stuntgres/internal/engine/expr"
 )
 
 func soundexUnitExpression(t *testing.T, e *Engine, name string) installedSoundexFunctionExpression {
@@ -39,50 +40,86 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				t.Fatal(value, err)
 			}
 			if name == "soundex" {
-				if code, err := value.Text(); err != nil || code != "A500" { t.Fatal(code, err) }
-			} else if score, err := value.Integer(); err != nil || score != 4 { t.Fatal(score, err) }
-			if err := n.validate(e.CatalogRead()); err != nil { t.Fatal(err) }
+				if code, err := value.Text(); err != nil || code != "A500" {
+					t.Fatal(code, err)
+				}
+			} else if score, err := value.Integer(); err != nil || score != 4 {
+				t.Fatal(score, err)
+			}
+			if err := n.validate(e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
 			refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) { t.Fatal(refs, err) }
+			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
+				t.Fatal(refs, err)
+			}
 			var children []expr.Expr
 			boundExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
-			if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) { t.Fatal(children) }
+			if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) {
+				t.Fatal(children)
+			}
 			changed := n
 			changed.Args = append([]expr.Expr(nil), n.Args...)
 			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
-			if sameGroupExpression(n, changed) { t.Fatal("argument identity collapsed") }
+			if sameGroupExpression(n, changed) {
+				t.Fatal("argument identity collapsed")
+			}
 			other := n
 			other.ref.Address = ext.Members[0]
-			if sameGroupExpression(n, other) { t.Fatal("procedure identity collapsed") }
+			if sameGroupExpression(n, other) {
+				t.Fatal("procedure identity collapsed")
+			}
 			consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
-			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil { t.Fatal(err) }
-			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil { t.Fatal(err) }
+			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
+				t.Fatal(err)
+			}
 			for _, mutate := range []func(*procedureDescriptor){
 				func(p *procedureDescriptor) { p.Result = 1009 },
 				func(p *procedureDescriptor) { p.Signature = "23" },
 				func(p *procedureDescriptor) { p.ObjectName = "text_soundex" },
-				func(p *procedureDescriptor) { p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}} },
+				func(p *procedureDescriptor) {
+					p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
+				},
 				func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 			} {
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				bad := *n.procedure
 				mutate(&bad)
-				state.setDescriptor(n.ref.Address, &bad)
+				state.SetDescriptor(n.ref.Address, &bad)
 				forged := n
 				forged.procedure = &bad
-				if err := forged.validate(e.catalog.read(state)); err == nil { t.Fatal("forged identity", bad) }
+				if err := forged.validate(e.catalog.read(state)); err == nil {
+					t.Fatal("forged identity", bad)
+				}
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
-				if foreign { stale.ref = New().catalog.Domain.Ref(stale.ref.Epoch, stale.ref.Address) } else { stale.ref.Epoch++ }
-				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil { t.Fatal("foreign/stale reference") }
+				if foreign {
+					stale.ref = New().catalog.Domain.Ref(stale.ref.Epoch, stale.ref.Address)
+				} else {
+					stale.ref.Epoch++
+				}
+				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil {
+					t.Fatal("foreign/stale reference")
+				}
 			}
 			retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-			if err != nil { t.Fatal(err) }
-			if err := retagged.(installedSoundexFunctionExpression).validate(e.CatalogRead()); err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := retagged.(installedSoundexFunctionExpression).validate(e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
 			folded, _, err := simplifyConditional(ctx, n, false)
-			if err != nil { t.Fatal(err) }
-			if _, ok := folded.(literalExpression); !ok { t.Fatal("immutable call not folded", folded) }
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := folded.(literalExpression); !ok {
+				t.Fatal("immutable call not folded", folded)
+			}
 		})
 	}
 }
@@ -94,32 +131,44 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			call := soundexUnitExpression(t, e, name)
 			before := e.CatalogRead()
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
-			for i, address := range ext.Members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
-			next := cloneCatalog(before.state)
+			for i, address := range ext.Members {
+				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
+			}
+			next := catalog.CloneState(before.State())
 			for address := range mapping {
-				next.unbindName(descriptorNameKey(before.Get(address)))
-				next.removeDescriptor(address)
+				next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
+				next.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
 				descriptor := remapExtensionDescriptor(before.Get(address), mapping)
-				next.setDescriptor(destination, descriptor)
-				next.bindName(descriptorNameKey(descriptor), destination)
+				next.SetDescriptor(destination, descriptor)
+				next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
 			consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
-			next.setDescriptor(address, consumer)
-			next.epoch++
-			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
+			next.SetDescriptor(address, consumer)
+			next.SetEpoch(next.Epoch() + 1)
+			if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
+				t.Fatal(err)
+			}
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
 			for _, node := range []expr.Expr{relocated.Defaults[1].Expression, relocated.Generations[2].Expression, relocated.Generations[2].Planned} {
 				n := node.(installedSoundexFunctionExpression)
-				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) { t.Fatal("stale remapped authority", n.ref) }
-				if err := n.validate(view); err != nil { t.Fatal(err) }
+				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.Epoch() || n.procedure != next.Get(n.ref.Address) {
+					t.Fatal("stale remapped authority", n.ref)
+				}
+				if err := n.validate(view); err != nil {
+					t.Fatal(err)
+				}
 				value, err := n.Eval(&EvalContext{Context: context.Background()})
-				if err != nil || value.Type() != n.ResultUsage().Type { t.Fatal(value, err) }
+				if err != nil || value.Type() != n.ResultUsage().Type {
+					t.Fatal(value, err)
+				}
 			}
-			if call.ref.Epoch != before.Epoch() || call.procedure != before.Get(call.ref.Address) { t.Fatal("source mutated") }
+			if call.ref.Epoch != before.Epoch() || call.procedure != before.Get(call.ref.Address) {
+				t.Fatal("source mutated")
+			}
 		})
 	}
 }

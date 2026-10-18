@@ -52,11 +52,11 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 	}
 	for _, leaf := range frozen.sources {
 		source, ok := view.Relation(leaf.ref.Address)
-		if !ok || leaf.ref.Domain() != view.owner.Domain || leaf.ref.Address.SubID != 0 {
+		if !ok || leaf.ref.Domain() != view.Owner().Domain || leaf.ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid policy source identity")
 		}
 		for _, attribute := range leaf.reads {
-			if !source.hasAttribute(attribute) {
+			if !source.HasAttribute(attribute) {
 				return fmt.Errorf("stuntgres: missing policy dependency attribute")
 			}
 		}
@@ -66,12 +66,12 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 		whole := a
 		whole.SubID = 0
 		provider, ok := view.Descriptor(whole)
-		if !ok || dep.Ref.Domain() != view.owner.Domain {
+		if !ok || dep.Ref.Domain() != view.Owner().Domain {
 			return fmt.Errorf("stuntgres: invalid policy provider identity")
 		}
 		if a.SubID != 0 {
 			relation, ok := provider.(*relationDescriptor)
-			if !ok || !relation.hasAttribute(a.SubID) {
+			if !ok || !relation.HasAttribute(a.SubID) {
 				return fmt.Errorf("stuntgres: missing policy provider attribute")
 			}
 		}

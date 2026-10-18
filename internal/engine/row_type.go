@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -10,7 +11,7 @@ import (
 
 func associatedArrayName(stage *CatalogStage, namespace ids.ObjectAddress, name string) string {
 	return chooseAssociatedArrayName(name, func(candidate string) bool {
-		return stage.lookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
+		return stage.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }
 
@@ -37,22 +38,22 @@ func chooseAssociatedArrayName(name string, occupied func(string) bool) string {
 // The descriptor and its codec are copied, never mutated in an older generation.
 func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace ids.ObjectAddress, name string) (bool, error) {
 	key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: name}
-	address := stage.lookupName(key)
+	address := stage.LookupName(key)
 	if address == (ids.ObjectAddress{}) {
 		return true, nil
 	}
-	descriptor := stage.descriptors[address]
+	descriptor := stage.Descriptors[address]
 	if descriptor == nil {
-		descriptor = stage.base.Get(address)
+		descriptor = stage.Base.Get(address)
 	}
 	array, ok := descriptor.(*typeDescriptor)
 	if !ok || !array.SQLType.IsArray() {
 		return false, nil
 	}
 	elementAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.SQLType.Element().ID())}
-	elementDescriptor := stage.descriptors[elementAddress]
+	elementDescriptor := stage.Descriptors[elementAddress]
 	if elementDescriptor == nil {
-		elementDescriptor = stage.base.Get(elementAddress)
+		elementDescriptor = stage.Base.Get(elementAddress)
 	}
 	element, ok := elementDescriptor.(*typeDescriptor)
 	if !ok || element.Array != array.SQLType.ID() || element.SQLType != array.SQLType.Element() || element.Namespace() != namespace {
@@ -75,13 +76,13 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	} else {
 		next.SQLType = sqltype.LookupArray(array.SQLType.ID(), arrayName, array.SQLType.Element())
 	}
-	if stage.base.Get(address) == nil {
-		delete(stage.names, key)
-		stage.descriptors[address] = &next
-		nextKey := descriptorNameKey(&next)
+	if stage.Base.Get(address) == nil {
+		delete(stage.Names, key)
+		stage.Descriptors[address] = &next
+		nextKey := catalog.DescriptorNameKey(&next)
 		nextKey.Namespace = namespace
-		stage.names[nextKey] = address
-		stage.touched[nextKey] = stage.base.NameAddress(nextKey)
+		stage.Names[nextKey] = address
+		stage.Touched[nextKey] = stage.Base.NameAddress(nextKey)
 		return true, e.reownStagedTypeGenerationsLocked(stage)
 	}
 	if err := stage.Replace(&next); err != nil {
@@ -101,7 +102,7 @@ func compositeMembers(relation *relationDescriptor) []sqltype.CompositeMember {
 }
 
 func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescriptor) error {
-	if !relation.RelationKind.stored() && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != compositeRelation && relation.RelationKind != foreignRelation || relation.RowType != 0 {
+	if !relation.RelationKind.Stored() && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != compositeRelation && relation.RelationKind != foreignRelation || relation.RowType != 0 {
 		return nil
 	}
 	arrayID, err := e.catalog.allocateOIDLocked()
@@ -112,9 +113,9 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	if err != nil {
 		return err
 	}
-	ns := stage.descriptors[relation.Namespace()]
+	ns := stage.Descriptors[relation.Namespace()]
 	if ns == nil {
-		ns = stage.base.Get(relation.Namespace())
+		ns = stage.Base.Get(relation.Namespace())
 	}
 	declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.Name())
 	typ, err := sqltype.Composite(sqltype.ID(id), relation.Name(), declaration, sqltype.ID(arrayID), compositeMembers(relation))

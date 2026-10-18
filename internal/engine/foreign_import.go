@@ -5,13 +5,14 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
-		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: foreignMappingName(server.Address(), role)}
+		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
 		if d, ok := auth.catalog.Foreign(auth.catalog.NameAddress(key)); ok {
 			return d, nil
 		}
@@ -131,7 +132,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		e.mu.Lock()
 		_, currentErr := e.authorizationLocked(scope.op)
-		if currentErr == nil && e.catalog.state.epoch != stage.base.Epoch() {
+		if currentErr == nil && e.catalog.state.Epoch() != stage.Base.Epoch() {
 			currentErr = ids.ErrCatalogReplaced
 		}
 		var validations []foreignValidation
@@ -157,7 +158,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	return Result{}, err
 }
 

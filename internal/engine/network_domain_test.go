@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -45,12 +46,12 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			}
 			original := &relationStorage{generation: 2, versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{value}}}}
 			storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
-			next := cloneCatalog(e.CatalogRead().state)
+			next := catalog.CloneState(e.CatalogRead().State())
 			physical, _ := New().CatalogRead().LookupType(tc.id)
 			builtinAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)}
 			builtin := *next.MustType(builtinAddress)
 			builtin.SQLType = physical
-			next.setDescriptor(builtinAddress, &builtin)
+			next.SetDescriptor(builtinAddress, &builtin)
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 				direct.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002},
 				arrays[0].Address(): {ClassID: ids.TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: ids.TypeClassID, ObjectID: 60004},

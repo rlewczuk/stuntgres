@@ -86,7 +86,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.mu.Lock()
 			op.session.mu.Lock()
 			err := publicationOperationLocked(e, op)
-			if err == nil && ref.Epoch() != e.catalog.state.epoch {
+			if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
 			if err == nil {
@@ -142,7 +142,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		}
 		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
 		e.mu.Lock()
-		if ref.Epoch() != e.catalog.state.epoch {
+		if ref.Epoch() != e.catalog.state.Epoch() {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
@@ -269,7 +269,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 			for a, d := range c.descriptors {
 				if a.ClassID == ids.NamespaceClassID && current.Get(a) != d {
-					if err := nextCatalog.advanceNamespaceGeneration(); err != nil {
+					if err := nextCatalog.AdvanceNamespaceGeneration(); err != nil {
 						return err
 					}
 					break
@@ -327,7 +327,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		e.mu.Lock()
 		session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		if err == nil && ref.Epoch() != e.catalog.state.epoch {
+		if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil && e.commitSeq == ids.CommitSeq(^uint64(0)) {

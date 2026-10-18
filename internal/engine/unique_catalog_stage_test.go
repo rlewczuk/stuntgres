@@ -68,7 +68,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if err == nil {
 					t.Fatal("reused name/address without coherent exact removal")
 				}
-				if e.CatalogRead().state != base.state {
+				if e.CatalogRead().State() != base.State() {
 					t.Fatal("failed staging changed catalog")
 				}
 				return
@@ -130,11 +130,11 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
 			switch mode {
 			case "concurrent", "name_reassignment":
-				if err == nil || e.CatalogRead().state != before.state {
+				if err == nil || e.CatalogRead().State() != before.State() {
 					t.Fatal("concurrent incumbent change published replacement", err)
 				}
 			case "canceled":
-				if !errors.Is(err, context.Canceled) || e.CatalogRead().state != before.state {
+				if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
 					t.Fatal("canceled stage published", err)
 				}
 			default:

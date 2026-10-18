@@ -54,7 +54,7 @@ func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definiti
 	defer func() { op.definition = previous }()
 	next := parent
 	for _, attribute := range captured.attributes {
-		slot := next.indexForAttribute(attribute)
+		slot := next.IndexForAttribute(attribute)
 		if slot < 0 {
 			return nil, ids.ErrCatalogReplaced
 		}

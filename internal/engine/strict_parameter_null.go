@@ -11,7 +11,7 @@ import (
 // Scalar calls may disappear in either target or FROM position; SRFs may not.
 func strictScalarRoutine(routine *procedureDescriptor) bool {
 	return routine != nil && routine.Strict && routine.RoutineKind == functionRoutine &&
-		routine.Result != 2249 && !routine.returnsSet()
+		routine.Result != 2249 && !procedureReturnsSet(routine)
 }
 
 // Child preflight has already preserved ordinary constant errors and parameter

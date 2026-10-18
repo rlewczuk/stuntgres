@@ -38,7 +38,7 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 		if !ok {
 			continue
 		}
-		if d.seeded() && d.Function == 0 {
+		if operatorSeeded(d) && d.Function == 0 {
 			continue
 		}
 		definitions = append(definitions, d)

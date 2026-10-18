@@ -104,7 +104,7 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_enum")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func TestPGEnumShapeAndCapture(t *testing.T) {
@@ -228,14 +228,14 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.catalog.state
-	invalidOwner.descriptors = make(map[ids.ObjectAddress]Descriptor, e.catalog.state.DescriptorCount())
+	invalidOwner.ResetDescriptors(e.catalog.state.DescriptorCount())
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		invalidOwner.setDescriptor(address, descriptor)
+		invalidOwner.SetDescriptor(address, descriptor)
 	}
-	invalidOwner.removeDescriptor(mood.Address())
+	invalidOwner.RemoveDescriptor(mood.Address())
 	wrongAddress := mood.Address()
 	wrongAddress.ObjectID++
-	invalidOwner.setDescriptor(wrongAddress, mood)
+	invalidOwner.SetDescriptor(wrongAddress, mood)
 	if rows, err := capturePGEnum(context.Background(), e.catalog.read(&invalidOwner), ref, d); err == nil || rows != nil {
 		t.Fatal("mismatched owner identity", rows, err)
 	}

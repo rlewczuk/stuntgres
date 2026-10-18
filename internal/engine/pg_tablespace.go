@@ -5,19 +5,20 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Capture descriptors and ACLs from the same immutable root as the query's
 // other catalog sources. Later grants cannot mutate already captured rows.
-func (e *Engine) capturePGTablespace(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGTablespace(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	rows := make([][]sqltype.Value, len(builtinTablespaces))
-	for i, builtin := range builtinTablespaces {
-		d, ok := catalog.Tablespace(ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid})
+	rows := make([][]sqltype.Value, len(catalog.BuiltinTablespaces))
+	for i, builtin := range catalog.BuiltinTablespaces {
+		d, ok := view.Tablespace(ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID})
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: missing builtin tablespace descriptor")
 		}

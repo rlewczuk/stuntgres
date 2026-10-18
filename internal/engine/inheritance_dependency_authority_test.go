@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -28,7 +29,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
 					p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.Attributes, p.AttributeHighWater, p.Index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}
-					ref := e.catalog.Domain.Ref(e.catalog.state.epoch, provider.Address())
+					ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), provider.Address())
 					switch definition {
 					case "column":
 						p.Columns[0].Usage = domain.Usage()
@@ -39,11 +40,11 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					}
 					c := inheritanceLifecycleTable(e, 29002, "authority_c", p.Address())
 					inheritanceLifecycleInstall(e, p, c)
-					e.catalog.state.setDescriptor(provider.Address(), provider)
-					e.catalog.state.bindName(descriptorNameKey(provider), provider.Address())
+					e.catalog.state.SetDescriptor(provider.Address(), provider)
+					e.catalog.state.BindName(catalog.DescriptorNameKey(provider), provider.Address())
 					if authority == "standalone" || authority == "staged_child" {
-						e.catalog.state.removeDescriptor(c.Address())
-						e.catalog.state.unbindName(descriptorNameKey(c))
+						e.catalog.state.RemoveDescriptor(c.Address())
+						e.catalog.state.UnbindName(catalog.DescriptorNameKey(c))
 					}
 					base := e.CatalogRead()
 					stage := e.BeginCatalogStage(base)
@@ -123,19 +124,19 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						if authority == "staged_child" {
 							wantDescriptors = 1
 						}
-						if projected != 0 || len(stage.descriptors) != wantDescriptors {
+						if projected != 0 || len(stage.Descriptors) != wantDescriptors {
 							t.Fatal("rejection mutated stage")
 						}
 					} else if err != nil {
 						t.Fatal(err)
 					}
 					if authority == "whole" {
-						if _, removed := stage.removals[c.Address()]; !removed || projected != 0 {
+						if _, removed := stage.Removals[c.Address()]; !removed || projected != 0 {
 							t.Fatal("whole retirement projected or retained descendant")
 						}
 					}
 					if authority == "removed_child" || authority == "replaced_child" || authority == "standalone" {
-						next, ok := stage.descriptors[p.Address()].(*relationDescriptor)
+						next, ok := stage.Descriptors[p.Address()].(*relationDescriptor)
 						if !ok {
 							t.Fatal("standalone mutation not staged")
 						}
@@ -143,7 +144,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 							t.Fatal("dependent definition was not consumed")
 						}
 					}
-					if e.catalog.state != base.state || e.catalog.state.Get(p.Address()) != p || len(p.Columns) != 2 || c.Inheritance.Parents[0] != p.Address() {
+					if e.catalog.state != base.State() || e.catalog.state.Get(p.Address()) != p || len(p.Columns) != 2 || c.Inheritance.Parents[0] != p.Address() {
 						t.Fatal("source authority changed")
 					}
 				})
@@ -164,7 +165,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			p.Attributes, p.AttributeHighWater, p.Index = []int32{1}, 1, map[string]int{"a": 0}
 			c.Columns = []ColumnDescriptor{{Name: "a", Usage: u}}
 			c.Attributes, c.AttributeHighWater, c.Index = []int32{1}, 1, map[string]int{"a": 0}
-			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, q.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), q.Address())
 			if definition == "default" {
 				p.Defaults = map[int32]columnDefault{1: {OID: 29103, Dependencies: []ids.ObjectRef{ref}}}
 				c.Defaults = map[int32]columnDefault{1: {OID: 29104, Dependencies: []ids.ObjectRef{ref}}}
@@ -195,20 +196,20 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if err := stageExpressionDependencies(op.Context(), stage, []ids.ObjectAddress{q.Address()}, parser.DropCascade, scope, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			if stage.removals[q.Address()].descriptor != q || stage.removals[c.Address()].descriptor != c {
+			if stage.Removals[q.Address()].Descriptor != q || stage.Removals[c.Address()].Descriptor != c {
 				t.Fatal("complete retirement lost captured descriptor authority")
 			}
-			if _, removed := stage.removals[p.Address()]; removed {
+			if _, removed := stage.Removals[p.Address()]; removed {
 				t.Fatal("other parent was whole-retired")
 			}
-			next, ok := stage.descriptors[p.Address()].(*relationDescriptor)
+			next, ok := stage.Descriptors[p.Address()].(*relationDescriptor)
 			if !ok || next == p || len(next.Columns) != len(p.Columns) {
 				t.Fatal("retained parent definition mutation not staged")
 			}
 			if len(next.Defaults) != 0 || len(next.CheckConstraints) != 0 || inheritanceStageAlterGuard(stage, next) != nil {
 				t.Fatal("retained parent did not become standalone with consumed definition")
 			}
-			if e.catalog.state != base.state || e.catalog.state.Get(q.Address()) != q || e.catalog.state.Get(p.Address()) != p || e.catalog.state.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0] != q.Address() || c.Inheritance.Parents[1] != p.Address() {
+			if e.catalog.state != base.State() || e.catalog.state.Get(q.Address()) != q || e.catalog.state.Get(p.Address()) != p || e.catalog.state.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0] != q.Address() || c.Inheritance.Parents[1] != p.Address() {
 				t.Fatal("source or captured inheritance authority changed")
 			}
 			if definition == "default" {

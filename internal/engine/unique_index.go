@@ -13,7 +13,7 @@ func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDes
 	var indexes []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent && (index.SQLIndex.Unique || index.SQLIndex.isExclusion()) {
+		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent && (index.SQLIndex.Unique || index.SQLIndex.IsExclusion()) {
 			indexes = append(indexes, index)
 		}
 	}

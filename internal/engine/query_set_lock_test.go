@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -66,23 +67,23 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		putFixtureRole(roles, role)
 	}
 	e.roles = roles
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	original := e.catalog.state.MustRelation(base.Address)
 	right := base
 	right.Address.ObjectID = 1000000
 	copy := *original
 	copy.ObjectAddress, copy.ObjectName = right.Address, "t_right"
-	e.catalog.state.setDescriptor(right.Address, &copy)
+	e.catalog.state.SetDescriptor(right.Address, &copy)
 	refs := make(map[string]ids.ObjectRef)
 	next := ids.OID(1000001)
 	add := func(name string, invoker bool, root *projectNode, leaves []viewLeaf) ids.ObjectRef {
-		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *original
 		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, viewRelation
 		d.Columns, d.Attributes, d.ColumnACL = query.Root.Schema(), []int32{1}, nil
 		d.View = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
-		e.catalog.state.setDescriptor(ref.Address, &d)
+		e.catalog.state.SetDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
 	}
@@ -175,14 +176,14 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 
 func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e, _, _, base, _, refs := querySetLockAuthorityFixture(t)
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	next := ids.OID(1000100)
 	add := func(name string, definition *viewDefinition, kind relationKind) ids.ObjectRef {
-		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *e.catalog.state.MustRelation(base.Address)
 		d.ObjectAddress, d.ObjectName, d.View, d.RelationKind = ref.Address, name, viewPayloadOf(definition), kind
-		e.catalog.state.setDescriptor(ref.Address, &d)
+		e.catalog.state.SetDescriptor(ref.Address, &d)
 		return ref
 	}
 	sequence := add("kind_sequence", nil, sequenceRelation)
@@ -253,7 +254,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	definition.sources[1].ref.Epoch++
 	d.View = &definition
-	e.catalog.state.setDescriptor(set.Address, &d)
+	e.catalog.state.SetDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &transactionOwner{}}
 	e.mu.Lock()
 	err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: set, relation: &d, mark: localMark}})

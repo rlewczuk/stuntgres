@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -56,9 +57,9 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	server := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
 	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
 	mapping := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, ObjectRevision: 1, Server: server.Address(), MappedRole: owner, MappedName: "postgres"}
-	mapping.ObjectName = foreignMappingName(server.Address(), owner)
+	mapping.ObjectName = catalog.ForeignMappingName(server.Address(), owner)
 	public := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, ObjectRevision: 1, Server: server.Address()}
-	public.ObjectName = foreignMappingName(server.Address(), authorization.PrincipalRef{})
+	public.ObjectName = catalog.ForeignMappingName(server.Address(), authorization.PrincipalRef{})
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	for _, d := range []*foreignDescriptor{wrapper, server, mapping, public} {
@@ -239,22 +240,22 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
-	replacement := cloneCatalog(e.catalog.state)
+	replacement := catalog.CloneState(e.catalog.state)
 	copy := *replacement.MustProcedure(oldAddress)
-	replacement.removeDescriptor(oldAddress)
+	replacement.RemoveDescriptor(oldAddress)
 	copy.ObjectAddress.ObjectID = 40010
-	replacement.setDescriptor(copy.Address(), &copy)
-	replacement.bindName(key, copy.Address())
+	replacement.SetDescriptor(copy.Address(), &copy)
+	replacement.BindName(key, copy.Address())
 	_, err := foreignHandlerFor(e.catalog.read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("retired address retargeted by same SQL name or lost defensive diagnostic", err)
 	}
-	uncallable := cloneCatalog(e.catalog.state)
+	uncallable := catalog.CloneState(e.catalog.state)
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
-	uncallable.setDescriptor(oldAddress, &procedure)
+	uncallable.SetDescriptor(oldAddress, &procedure)
 	_, err = foreignHandlerFor(e.catalog.read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)

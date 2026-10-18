@@ -7,10 +7,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// ForeignOption is an ordered, uninterpreted SQL/MED name/value pair.
-// Table, column, server, wrapper and mapping lists are independent.
-type ForeignOption struct{ Name, Value string }
-
 func transformForeignOptions(old []ForeignOption, changes []parser.ForeignOption) ([]ForeignOption, error) {
 	options := append([]ForeignOption{}, old...)
 	for _, change := range changes {

@@ -33,12 +33,12 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.owner != e.catalog.owner() || catalog.state == nil || e.catalog.state.epoch != catalog.Epoch() || frontier != e.commitSeq {
+	if catalog.Owner() == nil || catalog.Owner() != e.catalog.owner() || catalog.State() == nil || e.catalog.state.Epoch() != catalog.Epoch() || frontier != e.commitSeq {
 		return nil, ids.ErrCatalogReplaced
 	}
 	authority := e.catalog.state
 	if private != nil {
-		authority = e.privateCatalogLocked(private).state
+		authority = e.privateCatalogLocked(private).State()
 	}
 	actualRoot := func(address ids.ObjectAddress) *logicalIndexRoot {
 		if private != nil {
@@ -268,7 +268,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 					if !ok {
 						continue
 					}
-					entry.key, err = snapshot.datum(entry.key, usage[0].Type, collation, next.aclItemImport)
+					entry.key, err = snapshot.datum(entry.key, usage[0].Type, collation, next.ACLItemImport())
 					if err != nil {
 						return nil, err
 					}
@@ -302,7 +302,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 				keys := entry.keys
 				copied := false
 				for i, value := range entry.keys {
-					rebound, err := snapshot.datum(value, usage[i].Type, collation, next.aclItemImport)
+					rebound, err := snapshot.datum(value, usage[i].Type, collation, next.ACLItemImport())
 					if err != nil {
 						return nil, err
 					}

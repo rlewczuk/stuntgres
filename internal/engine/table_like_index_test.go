@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(stage)
 	count := 0
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue
@@ -70,10 +71,10 @@ func TestTableLikeIndexClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.SQLIndex != nil && e.indexRoots[index.Address()] == nil {
 			t.Fatal("new index has no actual published root", index.Name())
@@ -101,7 +102,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	candidate := cloneCatalog(auth.catalog.state)
+	candidate := catalog.CloneState(auth.catalog.State())
 	for _, name := range []string{"invalid_source", "dropping_source"} {
 		ref := ids.ObjectRef{Address: candidate.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})}
 		original := candidate.MustRelation(ref.Address)
@@ -112,7 +113,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 			definition.Live = false
 		}
 		copy.SQLIndex = &definition
-		candidate.setDescriptor(ref.Address, &copy)
+		candidate.SetDescriptor(ref.Address, &copy)
 	}
 	auth.catalog = e.catalog.read(candidate)
 	auth.recaptureCatalog(auth.catalog)
@@ -125,7 +126,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(stage)
 	count := 0
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue

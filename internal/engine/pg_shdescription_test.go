@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, id
 	if !ok {
 		t.Fatal("missing shared catalog descriptor")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
 func pgShDescriptionUnitBag(t *testing.T, source *querySource) map[uint32]string {
@@ -235,9 +236,9 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	d, ref := pgShDescriptionUnitSource(t, e)
 	old := cloneRoleFixture(e.roles)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
-	catalog := cloneCatalog(e.catalog.state)
+	catalog := catalog.CloneState(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	catalog.setDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
+	catalog.SetDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
 	read := e.catalog.read(catalog)
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
@@ -304,9 +305,9 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind = name, viewRelation
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
-		e.catalog.state.setDescriptor(view.Address(), &view)
+		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "shared_inner", ref)

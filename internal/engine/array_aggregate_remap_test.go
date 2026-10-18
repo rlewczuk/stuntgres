@@ -89,7 +89,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		if !ok {
 			t.Fatal("missing genuine registered collation", name)
 		}
-		result, err := provider.usage()
+		result, err := provider.Usage()
 		if err != nil {
 			t.Fatal(err)
 		}

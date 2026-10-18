@@ -324,13 +324,13 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		return Result{}, err
 	}
 	// Cascaded view identities receive the same AX admission as explicit targets.
-	cascade := make([]ids.ObjectRef, 0, len(stage.removals))
-	for address, removal := range stage.removals {
+	cascade := make([]ids.ObjectRef, 0, len(stage.Removals))
+	for address, removal := range stage.Removals {
 		if address.ClassID != ids.RelationClassID {
 			continue
 		}
 		if !seen[address] {
-			cascade = append(cascade, removal.ref)
+			cascade = append(cascade, removal.Ref)
 		}
 	}
 	sort.Slice(cascade, func(i, j int) bool { return cascade[i].Address.ObjectID < cascade[j].Address.ObjectID })

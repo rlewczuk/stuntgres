@@ -208,13 +208,13 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 			{"leftarg=NONE,function=int4um", "42704", `type "none" does not exist`, ""},
 		} {
 			s := &parser.CreateOperator{Name: operatorUnitName("public", "#%#"), Options: operatorParsedOptions(t, tc.options)}
-			before := e.CatalogRead().state
+			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.catalog)
 			e.mu.Lock()
 			err = e.stageCreateOperatorLocked(op, auth, stage, s)
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, tc.detail)
-			if e.CatalogRead().state != before || len(stage.descriptors) != 0 {
+			if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
 				t.Fatal("failed validation published/staged operator", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -260,7 +260,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		reciprocal.Commutator != source.Address().ObjectID || reciprocal.Negator != source.Address().ObjectID {
 		t.Fatal("staged roots lost one link kind", next, reciprocal)
 	}
-	if source.Commutator != 0 || source.Negator != 0 || peer.Commutator != 0 || peer.Negator != 0 || e.CatalogRead().state != auth.catalog.state {
+	if source.Commutator != 0 || source.Negator != 0 || peer.Commutator != 0 || peer.Negator != 0 || e.CatalogRead().State() != auth.catalog.State() {
 		t.Fatal("private reciprocal updates changed published roots")
 	}
 	collationUnitPublish(t, e, stage)
@@ -286,13 +286,13 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		{"commutator=OPERATOR(public.#=#),negator=OPERATOR(public.#!#),merges=false", "42883", "operator is only a shell: integer public.#!# integer"},
 	} {
 		t.Run(tc.options, func(t *testing.T) {
-			before := e.CatalogRead().state
+			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.catalog)
 			e.mu.Lock()
 			err := e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
-			if e.CatalogRead().state != before || len(stage.descriptors) != 0 {
+			if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
 				t.Fatal("semantic validation changed actual catalog roots", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -314,7 +314,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 			err := e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
-			if e.CatalogRead().state != auth.catalog.state || len(stage.descriptors) != 0 {
+			if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
 				t.Fatal("parameter validation followed reciprocal mutation", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -353,7 +353,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 					code, message = "42602", `"invalid" is not a valid operator name`
 				}
 				operatorOptionDiagnostic(t, err, code, message, "")
-				if e.CatalogRead().state != auth.catalog.state || len(stage.descriptors) != 0 {
+				if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
 					t.Fatal("CREATE semantic failure changed published/private roots")
 				}
 				e.DiscardCatalogStage(stage)
@@ -399,7 +399,7 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 				}
 				e.mu.Unlock()
 				operatorOptionDiagnostic(t, err, "42P13", tc.message, "")
-				if e.CatalogRead().state != auth.catalog.state || len(stage.descriptors) != 0 {
+				if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
 					t.Fatal("parameter failure changed source, peers or forward shells")
 				}
 				e.DiscardCatalogStage(stage)
@@ -417,7 +417,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	}
 	definition := operatorUnitDefinition("#=#", "int4eq")
 	definition.Options = append(definition.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#!#)")...)
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	stage := operatorUnitStage(t, e, op, auth, definition)
 	staged := e.stageRead(stage)
 	source := staged.MustOperator(staged.NameAddress(key("#=#")))
@@ -427,7 +427,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 		shell.Function != 0 || shell.Result != 0 || shell.Owner != auth.state.CurrentUser {
 		t.Fatal("same forward shell lost identity, owner or one reciprocal kind", source, shell)
 	}
-	if e.CatalogRead().state != before || before.NameAddress(key("#=#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#!#")) != (ids.ObjectAddress{}) {
+	if e.CatalogRead().State() != before || before.NameAddress(key("#=#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#!#")) != (ids.ObjectAddress{}) {
 		t.Fatal("forward peer setup mutated the published root")
 	}
 	collationUnitPublish(t, e, stage)
@@ -442,7 +442,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 		completed.Negator != source.Address().ObjectID {
 		t.Fatal("shell completion lost stable identity or self/peer links", completed)
 	}
-	if *source != sourceBefore || *shell != shellBefore || e.CatalogRead().state != auth.catalog.state {
+	if *source != sourceBefore || *shell != shellBefore || e.CatalogRead().State() != auth.catalog.State() {
 		t.Fatal("completion changed an immutable predecessor")
 	}
 	collationUnitPublish(t, e, stage)
@@ -450,7 +450,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 
 	// Commutator setup creates and links a private forward shell before the
 	// negator's reciprocal conflict. Ordinary stage discard must suffice.
-	before = auth.catalog.state
+	before = auth.catalog.State()
 	source = before.MustOperator(source.Address())
 	completed = before.MustOperator(completed.Address())
 	sourceBefore, shellBefore = *source, *completed
@@ -469,7 +469,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 		t.Fatal("failure did not retain the expected private reciprocal stage", privateSource, privateShell)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before || *source != sourceBefore || *completed != shellBefore ||
+	if e.CatalogRead().State() != before || *source != sourceBefore || *completed != shellBefore ||
 		before.NameAddress(key("#?#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#@#")) != (ids.ObjectAddress{}) {
 		t.Fatal("failed private peer setup changed published descriptors or names")
 	}

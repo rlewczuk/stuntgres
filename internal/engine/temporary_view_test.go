@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -60,7 +61,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	candidate := cloneCatalogChanges(changes)
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, candidate, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, candidate)
 	}
@@ -99,7 +100,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -108,7 +109,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
-	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, changes)
+	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	err = e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err = e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -160,7 +161,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	e, _, changes, table, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT v FROM pg_temp.candidate WHERE v>0")
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -169,8 +170,8 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := cloneCatalog(before.state)
-	next.epoch++
+	next := catalog.CloneState(before.State())
+	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	ref := viewOf(view).sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
@@ -184,19 +185,19 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
-	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(ref.Epoch, ref.Address), e.catalog.Domain.Ref(next.epoch+1, ref.Address), e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address().ObjectID, SubID: 99})} {
+	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(ref.Epoch, ref.Address), e.catalog.Domain.Ref(next.Epoch()+1, ref.Address), e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address().ObjectID, SubID: 99})} {
 		if storedViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}
 	}
 	peerNamespace := *next.MustNamespace(table.Namespace())
 	peerNamespace.Temporary = withSessionID(peerNamespace.Temporary, peerNamespace.Temporary.ID()+1)
-	next.setDescriptor(table.Namespace(), &peerNamespace)
+	next.SetDescriptor(table.Namespace(), &peerNamespace)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("peer namespace accepted")
 	}
-	next.setDescriptor(table.Namespace(), before.Get(table.Namespace()))
-	next.removeDescriptor(table.Address())
+	next.SetDescriptor(table.Namespace(), before.Get(table.Namespace()))
+	next.RemoveDescriptor(table.Address())
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("retired source resurrected")
 	}
@@ -205,7 +206,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	e, _, changes, _, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT 11 AS v FROM pg_catalog.pg_class WHERE relname='candidate_view'")
 	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).state, nil)
+	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(changes).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
 	}
@@ -214,8 +215,8 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := cloneCatalog(before.state)
-	next.epoch++
+	next := catalog.CloneState(before.State())
+	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
 	ref := viewOf(view).sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
@@ -223,18 +224,18 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	}
 	old := next.MustRelation(ref.Address)
 	impostor := *old
-	next.setDescriptor(ref.Address, &impostor)
+	next.SetDescriptor(ref.Address, &impostor)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("same-address/kind/layout catalog copy accepted")
 	}
-	next.setDescriptor(ref.Address, old)
+	next.SetDescriptor(ref.Address, old)
 	fake := *view
 	fake.View = &viewDefinition{consumer: view.Address(), temporary: viewOf(view).temporary}
-	next.setDescriptor(view.Address(), &fake)
+	next.SetDescriptor(view.Address(), &fake)
 	if storedViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")
 	}
-	next.setDescriptor(view.Address(), view)
+	next.SetDescriptor(view.Address(), view)
 	if storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("foreign provider authority accepted")
 	}
@@ -250,7 +251,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: viewOf(view).syntax}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
-	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.base.Get(view.Address()) != nil {
+	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.Base.Get(view.Address()) != nil {
 		t.Fatal("utility Describe analyzed/published TEMP", description, err)
 	}
 }

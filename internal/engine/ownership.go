@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRe
 	return nil
 }
 func ownershipDatabaseCreate(auth AuthorizationView) error {
-	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress))
+	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress))
 }
 func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -71,13 +72,13 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 		r, ok := catalog.Relation(t.OwningRelation)
 		return ok && r.RelationKind == compositeRelation
 	case *collationDescriptor:
-		return !t.seeded() && t.Owner != (authorization.PrincipalRef{})
+		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *conversionDescriptor:
-		return !t.seeded() && t.Owner != (authorization.PrincipalRef{})
+		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *operatorDescriptor:
-		return !t.seeded()
+		return !operatorSeeded(t)
 	case *procedureDescriptor:
-		return !t.seeded() && t.Foreign == nil
+		return !t.Seeded() && t.Foreign == nil
 	case *databaseDescriptor, *extensionDescriptor, *tsDictionaryDescriptor:
 		return true
 	}
@@ -88,7 +89,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
 // before the ordinary publication validator sees any of them.
 func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.PrincipalRef) error {
-	if next := stage.descriptors[d.Address()]; next != nil {
+	if next := stage.Descriptors[d.Address()]; next != nil {
 		d = next
 	}
 	owner, _, _ := descriptorACL(d)
@@ -151,7 +152,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			return err
 		}
 		if old.Array != 0 {
-			array, ok := stage.base.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
+			array, ok := stage.Base.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
 			if !ok || !array.SQLType.IsArray() || array.SQLType.Element().ID() != old.SQLType.ID() {
 				return CatalogConflict{}
 			}
@@ -160,7 +161,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			}
 		}
 		if old.OwningRelation != (ids.ObjectAddress{}) && !old.SQLType.IsArray() {
-			r, ok := stage.base.Relation(old.OwningRelation)
+			r, ok := stage.Base.Relation(old.OwningRelation)
 			if !ok || r.RowType != old.SQLType.ID() {
 				return CatalogConflict{}
 			}
@@ -185,7 +186,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			return err
 		}
 		if old.RelationKind == tableRelation || old.RelationKind == partitionedRelation || old.RelationKind == materializedViewRelation {
-			for _, associated := range stage.base.Descriptors() {
+			for _, associated := range stage.Base.Descriptors() {
 				r, ok := associated.(*relationDescriptor)
 				if !ok {
 					continue
@@ -215,7 +216,7 @@ func (e *Engine) ownershipStage(auth AuthorizationView, op *Operation) *CatalogS
 }
 func (e *Engine) publishOwnership(scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
-	if len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.defaultACLs) == 0 && stage.roleCandidate == nil {
+	if len(stage.Descriptors) == 0 && len(stage.Removals) == 0 && len(stage.DefaultACLs) == 0 && stage.roleCandidate == nil {
 		if err := e.validateOperation(scope.op); err != nil {
 			return Result{}, err
 		}
@@ -224,7 +225,7 @@ func (e *Engine) publishOwnership(scope *StatementScope, stage *CatalogStage) (R
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true
@@ -294,11 +295,11 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.Address()}) {
+		for _, a := range ownershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
 			if a == old.Address() {
 				continue
 			}
-			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -384,8 +385,8 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.Address()}) {
-			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+		for _, a := range ownershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
+			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -414,7 +415,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	database := auth.catalog.MustDatabase(currentDatabaseAddress)
+	database := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.Name() {
 		return fail(sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[len(s.Name.Parts)-1].Text)))
 	}

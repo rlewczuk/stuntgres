@@ -30,7 +30,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	for _, subID := range []int32{0, table.Attributes[0]} {
 		address := tableAddress
 		address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, address), acl); err != nil {
+		if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), address), acl); err != nil {
 			t.Fatal(err)
 		}
 	}

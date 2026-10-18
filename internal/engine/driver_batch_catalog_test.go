@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -172,10 +173,10 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	if candidate.originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("capture rewrote committed predecessor or published candidate")
 	}
-	peer := cloneCatalog(before)
+	peer := catalog.CloneState(before)
 	changed := *old
 	changed.ObjectRevision += 2
-	peer.setDescriptor(ref.Address, &changed)
+	peer.SetDescriptor(ref.Address, &changed)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), peer, nil); err == nil {
 		t.Fatal("changed entry predecessor accepted")
 	}
@@ -241,26 +242,26 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, replaced, before, nil); err == nil {
 		t.Fatal("changed namespace intent admitted")
 	}
-	current := cloneCatalog(before)
-	current.setDescriptor(ns.Address, &changed)
+	current := catalog.CloneState(before)
+	current.SetDescriptor(ns.Address, &changed)
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), current, nil); err == nil {
 		t.Fatal("different current namespace admitted")
 	}
-	claimed := cloneCatalog(before)
+	claimed := catalog.CloneState(before)
 	claim := *namespace
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		t.Fatal(err)
 	}
 	claim.ObjectAddress.ObjectID = oid
-	claimed.setDescriptor(claim.Address(), &claim)
-	claimed.bindName(key, claim.Address())
+	claimed.SetDescriptor(claim.Address(), &claim)
+	claimed.BindName(key, claim.Address())
 	if err := e.captureCatalogStageLocked(stage, cloneCatalogChanges(candidate), claimed, nil); err == nil {
 		t.Fatal("already claimed entry namespace name admitted")
 	}
 	// Even the exact same namespace appearing in the committed root conflicts
 	// with the original absence stamp; entry admission cannot bypass publication.
-	e.catalog.state = e.privateCatalogLocked(candidate).state
+	e.catalog.state = e.privateCatalogLocked(candidate).State()
 	defer func() { e.catalog.state = before }()
 	if err := e.catalogPreflightLocked(candidate); err == nil {
 		t.Fatal("committed namespace defeated original absence fence")

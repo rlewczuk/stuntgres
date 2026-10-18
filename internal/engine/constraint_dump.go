@@ -33,7 +33,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog Catal
 		if !n.NotValid || !dumpNotNullDeclaration(catalog, t.descriptor, n.Attribute) {
 			continue
 		}
-		slot := t.descriptor.indexForAttribute(n.Attribute)
+		slot := t.descriptor.IndexForAttribute(n.Attribute)
 		if err := emit(prefix + quoteIdentifier(n.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name) + " NOT VALID;\n"); err != nil {
 			return err
 		}

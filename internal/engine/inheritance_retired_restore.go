@@ -193,7 +193,7 @@ func (t *dumpRelation) emitRetiredConstraints(view CatalogRead, checks bool, emi
 		beforeLocal := retiredDeclarationNeeded(view, t.descriptor, p, check, notValid)
 		var rows, parents, keyQueries []string
 		for _, attribute := range keys {
-			slot := t.descriptor.indexForAttribute(attribute)
+			slot := t.descriptor.IndexForAttribute(attribute)
 			if slot < 0 {
 				return fmt.Errorf("stuntgres: missing historical constraint key")
 			}
@@ -298,12 +298,12 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		}
 	}
 	captured, exists := facts[fact.oid]
-	if !exists || captured.oid != fact.oid || fact.oid == 0 || captured.ref != ref || captured.name != fact.name || captured.check != fact.check || captured.notValid != fact.notValid || captured.noInherit != fact.noInherit || !slices.Equal(captured.attributes, fact.attributes) || !sameGroupExpression(captured.expression, fact.expression) || captured.local != repair.beforeLocal || captured.count != repair.before || provenance.Local != repair.beforeLocal || provenance.count() != repair.before || len(provenance.Retired) != 0 || len(fact.attributes) != len(repair.columns) {
+	if !exists || captured.oid != fact.oid || fact.oid == 0 || captured.ref != ref || captured.name != fact.name || captured.check != fact.check || captured.notValid != fact.notValid || captured.noInherit != fact.noInherit || !slices.Equal(captured.attributes, fact.attributes) || !sameGroupExpression(captured.expression, fact.expression) || captured.local != repair.beforeLocal || captured.count != repair.before || provenance.Local != repair.beforeLocal || provenance.Count() != repair.before || len(provenance.Retired) != 0 || len(fact.attributes) != len(repair.columns) {
 		e.mu.Unlock()
 		return reject()
 	}
 	for i, attribute := range fact.attributes {
-		slot := old.indexForAttribute(attribute)
+		slot := old.IndexForAttribute(attribute)
 		if slot < 0 || old.Columns[slot].Name != repair.columns[i] {
 			e.mu.Unlock()
 			return reject()

@@ -99,7 +99,7 @@ func TestNameCatalogRejectsForeignAndStale(t *testing.T) {
 		if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 			t.Fatal("foreign/stale NAME published")
 		}
-		if e.CatalogRead().state != base.state {
+		if e.CatalogRead().State() != base.State() {
 			t.Fatal("catalog changed")
 		}
 	}

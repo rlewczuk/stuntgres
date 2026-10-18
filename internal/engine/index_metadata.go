@@ -40,7 +40,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	if err := ctx.Err(); err != nil {
 		return m, names, err
 	}
-	if catalog.owner == nil || catalog.state == nil || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
+	if catalog.Owner() == nil || catalog.State() == nil || ref.Domain() != catalog.Owner().Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	index, ok := catalog.Relation(ref.Address)
@@ -54,12 +54,12 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	definition := index.SQLIndex
 	parent := catalog.MustRelation(definition.Parent)
 	n := len(definition.Keys)
-	ready, valid, live := definition.publicationState()
+	ready, valid, live := definition.PublicationState()
 	m = indexMetadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.Unique
 	m.IndNullsNotDistinct = definition.NullsNotDistinct
 	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind && definition.Constraint.Primary
-	if definition.isExclusion() {
+	if definition.IsExclusion() {
 		m.IndIsExclusion = true
 		if c := exclusionDefinition(parent, index); c != nil {
 			m.IndImmediate = !c.Deferrable
@@ -125,7 +125,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil {
+	if catalog.Owner() == nil || catalog.State() == nil {
 		return nil, nil, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	var indexes []*relationDescriptor
@@ -142,7 +142,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.Domain.Ref(catalog.Epoch(), index.Address()))
+		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.Owner().Domain.Ref(catalog.Epoch(), index.Address()))
 		if err != nil {
 			return nil, nil, err
 		}

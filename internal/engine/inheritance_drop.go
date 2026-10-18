@@ -12,8 +12,8 @@ import (
 // gaining a child while its AX grant was queued becomes part of the same drop.
 func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, roots []ids.ObjectAddress) error {
 	provider := stageDropProvider(nil, stage, scope, nil, nil)
-	catalog, err := admitInheritanceDropClosure(scope, stage.base, roots, provider.removalDescriptors())
-	stage.base = catalog
+	catalog, err := admitInheritanceDropClosure(scope, stage.Base, roots, provider.removalDescriptors())
+	stage.Base = catalog
 	return err
 }
 
@@ -72,7 +72,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 			if locked[address] {
 				continue
 			}
-			if err := scope.acquireSequence(catalog.owner.Domain.Ref(catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
+			if err := scope.acquireSequence(catalog.Owner().Domain.Ref(catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 				return catalog, err
 			}
 			locked[address] = true

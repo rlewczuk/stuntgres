@@ -241,7 +241,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		}
 	}
 	after := capture(source)
-	if source.CatalogRead().state != before.state || sourceCall.Owner != sourceOwner || sourceCall.Revision() != sourceRevision ||
+	if source.CatalogRead().State() != before.State() || sourceCall.Owner != sourceOwner || sourceCall.Revision() != sourceRevision ||
 		!reflect.DeepEqual(after[0].refs, originalRefs) || !reflect.DeepEqual(after[1].checks, originalChecks) {
 		t.Fatal("replacement or negative probes mutated source provenance")
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -71,10 +72,10 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	restrict := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	err = scope.stageDomainDependents(restrict, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop type a because other objects depend on it")
-	if e.CatalogRead().state != before || e.storage[table.Address()] != source {
+	if e.CatalogRead().State() != before || e.storage[table.Address()] != source {
 		t.Fatal("RESTRICT changed roots")
 	}
 	cascade := domainUnitStage(t, e, op, "DROP DOMAIN public.a CASCADE")
@@ -126,10 +127,10 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{value}}}}
 	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
-	next := cloneCatalog(e.CatalogRead().state)
+	next := catalog.CloneState(e.CatalogRead().State())
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
-	next.setDescriptor(builtin, &typeDescriptor{SQLType: physical})
+	next.SetDescriptor(builtin, &typeDescriptor{SQLType: physical})
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002}}
 	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -36,11 +37,11 @@ func databaseAdmissionFixture() (*Engine, authorization.PrincipalRef) {
 }
 
 func databaseAdmissionPolicyLocked(e *Engine, acl authorization.ACLValue) {
-	candidate := cloneCatalog(e.catalog.state)
-	db := *candidate.MustDatabase(currentDatabaseAddress)
+	candidate := catalog.CloneState(e.catalog.state)
+	db := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	db.ObjectRevision++
 	db.ACL = acl
-	candidate.setDescriptor(currentDatabaseAddress, &db)
+	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &db)
 	e.catalog.state = candidate
 }
 

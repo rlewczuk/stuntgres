@@ -26,7 +26,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if relation == nil {
 		return ids.ErrCatalogReplaced
 	}
-	if !relation.RelationKind.stored() {
+	if !relation.RelationKind.Stored() {
 		return nil
 	}
 	namespace, ok := catalog.Namespace(relation.Namespace())
@@ -43,7 +43,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 // any already-required target refs, preserving a single statement frontier.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
 	catalog := auth.catalog
-	if auth.engine != e || catalog.owner != e.catalog.owner() || catalog.state == nil {
+	if auth.engine != e || catalog.Owner() != e.catalog.owner() || catalog.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	// Authorize every executable view occurrence before admitting any physical
@@ -152,7 +152,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				return collect(child, true)
 			})
 		}
-		if relation.RelationKind.stored() {
+		if relation.RelationKind.Stored() {
 			if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
 				return err
 			}

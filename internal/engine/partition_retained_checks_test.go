@@ -30,7 +30,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		return v
 	}
 	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
-		ref := catalog.owner.Domain.Ref(catalog.Epoch(), leaf.Address())
+		ref := catalog.Owner().Domain.Ref(catalog.Epoch(), leaf.Address())
 		ref.Address.SubID = leaf.Attributes[slot]
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: integer(n)}
@@ -46,7 +46,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	dead := rowVersion{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(99), integer(99)}}
 	live := rowVersion{row: 2, version: 2, born: 3, values: oldValues}
 	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}}
-	e.catalog.state = catalog.state
+	e.catalog.state = catalog.State()
 	e.commitSeq = 3
 	e.storage = map[ids.ObjectAddress]*relationStorage{leaf.Address(): store}
 	snapshot, err := e.captureIndexSnapshot(context.Background(), catalog, e.storage, nil, 3)
@@ -178,7 +178,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := catalog.LookupType(sqltype.Oid)
-	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.owner.Domain.Ref(catalog.Epoch(), leaf.Address())}
+	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.Owner().Domain.Ref(catalog.Epoch(), leaf.Address())}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}

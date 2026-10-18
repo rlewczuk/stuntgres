@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -379,11 +380,11 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 			t.Fatal(id, next, err)
 		}
 	}
-	bad := cloneCatalog(view.state)
+	bad := catalog.CloneState(view.State())
 	copy := *d
 	copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
 	copy.CheckConstraints[0].OID = d.Defaults[1].OID
-	bad.setDescriptor(d.Address(), &copy)
+	bad.SetDescriptor(d.Address(), &copy)
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}

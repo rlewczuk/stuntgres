@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -19,8 +20,8 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				sessionSQL(t, a, q)
 			}
 			if scenario == "Exhaustion" {
-				state := cloneCatalog(e.catalog.state)
-				state.namespaceGeneration = ^uint64(0)
+				state := catalog.CloneState(e.catalog.state)
+				state.SetNamespaceGeneration(^uint64(0))
 				e.catalog.state = state
 			}
 			ast, description := sequencePreparedDescription(t, e, a, "SELECT nextval('s')")
@@ -43,7 +44,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			sessionSQL(t, b, "BEGIN")
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE unrelated_temp")
 			e.mu.Lock()
-			private := e.privateCatalogLocked(b.transactions.catalog).state
+			private := e.privateCatalogLocked(b.transactions.catalog).State()
 			e.mu.Unlock()
 			if scenario == "Rollback" {
 				sessionSQL(t, b, "ROLLBACK")
@@ -67,7 +68,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			} else {
 				sessionSQL(t, b, "COMMIT")
 			}
-			if before.namespaceGeneration != private.namespaceGeneration {
+			if before.NamespaceGeneration() != private.NamespaceGeneration() {
 				t.Fatal("publication mutated retained committed or private catalog")
 			}
 			if scenario == "Commit" {
@@ -100,9 +101,9 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	}
 	sessionSQL(t, b, "CREATE TEMP SEQUENCE owned_temp START 30")
 	sessionSQL(t, c, "CREATE TEMP SEQUENCE peer_temp START 40")
-	state := cloneCatalog(e.catalog.state)
-	state.namespaceGeneration = ^uint64(0)
-	state.epoch = ids.CatalogEpoch(^uint64(0))
+	state := catalog.CloneState(e.catalog.state)
+	state.SetNamespaceGeneration(^uint64(0))
+	state.SetEpoch(ids.CatalogEpoch(^uint64(0)))
 	e.catalog.state = state
 	_, bd := sequencePreparedDescription(t, e, b, "SELECT nextval('owned_temp')")
 	owned := bd.sequences.constants[0].ref.Address
@@ -130,7 +131,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	if err := b.WaitEnd(context.Background()); err != nil {
 		t.Fatal("terminal authority prevented physical cleanup", err)
 	}
-	if e.catalog.state.epoch != state.epoch || e.catalog.state.namespaceGeneration != state.namespaceGeneration {
+	if e.catalog.state.Epoch() != state.Epoch() || e.catalog.state.NamespaceGeneration() != state.NamespaceGeneration() {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
 	assertTemporaryNamespacePair(t, e, b.token, namespace)

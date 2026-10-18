@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -48,15 +49,15 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				}
 				run(t, source, "CREATE SCHEMA imported CREATE TABLE t(id INT)")
 				view := source.CatalogRead()
-				next := cloneCatalog(view.state)
+				next := catalog.CloneState(view.State())
 				ns := schemaRef(t, source, "imported").Address
 				n := *next.MustNamespace(ns)
 				n.ObjectRevision = 100
-				next.setDescriptor(ns, &n)
+				next.SetDescriptor(ns, &n)
 				addr := roleTableRef(t, source, "imported.t").Address
 				r := *next.MustRelation(addr)
 				r.ObjectRevision = 200
-				next.setDescriptor(addr, &r)
+				next.SetDescriptor(addr, &r)
 				e.catalog.nextRevision = frontier
 				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 					t.Fatal(err)
@@ -87,11 +88,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			e, source := New(), New()
 			run(t, source, "CREATE SCHEMA terminal")
 			view := source.CatalogRead()
-			next := cloneCatalog(view.state)
+			next := catalog.CloneState(view.State())
 			addr := schemaRef(t, source, "terminal").Address
 			n := *next.MustNamespace(addr)
 			n.ObjectRevision = revision
-			next.setDescriptor(addr, &n)
+			next.SetDescriptor(addr, &n)
 			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 				t.Fatal(err)
 			}
@@ -108,7 +109,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			_, err := e.Execute(op, statement(t, "ALTER SCHEMA "+name+" RENAME TO forbidden"), 0, nil)
 			done()
-			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().state != before.state || !reflect.DeepEqual(e.storage, storage) || e.commitSeq != sequence {
+			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage, storage) || e.commitSeq != sequence {
 				t.Fatal("terminal mutation published or returned wrong failure", err)
 			}
 			if err := e.Reset(context.Background()); err != nil {
@@ -123,16 +124,16 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		e, source := New(), New()
 		run(t, source, "CREATE SCHEMA canceled")
 		view := source.CatalogRead()
-		next := cloneCatalog(view.state)
+		next := catalog.CloneState(view.State())
 		addr := schemaRef(t, source, "canceled").Address
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
-		next.setDescriptor(addr, &n)
+		next.SetDescriptor(addr, &n)
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(next))
-		if !errors.Is(err, context.Canceled) || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
+		if !errors.Is(err, context.Canceled) || e.catalog.nextRevision != frontier || e.CatalogRead().State() != before.State() {
 			t.Fatal("canceled import advanced allocator/catalog", err)
 		}
 	})
@@ -141,14 +142,14 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		run(t, source, "CREATE USER unavailable_owner")
 		run(t, source, "CREATE SCHEMA invalid AUTHORIZATION unavailable_owner")
 		view := source.CatalogRead()
-		next := cloneCatalog(view.state)
+		next := catalog.CloneState(view.State())
 		addr := schemaRef(t, source, "invalid").Address
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
-		next.setDescriptor(addr, &n)
+		next.SetDescriptor(addr, &n)
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next))
-		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
+		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().State() != before.State() {
 			t.Fatal("failed principal remap advanced allocator/catalog", err)
 		}
 	})

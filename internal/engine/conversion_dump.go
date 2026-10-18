@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +45,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 	}
 	occupiedPairs := make(map[pair]bool)
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok && d.seeded() && d.DefaultConversion {
+		if d, ok := descriptor.(*conversionDescriptor); ok && d.Seeded() && d.DefaultConversion {
 			occupiedPairs[pair{d.Namespace(), d.Source, d.Destination}] = true
 		}
 	}
@@ -107,11 +108,11 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 	}
 	var changes []delta
 	var occupied map[string]bool
-	for i := range builtinConversions {
+	for i := range catalog.BuiltinConversions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		fixed := &builtinConversions[i]
+		fixed := &catalog.BuiltinConversions[i]
 		d, ok := view.Conversion(fixed.Address())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing pinned conversion")
@@ -132,7 +133,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 						occupied[descriptor.Name()] = true
 					}
 				}
-				for _, seed := range builtinConversions {
+				for _, seed := range catalog.BuiltinConversions {
 					occupied[seed.Name()] = true
 				}
 			}

@@ -69,7 +69,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	e.mu.Lock()
 	current := e.catalog.read(e.catalog.state)
-	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
+	valid := e.catalog.state.Epoch() == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
 		return Result{}, CatalogConflict{}
@@ -164,7 +164,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			if !rename {
 				continue
 			}
-			slot := mutation.next.indexForAttribute(attribute)
+			slot := mutation.next.IndexForAttribute(attribute)
 			if slot < 0 {
 				continue
 			}
@@ -200,7 +200,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true

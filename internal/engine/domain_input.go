@@ -13,7 +13,7 @@ import (
 // unlocked phase never resolves a new name or retries a side-effecting CHECK.
 func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
 	eval, ok := input.DomainChecks.(*EvalContext)
-	if !ok || eval.statementScope != s || eval.catalog.state == nil {
+	if !ok || eval.statementScope != s || eval.catalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing captured domain input authority")
 	}
 	e := s.op.session.Engine()
@@ -45,7 +45,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if current.catalog.owner != eval.catalog.owner || current.catalog.Epoch() != eval.catalog.Epoch() {
+	if current.catalog.Owner() != eval.catalog.Owner() || current.catalog.Epoch() != eval.catalog.Epoch() {
 		return sqltype.Value{}, ids.ErrCatalogReplaced
 	}
 	for _, provider := range providers {
@@ -102,7 +102,7 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 }
 
 func validateCapturedInputBinding(captured, current CatalogRead, dependencies []expressionDependency) error {
-	if captured.owner != current.owner || captured.Epoch() != current.Epoch() {
+	if captured.Owner() != current.Owner() || captured.Epoch() != current.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for _, dependency := range dependencies {

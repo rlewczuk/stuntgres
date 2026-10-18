@@ -47,7 +47,7 @@ func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured
 	if err != nil {
 		return err
 	}
-	ref := view.owner.Domain.Ref(view.Epoch(), current.Address())
+	ref := view.Owner().Domain.Ref(view.Epoch(), current.Address())
 	for _, old := range r.capturedManifest {
 		if old.Address == ref.Address {
 			if !storedReferenceEpochValid(view, r.retainedConsumer(), old) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*relationD
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -130,15 +131,15 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			case "provider":
 				typ := *e.catalog.state.MustType(providerAddress)
 				typ.ObjectRevision++
-				next := cloneCatalog(e.catalog.state)
-				next.setDescriptor(providerAddress, &typ)
+				next := catalog.CloneState(e.catalog.state)
+				next.SetDescriptor(providerAddress, &typ)
 				e.catalog.state = next
 			case "cancel":
 				cancel()
 			}
 			before := e.catalog.state
 			stores, roots := maps.Clone(e.storage), maps.Clone(e.indexRoots)
-			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("stale validation published an attachment")
 			}

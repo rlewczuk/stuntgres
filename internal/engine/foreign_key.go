@@ -13,21 +13,6 @@ import (
 	"unicode/utf8"
 )
 
-// All links are stable catalog addresses/attributes, never descriptor pointers.
-type foreignKeyConstraint struct {
-	OID              ids.OID
-	Name             string
-	Attributes       []int32
-	Target           ids.ObjectAddress
-	Referenced       []int32
-	Index            ids.ObjectAddress
-	Full             bool
-	UpdateAction     parser.ForeignKeyAction
-	DeleteAction     parser.ForeignKeyAction
-	DeleteAttributes []int32
-	NotValid         bool
-}
-
 type foreignKeyComparison struct {
 	child, parent int
 	comparison    sqltype.IndexForeignKeyComparison
@@ -299,7 +284,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return err
 	}
 	child.ForeignKeys = append(child.ForeignKeys, f)
-	stage.descriptors[child.Address()] = child
+	stage.Descriptors[child.Address()] = child
 	return nil
 }
 

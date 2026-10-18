@@ -97,7 +97,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			case "epoch_before":
 				e.mu.Lock()
 				next := *e.catalog.state
-				next.epoch++
+				next.SetEpoch(next.Epoch() + 1)
 				e.catalog.state = &next
 				state = e.catalog.state
 				e.mu.Unlock()

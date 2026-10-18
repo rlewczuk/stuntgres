@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -91,7 +92,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	oid, revision := e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(c.state.descriptors), maps.Clone(c.state.names)
+	descriptors, names := maps.Collect(c.State().Descriptors()), maps.Collect(c.State().Names())
 	old := namespaceUnitCapture(t, e, c)
 	if old.count() != 4 {
 		t.Fatal("pristine namespace inventory", old.count())
@@ -111,7 +112,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 			t.Fatal("builtin owner/ACL", id, owner, row[3], err)
 		}
 	}
-	if e.catalog.state != c.state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
+	if e.catalog.state != c.State() || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(c.State().Descriptors())) || !maps.Equal(names, maps.Collect(c.State().Names())) {
 		t.Fatal("capture mutated authority/frontiers")
 	}
 	stage := e.BeginCatalogStage(c)
@@ -134,7 +135,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 			t.Fatal("captured root changed", got, err)
 		}
 	}
-	if e.catalog.state != c.state || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
+	if e.catalog.state != c.State() || !maps.Equal(descriptors, maps.Collect(c.State().Descriptors())) || !maps.Equal(names, maps.Collect(c.State().Names())) {
 		t.Fatal("private capture published")
 	}
 }
@@ -251,52 +252,52 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(c, e.Roles(), forged, d)
 	reject(c, e.Roles(), ref, nil)
 	for _, width := range []int{0, 3, 5} {
-		next := cloneCatalog(c.state)
+		next := catalog.CloneState(c.State())
 		invalid := *d
 		invalid.Columns = make([]ColumnDescriptor, width)
-		next.setDescriptor(d.Address(), &invalid)
+		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.Columns {
-		next := cloneCatalog(c.state)
+		next := catalog.CloneState(c.State())
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
-		next.setDescriptor(d.Address(), &invalid)
+		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	ns := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
 	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
-		next := cloneCatalog(c.state)
+		next := catalog.CloneState(c.State())
 		invalid := *ns
 		invalid.Owner = owner
-		next.setDescriptor(ns.Address(), &invalid)
+		next.SetDescriptor(ns.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, d)
 	}
-	next := cloneCatalog(c.state)
+	next := catalog.CloneState(c.State())
 	invalid := *ns
 	invalid.ObjectName = "stale_toast"
-	next.setDescriptor(ns.Address(), &invalid)
+	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	invalid = *ns
 	invalid.TemporaryToast = true
-	next.setDescriptor(ns.Address(), &invalid)
+	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	next = cloneCatalog(c.state)
-	next.setDescriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ns)
+	next = catalog.CloneState(c.State())
+	next.SetDescriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ns)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	next = cloneCatalog(c.state)
+	next = catalog.CloneState(c.State())
 	invalid = *ns
 	invalid.Temporary = foreign.catalog.Domain.Session(1)
-	next.setDescriptor(ns.Address(), &invalid)
+	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	next = cloneCatalog(c.state)
-	next.setDescriptor(currentDatabaseAddress, (*databaseDescriptor)(nil))
+	next = catalog.CloneState(c.State())
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*databaseDescriptor)(nil))
 	reject(e.catalog.read(next), e.Roles(), ref, d)
-	database := *c.MustDatabase(currentDatabaseAddress)
+	database := *c.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = e.Roles().LookupRef("pg_read_all_data")
-	next = cloneCatalog(c.state)
-	next.setDescriptor(currentDatabaseAddress, &database)
+	next = catalog.CloneState(c.State())
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 }
 
@@ -326,7 +327,7 @@ func TestPGNamespaceCancellation(t *testing.T) {
 		rows, err := e.capturePGNamespace(controlled, c, roles, ref, d)
 		e.mu.Unlock()
 		cancel()
-		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.state != c.state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
+		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.state != c.State() || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
 			t.Fatal("cancellation published partial capture", at, rows, err)
 		}
 	}

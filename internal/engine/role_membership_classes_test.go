@@ -37,7 +37,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if len(addresses) != 1 {
 			t.Fatal(tc, addresses)
 		}
-		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, addresses[0])
+		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), addresses[0])
 		refs = append(refs, ref)
 	}
 	// Namespace/relation ACLs use their existing internal publication seam.
@@ -70,7 +70,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		return err
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
@@ -91,9 +91,9 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			t.Fatal(d.Name(), err)
 		}
-		before := e.CatalogRead().state
+		before := e.CatalogRead().State()
 		invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: authorization.Privileges(1 << 31)}}}
-		if err := setACL(ref, invalid); err == nil || e.CatalogRead().state != before {
+		if err := setACL(ref, invalid); err == nil || e.CatalogRead().State() != before {
 			t.Fatal("invalid class mask published", d.Name(), err)
 		}
 		if err := setACL(ref, authorization.ACLValue{Explicit: true}); err != nil {

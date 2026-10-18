@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"maps"
 	"reflect"
 	"testing"
 
@@ -77,7 +78,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 
 func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engine, s *Session) {
 	t.Helper()
-	if e.catalog.state != p.state || !reflect.DeepEqual(*e.catalog.state, p.catalog) || !reflect.DeepEqual(e.catalog.state.descriptors, p.descriptors) || !reflect.DeepEqual(e.catalog.state.names, p.names) {
+	if e.catalog.state != p.state || !reflect.DeepEqual(*e.catalog.state, p.catalog) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Names()), p.names) {
 		t.Fatal("failed combined publication changed catalog authority, descriptor/name bindings or namespace generation")
 	}
 	if uintptr(reflect.ValueOf(e.storage).UnsafePointer()) != p.storageID || uintptr(reflect.ValueOf(e.sequences).UnsafePointer()) != p.generatorsID || len(e.storage) != len(p.stores) || len(e.sequences) != len(p.generators) {

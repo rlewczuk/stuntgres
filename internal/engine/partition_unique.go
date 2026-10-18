@@ -13,14 +13,14 @@ import (
 )
 
 func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) error {
-	if table.Partition == nil || !index.Unique && !index.isExclusion() {
+	if table.Partition == nil || !index.Unique && !index.IsExclusion() {
 		return nil
 	}
 	kind := "UNIQUE"
 	if index.Constraint != nil && index.Constraint.Primary {
 		kind = "PRIMARY KEY"
 	}
-	if index.isExclusion() {
+	if index.IsExclusion() {
 		kind = "EXCLUDE"
 	}
 	for _, partitionKey := range table.Partition.Keys {
@@ -32,8 +32,8 @@ func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) 
 			if key.Attribute != partitionKey.Attribute || key.Derived != nil {
 				continue
 			}
-			usage := indexKeyCollation(table.Columns[table.indexForAttribute(key.Attribute)].Usage, key)
-			if index.isExclusion() {
+			usage := indexKeyCollation(table.Columns[table.IndexForAttribute(key.Attribute)].Usage, key)
+			if index.IsExclusion() {
 				if usage.Collation != partitionKey.Usage.Collation {
 					continue
 				}
@@ -139,7 +139,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 		}
 		d.Predicate = predicate
 	}
-	if old.isExclusion() {
+	if old.IsExclusion() {
 		var err error
 		d.Exclusion, err = rebindExclusionOperators(child, &d)
 		if err != nil {
@@ -231,8 +231,8 @@ func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *rela
 }
 
 func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error {
-	if stage.base.Get(d.Address()) == nil {
-		stage.descriptors[d.Address()] = d
+	if stage.Base.Get(d.Address()) == nil {
+		stage.Descriptors[d.Address()] = d
 		return nil
 	}
 	return stage.Replace(d)
@@ -241,7 +241,7 @@ func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error 
 func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor, allowIncompleteVirtual bool) (*relationDescriptor, error) {
 	view := e.stageRead(stage)
 	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roleRead(view, e.operationRolesLocked(op))})
-	if stage.base.Get(parentIndex.Address()) != nil {
+	if stage.Base.Get(parentIndex.Address()) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}
 	mapped, err := mapPartitionIndex(ctx, view, table, child, parentIndex.SQLIndex)
@@ -273,7 +273,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	})
 	for _, candidate := range candidates {
 		// PostgreSQL 18.0 never adopts an independent exclusion backing.
-		if parentIndex.SQLIndex.isExclusion() {
+		if parentIndex.SQLIndex.IsExclusion() {
 			continue
 		}
 		// Recursive CREATE retains a reusable incomplete virtual tree. Table
@@ -329,7 +329,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	}
 	if parentIndex.SQLIndex.Constraint != nil {
 		suffix = "key"
-		if parentIndex.SQLIndex.isExclusion() {
+		if parentIndex.SQLIndex.IsExclusion() {
 			suffix = "excl"
 		}
 		if parentIndex.SQLIndex.Constraint.Primary {
@@ -358,7 +358,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 			return nil, err
 		}
 		changed := *child
-		if parentIndex.SQLIndex.isExclusion() {
+		if parentIndex.SQLIndex.IsExclusion() {
 			var source exclusionConstraint
 			for _, c := range table.ExclusionConstraints {
 				if c.OID == backing.OID {
@@ -394,7 +394,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 }
 
 func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor, allowIncompleteVirtual bool) error {
-	if original, ok := stage.base.Relation(table.Address()); ok {
+	if original, ok := stage.Base.Relation(table.Address()); ok {
 		stage.domainBases = append(stage.domainBases, original)
 	}
 	for _, address := range table.Partition.Children {
@@ -475,7 +475,7 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 	}
 	slices.SortFunc(indexes[inline:], func(a, b *relationDescriptor) int {
 		priority := func(index *relationDescriptor) ids.OID {
-			if source := view.state.dumpPriorities[index.Address()]; source != 0 {
+			if source := view.State().DumpPriority(index.Address()); source != 0 {
 				return source
 			}
 			return index.Address().ObjectID

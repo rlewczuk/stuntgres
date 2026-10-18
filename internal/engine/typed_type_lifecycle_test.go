@@ -34,9 +34,9 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	}
 	domainUnitPublish(t, e, late)
 	before := e.CatalogRead()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict CatalogConflict
-	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
+	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
 	}
 	if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
@@ -67,7 +67,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
 	var conflict CatalogConflict
-	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state || e.storage[table.Address()] != &concurrent {
+	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
 	}
 }
@@ -100,7 +100,7 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	if !oldArray.Concrete() || array == oldArray || row.SQLType == oldRow {
 		t.Fatal("imported composite/array borrowed foreign codec")
 	}
-	if source.CatalogRead().state != before.state || before.Get(original.Address()) != original || before.Get(table.Address()) != table {
+	if source.CatalogRead().State() != before.State() || before.Get(original.Address()) != original || before.Get(table.Address()) != table {
 		t.Fatal("foreign import mutated source capture")
 	}
 }
@@ -117,7 +117,7 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{root.Address(), other.Address()}, Columns: map[int32]inheritedColumn{3: {Origins: []inheritanceOrigin{{Parent: root.Address(), Attribute: 1}, {Parent: other.Address(), Attribute: 1}}}, 8: {Local: true, Origins: []inheritanceOrigin{{Parent: root.Address(), Attribute: 7}, {Parent: other.Address(), Attribute: 7}}}}}
 	changed := *root
 	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
-	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{root.Address(): &changed, other.Address(): &other}}
+	state := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{root.Address(): &changed, other.Address(): &other}, nil)
 	actions, renames, graph, err := typedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.Columns[3].Origins, []inheritanceOrigin{{Parent: other.Address(), Attribute: 1}}) || len(child.Inheritance.Columns[3].Origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)
@@ -161,7 +161,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			}
 			before := e.CatalogRead()
 			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
-			if err == nil || err.Error() != "stuntgres: authorization changed before publication" || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
+			if err == nil || err.Error() != "stuntgres: authorization changed before publication" || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale authority published typed closure", changes, err)
 			}
 		})
@@ -185,7 +185,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 			} else {
 				late := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(late)
-				next := *late.base.MustType(table.OfType)
+				next := *late.Base.MustType(table.OfType)
 				next.ObjectRevision++
 				if err := late.Replace(&next); err != nil {
 					t.Fatal(err)
@@ -193,8 +193,8 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 				domainUnitPublish(t, e, late)
 			}
 			before := e.CatalogRead()
-			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
-			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
+			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale source/replacement publication was not atomic", changes, err)
 			}
 			if change == "replacement" && !errors.Is(err, ids.ErrCatalogReplaced) {

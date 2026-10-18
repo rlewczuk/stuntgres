@@ -106,7 +106,7 @@ func (s *StatementScope) stageTruncate() error {
 		e.mu.Unlock()
 		return err
 	}
-	if s.txRef.Epoch() != e.catalog.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -167,7 +167,7 @@ func (s *StatementScope) stageTruncate() error {
 		shape.snapshot, shape.hasSnapshot = nil, false
 		shape.fills = nil
 		changes.storage[ref.Address] = shape
-		e.fenceEmptyIndexStorageLocked(auth.catalog.state, changes, ref.Address)
+		e.fenceEmptyIndexStorageLocked(auth.catalog.State(), changes, ref.Address)
 		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{rewrite: true}}); err != nil {
 			break
 		}
@@ -184,7 +184,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.catalog.state, targets: s.truncateSelected, token: s.op.session.token, restart: s.truncateRestart, sequences: sequences})
+		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.catalog.State(), targets: s.truncateSelected, token: s.op.session.token, restart: s.truncateRestart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -194,7 +194,7 @@ func (s *StatementScope) stageTruncate() error {
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
 		if selected.relation.RelationKind != partitionedRelation {
-			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.state, changes, stage, address, changes.storage[address].replacement); err != nil {
+			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
 				return err
 			}
 		}

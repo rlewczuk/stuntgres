@@ -14,7 +14,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
 	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
-	e.catalog.state = inheritanceUnitView(e, parent).state
+	e.catalog.state = inheritanceUnitView(e, parent).State()
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
 	holder, err := e.StartStatement(holderOp)
@@ -46,7 +46,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.descriptors[child.Address()] = child
+	stage.Descriptors[child.Address()] = child
 	stage.captureLikeSource(parent)
 	completed := make(chan error, 1)
 	go func() { completed <- scope.acquireDefinitionProviders(stage) }()

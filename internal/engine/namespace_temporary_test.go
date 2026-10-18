@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -33,7 +34,7 @@ func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToke
 			}
 			toast = a
 		}
-		if e.catalog.state.NameAddress(descriptorNameKey(other)) != a {
+		if e.catalog.state.NameAddress(catalog.DescriptorNameKey(other)) != a {
 			t.Fatal("TEMP name identity", other)
 		}
 	}

@@ -95,15 +95,15 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	// Repeated occurrences target the same original identity. The actual final
 	// AS descriptor must reflect the second occurrence, not the first; its
 	// generator must be the replacement belonging to that final descriptor.
-	sequence := stage.descriptors[a].(*relationDescriptor)
+	sequence := stage.Descriptors[a].(*relationDescriptor)
 	if sequence.Sequence.SQLType != sqltype.Int2 || stage.generators[a] == nil || stage.generators[a].generation != sequence.Revision() || stage.generators[a].last != valueA.last || stage.generators[a].called != valueA.called {
 		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.generators[a])
 	}
-	prior := stage.descriptors[third].(*relationDescriptor)
+	prior := stage.Descriptors[third].(*relationDescriptor)
 	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.generators[third] == nil || stage.generators[third].generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences[third].remaining != 0 {
 		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.generators[third])
 	}
-	if stage.descriptors[b] != nil || stage.generators[b] != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
+	if stage.Descriptors[b] != nil || stage.generators[b] != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
 		t.Fatal("later unadmitted identity had effects", memoryA, memoryB, stage.generators)
 	}
 	if e.catalog.state != before || e.storage[old.Address()] != storage || e.sequences[a] != generatorA || e.sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || e.sequences[third] != generatorC || *generatorC != valueC {
@@ -219,7 +219,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					if stage.lifecycle == catalogDiscarded || stage.lifecycle == catalogPublished {
 						t.Fatal("inner failure took shared cleanup ownership", stage.lifecycle)
 					}
-					if !invalidAS && (stage.generators[a] == nil || stage.descriptors[a].(*relationDescriptor).Sequence.SQLType != sqltype.Int2) {
+					if !invalidAS && (stage.generators[a] == nil || stage.Descriptors[a].(*relationDescriptor).Sequence.SQLType != sqltype.Int2) {
 						t.Fatal("shared owner lost actual staged AS")
 					}
 					// The existing outer-owner disposal API, not Finish or the

@@ -4,24 +4,9 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
-
-// A parameter descriptor represents an ACL, not a setting value or provider.
-// Baseline-equivalent ACLs have no catalog row.
-type parameterDescriptor struct {
-	ObjectAddress  ids.ObjectAddress
-	ObjectRevision ids.DefinitionRevision
-	ObjectName     string
-	Owner          authorization.PrincipalRef
-	ACL            authorization.ACLValue
-}
-
-func (d *parameterDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
-func (d *parameterDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
-func (*parameterDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *parameterDescriptor) Name() string                     { return d.ObjectName }
-func (*parameterDescriptor) Kind() ids.ObjectKind               { return ids.ParameterObject }
 
 // parameterProvider validates parameter ACL identities against the engine's
 // setting definitions, which close at construction.
@@ -30,11 +15,11 @@ type parameterProvider struct{ definitions map[string]SettingDefinition }
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
-	if !ok || d == nil || v.owner == nil || v.state == nil || v.Get(d.Address()) != d {
+	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
 	name, err := canonicalGrantParameter(p.definitions, d.Name())
-	if err != nil || name != d.Name() || d.Address().ClassID != ids.ParameterClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
+	if err != nil || name != d.Name() || d.Address().ClassID != ids.ParameterClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
 	return nil
@@ -89,10 +74,10 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 // the owner alone. Explicit empty ACLs are not the default baseline.
 func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
 	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
-		candidate.removeDescriptor(d.Address())
-		candidate.unbindName(descriptorNameKey(d))
+		candidate.RemoveDescriptor(d.Address())
+		candidate.UnbindName(catalog.DescriptorNameKey(d))
 		return
 	}
-	candidate.setDescriptor(d.Address(), d)
-	candidate.bindName(descriptorNameKey(d), d.Address())
+	candidate.SetDescriptor(d.Address(), d)
+	candidate.BindName(catalog.DescriptorNameKey(d), d.Address())
 }

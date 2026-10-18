@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -19,7 +20,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	t.Helper()
 	e, op, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
-	view.state = cloneCatalog(view.state)
+	view = view.WithState(catalog.CloneState(view.State()))
 	var installed *tsDictionaryDescriptor
 	for _, address := range ext.Members {
 		if d, ok := view.TSDictionary(address); ok {
@@ -37,14 +38,14 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 		if i == 3 {
 			ns.Temporary = e.catalog.Domain.Session(99)
 		}
-		view.state.setDescriptor(ns.Address(), &ns)
-		view.state.bindName(descriptorNameKey(&ns), ns.Address())
+		view.State().SetDescriptor(ns.Address(), &ns)
+		view.State().BindName(catalog.DescriptorNameKey(&ns), ns.Address())
 		namespaces[i] = ns.Address()
 		d := *installed
 		d.ObjectAddress = ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(91000 + i)}
 		d.ObjectNamespace = ns.Address()
-		view.state.setDescriptor(d.Address(), &d)
-		view.state.bindName(descriptorNameKey(&d), d.Address())
+		view.State().SetDescriptor(d.Address(), &d)
+		view.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -114,10 +115,10 @@ func TestRegTSProviderResolution(t *testing.T) {
 	}
 	// Mutating the private successor snapshot cannot change returned output.
 	next := view
-	next.state = cloneCatalog(view.state)
+	next = next.WithState(catalog.CloneState(view.State()))
 	ns := *next.MustNamespace(namespaces[0])
 	ns.ObjectName = "renamed"
-	next.state.setDescriptor(ns.Address(), &ns)
+	next.State().SetDescriptor(ns.Address(), &ns)
 	if got := regTSSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
 		t.Fatal("fresh spelling", got)
 	}
@@ -125,13 +126,13 @@ func TestRegTSProviderResolution(t *testing.T) {
 		t.Fatal("retained output changed", got, err)
 	}
 	quoted := view
-	quoted.state = cloneCatalog(view.state)
+	quoted = quoted.WithState(catalog.CloneState(view.State()))
 	for i, name := range []string{`Odd".TS`, strings.Repeat("x", 63), "select"} {
 		d := *view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
 		d.ObjectAddress.ObjectID = ids.OID(92001 + i)
 		d.ObjectName = name
-		quoted.state.setDescriptor(d.Address(), &d)
-		quoted.state.bindName(descriptorNameKey(&d), d.Address())
+		quoted.State().SetDescriptor(d.Address(), &d)
+		quoted.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
 	quotedInput := input
 	quotedInput.auth.recaptureCatalog(quoted)
@@ -313,7 +314,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns.Address()), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), ns.Address()), acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()

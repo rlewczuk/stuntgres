@@ -132,12 +132,12 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
 		stage.domainBases = append(stage.domainBases, ns)
-		for key := range base.state.defaultACLs {
+		for key := range base.State().DefaultACLs() {
 			if key.Schema == ns.Address() {
-				if stage.defaultACLs == nil {
-					stage.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+				if stage.DefaultACLs == nil {
+					stage.DefaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 				}
-				stage.defaultACLs[key] = nil
+				stage.DefaultACLs[key] = nil
 			}
 		}
 	}
@@ -160,7 +160,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		return false, err
 	}
 	var relations []ids.ObjectAddress
-	for a := range stage.removals {
+	for a := range stage.Removals {
 		if a.ClassID == ids.RelationClassID {
 			relations = append(relations, a)
 		}

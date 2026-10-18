@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -20,7 +21,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	defer done()
 	before := e.CatalogRead()
 	stage := domainUnitStage(t, e, op, "CREATE TYPE public.mood AS ENUM ('sad','ok','happy')")
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("stage published")
 	}
 	domainUnitPublish(t, e, stage)
@@ -52,8 +53,8 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	previous := e.CatalogRead().state
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().state != previous {
+	previous := e.CatalogRead().State()
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != previous {
 		t.Fatal("canceled publication", err)
 	}
 	e.mu.Lock()
@@ -104,7 +105,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	err = e.stageCreateDomainLocked(op, auth, denied, dependent, sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type mood")
-	if len(denied.descriptors) != 0 {
+	if len(denied.Descriptors) != 0 {
 		t.Fatal("unauthorized dependent staged")
 	}
 }
@@ -117,7 +118,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.wrapped AS public.mood"))
 	wrapped := domainUnitType(t, e.CatalogRead(), "wrapped")
-	next := cloneCatalog(e.CatalogRead().state)
+	next := catalog.CloneState(e.CatalogRead().State())
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 60000}
 	changed, err := reownDomainTypes(next, map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}, false)
 	if err != nil || !changed {

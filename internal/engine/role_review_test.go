@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	ns := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	namespaceACL := invalid
 	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege
@@ -182,8 +183,8 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	unchanged()
 	namespaceDescriptor := *e.catalog.state.MustNamespace(namespace.Address)
 	namespaceDescriptor.ACL = namespaceACL
-	namespaceView := cloneCatalog(e.catalog.state)
-	namespaceView.setDescriptor(namespace.Address, &namespaceDescriptor)
+	namespaceView := catalog.CloneState(e.catalog.state)
+	namespaceView.SetDescriptor(namespace.Address, &namespaceDescriptor)
 	if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(namespaceView)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 		t.Fatal("namespace replacement accepted PUBLIC grant options", err)
 	}
@@ -203,8 +204,8 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		} else {
 			bad.ACL = invalid
 		}
-		view := cloneCatalog(e.catalog.state)
-		view.setDescriptor(ref.Address, &bad)
+		view := catalog.CloneState(e.catalog.state)
+		view.SetDescriptor(ref.Address, &bad)
 		if _, err := e.ReplaceCatalog(ctx, e, e.catalog.read(view)); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 			t.Fatal("replacement accepted PUBLIC grant options", err)
 		}
@@ -234,8 +235,8 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		} else {
 			foreign.ACL = foreignACL
 		}
-		foreignView := cloneCatalog(source.catalog.state)
-		foreignView.setDescriptor(foreignRef.Address, &foreign)
+		foreignView := catalog.CloneState(source.catalog.state)
+		foreignView.SetDescriptor(foreignRef.Address, &foreign)
 		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(foreignView))
 		sourceDone()
 		if err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {

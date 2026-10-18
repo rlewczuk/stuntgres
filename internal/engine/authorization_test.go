@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -115,7 +116,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("explicit ACL dump loss", err, dump.String())
 	}
-	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
 	entry.Grantor = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
@@ -443,7 +444,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	namespace := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	original := e.catalog.state.MustNamespace(namespace.Address).ACL
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -495,10 +496,10 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	// genuinely unrepresentable. Normal ALTER OWNER's canonical transform is
 	// accepted and roundtripped by TestSchemaPublicLifecycleControls.
 	owner, _ := e.Roles().Lookup("namespace_owner")
-	replacement := cloneCatalog(e.catalog.state)
+	replacement := catalog.CloneState(e.catalog.state)
 	ns := *replacement.MustNamespace(namespace.Address)
 	ns.Owner = owner.Ref
-	replacement.setDescriptor(namespace.Address, &ns)
+	replacement.SetDescriptor(namespace.Address, &ns)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
 	}

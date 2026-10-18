@@ -46,11 +46,11 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if !ok {
 		t.Fatal("owner principal missing")
 	}
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Address())
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 	acl := func(privileges authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privileges}}}
 	}
-	schema := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Namespace())
+	schema := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Namespace())
 	if err := f.e.SetObjectACL(context.Background(), schema, acl(authorization.UsagePrivilege)); err != nil {
 		t.Fatal(err)
 	}

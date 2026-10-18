@@ -41,11 +41,11 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
-					next, ok := stage.descriptors[old.Address()].(*relationDescriptor)
+					next, ok := stage.Descriptors[old.Address()].(*relationDescriptor)
 					if !ok || len(next.Policies) != 1 || !reflect.DeepEqual(next.Policies[0], retained) || next.Revision() <= old.Revision() {
 						t.Fatal("wrong surviving policy collection", next)
 					}
-					if _, removed := stage.removals[old.Address()]; removed {
+					if _, removed := stage.Removals[old.Address()]; removed {
 						t.Fatal("policy owner became a retirement target")
 					}
 					if want := []string{"drop cascades to policy p on table t"}; !reflect.DeepEqual(stage.viewCascadeNames, want) {
@@ -65,7 +65,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err != nil {
 						t.Fatal("cleaned retirement failed validation", err)
 					}
-					if e.CatalogRead().state != base.state || len(old.Policies) != 2 || e.storage[old.Address()] != storage {
+					if e.CatalogRead().State() != base.State() || len(old.Policies) != 2 || e.storage[old.Address()] != storage {
 						t.Fatal("private retirement mutated published roots/storage")
 					}
 					if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {

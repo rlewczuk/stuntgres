@@ -121,7 +121,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		e.mu.Unlock()
 		return Result{}, captureErr
 	}
-	if current.catalog.owner != catalog.owner || current.catalog.Epoch() != catalog.Epoch() {
+	if current.catalog.Owner() != catalog.Owner() || current.catalog.Epoch() != catalog.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}

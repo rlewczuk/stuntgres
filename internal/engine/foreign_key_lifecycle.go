@@ -371,7 +371,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 // providers need no live grant; external parents retain the canonical DDL mode.
 func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStage) error {
 	var refs []ids.ObjectRef
-	for address, descriptor := range stage.descriptors {
+	for address, descriptor := range stage.Descriptors {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -383,10 +383,10 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if f.Target == address {
 				continue
 			}
-			if _, external := stage.base.Find(f.Target); !external {
+			if _, external := stage.Base.Find(f.Target); !external {
 				continue
 			}
-			ref := stage.owner.catalog.Domain.Ref(stage.base.Epoch(), f.Target)
+			ref := stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), f.Target)
 			if !slices.Contains(refs, ref) {
 				refs = append(refs, ref)
 			}
@@ -418,7 +418,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
 	e.mu.Unlock()
-	for address, descriptor := range stage.descriptors {
+	for address, descriptor := range stage.Descriptors {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -430,7 +430,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if f.Target == address {
 				continue
 			}
-			if _, external := stage.base.Find(f.Target); !external {
+			if _, external := stage.Base.Find(f.Target); !external {
 				continue
 			}
 			parent, ok := auth.catalog.Relation(f.Target)

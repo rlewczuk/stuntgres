@@ -119,7 +119,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			}
 			d := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.t").Address)
 			next := serialLeaf(d.Defaults[1].Expression)
-			if next.ref.Address == temp || next.ref.Domain() != dest.catalog.Domain || next.ref.Epoch != dest.catalog.state.epoch || !closedSequenceDefault(d.Defaults[1].Expression) {
+			if next.ref.Address == temp || next.ref.Domain() != dest.catalog.Domain || next.ref.Epoch != dest.catalog.state.Epoch() || !closedSequenceDefault(d.Defaults[1].Expression) {
 				t.Fatal("default not remapped", next.ref)
 			}
 			if err := (relationProvider{}).Validate(dest.CatalogRead(), d); err != nil {

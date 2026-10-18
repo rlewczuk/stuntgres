@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -88,50 +89,50 @@ func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error)
 }
 
 // Caller owns e.mu. Captures own their rows and retain only immutable roots.
-func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
 	if len(source.Columns) != len(pgTypeColumnIDs) {
 		return nil, fmt.Errorf("stuntgres: invalid type source shape")
 	}
 	for i, id := range pgTypeColumnIDs {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign type source type")
 		}
 	}
-	database, ok := catalog.Database(currentDatabaseAddress)
+	database, ok := view.Database(catalog.CurrentDatabaseAddress)
 	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign type owner authority")
 	}
 	count := 0
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if d, ok := descriptor.(*typeDescriptor); ok && pgTypeAdmitted(catalog, d) {
+		if d, ok := descriptor.(*typeDescriptor); ok && pgTypeAdmitted(view, d) {
 			count++
 		}
 	}
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*len(pgTypeColumnIDs))
 	next := 0
-	for address, descriptor := range catalog.Descriptors() {
+	for address, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		d, ok := descriptor.(*typeDescriptor)
-		if !ok || !pgTypeAdmitted(catalog, d) {
+		if !ok || !pgTypeAdmitted(view, d) {
 			continue
 		}
 		if address != d.Address() {
 			return nil, fmt.Errorf("stuntgres: invalid type address authority")
 		}
-		if err := (typeProvider{}).Validate(catalog, d); err != nil {
+		if err := (typeProvider{}).Validate(view, d); err != nil {
 			return nil, err
 		}
 		if _, err := roles.Descriptor(d.Owner); err != nil {
@@ -140,7 +141,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 		if d.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable type owner")
 		}
-		f, err := pgTypeFacts(catalog, d)
+		f, err := pgTypeFacts(view, d)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +207,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 				}
 			case sqltype.ACLItemArray:
 				var acl authorization.ACLValue
-				acl, err = rawObjectACL(catalog, address)
+				acl, err = rawObjectACL(view, address)
 				if err == nil {
 					row[i], err = e.pgClassACL(roles, column.Usage.Type, acl)
 				}

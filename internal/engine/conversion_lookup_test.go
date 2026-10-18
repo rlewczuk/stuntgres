@@ -115,7 +115,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		auth.state.CurrentUser = actor
 		create := &parser.CreateConversion{Name: conversionUnitName("public", "denied"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1")}
 		stage = e.BeginCatalogStage(auth.catalog)
-		before := auth.catalog.state
+		before := auth.catalog.State()
 		e.mu.Lock()
 		err = e.stageCreateConversionLocked(op, auth, stage, create)
 		e.mu.Unlock()
@@ -124,7 +124,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 			t.Fatal("actual routine ACL denial", err)
 		}
 		e.DiscardCatalogStage(stage)
-		if e.CatalogRead().state != before {
+		if e.CatalogRead().State() != before {
 			t.Fatal("denied EXECUTE published conversion")
 		}
 	})

@@ -46,20 +46,20 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 // edges. Scan the overlay directly rather than allocating a second catalog.
 func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescriptor) error {
 	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address, descriptor := range stage.base.Descriptors() {
+		for address, descriptor := range stage.Base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}
 		}
-		for address, descriptor := range stage.descriptors {
-			if _, exists := stage.base.Find(address); !exists {
+		for address, descriptor := range stage.Descriptors {
+			if _, exists := stage.Base.Find(address); !exists {
 				if !yield(address, descriptor) {
 					return
 				}
 			}
 		}
 	}
-	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) Descriptor { return stage.descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.removals[address]; return removed }, relation)
+	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) Descriptor { return stage.Descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.Removals[address]; return removed }, relation)
 }
 
 func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, Descriptor], replacement func(ids.ObjectAddress) Descriptor, removed func(ids.ObjectAddress) bool, relation *relationDescriptor) error {
@@ -128,7 +128,7 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 			}
 		case parser.DropNotNull, parser.DropConstraint:
 			if action.Action == parser.DropConstraint && relation.Inheritance != nil {
-				if provenance, exists := relation.Inheritance.Checks[action.Constraint.Text]; exists && provenance.count() != 0 {
+				if provenance, exists := relation.Inheritance.Checks[action.Constraint.Text]; exists && provenance.Count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, action.Constraint.Text, relation.Name()))
 				}
 			}
@@ -140,7 +140,7 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 				if slot, exists := relation.Index[action.Column.Text]; action.Action == parser.DropNotNull && exists {
 					matches = constraint.Attribute == relation.Attributes[slot]
 				}
-				if matches && relation.Inheritance.NotNull[constraint.Attribute].count() != 0 {
+				if matches && relation.Inheritance.NotNull[constraint.Attribute].Count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, constraint.Name, relation.Name()))
 				}
 			}

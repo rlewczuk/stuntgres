@@ -145,7 +145,7 @@ retry:
 	s.owner.mu.Lock()
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	admission := e.privateCatalogLocked(s.owner.catalog).state
+	admission := e.privateCatalogLocked(s.owner.catalog).State()
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
 		s.owner.mu.Unlock()
@@ -162,7 +162,7 @@ retry:
 	if ref.Domain() != e.catalog.Domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {

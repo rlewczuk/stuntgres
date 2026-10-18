@@ -271,7 +271,7 @@ func (n objectAddressExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Null(n.Usage.Type), nil
 	}
 	scope := c.liveScope()
-	if scope == nil || scope.commentCatalog.state == nil {
+	if scope == nil || scope.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
 	if n.op == getObjectAddress {

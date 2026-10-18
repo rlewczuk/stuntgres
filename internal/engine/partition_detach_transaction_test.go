@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -18,7 +19,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			f := partitionDetachUnitTree(t, false)
 			owner := sessionStart(t, f.e, nil)
-			ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.child.Address())
+			ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.child.Address())
 			parentRef := ref
 			parentRef.Address = f.parent.Address()
 			partitionAttachUnitWrite(t, f.e, owner, ref, 1)
@@ -138,7 +139,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				case "descendant":
 					victim = f.leaf
 				}
-				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, victim.Address())
+				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), victim.Address())
 				// A real explicit holder retains relation locks without retaining
 				// implicit row-work replacement admission.
 				holderSession := sessionStart(t, f.e, nil)
@@ -192,13 +193,13 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					}
 				case "revision":
 					f.e.mu.Lock()
-					next := cloneCatalog(f.e.catalog.state)
+					next := catalog.CloneState(f.e.catalog.state)
 					changed := *victim
 					changed.ObjectRevision++
 					changed.ObjectName += "_new"
-					next.unbindName(descriptorNameKey(victim))
-					next.bindName(descriptorNameKey(&changed), changed.Address())
-					next.setDescriptor(changed.Address(), &changed)
+					next.UnbindName(catalog.DescriptorNameKey(victim))
+					next.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
+					next.SetDescriptor(changed.Address(), &changed)
 					f.e.catalog.state = next
 					f.e.mu.Unlock()
 					if err := holder.Finish(nil); err != nil {

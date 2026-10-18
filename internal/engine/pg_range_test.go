@@ -18,7 +18,7 @@ func pgRangeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Object
 	if !ok {
 		t.Fatal("missing pg_range")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 func pgRangeUnitFacts() [][7]uint32 {
 	return [][7]uint32{
@@ -99,12 +99,12 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		}
 	}
 	checkDescriptor(catalog, d)
-	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
+	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
+	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgRangeUnitBag(t, rows, d)

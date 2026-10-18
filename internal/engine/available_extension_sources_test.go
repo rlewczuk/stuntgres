@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
@@ -14,7 +13,7 @@ import (
 
 func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	return e.catalog.state.MustRelation(a), e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return e.catalog.state.MustRelation(a), e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
@@ -136,19 +135,19 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	// Authentic installed descriptor, privately copied with only its version
 	// changed for projection. It is never validated/published as installation.
 	state := *e.catalog.state
-	state.descriptors = maps.Clone(e.catalog.state.descriptors)
-	state.names = maps.Clone(e.catalog.state.names)
+	state.CloneDescriptors()
+	state.CloneNames()
 	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := *state.MustExtension(address)
 	ext.Version = "available-unknown"
-	state.setDescriptor(address, &ext)
+	state.SetDescriptor(address, &ext)
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 	// A private installed descriptor with no registered package is not a row.
 	unavailable := ext
 	unavailable.ObjectAddress.ObjectID++
 	unavailable.ObjectName = "unavailable-component-fixture"
-	state.setDescriptor(unavailable.Address(), &unavailable)
-	state.bindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.Name()}, unavailable.Address())
+	state.SetDescriptor(unavailable.Address(), &unavailable)
+	state.BindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.Name()}, unavailable.Address())
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 }
 
@@ -195,7 +194,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	}
 	empty, schema = "", "fixed_control_schema"
 	original := extensionControl{Version: "1.1", Comment: &empty, Schema: &schema, Requires: []string{"original"}}
-	detached := original.detached()
+	detached := original.Detached()
 	empty, schema, original.Requires[0] = "mutated", "mutated", "mutated"
 	if *detached.Comment != "" || *detached.Schema != "fixed_control_schema" || detached.Requires[0] != "original" {
 		t.Fatal("caller storage retained", detached)

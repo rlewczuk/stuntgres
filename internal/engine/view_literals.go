@@ -1368,7 +1368,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		if !ok {
 			return fmt.Errorf("stuntgres: missing view collation identity")
 		}
-		if _, err := d.usage(); err != nil {
+		if _, err := d.Usage(); err != nil {
 			return fmt.Errorf("stuntgres: invalid view collation provider")
 		}
 		return child(r.Child)

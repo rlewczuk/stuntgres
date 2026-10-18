@@ -45,7 +45,7 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLit
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")
 	}
 	proc, ok := catalog.Procedure(ref.Address)
-	if !ok || proc.Name() != name || proc.intaggProvider() != stockIntagg {
+	if !ok || proc.Name() != name || intaggProviderOf(proc) != stockIntagg {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen intagg procedure")
 	}
 	if err := stockIntagg.validateProcedure(catalog, proc); err != nil {

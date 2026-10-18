@@ -37,7 +37,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	data := view.read()
-	if data == nil || data.catalog.state != e.catalog.state || data.catalog.owner != e.catalog.owner() || leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.epoch {
+	if data == nil || data.catalog.State() != e.catalog.state || data.catalog.Owner() != e.catalog.owner() || leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.Epoch() {
 		return nil
 	}
 	parent := leaf.ref.Address

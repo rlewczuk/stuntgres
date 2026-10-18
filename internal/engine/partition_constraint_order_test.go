@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -15,11 +16,11 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 	for _, insertion := range permutations {
 		t.Run(fmt.Sprint(insertion), func(t *testing.T) {
 			e := New()
-			state := cloneCatalog(e.catalog.state)
+			state := catalog.CloneState(e.catalog.state)
 			one := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, ObjectName: "a"}
 			two := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, ObjectName: "a.b"}
-			state.setDescriptor(one.Address(), one)
-			state.setDescriptor(two.Address(), two)
+			state.SetDescriptor(one.Address(), one)
+			state.SetDescriptor(two.Address(), two)
 			names := []string{"b.c", "z", "c"}
 			namespaces := []ids.ObjectAddress{one.Address(), one.Address(), two.Address()}
 			var tables, indexes [3]*relationDescriptor
@@ -29,8 +30,8 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				tables[i] = &relationDescriptor{ObjectAddress: tableAddress, ObjectNamespace: namespaces[i], ObjectName: names[i] + "_table", Partition: &partitionDefinition{}, UniqueConstraints: []uniqueConstraint{{Name: names[i], Index: indexAddress}}}
 				indexes[i] = &relationDescriptor{ObjectAddress: indexAddress, ObjectNamespace: namespaces[i], ObjectName: names[i], SQLIndex: &indexDefinition{Parent: tableAddress}}
 				for _, d := range []*relationDescriptor{tables[i], indexes[i]} {
-					state.setDescriptor(d.Address(), d)
-					state.bindName(descriptorNameKey(d), d.Address())
+					state.SetDescriptor(d.Address(), d)
+					state.BindName(catalog.DescriptorNameKey(d), d.Address())
 				}
 			}
 			view := e.catalog.read(state)

@@ -10,7 +10,7 @@ import (
 // transaction/savepoint roots remain untouched until the ordinary final install.
 func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]rowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
 	e.mu.Lock()
-	if ref.Epoch() != e.catalog.state.epoch {
+	if ref.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return nil, nil, nil, ids.ErrCatalogReplaced
 	}
@@ -54,13 +54,13 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		shape.truncated = false
 		shape.relation = base.MustRelation(a)
 		next.storage[a] = shape
-		e.fenceEmptyIndexStorageLocked(base.state, next, a)
+		e.fenceEmptyIndexStorageLocked(base.State(), next, a)
 		delete(nextWrites, a)
 		delete(nextDeletes, a)
 	}
 	e.mu.Unlock()
 	for _, address := range cleared {
-		if err := transportEmptyIndexStorage(op.Context(), base.state, next, nil, address, next.storage[address].replacement); err != nil {
+		if err := transportEmptyIndexStorage(op.Context(), base.State(), next, nil, address, next.storage[address].replacement); err != nil {
 			return nil, nil, nil, err
 		}
 	}
@@ -104,7 +104,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		e.mu.Lock()
 		err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 		if err == nil {
-			for a := range stage.descriptors {
+			for a := range stage.Descriptors {
 				original, observed := next.originals[a]
 				if !observed {
 					original = base.Get(a)
@@ -114,7 +114,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 					break
 				}
 			}
-			for a := range stage.removals {
+			for a := range stage.Removals {
 				original, observed := next.originals[a]
 				if !observed {
 					original = base.Get(a)
@@ -127,7 +127,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		}
 		if err == nil {
 			e.stageCatalogChangesLocked(stage, next)
-			for a := range stage.removals {
+			for a := range stage.Removals {
 				delete(nextWrites, a)
 				delete(nextDeletes, a)
 			}

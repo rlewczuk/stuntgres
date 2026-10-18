@@ -342,14 +342,14 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 			return Result{}, ids.ErrCatalogReplaced
 		}
 	}
-	for address, d := range stage.descriptors {
+	for address, d := range stage.Descriptors {
 		e.catalogChangeLocked(state.changes, address, d)
 	}
-	for address := range stage.removals {
+	for address := range stage.Removals {
 		e.catalogChangeLocked(state.changes, address, nil)
 	}
 	for address, rebound := range stage.rowShapes {
-		state.changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: stage.descriptors[address].(*relationDescriptor)}
+		state.changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: stage.Descriptors[address].(*relationDescriptor)}
 	}
 	scope.catalog = state.changes
 	e.mu.Unlock()
@@ -465,11 +465,11 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *relati
 				provenance.Origins = slices.DeleteFunc(slices.Clone(provenance.Origins), func(origin inheritanceOrigin) bool {
 					return inheritanceRemovedOrigin(state, origin, parser.DropNotNull)
 				})
-				if state.only && provenance.count() == 0 {
+				if state.only && provenance.Count() == 0 {
 					provenance.Local = true
 				}
 				graph.NotNull[c.Attribute] = provenance
-				if !provenance.Local && provenance.count() == 0 {
+				if !provenance.Local && provenance.Count() == 0 {
 					actions = append(actions, parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: c.Name}, Mode: a.Mode})
 				}
 			}
@@ -482,11 +482,11 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *relati
 					provenance.Origins = slices.DeleteFunc(slices.Clone(provenance.Origins), func(origin inheritanceOrigin) bool {
 						return inheritanceRemovedOrigin(state, origin, parser.DropConstraint)
 					})
-					if state.only && provenance.count() == 0 {
+					if state.only && provenance.Count() == 0 {
 						provenance.Local = true
 					}
 					graph.Checks[c.Name] = provenance
-					if !provenance.Local && provenance.count() == 0 {
+					if !provenance.Local && provenance.Count() == 0 {
 						actions = append(actions, a)
 					}
 				}
@@ -574,7 +574,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *relation
 		graph.Columns[attribute] = provenance
 	}
 	for attribute := range graph.Columns {
-		if !next.hasAttribute(attribute) {
+		if !next.HasAttribute(attribute) {
 			delete(graph.Columns, attribute)
 			delete(graph.NotNull, attribute)
 		}
@@ -617,14 +617,14 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *relation
 		}
 		if !state.descendant {
 			for _, action := range state.actions {
-				if (action.Action == parser.SetNotNull || action.Action == parser.AddNotNull) && action.Column.Text == next.Columns[next.indexForAttribute(c.Attribute)].Name {
+				if (action.Action == parser.SetNotNull || action.Action == parser.AddNotNull) && action.Column.Text == next.Columns[next.IndexForAttribute(c.Attribute)].Name {
 					provenance.Local = true
 				}
 			}
 		}
 		if state.descendant {
 			var origins []inheritanceOrigin
-			name := next.Columns[next.indexForAttribute(c.Attribute)].Name
+			name := next.Columns[next.IndexForAttribute(c.Attribute)].Name
 			for _, address := range graph.Parents {
 				parent := view.MustRelation(address)
 				if slot, ok := parent.Index[name]; ok {

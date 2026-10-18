@@ -131,7 +131,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 		destination = selected
 	}
-	ref := state.catalog.owner.Domain.Ref(state.catalog.Epoch(), destination.Address())
+	ref := state.catalog.Owner().Domain.Ref(state.catalog.Epoch(), destination.Address())
 	if state.groups[destination.Address()] == nil {
 		if err := s.acquirePartitionLock(ref, lock.RowExclusive); err != nil {
 			return err
@@ -178,7 +178,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 }
 
 func (state *partitionInsertState) missingPartition(ctx context.Context, parent *relationDescriptor, key []partitionDatum, output sqltype.OutputEnvironment) error {
-	ref := state.catalog.owner.Domain.Ref(state.catalog.Epoch(), parent.Address())
+	ref := state.catalog.Owner().Domain.Ref(state.catalog.Epoch(), parent.Address())
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.Name())).(*sqlstate.Error)
 	err.Schema, err.Table = state.catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must

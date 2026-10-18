@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -65,8 +66,8 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	index := *f.index
 	index.ObjectRevision++
 	index.SQLIndex = &definition
-	next := cloneCatalog(capture.state)
-	next.setDescriptor(index.Address(), &index)
+	next := catalog.CloneState(capture.State())
+	next.SetDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
@@ -114,8 +115,8 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	definition.Predicate = predicate
 	index := *f.index
 	index.SQLIndex = &definition
-	next := cloneCatalog(capture.state)
-	next.setDescriptor(index.Address(), &index)
+	next := catalog.CloneState(capture.State())
+	next.SetDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)

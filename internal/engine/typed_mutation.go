@@ -24,7 +24,7 @@ type typedRelationMutation struct {
 
 func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, actions []typedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.Address())
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
 	for i, action := range actions {
 		raw[i] = action.action
@@ -44,7 +44,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.usage)
 				if err == nil && added.column != nil {
 					if planned.usage != nil {
-						mutation.next.Columns[mutation.next.indexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
+						mutation.next.Columns[mutation.next.IndexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
 					}
 					mutation.additions = append(mutation.additions, added)
 				}
@@ -158,7 +158,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		err = scope.acquireSerializableSnapshot()
 		if err == nil {
 			e.mu.Lock()
-			err = e.serializableReadLocked(scope, e.catalog.Domain.Ref(stage.base.Epoch(), old.Address()))
+			err = e.serializableReadLocked(scope, e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address()))
 			e.mu.Unlock()
 		}
 		scope.owner.mu.Unlock()

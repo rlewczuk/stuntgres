@@ -217,7 +217,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 							t.Fatal("timeout did not terminate ownership")
 						}
 					}
-					if e.catalog.state != before.state {
+					if e.catalog.state != before.State() {
 						t.Fatal("failed ownership published catalog")
 					}
 					if !create && *e.sequences[sequence.Address] != generator {

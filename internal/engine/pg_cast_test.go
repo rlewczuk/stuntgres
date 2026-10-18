@@ -18,7 +18,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_cast")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
 func TestPGCastShapeAndOwnership(t *testing.T) {
@@ -118,8 +118,8 @@ func pgCastUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[u
 func TestPGCastProjection(t *testing.T) {
 	e := New()
 	d, ref := pgCastUnitSource(t, e)
-	before := maps.Clone(e.catalog.state.descriptors)
-	names := maps.Clone(e.catalog.state.names)
+	before := maps.Collect(e.catalog.state.Descriptors())
+	names := maps.Collect(e.catalog.state.Names())
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +127,7 @@ func TestPGCastProjection(t *testing.T) {
 	if rows.ref != ref {
 		t.Fatal("captured reference lost", rows.ref, ref)
 	}
-	if !maps.Equal(e.catalog.state.descriptors, before) || !maps.Equal(e.catalog.state.names, names) {
+	if !maps.Equal(maps.Collect(e.catalog.state.Descriptors()), before) || !maps.Equal(maps.Collect(e.catalog.state.Names()), names) {
 		t.Fatal("capture mutated catalog state")
 	}
 	bag := pgCastUnitBag(t, rows, d)
@@ -148,10 +148,10 @@ func TestPGCastProjection(t *testing.T) {
 	}
 	// Dedicated capture needs type owners only, not generic relation inventory.
 	state := *e.catalog.state
-	state.descriptors = maps.Clone(e.catalog.state.descriptors)
+	state.CloneDescriptors()
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
-			state.removeDescriptor(a)
+			state.RemoveDescriptor(a)
 		}
 	}
 	view := e.catalog.read(&state)
@@ -159,7 +159,7 @@ func TestPGCastProjection(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
-	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
+	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
 	if rows, err := capturePGCast(context.Background(), view, ref, d); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}

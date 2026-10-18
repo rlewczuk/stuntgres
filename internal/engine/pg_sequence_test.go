@@ -3,9 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -19,7 +19,7 @@ func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obj
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 	t.Helper()
@@ -137,13 +137,13 @@ func TestPGSequenceProjection(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	state := *e.catalog.state
-	state.descriptors = maps.Clone(e.catalog.state.descriptors)
+	state.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &sequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
 	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
-	state.setDescriptor(a, d)
-	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{RelationKind: tableRelation})
-	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{RelationKind: viewRelation})
+	state.SetDescriptor(a, d)
+	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{RelationKind: tableRelation})
+	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{RelationKind: viewRelation})
 	e.sequences[a] = &sequenceGenerator{last: 99, called: true, generation: 100}
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
@@ -161,9 +161,9 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	base := *e.catalog.state
-	base.descriptors = maps.Clone(e.catalog.state.descriptors)
+	base.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	base.setDescriptor(a, &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
+	base.SetDescriptor(a, &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := newCatalogChanges()
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
@@ -189,16 +189,16 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	base := *e.catalog.state
-	base.descriptors = maps.Clone(e.catalog.state.descriptors)
+	base.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	options := &sequenceOptions{SQLType: sqltype.Int2, Start: -1, Increment: -3, Max: -1, Min: -32768, Cache: 1}
 	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
-	base.setDescriptor(a, d)
+	base.SetDescriptor(a, d)
 	other := *d
 	other.ObjectAddress = dropped
-	base.setDescriptor(dropped, &other)
+	base.SetDescriptor(dropped, &other)
 	old, err := capturePGSequence(context.Background(), &base, nil, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	own.descriptors[added] = &addition
 	want := map[uint32][]any{20000: {uint32(20000), uint32(21), int64(-4), int64(-3), int64(-1), int64(-32768), int64(1), false}, 20002: {uint32(20002), uint32(21), int64(-1), int64(-3), int64(-1), int64(-32768), int64(1), false}}
 	// Latest publication has none of the retained base's sequence definitions.
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	owner := op.session.transactions
@@ -233,7 +233,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{&base, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
+	for _, state := range []*catalogState{&base, catalog.NewState(0)} {
 		rows, err := capturePGSequence(ctx, state, own, ref, source)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)
@@ -266,7 +266,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}
 			e.mu.Lock()
-			e.catalog.state = cloneCatalog(e.catalog.state)
+			e.catalog.state = catalog.CloneState(e.catalog.state)
 			e.mu.Unlock()
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
@@ -311,7 +311,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 			}
 			if unsafe {
 				e.mu.Lock()
-				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
 				next := e.catalog.state
 				e.commitSeq++
 				e.serializableCommittedLocked(writer.ref, e.commitSeq)

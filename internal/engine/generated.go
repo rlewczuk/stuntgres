@@ -11,31 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Generation definitions have stable attribute identities, separate from defaults.
-type columnGeneration struct {
-	OID        ids.OID
-	Kind       generationKind
-	Expression expr.Expr
-	// Retain analyzed syntax for dependencies/deparse and its physical plan for writes.
-	Planned         expr.Expr
-	Dependencies    []ids.ObjectRef
-	CatalogSnapshot bool
-}
-
-type generationKind uint8
-
-const (
-	generationStored generationKind = iota + 1
-	generationVirtual
-)
-
-func (k generationKind) sql() string {
-	if k == generationVirtual {
-		return "VIRTUAL"
-	}
-	return "STORED"
-}
-
 type tableOIDExpression struct {
 	expr.Info
 	owner ids.ObjectRef
@@ -381,15 +356,6 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 	return ctx.Err()
 }
 
-func (d *relationDescriptor) indexForAttribute(attribute int32) int {
-	for slot, live := range d.Attributes {
-		if live == attribute {
-			return slot
-		}
-	}
-	return -1
-}
-
 func generationHasTableOID(node expr.Expr) bool {
 	if node == nil {
 		return false
@@ -618,7 +584,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 				}
 			}
 			if address == d.Address() {
-				if ref.Address.SubID != 0 && !d.hasAttribute(ref.Address.SubID) {
+				if ref.Address.SubID != 0 && !d.HasAttribute(ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: missing generation source attribute")
 				}
 				continue

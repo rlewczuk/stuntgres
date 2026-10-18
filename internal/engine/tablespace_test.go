@@ -104,7 +104,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 		if result.Rows != nil || result.CommandTag != "" {
 			t.Fatal("refusal exposed result", result)
 		}
-		if e.catalog.state != state || e.catalog.state.epoch != state.epoch || e.roles != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.nextPrincipal != principal || op.RoleState() != identity || op.session.authorization.revision != authorizationRevision {
+		if e.catalog.state != state || e.catalog.state.Epoch() != state.Epoch() || e.roles != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.nextPrincipal != principal || op.RoleState() != identity || op.session.authorization.revision != authorizationRevision {
 			t.Fatal("refusal published catalog/identity/allocator changes")
 		}
 	}

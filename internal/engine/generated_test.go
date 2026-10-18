@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -179,9 +180,9 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	if definition.OID == 0 || !structuralNull(definition.Expression) || len(d.Defaults) != 0 {
 		t.Fatal("generated NULL pruned/conflated", definition)
 	}
-	candidate := cloneCatalog(view.state)
-	candidate.setDescriptor(d.Address(), d)
-	candidate.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	candidate := catalog.CloneState(view.State())
+	candidate.SetDescriptor(d.Address(), d)
+	candidate.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	read := e.catalog.read(candidate)
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
@@ -219,8 +220,8 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}
 	rows := &relationStorage{versions: []rowVersion{{values: source}}}
-	candidate := cloneCatalog(view.state)
-	candidate.setDescriptor(d.Address(), d)
+	candidate := catalog.CloneState(view.State())
+	candidate.SetDescriptor(d.Address(), d)
 	storage := map[ids.ObjectAddress]*relationStorage{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {

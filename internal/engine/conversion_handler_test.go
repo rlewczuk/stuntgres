@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,10 +18,10 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	view := auth.catalog
 	// Corrupt actual routine metadata in an unpublished candidate, preserving
 	// its real six-argument identity/provider, to exercise return-type admission.
-	candidate := cloneCatalog(view.state)
+	candidate := catalog.CloneState(view.State())
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	procedure.Result = 25
-	candidate.setDescriptor(procedure.Address(), &procedure)
+	candidate.SetDescriptor(procedure.Address(), &procedure)
 	auth.recaptureCatalog(e.catalog.read(candidate))
 	stage := e.BeginCatalogStage(auth.catalog)
 	e.mu.Lock()
@@ -31,7 +32,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 		t.Fatal("actual return contract", err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != view.state {
+	if e.CatalogRead().State() != view.State() {
 		t.Fatal("bad routine metadata published")
 	}
 	auth.recaptureCatalog(view)
@@ -67,7 +68,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 		t.Fatal("real empty handler context entry", err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("empty probe cancellation published catalog")
 	}
 }

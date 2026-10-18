@@ -8,25 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// These are declaration identities, never permission results or a SQL evaluator.
-// All edges come from REL_18_0 system_functions.sql/pg_proc.dat/pg_cast.dat.
-// A descriptor borrows one engine-owned backing array; original binding/recipe
-// manifests separately retain every actually selected edge's scoped lifetime.
-type routineBodyDemand uint8
-
-const (
-	bodyAlways routineBodyDemand = iota
-	bodyBooleanText
-	bodyNetworkText
-	bodyLeftDuration
-	bodyRightDuration
-)
-
-type routineBodyEdge struct {
-	Routine *procedureDescriptor
-	Demand  routineBodyDemand
-}
-
 var builtinRoutineBodyEdges = [...]struct {
 	outer, inner ids.OID
 	demand       routineBodyDemand

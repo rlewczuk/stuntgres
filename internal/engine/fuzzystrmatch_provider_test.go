@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -40,7 +41,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("member count", ext.Members)
 	}
 	proc := view.MustProcedure(ext.Members[0])
-	if proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
+	if proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
 	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
@@ -48,7 +49,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	for _, address := range ext.Members {
 		member := view.MustProcedure(address)
 		key := member.Name() + ":" + string(member.Signature)
-		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.Namespace() != ext.TargetNamespace || member.Extension != ext.Address() || member.Volatility != expr.Immutable || !member.Strict || member.fuzzystrmatchProvider() != stockFuzzystrmatch {
+		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.Namespace() != ext.TargetNamespace || member.Extension != ext.Address() || member.Volatility != expr.Immutable || !member.Strict || fuzzystrmatchProviderOf(member) != stockFuzzystrmatch {
 			t.Fatal("selected member identity", member)
 		}
 		delete(expected, key)
@@ -91,10 +92,10 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
 		func(p *procedureDescriptor) { p.Dictionary = ext.Address() }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
 	} {
-		state := cloneCatalog(e.catalog.state)
+		state := catalog.CloneState(e.catalog.state)
 		bad := *proc
 		mutate(&bad)
-		state.setDescriptor(proc.Address(), &bad)
+		state.SetDescriptor(proc.Address(), &bad)
 		if err := stockFuzzystrmatch.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
@@ -232,10 +233,10 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
 	}
-	state := cloneCatalog(e.catalog.state)
+	state := catalog.CloneState(e.catalog.state)
 	badProcedure := *n.procedure
 	badProcedure.Result = 25
-	state.setDescriptor(n.ref.Address, &badProcedure)
+	state.SetDescriptor(n.ref.Address, &badProcedure)
 	if err := validateGenerationProviders(e.catalog.read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
@@ -341,7 +342,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	// between the two catalogs' immutable builtin descriptors.
 	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
 	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
-	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
 	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.Address() || n.ref.Domain() != target.catalog.Domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {

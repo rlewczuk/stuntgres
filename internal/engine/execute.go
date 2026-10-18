@@ -362,7 +362,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.returning != nil {
 			results = b.returning.schema
 		}
-		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.owner, catalogEpoch: auth.catalog.Epoch()}); err != nil {
+		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.Owner(), catalogEpoch: auth.catalog.Epoch()}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

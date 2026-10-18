@@ -28,7 +28,7 @@ func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) er
 		return nil
 	}
 	if old.ref != b.ref || old.catalog == nil || b.catalog == nil ||
-		old.ref.Epoch != old.catalog.epoch || b.ref.Epoch != b.catalog.epoch ||
+		old.ref.Epoch != old.catalog.Epoch() || b.ref.Epoch != b.catalog.Epoch() ||
 		old.catalog.Get(old.ref.Address) != old.parent || b.catalog.Get(b.ref.Address) != b.parent ||
 		old.parent.Revision() != b.parent.Revision() || !sameRelationRowShape(old.parent, b.parent) {
 		return ids.ErrCatalogReplaced

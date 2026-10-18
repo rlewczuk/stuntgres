@@ -59,7 +59,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 				continue
 			}
 			label := fmt.Sprintf("constraint %s on table %s", dependencyIdentifier(check.Name), dependencyIdentifier(relation.Name()))
-			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.Columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.Name())))
+			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.Columns[source.IndexForAttribute(attribute)].Name), dependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
 				provider.compositeFieldNotice("drop cascades to " + label)
 			}
@@ -107,7 +107,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 				continue
 			}
 			label := fmt.Sprintf("constraint %s", dependencyIdentifier(check.Name))
-			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.Columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.Name())))
+			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.Columns[source.IndexForAttribute(attribute)].Name), dependencyIdentifier(source.Name())))
 			if mode == parser.DropCascade {
 				if err := provider.removeDomainCheck(domain, check.OID); err != nil {
 					return err
@@ -117,7 +117,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 		}
 	}
 	if len(details) != 0 && mode == parser.DropRestrict {
-		diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop column %s of composite type %s because other objects depend on it", dependencyIdentifier(source.Columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.Name()))).(*sqlstate.Error)
+		diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop column %s of composite type %s because other objects depend on it", dependencyIdentifier(source.Columns[source.IndexForAttribute(attribute)].Name), dependencyIdentifier(source.Name()))).(*sqlstate.Error)
 		diagnostic.Detail = strings.Join(details, "\n")
 		diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 		return diagnostic
@@ -146,7 +146,7 @@ func typedFieldCheckOwner(stage *CatalogStage, relation *relationDescriptor) boo
 	}
 	if relation.Inheritance != nil {
 		for _, address := range relation.Inheritance.Parents {
-			parent, ok := stage.base.Relation(address)
+			parent, ok := stage.Base.Relation(address)
 			if ok && typedFieldCheckOwner(stage, parent) {
 				return true
 			}

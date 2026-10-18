@@ -235,10 +235,10 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal("additive first-grandchild growth was treated as replacement", err)
 	}
-	if state.stage == nil || state.stage.base.state != grown.state || state.stage.base.Get(g.Address()) != g || len(state.targets) != 3 {
+	if state.stage == nil || state.stage.Base.State() != grown.State() || state.stage.Base.Get(g.Address()) != g || len(state.targets) != 3 {
 		t.Fatal("sole stage did not capture reconciled actual growth")
 	}
-	if e.CatalogRead().state != grown.state {
+	if e.CatalogRead().State() != grown.State() {
 		t.Fatal("controller published before statement Finish")
 	}
 	for _, old := range []*relationDescriptor{p, currentChild, g} {
@@ -302,7 +302,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)
-	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.Address()) != g || len(e.CatalogRead().MustRelation(p.Address()).Columns) != 1 {
+	if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.Address()) != g || len(e.CatalogRead().MustRelation(p.Address()).Columns) != 1 {
 		t.Fatal("replacement veto leaked earlier prepared root or retargeted the graph")
 	}
 	lockEmpty(t, e)
@@ -398,7 +398,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 				t.Fatal("inline fact failed to reach physical leaf validator", err)
 			}
 			command.scope.Finish(err)
-			if e.CatalogRead().state != before.state || !reflect.DeepEqual(stores, e.storage) {
+			if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage) {
 				t.Fatal("late inline leaf failure partially changed parent/child")
 			}
 			if !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
@@ -431,7 +431,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("later DEFAULT bound a provider actually removed in phase zero", provider.name, err)
 			}
 			command.scope.Finish(err)
-			if e.CatalogRead().state != before.state || e.CatalogRead().Get(removed.Address()) != removed || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.sequences) {
+			if e.CatalogRead().State() != before.State() || e.CatalogRead().Get(removed.Address()) != removed || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.sequences) {
 				t.Fatal("removed-provider binding failure partially applied actual DROP effects")
 			}
 			lockEmpty(t, e)
@@ -539,7 +539,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				}
 				command.scope.Finish(err)
 				holder.Finish(nil)
-				if e.CatalogRead().state != before.state || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
+				if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 					t.Fatal("canceled rowtype cooking changed original physical state")
 				}
 				lockEmpty(t, e)
@@ -567,7 +567,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if err := inheritanceAlterJoin(t, result, joined); err != nil {
 				t.Fatal(err)
 			}
-			if e.CatalogRead().state != before.state {
+			if e.CatalogRead().State() != before.State() {
 				t.Fatal("rowtype controller published before Finish")
 			}
 			if err := command.scope.Finish(nil); err != nil {
@@ -602,7 +602,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			}
 			drop := prepared.steps[1].drop
 			add := prepared.steps[0]
-			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.hasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.attribute == p.Attributes[p.Index["b"]] {
+			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.attribute == p.Attributes[p.Index["b"]] {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
 			cooked := prepared.checks.next
@@ -614,7 +614,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}
-			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().Get(view.Address()) != view {
+			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {
@@ -625,7 +625,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				}
 				command.scope.Finish(err)
 				holder.Finish(nil)
-				if e.CatalogRead().state != before.state || !reflect.DeepEqual(stores, e.storage) {
+				if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage) {
 					t.Fatal("canceled mixed preparation changed physical catalog/store")
 				}
 				for address, store := range stores {
@@ -650,7 +650,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if _, consumed := command.scope.consumedColumnDrops[drop]; !consumed || state.stage == nil {
 				t.Fatal("sole pipeline did not consume actual DROP effects")
 			}
-			if e.CatalogRead().state != before.state {
+			if e.CatalogRead().State() != before.State() {
 				t.Fatal("cached provider effects published before Finish")
 			}
 			if err := command.scope.Finish(nil); err != nil {

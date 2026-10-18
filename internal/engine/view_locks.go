@@ -41,7 +41,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
 		d, ok := catalog.Relation(ref.Address)
-		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || !ok {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !ok {
 			return ids.ErrCatalogReplaced
 		}
 		if s.materializedRefresh && !visited {
@@ -64,7 +64,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if d.RelationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.RelationKind == materializedViewRelation {
 			if viewOf(d).temporary != (ids.SessionToken{}) {
 				for old := range viewOf(d).references {
-					if old.Epoch != e.catalog.state.epoch {
+					if old.Epoch != e.catalog.state.Epoch() {
 						retainedViews = append(retainedViews, d)
 						break
 					}
@@ -108,7 +108,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				continue
 			}
 			relation := catalog.MustRelation(ref.Address)
-			if relation.RelationKind.stored() {
+			if relation.RelationKind.Stored() {
 				leaves = append(leaves, queryLeaf{ref: ref})
 			}
 		}
@@ -138,7 +138,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	catalog = e.privateCatalogLocked(s.owner.catalog)
 	if s.materializedRefresh {
 		for _, observed := range s.materializedSources {
-			if !materializedSourceCurrent(s.materializedSourceView, observed, catalog.state, e.privateStorageLocked(s.owner.catalog, observed.Address())) {
+			if !materializedSourceCurrent(s.materializedSourceView, observed, catalog.State(), e.privateStorageLocked(s.owner.catalog, observed.Address())) {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -200,7 +200,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		}
 		e.mu.Lock()
 		current, exists := e.privateCatalogLocked(s.owner.catalog).Find(ref.Address)
-		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.epoch && exists
+		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.Epoch() && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.session) != preparedDefinitionStamp(d, s.op.session) {
 			s.preparedChangedDuringAdmission = true
 		}

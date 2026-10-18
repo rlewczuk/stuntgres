@@ -7,7 +7,7 @@ import "stuntgres/internal/engine/ids"
 // turn a metadata generation change into another CHECK or index truth event.
 func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalogState, stores map[ids.ObjectAddress]*relationStorage) error {
 	for address, store := range stores {
-		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.base.state, next, e.stageStorageLocked(stage, address), store)
+		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
 			return err
 		}
@@ -18,7 +18,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		sources[address] = e.stageStorageLocked(stage, address)
 	}
 	sourceRoots := make(map[ids.ObjectAddress]*logicalIndexRoot)
-	for address, descriptor := range stage.base.Descriptors() {
+	for address, descriptor := range stage.Base.Descriptors() {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && sources[index.SQLIndex.Parent] != nil {
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
 		}
@@ -27,7 +27,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		private = stage.authSession.transactions.catalog
 	}
-	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter, stage.base, sources, sourceRoots, e.commitSeq, stores, private)
+	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter, stage.Base, sources, sourceRoots, e.commitSeq, stores, private)
 	if err != nil {
 		return err
 	}

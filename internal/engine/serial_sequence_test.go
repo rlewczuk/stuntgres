@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -27,7 +28,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	t.Helper()
 	e := New()
 	view := e.CatalogRead()
-	view.state = cloneCatalog(view.state)
+	view = view.WithState(catalog.CloneState(view.State()))
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
 	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
@@ -43,8 +44,8 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
-		view.state.setDescriptor(descriptor.Address(), descriptor)
-		view.state.bindName(descriptorNameKey(descriptor), descriptor.Address())
+		view.State().SetDescriptor(descriptor.Address(), descriptor)
+		view.State().BindName(catalog.DescriptorNameKey(descriptor), descriptor.Address())
 	}
 	literal := func(s string) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
@@ -100,12 +101,12 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	}
 	// Replacement of the engine's live map must not change a captured inquiry.
 	f := serialSequenceUnitFixture(t)
-	f.engine.catalog.state = cloneCatalog(f.view.state)
+	f.engine.catalog.state = catalog.CloneState(f.view.State())
 	changed := *f.sequence
 	options := *changed.Sequence
 	options.Owned = ids.ObjectAddress{}
 	changed.Sequence = &options
-	f.engine.catalog.state.setDescriptor(changed.Address(), &changed)
+	f.engine.catalog.state.SetDescriptor(changed.Address(), &changed)
 	value, err := f.node.Eval(f.context)
 	if err != nil {
 		t.Fatal(err)

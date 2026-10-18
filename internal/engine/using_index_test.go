@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -205,7 +206,7 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.epoch}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			parent := primaryKeyUnitRelation(t, e, "t")
@@ -425,8 +426,8 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 						copyDescriptor := *original
 						copyDescriptor.ObjectRevision++
 						copyDescriptor.Comment = "concurrent replacement"
-						state := cloneCatalog(e.catalog.state)
-						state.setDescriptor(original.Address(), &copyDescriptor)
+						state := catalog.CloneState(e.catalog.state)
+						state.SetDescriptor(original.Address(), &copyDescriptor)
 						e.catalog.state = state
 						e.mu.Unlock()
 					case "authorization":
@@ -597,7 +598,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.epoch}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	source := primaryKeyUnitRelation(t, e, "prebuilt")

@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 )
 
 // databaseRights reads one captured catalog/role pair; callers own its coherence
 // and the engine mutex when observing live roots. It invokes no host callback.
-func databaseRights(ctx context.Context, catalog CatalogRead, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
+func databaseRights(ctx context.Context, view CatalogRead, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -25,7 +26,7 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 	if err != nil {
 		return 0, err
 	}
-	db := catalog.MustDatabase(currentDatabaseAddress)
+	db := view.MustDatabase(catalog.CurrentDatabaseAddress)
 	// Avoid materializing a default ACL merely to inspect its ordinary rights.
 	rights := authorization.ACLRights(db.ACL, db.Owner, principals, authorization.DatabasePrivileges, false)
 	if !db.ACL.Explicit {
@@ -37,12 +38,12 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 // checkDatabaseConnectLocked is used only at physical session publication.
 // Identity switches and already admitted operations do not call it.
 func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated authorization.PrincipalRef) error {
-	catalog := e.catalog.read(e.catalog.state)
-	rights, err := databaseRights(ctx, catalog, e.roleRead(catalog, e.roles), authenticated)
+	view := e.catalog.read(e.catalog.state)
+	rights, err := databaseRights(ctx, view, e.roleRead(view, e.roles), authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}
-	db := catalog.MustDatabase(currentDatabaseAddress)
+	db := view.MustDatabase(catalog.CurrentDatabaseAddress)
 	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.Name())).(*sqlstate.Error)
 	diagnostic.Detail = "User does not have CONNECT privilege."
 	return diagnostic
@@ -51,7 +52,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
 func (v AuthorizationView) ownTemporaryPrivileges() (authorization.Privileges, error) {
-	rights, err := v.Effective(v.engine.catalog.Domain.Ref(v.catalog.Epoch(), currentDatabaseAddress), false)
+	rights, err := v.Effective(v.engine.catalog.Domain.Ref(v.catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 	if err != nil {
 		return 0, err
 	}

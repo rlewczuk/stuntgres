@@ -209,7 +209,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 }
 
 func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f foreignKeyConstraint) bool {
-	parent, ok := stage.base.Relation(address)
+	parent, ok := stage.Base.Relation(address)
 	if !ok {
 		return false
 	}

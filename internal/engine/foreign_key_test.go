@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -238,7 +239,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 	}
 	index := view.MustRelation(original.Index)
 	for _, phase := range []string{"nonunique", "nonready", "invalid", "notlive"} {
-		state := cloneCatalog(view.state)
+		state := catalog.CloneState(view.State())
 		copy := *index
 		definition := *index.SQLIndex
 		switch phase {
@@ -252,7 +253,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 			definition.Live = false
 		}
 		copy.SQLIndex = &definition
-		state.setDescriptor(index.Address(), &copy)
+		state.SetDescriptor(index.Address(), &copy)
 		if err := validateForeignKeys(e.catalog.read(state), child, map[string]bool{}); err == nil {
 			t.Fatal("invalid selected index authority", phase)
 		}

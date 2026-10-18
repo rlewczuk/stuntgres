@@ -617,6 +617,14 @@ per-field `gopls rename`; the identity fields are `Object*`.
   publication coordination: storage row shapes, index candidates, domain
   validation, materialized replacement, role candidates (cut 2).
 
+Done; see the prompt file's 5e results. Correction: validation of the core
+kinds moved only for namespaces, databases, tablespaces, collations,
+conversions and foreign objects. Relation, type, extension, operator and
+parameter validation need stored-SQL rendering, engine expression nodes or
+engine inventories and stay in the engine behind the moved registry.
+`RoutineProvider` moved to `expr` so that catalog routine declarations do not
+import `functions`.
+
 **Doable because** after the cuts the catalog closure contains no god struct.
 39 of 40 methods on these types are already clean (the one dirty method is
 handled in 5b). Every sub-step before 5e is an in-package refactor that keeps
@@ -721,7 +729,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 eight of nine switches done (deparse and node tree through `expr.Rendering`); F2 stored scalar SQL next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a–5d done; 5e next |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a–5e done; 5f next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 done; B0 waits for step 5 |

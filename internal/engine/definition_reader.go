@@ -41,31 +41,31 @@ func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, b
 type stageDefinitionReader struct{ stage *CatalogStage }
 
 func (r stageDefinitionReader) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
-	if _, removed := r.stage.removals[address]; removed {
+	if _, removed := r.stage.Removals[address]; removed {
 		return nil, false
 	}
-	if descriptor, exists := r.stage.descriptors[address]; exists {
+	if descriptor, exists := r.stage.Descriptors[address]; exists {
 		return descriptor, true
 	}
-	return r.stage.base.Descriptor(address)
+	return r.stage.Base.Descriptor(address)
 }
 func (r stageDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
-	return r.stage.lookupName(key)
+	return r.stage.LookupName(key)
 }
 func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address := range r.stage.base.Descriptors() {
+		for address := range r.stage.Base.Descriptors() {
 			if descriptor, exists := r.descriptor(address); exists {
 				if !yield(address, descriptor) {
 					return
 				}
 			}
 		}
-		for address, descriptor := range r.stage.descriptors {
-			if _, original := r.stage.base.Find(address); original {
+		for address, descriptor := range r.stage.Descriptors {
+			if _, original := r.stage.Base.Find(address); original {
 				continue
 			}
-			if _, removed := r.stage.removals[address]; removed {
+			if _, removed := r.stage.Removals[address]; removed {
 				continue
 			}
 			if !yield(address, descriptor) {

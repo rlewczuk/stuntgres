@@ -70,7 +70,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n.Extension = address(n.Extension)
 		n.Dictionary = address(n.Dictionary)
 		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
-		if n.intarrayProvider() != nil {
+		if intarrayProviderOf(&n) != nil {
 			if n.Name() == "bqarr_in" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {

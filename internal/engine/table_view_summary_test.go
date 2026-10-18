@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -67,12 +68,12 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			run(t, e, "CREATE INDEX summary_history_index ON summary_history(n)")
 			run(t, e, "DROP INDEX summary_history_index")
 			base := e.CatalogRead()
-			state := cloneCatalog(base.state)
+			state := catalog.CloneState(base.State())
 			address := roleTableRef(t, e, "summary_active").Address
 			historyAddress := roleTableRef(t, e, "summary_history").Address
 			parent := *state.MustRelation(address)
 			parent.HasIndexes = false
-			state.setDescriptor(address, &parent)
+			state.SetDescriptor(address, &parent)
 			stage := e.BeginCatalogStage(base)
 			if err := stage.Replace(&parent); err == nil {
 				t.Fatal("same-identity replacement cleared sticky history")
@@ -128,22 +129,22 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	staged := stage.descriptors[address].(*relationDescriptor)
+	staged := stage.Descriptors[address].(*relationDescriptor)
 	if staged.Name() != "summary_renamed" || !staged.HasIndexes || staged == &next || next.HasIndexes || parent.HasIndexes {
 		t.Fatal("staged parent changes lost or mutated")
 	}
-	if e.CatalogRead().state != base.state {
+	if e.CatalogRead().State() != base.State() {
 		t.Fatal("private history prematurely published")
 	}
 	// The invalid index fails ordinary candidate validation; nothing is installed.
-	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || e.CatalogRead().state != base.state {
+	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || e.CatalogRead().State() != base.State() {
 		t.Fatal("invalid candidate published", err)
 	}
 	e.DiscardCatalogStage(stage)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	empty := e.BeginCatalogStage(base)
-	if _, err := e.ValidateCatalogStage(canceled, empty); !errors.Is(err, context.Canceled) || e.CatalogRead().state != base.state {
+	if _, err := e.ValidateCatalogStage(canceled, empty); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != base.State() {
 		t.Fatal("cancellation changed catalog", err)
 	}
 }

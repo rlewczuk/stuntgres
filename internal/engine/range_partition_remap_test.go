@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -88,7 +89,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if _, err := e.ReplaceCatalog(canceled, e, retained); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().state != retained.state {
+	if e.CatalogRead().State() != retained.State() {
 		t.Fatal("canceled remap installed a candidate")
 	}
 	changes, err := e.ReplaceCatalog(context.Background(), e, retained)
@@ -170,16 +171,16 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO root VALUES(1)")
 	before := e.CatalogRead()
 	root := rangePartitionRelation(t, e, "root")
-	state := cloneCatalog(before.state)
+	state := catalog.CloneState(before.State())
 	candidate := *root
 	partition := *root.Partition
 	partition.Children = append(slices.Clone(partition.Children), partition.Children[0])
 	candidate.Partition = &partition
-	state.setDescriptor(root.Address(), &candidate)
+	state.SetDescriptor(root.Address(), &candidate)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("malformed remap installed")
 	}
 	result := roleExecute(t, e, op, "SELECT k FROM root")
@@ -224,14 +225,14 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 	if err := target.Restore(canceled, bytes.NewReader(stream.Bytes())); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if target.CatalogRead().state != before.state {
+	if target.CatalogRead().State() != before.State() {
 		t.Fatal("canceled hierarchy replay swapped target")
 	}
 	invalid := append(slices.Clone(stream.Bytes()), []byte("\nALTER TABLE public.root ALTER COLUMN payload SET DEFAULT NULL;\n")...)
 	if err := target.Restore(context.Background(), bytes.NewReader(invalid)); err == nil {
 		t.Fatal("nondeferrable hierarchy default accepted as importer replay")
 	}
-	if target.CatalogRead().state != before.state {
+	if target.CatalogRead().State() != before.State() {
 		t.Fatal("failed trusted replay swapped target")
 	}
 	if !reflect.DeepEqual(tuples(roleExecute(t, target, targetOp, "SELECT k FROM sentinel")), [][]driver.Value{{int64(9)}}) {
@@ -269,7 +270,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	view := e.CatalogRead()
 	text, _ := view.LookupType(sqltype.Text)
 	provider := collationUnitDefinition(e, 90000, "partition_provider")
-	capability, err := provider.usage()
+	capability, err := provider.Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,9 +298,9 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	temporary.ObjectName = "retained_temp_provider"
 	temporary.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
 	temporaryBefore := temporary
-	next := cloneCatalog(view.state)
-	next.setDescriptor(provider.Address(), &temporary)
-	next.setDescriptor(imported.Address(), &imported)
+	next := catalog.CloneState(view.State())
+	next.SetDescriptor(provider.Address(), &temporary)
+	next.SetDescriptor(imported.Address(), &imported)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
 	collation := remappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {
@@ -319,7 +320,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		if next.Get(provider.Address()) != &temporary || !reflect.DeepEqual(temporary, temporaryBefore) {
 			t.Fatal("remap changed exact retained TEMP descriptor")
 		}
-		wantCapability, err := imported.usage()
+		wantCapability, err := imported.Usage()
 		if err != nil {
 			t.Fatal(err)
 		}

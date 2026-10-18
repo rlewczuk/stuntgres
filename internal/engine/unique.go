@@ -12,18 +12,6 @@ import (
 	"unicode/utf8"
 )
 
-// Constraint and backing relation are separate identities published together.
-type uniqueConstraint struct {
-	OID              ids.OID
-	Name             string
-	Attributes       []int32
-	Primary          bool
-	NullsNotDistinct bool
-	Index            ids.ObjectAddress
-	Parent           ids.OID
-	IsLocal          bool
-}
-
 func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	primary := false
 	var physicalSupport *physicalPrimarySupport
@@ -48,7 +36,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 		used := make(map[int32]bool, len(c.Attributes))
 		for i, a := range c.Attributes {
 			attribute, expression, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
-			if err != nil || expression != nil || used[a] || !parent.hasAttribute(a) || attribute != a || index.SQLIndex.Keys[i].Desc || index.SQLIndex.Keys[i].NullsFirst {
+			if err != nil || expression != nil || used[a] || !parent.HasAttribute(a) || attribute != a || index.SQLIndex.Keys[i].Desc || index.SQLIndex.Keys[i].NullsFirst {
 				return fmt.Errorf("stuntgres: invalid unique key")
 			}
 			used[a] = true
@@ -159,7 +147,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
 		if c.Primary || altering {
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
-			if stage.lookupName(key) != (ids.ObjectAddress{}) {
+			if stage.LookupName(key) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
@@ -168,7 +156,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
-		if stage.lookupName(key) != (ids.ObjectAddress{}) {
+		if stage.LookupName(key) != (ids.ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		for _, index := range indices {
@@ -206,16 +194,16 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := declarations[i-start].like.remap(key.Derived.Definition, d, stage.base)
+					node, err := declarations[i-start].like.remap(key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := declarations[i-start].like.remap(key.Derived.Execution, d, stage.base)
+					execution, err := declarations[i-start].like.remap(key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}
 					derived := &derivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.base, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.Base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.Base, node); err != nil {
 						return err
 					}
 					key.Derived = derived
@@ -393,7 +381,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 
 func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	d := index.SQLIndex
-	if d.isExclusion() {
+	if d.IsExclusion() {
 		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
 	}
 	if !d.Unique {
@@ -407,7 +395,7 @@ func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, 
 }
 
 func validateUniqueEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
-	if index.SQLIndex.isExclusion() {
+	if index.SQLIndex.IsExclusion() {
 		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
 	}
 	for i := 1; i < len(entries); i++ {
@@ -420,7 +408,7 @@ func validateUniqueEntries(ctx context.Context, parent, index *relationDescripto
 
 func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	d := index.SQLIndex
-	if d.isExclusion() {
+	if d.IsExclusion() {
 		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
 	}
 	if !d.Unique || !d.NullsNotDistinct && uniqueHasNull(current.keys) {
@@ -433,7 +421,7 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 	if cmp == 0 {
 		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
 		if auth != nil && auth.engine != nil {
-			ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), parent.Address())
+			ref := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), parent.Address())
 			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.Keys)
 			if err != nil {
 				return err

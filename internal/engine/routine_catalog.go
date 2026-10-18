@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -58,8 +59,8 @@ func (e *Engine) initializeBuiltinRoutines() {
 			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
 			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 		}
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeBuiltinRoutineBodies()
 }
@@ -116,7 +117,7 @@ func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtin
 	if !ok || d.Builtin != declaration {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.Identity.Name)
 	}
-	ref := view.owner.Domain.Ref(view.Epoch(), address)
+	ref := view.Owner().Domain.Ref(view.Epoch(), address)
 	b.dependency(ref, d.Revision())
 	if err := b.captureRoutineBody(d); err != nil {
 		return nil, ids.ObjectRef{}, err

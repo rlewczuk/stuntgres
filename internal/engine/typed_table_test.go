@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -142,7 +143,7 @@ func typedRenameStage(t *testing.T, e *Engine, source, table *relationDescriptor
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.typedSource = table.OfType
-	stage.typedObserved = typedClosure(stage.base, table.OfType)
+	stage.typedObserved = typedClosure(stage.Base, table.OfType)
 	for _, old := range []*relationDescriptor{source, table} {
 		next, err := renameColumnCandidate(old, "note", "label")
 		if err != nil {
@@ -168,7 +169,7 @@ func TestTypedPublicationFinalCancellationPreservesRoots(t *testing.T) {
 	}
 	cancel()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
-	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
+	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancelled publication changed catalog", changes, err)
 	}
 	if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
@@ -181,27 +182,27 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, stage.base.DescriptorCount()+1)}
-		for address, descriptor := range stage.base.Descriptors() {
-			next.setDescriptor(address, descriptor)
+		next := catalog.NewState(stage.Base.Epoch())
+		for address, descriptor := range stage.Base.Descriptors() {
+			next.SetDescriptor(address, descriptor)
 		}
 		late := *table
 		late.ObjectAddress.ObjectID += 1000
 		late.ObjectName = "late"
 		switch kind {
 		case "attach":
-			next.setDescriptor(late.Address(), &late)
+			next.SetDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
 			late.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
-			next.setDescriptor(late.Address(), &late)
+			next.SetDescriptor(late.Address(), &late)
 		case "descriptor":
 			replacement := *table
 			replacement.ObjectRevision++
-			next.setDescriptor(table.Address(), &replacement)
+			next.SetDescriptor(table.Address(), &replacement)
 		case "unrelated":
 			late.OfType = ids.ObjectAddress{}
-			next.setDescriptor(late.Address(), &late)
+			next.SetDescriptor(late.Address(), &late)
 		}
 		valid := typedObservationValid(stage, e.catalog.read(next))
 		if valid != (kind == "unrelated") {

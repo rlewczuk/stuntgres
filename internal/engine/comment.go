@@ -10,7 +10,7 @@ import (
 // Comment reads immutable metadata from r, a view e owns, without applying an
 // ACL to its text.
 func (e *Engine) Comment(r CatalogRead, ref ids.ObjectRef) (string, bool, error) {
-	if r.owner == nil {
+	if r.Owner() == nil {
 		return "", false, fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	e.mu.Lock()
@@ -46,7 +46,7 @@ func (e *Engine) executeComment(scope *StatementScope, s *parser.Comment, count 
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	return Result{}, err
 }
 

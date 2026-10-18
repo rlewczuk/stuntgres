@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -23,11 +24,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if !needed {
 		return ctx.Err()
 	}
-	catalog, roles, frontier := e.catalog.state, e.roles, e.commitSeq
+	catalogSnapshot, roles, frontier := e.catalog.state, e.roles, e.commitSeq
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
-		if result == nil && (e.catalog.state != catalog || e.roles != roles || e.commitSeq != frontier) {
+		if result == nil && (e.catalog.state != catalogSnapshot || e.roles != roles || e.commitSeq != frontier) {
 			result = ids.ErrCatalogReplaced
 		}
 	}()
@@ -37,14 +38,14 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	} else {
 		stage = op.session.Engine()
 	}
-	candidate := cloneCatalog(next)
+	candidate := catalog.CloneState(next)
 	stage.mu.Lock()
 	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(e.catalog.read(next), roles), stage.roleRead(stage.catalog.read(stage.catalog.state), stage.roles), nil)
 	if err == nil {
 		// remapCatalogExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
-		stage.catalog.state = cloneCatalog(stage.catalog.state)
-		stage.catalog.state.epoch = candidate.epoch - 1
+		stage.catalog.state = catalog.CloneState(stage.catalog.state)
+		stage.catalog.state.SetEpoch(candidate.Epoch() - 1)
 		err = stage.remapCatalogExpressions(candidate, nil)
 	}
 	if err == nil {

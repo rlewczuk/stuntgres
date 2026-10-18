@@ -46,7 +46,7 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 			t.Fatal("view owner remap", name, descriptor.Owner)
 		}
 		for _, leaf := range viewOf(descriptor).sources {
-			if leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.epoch {
+			if leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.Epoch() {
 				t.Fatal("view identity remap", name, leaf.ref)
 			}
 		}
@@ -85,7 +85,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal("view retained type generation")
 	}
 	for _, dependency := range definition.dependencies {
-		if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.epoch {
+		if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.Epoch() {
 			t.Fatal("view dependency generation", dependency)
 		}
 	}
@@ -127,7 +127,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal("cyclic view source rejected", err)
 	}
-	if e.CatalogRead().state != base.state {
+	if e.CatalogRead().State() != base.State() {
 		t.Fatal("validation published an uncommitted stage")
 	}
 }

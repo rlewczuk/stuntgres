@@ -56,13 +56,13 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		}
 		return ProtocolField{}, sqlError("42883", fmt.Sprintf("function with OID %d does not exist", oid))
 	}
-	if d.RoutineKind != functionRoutine || d.returnsSet() {
+	if d.RoutineKind != functionRoutine || procedureReturnsSet(d) {
 		e.mu.Unlock()
 		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.Name()))
 	}
 	ns := auth.catalog.Get(d.Namespace())
-	nsRef := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.Namespace())
-	ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	nsRef := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), d.Namespace())
+	ref := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}

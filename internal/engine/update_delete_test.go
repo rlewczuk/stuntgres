@@ -397,7 +397,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				} else {
 					tr := catalogRef(t, target, target.CatalogRead(), "t")
 					store := target.storage[tr.Address]
-					if tr.Epoch != state.epoch+1 || store == oldStore || len(store.versions) != 1 || store.ends != nil || store.versions[0].row == 0 || store.versions[0].version == 0 || store.versions[0].row == oldHead.row || store.versions[0].version == oldHead.version || store.versions[0].born != target.commitSeq {
+					if tr.Epoch != state.Epoch()+1 || store == oldStore || len(store.versions) != 1 || store.ends != nil || store.versions[0].row == 0 || store.versions[0].version == 0 || store.versions[0].row == oldHead.row || store.versions[0].version == oldHead.version || store.versions[0].born != target.commitSeq {
 						t.Fatal("live-only fresh import", store)
 					}
 					if got := tuples(run(t, target, "SELECT v FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(2)}}) {
@@ -465,7 +465,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			store := e.storage[ref.Address]
 			root := store.versions
-			ends, frontier, epoch := store.ends, e.commitSeq, e.catalog.state.epoch
+			ends, frontier, epoch := store.ends, e.commitSeq, e.catalog.state.Epoch()
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
@@ -488,7 +488,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err == nil || e.catalog.state.epoch != epoch || e.commitSeq != frontier || e.storage[ref.Address] != store || store.ends != ends || &store.versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
+			if err == nil || e.catalog.state.Epoch() != epoch || e.commitSeq != frontier || e.storage[ref.Address] != store || store.ends != ends || &store.versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 11)

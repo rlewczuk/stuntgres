@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -23,11 +24,11 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	putFixtureRole(roles, bootstrap)
 	successor := e.authorizationDomain.Principal(100001)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
-	before := cloneCatalog(auth.catalog.state)
+	before := catalog.CloneState(auth.catalog.State())
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	namespace := *before.MustNamespace(address)
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.Owner, Grantee: authorization.ACLGrantee{Role: namespace.Owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
-	before.setDescriptor(address, &namespace)
+	before.SetDescriptor(address, &namespace)
 	auth.roleRecord = roles
 	auth.recaptureCatalog(e.catalog.read(before))
 	warm, err := e.sequenceEnvironmentLocked(auth)
@@ -35,10 +36,10 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 		t.Fatal("owner did not warm public namespace", warm, err)
 	}
 	key := op.session.sequencePath.key
-	after := cloneCatalog(before)
-	database := *after.MustDatabase(currentDatabaseAddress)
+	after := catalog.CloneState(before)
+	database := *after.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = successor
-	after.setDescriptor(currentDatabaseAddress, &database)
+	after.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	fresh := auth
 	fresh.catalog = e.catalog.read(after)
 	fresh.recaptureCatalog(fresh.catalog)

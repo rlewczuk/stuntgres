@@ -82,7 +82,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
+	if !seed.Seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
 	if original := view.MustConversion(seed.Address()); original.Name() != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
@@ -124,7 +124,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	if e.CatalogRead().Get(second.Address()) != second {
 		t.Fatal("legal moved-default shape rejected")
 	}
-	if e.CatalogRead().state == before.state {
+	if e.CatalogRead().State() == before.State() {
 		t.Fatal("duplicate shape not published")
 	}
 	if err = conversionProbeResult("real_routine", 1); !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != "encoding conversion function real_routine returned incorrect result for empty input" {
@@ -150,7 +150,7 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 		t.Fatal("late missing batch target succeeded")
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before.state || before.Get(d.Address()) != d {
+	if e.CatalogRead().State() != before.State() || before.Get(d.Address()) != d {
 		t.Fatal("batch published prefix")
 	}
 	stage = e.BeginCatalogStage(before)
@@ -164,7 +164,7 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().state != before.state {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
 		t.Fatal("final cancellation published conversion", err)
 	}
 }
@@ -188,7 +188,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		e.mu.Lock()
 		err := e.stageAlterConversionLocked(op, auth, stage, alteration)
 		e.mu.Unlock()
-		if err != nil || len(stage.descriptors) != 0 {
+		if err != nil || len(stage.Descriptors) != 0 {
 			t.Fatal("generic no-op permission boundary", alteration, err)
 		}
 		e.DiscardCatalogStage(stage)
@@ -217,7 +217,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		}
 		e.DiscardCatalogStage(stage)
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("no-op/error/pin checks published state")
 	}
 	if result, err := e.Execute(op, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "unchanged")}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {

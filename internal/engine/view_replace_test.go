@@ -111,7 +111,7 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			}
 			// Namespace rights isolate view ownership, not inherited schema ACLs.
 			nsAddress := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0]
-			ns := e.catalog.Domain.Ref(e.catalog.state.epoch, nsAddress)
+			ns := e.catalog.Domain.Ref(e.catalog.state.Epoch(), nsAddress)
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
@@ -148,7 +148,7 @@ func TestViewReplaceAtomicCancellation(t *testing.T) {
 			for _, q := range []string{"CREATE TABLE t(id INT)", "CREATE TABLE u(id INT)", "INSERT INTO t VALUES(1)", "CREATE VIEW v AS SELECT id FROM t", "CREATE VIEW w AS SELECT id FROM v"} {
 				sessionSQL(t, holder, q)
 			}
-			before := e.CatalogRead().state
+			before := e.CatalogRead().State()
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK TABLE "+tc.target+" IN ACCESS EXCLUSIVE MODE")
 			ctx, cancel := context.WithCancel(context.Background())
@@ -159,7 +159,7 @@ func TestViewReplaceAtomicCancellation(t *testing.T) {
 			lockAwait(t, pending, context.Canceled)
 			lockPending(t, e, 0)
 			transactionEnd(t, holder, tx, false)
-			if e.CatalogRead().state != before {
+			if e.CatalogRead().State() != before {
 				t.Fatal("canceled utility published", tc.query)
 			}
 			lockEmpty(t, e)
@@ -175,14 +175,14 @@ func TestViewReplaceAtomicCancellation(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(id INT)")
 			run(t, e, "CREATE VIEW v AS SELECT id FROM t")
-			before := e.CatalogRead().state
+			before := e.CatalogRead().State()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			original := e.catalog.Providers[ids.RelationClassID]
 			var once sync.Once
 			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
 			_, err := testExecute(e, ctx, statement(t, q), nil)
-			if !errors.Is(err, context.Canceled) || e.CatalogRead().state != before {
+			if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 				t.Fatal(err, "partial publication")
 			}
 			lockEmpty(t, e)

@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -278,7 +279,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	next := cloneCatalog(e.catalog.state)
+	next := catalog.CloneState(e.catalog.state)
 	for _, item := range imports {
 		versions, err := e.allocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
@@ -293,7 +294,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return err
 		}
 		d.Populated = item.populated
-		next.setDescriptor(d.Address(), &d)
+		next.SetDescriptor(d.Address(), &d)
 		e.storage[d.Address()] = &relationStorage{versions: versions}
 	}
 	e.catalog.state = next

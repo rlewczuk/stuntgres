@@ -57,7 +57,7 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 	return name
 }
 func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, error) {
-	if s == nil || s.commentCatalog.state == nil {
+	if s == nil || s.commentCatalog.State() == nil {
 		return "", fmt.Errorf("stuntgres: missing operator output snapshot")
 	}
 	key := operatorOutputKey{id, alias}

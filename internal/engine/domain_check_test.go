@@ -26,7 +26,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if len(d.DomainChecks) != 2 || d.DomainChecks[0].Name != "a_first" || d.DomainChecks[0].Ordinal != 1 || d.DomainChecks[1].Name != "z_last" || d.DomainChecks[1].Ordinal != 0 || !d.SQLType.HasDomainChecks() {
 		t.Fatal("lost own order/identity", d.DomainChecks)
 	}
-	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.ObjectNamespace, Name: d.Name()})) != 0 {
+	if before.State() == view.State() || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.ObjectNamespace, Name: d.Name()})) != 0 {
 		t.Fatal("published into immutable prior root")
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
@@ -64,7 +64,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		} else if diagnostic.Code != "42703" || diagnostic.Position != "" {
 			t.Fatal("cooked-expression diagnostic", diagnostic)
 		}
-		if e.CatalogRead().state != view.state {
+		if e.CatalogRead().State() != view.State() {
 			t.Fatal("failed declaration published")
 		}
 	}

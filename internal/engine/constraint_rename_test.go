@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
@@ -43,7 +44,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.epoch}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.state.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			index = e.catalog.state.MustRelation(indexAddress)
@@ -69,12 +70,12 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			}
 			candidate := *after
 			candidate.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-			exhaustedBase := cloneCatalog(e.catalog.state)
-			exhaustedBase.setDescriptor(ref.Address, &candidate)
+			exhaustedBase := catalog.CloneState(e.catalog.state)
+			exhaustedBase.SetDescriptor(ref.Address, &candidate)
 			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
 			attempt.ObjectName = "again"
-			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.descriptors) != 0 || backing.Name() != "new" {
+			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.Descriptors) != 0 || backing.Name() != "new" {
 				t.Fatal("parent revision exhaustion changed group")
 			}
 			e.DiscardCatalogStage(failed)
@@ -204,8 +205,8 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 						replacement := *old
 						replacement.ObjectRevision++
 						replacement.Comment = "concurrent"
-						state := cloneCatalog(e.catalog.state)
-						state.setDescriptor(ref.Address, &replacement)
+						state := catalog.CloneState(e.catalog.state)
+						state.SetDescriptor(ref.Address, &replacement)
 						e.catalog.state = state
 						e.mu.Unlock()
 					case "authorization":

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -41,7 +42,7 @@ func virtualTransaction(owner lock.RecordOwner) string {
 func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 	var records []lock.Record
 	for ref, node := range e.serializable.nodes {
-		if ref.Epoch() != e.catalog.state.epoch || node.ref != ref || !serializableRelevant(node) {
+		if ref.Epoch() != e.catalog.state.Epoch() || node.ref != ref || !serializableRelevant(node) {
 			continue
 		}
 		owner, visible, err := lock.PublicOwner(e.catalog.Domain, ref, node.prepared)
@@ -61,12 +62,12 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 // Consumes Engine.mu. Only scalar SSI/database facts are captured before the
 // manager is entered. Captured sources own values; prepared handles own recipes.
 func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor) (*querySource, error) {
-	database, ok := e.catalog.state.Database(currentDatabaseAddress)
+	database, ok := e.catalog.state.Database(catalog.CurrentDatabaseAddress)
 	if !ok {
 		e.mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}
-	databaseOID, epoch := uint32(database.Address().ObjectID), e.catalog.state.epoch
+	databaseOID, epoch := uint32(database.Address().ObjectID), e.catalog.state.Epoch()
 	predicates, err := e.capturePGPredicateLocksLocked()
 	e.mu.Unlock()
 	if err != nil {
@@ -77,7 +78,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 		return nil, err
 	}
 	e.mu.Lock()
-	current := e.catalog.state.epoch == epoch
+	current := e.catalog.state.Epoch() == epoch
 	e.mu.Unlock()
 	if !current {
 		return nil, ids.ErrCatalogReplaced

@@ -119,22 +119,22 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.state.epoch {
+	if ref.Epoch != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
-	for a := range stage.descriptors {
+	for a := range stage.Descriptors {
 		if e.catalog.state.Get(a) != grantCatalog.Get(a) {
 			return Result{}, CatalogConflict{}
 		}
 	}
-	for k := range stage.touched {
+	for k := range stage.Touched {
 		if e.catalog.state.NameAddress(k) != grantCatalog.NameAddress(k) {
 			return Result{}, CatalogConflict{}
 		}
 	}
-	for a, d := range stage.descriptors {
+	for a, d := range stage.Descriptors {
 		e.catalogChangeLocked(changes, a, d)
 	}
 	scope.catalog = changes

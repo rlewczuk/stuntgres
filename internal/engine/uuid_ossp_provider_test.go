@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -93,10 +94,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	} {
 		bad := *proc
 		mutate(&bad)
-		view.state.setDescriptor(address, &bad)
+		view.State().SetDescriptor(address, &bad)
 		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.ValidateExtension(view, ext)
-		view.state.setDescriptor(address, proc)
+		view.State().SetDescriptor(address, proc)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
 		}
@@ -119,9 +120,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	original := cryptoView.MustProcedure(cryptoExt.Members[0])
 	bad := *original
 	bad.Implementation = stockUUIDOssp
-	cryptoView.state.setDescriptor(bad.Address(), &bad)
+	cryptoView.State().SetDescriptor(bad.Address(), &bad)
 	failure := stockPgcrypto.ValidateExtension(cryptoView, cryptoExt)
-	cryptoView.state.setDescriptor(bad.Address(), original)
+	cryptoView.State().SetDescriptor(bad.Address(), original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
 	}
@@ -131,10 +132,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		original := intaggView.MustProcedure(address)
 		bad := *original
 		bad.Implementation = stockUUIDOssp
-		intaggView.state.setDescriptor(address, &bad)
+		intaggView.State().SetDescriptor(address, &bad)
 		manifestFailure := stockIntagg.ValidateExtension(intaggView, intaggExt)
 		admissionFailure := intaggEngine.catalog.Providers[ids.ProcedureClassID].Validate(intaggView, &bad)
-		intaggView.state.setDescriptor(address, original)
+		intaggView.State().SetDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
 		}
@@ -153,7 +154,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	member := ext.Members[0]
 	procedure := before.Get(member)
 	descriptors, names := before.DescriptorCount(), before.NameCount()
-	key := descriptorNameKey(procedure)
+	key := catalog.DescriptorNameKey(procedure)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
 	e.mu.Lock()

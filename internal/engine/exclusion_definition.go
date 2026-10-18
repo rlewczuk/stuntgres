@@ -11,20 +11,10 @@ import (
 	"unicode/utf8"
 )
 
-type exclusionConstraint struct {
-	OID                           ids.OID
-	Name                          string
-	Index                         ids.ObjectAddress
-	Parent                        ids.OID
-	IsLocal                       bool
-	Operators                     []sqltype.ExclusionOperator
-	Deferrable, InitiallyDeferred bool
-}
-
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)
-		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
+		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
 		d := index.SQLIndex
@@ -114,7 +104,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		}
 		name = generatedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
-		if _, altering := stage.base.Find(parent.Address()); altering {
+		if _, altering := stage.Base.Find(parent.Address()); altering {
 			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
@@ -174,7 +164,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		index.Columns[i].OriginAttribute = int16(i + 1)
 	}
 	parent.ExclusionConstraints = append(parent.ExclusionConstraints, c)
-	if _, existing := stage.base.Find(parent.Address()); existing {
+	if _, existing := stage.Base.Find(parent.Address()); existing {
 		if err := stage.Replace(parent); err != nil {
 			return err
 		}

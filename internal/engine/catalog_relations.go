@@ -153,7 +153,7 @@ func (n catalogUserNameExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 		return sqltype.Value{}, err
 	}
 	scope := c.liveScope()
-	if scope == nil || scope.commentCatalog.state == nil {
+	if scope == nil || scope.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
 	engine := scope.op.session.Engine()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"sync"
@@ -38,7 +39,7 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 			catalog, roles := f.e.catalog.state, f.e.roles
 			err := f.apply(tc.s)
 			defaultUnitDiagnostic(t, err, tc.code, tc.message)
-			if f.e.catalog.state != catalog || f.e.roles != roles || len(catalog.defaultACLs) != 0 {
+			if f.e.catalog.state != catalog || f.e.roles != roles || catalog.DefaultACLCount() != 0 {
 				t.Fatal("failed utility published a partial candidate")
 			}
 		})
@@ -51,19 +52,19 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 
 func TestDefaultPrivilegesRevision(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
 	namespace.ObjectAddress.ObjectID = 20012
 	namespace.ObjectName = "default_other_schema"
-	state.setDescriptor(namespace.Address(), &namespace)
-	state.bindName(descriptorNameKey(&namespace), namespace.Address())
+	state.SetDescriptor(namespace.Address(), &namespace)
+	state.BindName(catalog.DescriptorNameKey(&namespace), namespace.Address())
 	f.e.catalog.state = state
 	oldRevision := f.e.roles.revision
 	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.roles.revision != oldRevision+1 || len(f.e.catalog.state.defaultACLs) != 2 {
+	if f.e.roles.revision != oldRevision+1 || f.e.catalog.state.DefaultACLCount() != 2 {
 		t.Fatal("multiple schemas/repeated operands not one publication")
 	}
 	firstCatalog, firstRoles := f.e.catalog.state, f.e.roles
@@ -77,7 +78,7 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.e.catalog.state.defaultACLs) != 0 || f.e.roles.revision != oldRevision+2 {
+	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles.revision != oldRevision+2 {
 		t.Fatal("baseline reversal")
 	}
 	roles := *f.e.roles
@@ -160,12 +161,12 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			if r.err != nil {
 				t.Fatal(r.err)
 			}
-			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err != (CatalogConflict{}) || f.e.catalog.state.Get(table.Address()) != nil {
 				t.Fatal("stale creation default published", err)
 			}
-			for key, record := range stage.defaultReads {
-				if key.Class != authorization.DefaultTables || key.Creator != f.owner || record != stage.base.state.defaultACLs[key] {
+			for key, record := range stage.DefaultReads {
+				if key.Class != authorization.DefaultTables || key.Creator != f.owner || record != stage.Base.State().DefaultACL(key) {
 					t.Fatal("incorrect creation observations")
 				}
 			}

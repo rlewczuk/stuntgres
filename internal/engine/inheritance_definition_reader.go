@@ -3,6 +3,7 @@ package engine
 import (
 	"iter"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -72,15 +73,15 @@ func (r inheritanceDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
 		}
 	}
 	for effect := r.effects; effect != nil; effect = effect.previous {
-		if effect.descriptor != nil && descriptorNameKey(effect.descriptor) == key {
+		if effect.descriptor != nil && catalog.DescriptorNameKey(effect.descriptor) == key {
 			descriptor, present := r.descriptor(effect.descriptor.Address())
-			if present && descriptorNameKey(descriptor) == key {
+			if present && catalog.DescriptorNameKey(descriptor) == key {
 				return descriptor.Address()
 			}
 		}
 	}
 	descriptor, present := r.descriptor(address)
-	if present && descriptorNameKey(descriptor) == key {
+	if present && catalog.DescriptorNameKey(descriptor) == key {
 		return address
 	}
 	return ids.ObjectAddress{}
@@ -122,7 +123,7 @@ func (r *inheritanceDefinitionReader) appendIdentity(identity *preparedIdentityD
 	r.effects = &inheritanceDefinitionEffect{previous: r.effects, identity: identity}
 }
 func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
-	if view.owner != r.base.owner || view.Epoch() != r.base.Epoch() {
+	if view.Owner() != r.base.Owner() || view.Epoch() != r.base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if r.observations == nil {

@@ -7,14 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// A persisted predicate keeps original dependencies even when planning removes
-// an arm. Both trees use the immutable parent attribute layout.
-type indexPredicate struct {
-	Definition, Execution expr.Expr
-	Dependencies          []ids.ObjectRef
-	Attributes            []int32
-}
-
 // A build or command owns this value. It is never part of a published index
 // descriptor, logical root, hash binding, lock key or prepared statement.
 // These bits describe executable preparation, not a retained rights decision.
@@ -59,7 +51,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 			continue
 		}
 		source := key.Derived.Definition
-		if !definition.requiresInsertionOutput() {
+		if !definition.RequiresInsertionOutput() {
 			// No callable or domain conversion can have disappeared here.
 			// Retain the established body-free cooked programme fast path.
 			source = key.Derived.Execution
@@ -175,7 +167,7 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 	}
 	if !p.predicatePrepared {
 		source := definition.Predicate.Definition
-		if !definition.requiresInsertionOutput() {
+		if !definition.RequiresInsertionOutput() {
 			source = definition.Predicate.Execution
 		}
 		prepared, err := prepareIndexRecipe(evaluation, source, definition.Predicate.Dependencies, parent, &p.admission, true)
@@ -201,7 +193,7 @@ func newLogicalIndexRoot(d *indexDefinition, entries []logicalIndexEntry) *logic
 			root.membership[entry.row] = entry.version
 		}
 	}
-	if (d.Unique || d.isExclusion()) && d.hasRuntimeDomainKeyConversion() {
+	if (d.Unique || d.IsExclusion()) && d.HasRuntimeDomainKeyConversion() {
 		root.rowEntries = make(map[ids.RowID]int, len(entries))
 		for i, entry := range entries {
 			root.rowEntries[entry.row] = i

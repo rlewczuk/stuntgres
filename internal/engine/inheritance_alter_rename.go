@@ -83,11 +83,11 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	noInherit := false
 	if root.Inheritance != nil {
 		if kind == 'c' {
-			inherited = root.Inheritance.Checks[name].count() != 0
+			inherited = root.Inheritance.Checks[name].Count() != 0
 		} else {
 			for _, c := range root.NotNullConstraints {
 				if c.Name == name {
-					inherited = root.Inheritance.NotNull[c.Attribute].count() != 0
+					inherited = root.Inheritance.NotNull[c.Attribute].Count() != 0
 				}
 			}
 		}

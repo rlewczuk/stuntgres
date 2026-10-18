@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -18,10 +19,10 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
-	view.state = cloneCatalog(view.state)
-	view.state.setDescriptor(relation.Address(), relation)
+	view = view.WithState(catalog.CloneState(view.State()))
+	view.State().SetDescriptor(relation.Address(), relation)
 	schema := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
-	view.state.setDescriptor(schema.Address(), schema)
+	view.State().SetDescriptor(schema.Address(), schema)
 	check := func(address ids.ObjectAddress, want authorization.ACLValue) {
 		t.Helper()
 		got, err := rawObjectACL(view, address)

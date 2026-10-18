@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -237,7 +238,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 		t.Helper()
 		var ref ids.ObjectRef
 		if a, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}); ok {
-			ref = e.catalog.Domain.Ref(e.catalog.state.epoch, a)
+			ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 		} else {
 			ref = roleTableRef(t, e, name)
 		}
@@ -468,8 +469,8 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 			t.Fatal("descriptor exhaustion rejected namespace ACL", err)
 		}
 		// Fail the independent namespace authority without publishing ACL/roles.
-		state := cloneCatalog(e.catalog.state)
-		state.namespaceGeneration = ^uint64(0)
+		state := catalog.CloneState(e.catalog.state)
+		state.SetNamespaceGeneration(^uint64(0))
 		e.catalog.state = state
 		roles := e.roles
 		ctx, cancel := context.WithCancel(context.Background())
@@ -497,8 +498,8 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 			sessionSQL(t, s, query)
 		}
 		ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('a.s')")
-		state := cloneCatalog(e.catalog.state)
-		state.namespaceGeneration = ^uint64(0)
+		state := catalog.CloneState(e.catalog.state)
+		state.SetNamespaceGeneration(^uint64(0))
 		e.catalog.state = state
 		op, err := s.Acquire(context.Background())
 		if err != nil {

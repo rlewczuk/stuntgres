@@ -93,7 +93,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		child, ok := stage.descriptors[declaration.child.Address].(*relationDescriptor)
+		child, ok := stage.Descriptors[declaration.child.Address].(*relationDescriptor)
 		if !ok {
 			old, ok := base.Relation(declaration.child.Address)
 			if !ok {
@@ -103,7 +103,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			copy := *old
 			copy.ForeignKeys = slices.Clone(old.ForeignKeys)
 			child = &copy
-			stage.descriptors[child.Address()] = child
+			stage.Descriptors[child.Address()] = child
 		}
 		for i := range declaration.definitions {
 			definition := &declaration.definitions[i]

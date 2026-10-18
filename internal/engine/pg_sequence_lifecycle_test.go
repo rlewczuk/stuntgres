@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -64,8 +65,8 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	e.mu.Lock()
 	old := e.catalog.state
 	retained := scope.owner.sequenceCatalog
-	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.epoch++
+	e.catalog.state = catalog.CloneState(e.catalog.state)
+	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	// Wake the candidate as an ordinary resolved safe candidate: admission
 	// must still reject its old epoch and discard the retained catalog pointer.
 	node.resolved = true

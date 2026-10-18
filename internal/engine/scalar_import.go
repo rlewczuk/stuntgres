@@ -40,11 +40,11 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 		}
 		copy := *d
 		copy.SQLType = typ
-		next.setDescriptor(address, &copy)
-		if next.scalarImports == nil {
-			next.scalarImports = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
+		next.SetDescriptor(address, &copy)
+		if next.ScalarImports() == nil {
+			next.SetScalarImports(make(map[*sqltype.Descriptor]*sqltype.Descriptor))
 		}
-		next.scalarImports[source] = typ
+		next.SetScalarImport(source, typ)
 	}
 	return nil
 }
@@ -52,9 +52,9 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 // Namespace/OID reconstruction may mint a final codec after initial reservation.
 // Translation remains keyed by the source pointer and points at that final codec.
 func refreshScalarImportDestinations(next *catalogState) {
-	for source := range next.scalarImports {
+	for source := range next.ScalarImports() {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.ID())}); ok {
-			next.scalarImports[source] = d.SQLType
+			next.SetScalarImport(source, d.SQLType)
 		}
 	}
 }

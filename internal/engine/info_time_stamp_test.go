@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -67,17 +68,17 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	source, target := New(), New()
 	original := source.CatalogRead()
 	d := infoTimeStampCatalogType(t, original)
-	next := cloneCatalog(original.state)
+	next := catalog.CloneState(original.State())
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Timestamptz)}
 	reboundBase := *next.MustType(baseAddress)
 	reboundBase.SQLType = target.CatalogRead().MustType(baseAddress).SQLType
-	next.setDescriptor(baseAddress, &reboundBase)
+	next.SetDescriptor(baseAddress, &reboundBase)
 	// Rendering must use the current captured namespace, not inventory spelling.
 	namespace := *next.MustNamespace(d.Namespace())
-	next.unbindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()})
+	next.UnbindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()})
 	namespace.ObjectName = "renamed_info"
-	next.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}, namespace.Address())
-	next.setDescriptor(namespace.Address(), &namespace)
+	next.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}, namespace.Address())
+	next.SetDescriptor(namespace.Address(), &namespace)
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
@@ -102,7 +103,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if d.SQLType.SQLName() != "information_schema.time_stamp" || original.Get(d.Namespace()).Name() != "information_schema" {
 		t.Fatal("source generation mutated")
 	}
-	remapped, err := target.remapPreparedCatalog(cloneCatalog(source.catalog.state), source.Roles(), target.Roles(), nil)
+	remapped, err := target.remapPreparedCatalog(catalog.CloneState(source.catalog.state), source.Roles(), target.Roles(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err := validateACL(target.Roles(), retained); err != nil {
 		t.Fatal("principal remap left invalid builtin authority", err)
 	}
-	invalid := cloneCatalog(original.state)
+	invalid := catalog.CloneState(original.State())
 	if _, err := reownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false); err == nil {
 		t.Fatal("builtin domain reminted")
 	}

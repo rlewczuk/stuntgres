@@ -112,7 +112,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			var constraints map[string]bool
 			if old.Constraint != nil {
 				label = "key"
-				if old.isExclusion() {
+				if old.IsExclusion() {
 					label = "excl"
 				}
 				constraints = constraintNames(read, destination.Namespace(), destination)
@@ -148,7 +148,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				destination.UniqueConstraints = append(destination.UniqueConstraints, c)
 				definition.Constraint = uniqueBacking(&c)
 			}
-			if old.isExclusion() {
+			if old.IsExclusion() {
 				original := exclusionDefinition(in.source, source)
 				if original == nil {
 					return fmt.Errorf("stuntgres: missing inherited exclusion owner")

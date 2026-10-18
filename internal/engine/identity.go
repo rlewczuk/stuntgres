@@ -12,11 +12,6 @@ import (
 	"unicode/utf8"
 )
 
-type columnIdentity struct {
-	Mode     parser.IdentityMode
-	Sequence ids.ObjectAddress
-}
-
 func identityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }
@@ -152,8 +147,8 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 }
 
 func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescriptor, slot int, name string, mode parser.IdentityMode, options sequenceOptions, restart *int64) error {
-	namespace := stage.base.Get(table.Namespace())
-	if staged, ok := stage.descriptors[table.Namespace()]; ok {
+	namespace := stage.Base.Get(table.Namespace())
+	if staged, ok := stage.Descriptors[table.Namespace()]; ok {
 		namespace = staged
 	}
 	if namespace.(*namespaceDescriptor).Temporary != (ids.SessionToken{}) {

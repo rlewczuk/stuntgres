@@ -144,7 +144,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	run(t, e, "CREATE USER alter_reader")
 	run(t, e, "CREATE SCHEMA denied")
 	schema := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, schema), authorization.ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), schema), authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	s := sessionStart(t, e, nil)

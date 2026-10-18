@@ -73,7 +73,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	if provider.stage != nil {
 		err = e.refreshIdentitySequenceLocked(provider.scope, provider.stage, old, attribute, identity.Sequence)
 		if err == nil {
-			provider.base = provider.stage.base
+			provider.base = provider.stage.Base
 			capture = identityDropCapture{sequence: ref, original: e.catalog.state.Get(identity.Sequence)}
 			provider.stage.identityDependencies = append(provider.stage.identityDependencies, catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
 		}
@@ -135,7 +135,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) {
 	// A TYPE before-command may have staged AS. The real tombstone wins over
 	// that private descriptor/scalar without modifying any live generator.
-	delete(stage.descriptors, address)
+	delete(stage.Descriptors, address)
 	delete(stage.generators, address)
 }
 

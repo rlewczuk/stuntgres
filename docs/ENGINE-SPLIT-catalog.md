@@ -173,8 +173,10 @@ startup regression. 5f completes the step; 5g is optional.
 - [x] 5d — Descriptor names decided, fields exported (`a7c3461ce`,
   `b69a715b2`, `31ca756a9`, `4a6055b85`, then the commit that records this
   status) *(racecheck skipped at user request)*
-- [ ] 5e — `catalog` created, types moved, `Candidate` split from
-  `CatalogStage`
+- [x] 5e — `catalog` created, types moved, `Candidate` split from
+  `CatalogStage` (`eb68d288b`, `fa79f1917`, `0f3bad42b`, `eb612a052`,
+  `3b5d2b883`, `943e7a42d`, then the commit that records this status)
+  *(racecheck skipped at user request; targeted RACE=1 runs passed)*
 - [ ] 5f — Aliases removed
 - [ ] 5g — Optional `relationDescriptor` regrouping
 
@@ -197,7 +199,16 @@ field). The descriptor identity fields that collide with the `Descriptor`
 methods are `ObjectAddress`, `ObjectNamespace`, `ObjectName` and
 `ObjectRevision` (user decision).
 
-Outstanding aliases: none yet.
+Outstanding aliases (5e, removed by 5f): `internal/engine/catalog_aliases.go`
+holds 97 type aliases and 45 constant aliases under the old engine names
+(`relationDescriptor = catalog.Relation`, `catalogState = catalog.State`,
+`CatalogRead = catalog.Read`, `tableRelation = catalog.TableRelation`, ...).
+Exported ones (`Descriptor`, `CatalogRead`, `CatalogProvider`,
+`CatalogConflict`, `ColumnDescriptor`, the FDW types and kinds) are the
+public facade and stay as aliases for the root package. Moved functions and
+variables have no aliases; engine code calls `catalog.X`.
+`functions.RoutineProvider` is an alias of `expr.RoutineProvider` (5e) and
+keeps its constants.
 
 5a results:
 
@@ -432,31 +443,115 @@ Outstanding aliases: none yet.
   over the <1 ms target, which `master` already misses. `make deps` lists
   only module paths. Imports are unchanged.
 
+5e results:
+
+- **Moved** (`internal/engine/catalog`, 55 files, about 3,100 lines): 395
+  declarations in 362 source spans, chosen by a type-checked move set
+  whose frontier (references back into the engine) had to be empty. The 90
+  closure types with their methods and constants, `State`, `Read`, `Owner`,
+  the `Provider` registry, `Conflict`, the read API (`read.go`), the state
+  access and write API (`state_access.go`, `state_write.go`), `CloneState`,
+  `DescriptorNameKey`, the operator name index with `OperatorIndexEdit` and
+  `RebuildOperatorNames`, default ACL records and helpers, the conversion,
+  collation and tablespace inventories, and `Candidate`. Names follow the 5d
+  table, plus `Provider`, `Conflict`, `Candidate`, `Removal`, `NewState`,
+  `NewRead`, `NewCandidate` and `CloneState`; other declarations used from
+  the engine got CamelCase names, the rest stay unexported.
+- **Layering.** `catalog` imports only `ids`, `expr`, `authorization`,
+  `sqltype`, `parser` and the standard library. The one sibling dependency,
+  `builtinRoutineDeclaration.Providers` of type `functions.RoutineProvider`,
+  was resolved by moving the type to `expr` (`functions` keeps an alias and
+  its constants).
+- **State seam** (`fa79f1917`). The engine reaches the non-map fields
+  through getters and setters (`Epoch`/`SetEpoch`, `OperatorNames`,
+  `DefaultACL`/`DefaultACLs`/`OverlayDefaultACLs`, `DumpPriority`/
+  `LookupDumpPriority`/`HasDumpPriorities`, `ScalarImports`,
+  `ACLItemImport`, ...) and `Read.Owner`/`State`/`WithState`; literals use
+  `NewState`/`NewRead`. A type-checked rewrite changed about 1,700 sites in
+  484 files and reran to a fixpoint for nested selectors; about 50 sites
+  were edited by hand. `ResetMaps` now iterates the previous descriptors
+  instead of returning the map. The engine has no direct access to the
+  State maps.
+- **Methods** (`0f3bad42b`). 29 unexported methods the engine calls were
+  exported (the write API, `HasAttribute`, `IndexForAttribute`, `Seeded`,
+  `IsExclusion`, `Stored`, ...). Ten methods that need engine-only types
+  became engine functions: the typed extension-provider accessors
+  (`pgcryptoProviderOf(d)`, ..., `unaccentTemplateProviderOf`,
+  `unaccentDictionaryProviderOf`), `procedureReturnsSet` and
+  `operatorSeeded` (the 805-line operator inventory stays with seeding).
+  The namespace validator checks `Temporary.Private() != nil` instead of
+  `privateSessionOf` (only `Session` mints private tokens, never nil), and
+  `CollationSemantics` builds its errors with `expr.ErrorAt`.
+- **Candidate, cut 2** (`eb612a052`). `catalog.Candidate` holds `Base`,
+  `Descriptors`, `Names`, `Touched`, `Removals`, `OldNames`, `DefaultACLs`
+  and `DefaultReads`, with `LookupName`, `Create`, `Replace`,
+  `RecordRemoval` and `State` (the merged unpublished state `stageRead`
+  built). `CatalogStage` embeds it and keeps the lifecycle checks, row-type
+  synchronization and publication coordination. Decision (user): the
+  overlay fields are exported, because about 250 stage sites still write
+  them directly; tightening to methods is later work.
+- **Deviation: validators.** Only the pure core kinds moved (namespace,
+  database, tablespace, collation, conversion, foreign objects). Relation,
+  type, extension/procedure, operator and parameter validation stay in the
+  engine (user decision): they render stored SQL through `scalarRenderer`,
+  walk engine expression nodes, read the operator inventory, settings
+  definitions or extension implementations. They register through the
+  moved `Provider` registry.
+- **Shadowing** (`3b5d2b883`). 420 engine locals are named `catalog`. The
+  30 that would shadow a moved `catalog.X` reference became `view` or
+  `state` (192 edits in 23 files); the move tool checked every inserted
+  reference against its scope.
+- **Tooling.** Scratchpad `movex` (go/types): `setfront` (move-set
+  frontier), `kinds`/`acc` (field-use classification and accessor rewrite),
+  `methx` (method rename or conversion to functions), `fieldrn`,
+  `unshadow`, `move` (extracts the declarations with doc comments, renames
+  inside moved text and type names in its comments, writes the aliases and
+  qualified references). Floating file-header comments are not attached to
+  a declaration; five were restored by hand.
+- **Tests.** Moved with the code: `catalog_read_test.go` and
+  `catalog_state_write_test.go` (now `catalog/read_test.go` and
+  `catalog/state_write_test.go`: `TestCatalogReadTypedAccessors`,
+  `TestCatalogReadUntypedAndNameAccessors`,
+  `TestCatalogReadAccessorsRequirePopulatedRead`,
+  `TestCatalogStateWritesStayOnTheirState`). Engine tests adapted
+  mechanically: map snapshots use `maps.Collect` over the iterators,
+  fixtures use the new `catalogStateFixture` (`catalog_state_fixture_test.go`)
+  or `CloneDescriptors`/`CloneNames`/`ResetDescriptors`. None deleted.
+- **Verification.** `quickcheck` passed after C2, after C3+C4 and after the
+  move. Targeted catalog, provider, collation, conversion, extension and
+  operator selections passed, and a `RACE=1` run of catalog, operator index,
+  dump priority, default privilege, Restore, replacement and temporary
+  sequence selections passed. `REFERENCE=1` selections (table, type, domain, schema, comment and
+  default DDL; views, rules and RLS; `reg*`, extensions, collations,
+  conversions and tablespaces; Restore, Dump and routine tests) passed
+  except four tests that fail identically on `master`:
+  `TestReferenceRLSBaseFreshAuthority`, `TestReferenceRLSBaseFreshness` and
+  `TestReferenceTypedTableAuthorization` (PostgreSQL 18.6 oracle subtests)
+  and `TestReferenceSchemaAuthorization/memory#05` (the expected database
+  name differs from the reference-mode DSN). `racecheck` skipped at the user's
+  request. `make bench` (interleaved): 7,768 allocations and about 2.07
+  MB/op on both; best 1.503 ms on `master` and 1.512 ms on the branch,
+  medians about 1.55 ms on both, over the <1 ms target that `master`
+  already misses. `make deps` lists only module paths.
+
 Notes for later steps:
 
-- 5e: 38 unexported methods on closure types (for example `hasAttribute`,
-  `indexForAttribute`, `signature`, `stored`) and the enum constants still
-  need exported names, or must stay behind engine functions, when the types
-  move. Decide per method by its callers.
-- 5e: engine code reads `CatalogRead.owner` and builds `catalogState`
-  literals; both need catalog accessors or constructors after the move.
-  `catalogOwner`'s fields are exported, so the engine can still build it.
-- 5e: the public FDW types (`ForeignDataWrapper`, `ForeignScan`,
-  `ForeignOption`, ...) are in the closure; the move needs aliases in the
-  engine for the root package.
 - 5f and later broad rewrites: the `fieldx` approach (rename table, then
   a before/after per-object use census) is fast (about 10 s per run on the
   engine package) and catches shadowing; prefer it to per-identifier
   gopls runs.
 
-- 5e: the payload methods take `CatalogRead` and `*relationDescriptor`,
-  which become `catalog.Read` and the exported relation type when the
-  interfaces move; their method names are already exported so the engine's
-  `viewDefinition`, `policyExpression`, `ruleList` and providers can keep
-  implementing them. `extensionInstaller.stage` stays in the engine.
-- 5e: `extensionControl` is catalog data and moves with the interface.
-- 5e: composite literals that build a `catalogState` and the test whole-map
-  uses are the remaining direct map selectors.
+- 5f: about 390 other engine locals are named `catalog`; replacing type
+  aliases with `catalog.X` in their scopes needs the same scope check (the
+  `move` tool's `LookupParent` test) and a rename such as the 5e
+  `unshadow` pass. Docs still name `CatalogRead`, `CatalogStage` and the
+  descriptor types by their engine names (TABLES.md, design notes).
+- 5f: `catalog_aliases.go` is the to-do list. Remove type and constant
+  aliases area by area; the exported public-facade aliases stay.
+- Later: the relation, type, extension, operator and parameter validators
+  can move once the catalog has a narrow seam for stored-SQL rendering,
+  expression-node walks and the operator and settings inventories.
+  `Candidate`'s exported overlay fields can then become methods.
 - 5a was a broad rewrite in practice (670 files). Do not run it, or a
   similar store grouping such as 6a, alongside another broad rewrite.
 - The revision-frontier loop ("advance past `descriptorRevisionFrontier`,

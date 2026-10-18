@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -32,7 +33,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *Catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.publishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.publishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -80,17 +81,17 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		// The registry and every member hold the one implementation instance;
 		// typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.Extensions["unaccent"] || proc.unaccentProvider() != stockUnaccent || proc.pgcryptoProvider() != nil || proc.intaggProvider() != nil {
+		if proc.Implementation != e.catalog.Extensions["unaccent"] || unaccentProviderOf(proc) != stockUnaccent || pgcryptoProviderOf(proc) != nil || intaggProviderOf(proc) != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
-	if tmpl, _ := view.TSTemplate(ext.Members[4]); tmpl == nil || tmpl.Implementation != stockUnaccent || tmpl.unaccentProvider() != stockUnaccent {
+	if tmpl, _ := view.TSTemplate(ext.Members[4]); tmpl == nil || tmpl.Implementation != stockUnaccent || unaccentTemplateProviderOf(tmpl) != stockUnaccent {
 		t.Fatal("template implementation identity")
 	}
-	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || dict.unaccentProvider() != stockUnaccent {
+	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || unaccentDictionaryProviderOf(dict) != stockUnaccent {
 		t.Fatal("dictionary implementation identity")
 	}
-	if (&procedureDescriptor{}).unaccentProvider() != nil || (&tsDictionaryDescriptor{}).unaccentProvider() != nil {
+	if unaccentProviderOf((&procedureDescriptor{})) != nil || unaccentDictionaryProviderOf((&tsDictionaryDescriptor{})) != nil {
 		t.Fatal("absent implementation has a typed view")
 	}
 	for _, a := range ext.Members {
@@ -199,12 +200,12 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.descriptors[source.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 			loose := e.BeginCatalogStage(e.CatalogRead())
 			var conflict Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
 				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
-				n := *source.descriptors[ext.Members[index]].(*procedureDescriptor)
+				n := *source.Descriptors[ext.Members[index]].(*procedureDescriptor)
 				n.Extension = ids.ObjectAddress{}
 				n.Dictionary = ids.ObjectAddress{}
 				conflict = &n
@@ -214,14 +215,14 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			} else {
 				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 				for _, i := range []int{2, 3} {
-					n := *source.descriptors[ext.Members[i]].(*procedureDescriptor)
+					n := *source.Descriptors[ext.Members[i]].(*procedureDescriptor)
 					n.Extension = ids.ObjectAddress{}
 					n.ObjectNamespace = catalogNS
 					if err := loose.Create(&n); err != nil {
 						t.Fatal(err)
 					}
 				}
-				tmpl := *source.descriptors[ext.Members[4]].(*tsTemplateDescriptor)
+				tmpl := *source.Descriptors[ext.Members[4]].(*tsTemplateDescriptor)
 				tmpl.Extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
 					tmpl.ObjectNamespace = catalogNS
@@ -231,7 +232,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 				conflict = &tmpl
 				if kind == "dictionary" {
-					dict := *source.descriptors[ext.Members[5]].(*tsDictionaryDescriptor)
+					dict := *source.Descriptors[ext.Members[5]].(*tsDictionaryDescriptor)
 					dict.Extension = ids.ObjectAddress{}
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {
@@ -303,21 +304,21 @@ func TestExtensionProviderPublication(t *testing.T) {
 			e.mu.Lock()
 			switch reason {
 			case "epoch":
-				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.epoch++
+				e.catalog.state = catalog.CloneState(e.catalog.state)
+				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "roles":
 				e.roles = advanceRoleRevision(e.roles)
 			case "database":
-				next := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+				next := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++
-				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.setDescriptor(currentDatabaseAddress, &next)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
+				e.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				next := *e.catalog.state.MustNamespace(a)
 				next.ObjectRevision++
-				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.setDescriptor(a, &next)
+				e.catalog.state = catalog.CloneState(e.catalog.state)
+				e.catalog.state.SetDescriptor(a, &next)
 			}
 			e.mu.Unlock()
 			committed := e.catalog.state

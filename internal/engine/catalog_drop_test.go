@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -63,7 +64,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 		t.Fatal("drop retained definition/storage")
 	}
 	for _, typ := range []*typeDescriptor{row, array} {
-		if _, exists := now.Descriptor(typ.Address()); exists || len(now.Lookup(descriptorNameKey(typ))) != 0 {
+		if _, exists := now.Descriptor(typ.Address()); exists || len(now.Lookup(catalog.DescriptorNameKey(typ))) != 0 {
 			t.Fatal("drop retained row/array identity", typ.Address())
 		}
 		if retained, exists := base.Descriptor(typ.Address()); !exists || retained != typ {
@@ -98,7 +99,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 		if err := s.Remove(bad); err == nil {
 			t.Fatal("invalid ref accepted", bad)
 		}
-		if len(s.removals) != 0 {
+		if len(s.Removals) != 0 {
 			t.Fatal("failed Remove changed stage")
 		}
 	}
@@ -243,7 +244,7 @@ func TestCatalogDropCanceledGroupAndRestoreEpochFence(t *testing.T) {
 	}
 	cancel()
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(changes, ChangeSet{}) || e.CatalogRead().state != base.state {
+	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(changes, ChangeSet{}) || e.CatalogRead().State() != base.State() {
 		t.Fatal(changes, err)
 	}
 	if roleTableRef(t, e, "a") != a || roleTableRef(t, e, "b") != b {
@@ -297,7 +298,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)
 		}
-		if len(stage.removals) != 0 || e.CatalogRead().state != base.state {
+		if len(stage.Removals) != 0 || e.CatalogRead().State() != base.State() {
 			t.Fatal("rejected removal changed authority")
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -30,8 +31,8 @@ func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.P
 			objectACLUnitEntry(target, leaf, authorization.SelectPrivilege, 0),
 		}},
 	}
-	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.setDescriptor(address, &next)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
+	e.catalog.state.SetDescriptor(address, &next)
 	return e, op, reader, target, leaf, address
 }
 

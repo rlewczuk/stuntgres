@@ -45,7 +45,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	if len(next.Columns) != 2 || next.Index["kept"] != 0 || next.Index["r"] != 1 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) || len(next.Defaults) != 1 || next.Defaults[kept].OID != remaining.OID || remaining.OID == 0 {
 		t.Fatal("staged definitions or stable shape lost", next.Columns, next.Attributes, next.Defaults)
 	}
-	if len(next.CheckConstraints) != 1 || next.CheckConstraints[0].Name != "rr_kept_positive" || stage.descriptors[ref.Address] != next {
+	if len(next.CheckConstraints) != 1 || next.CheckConstraints[0].Name != "rr_kept_positive" || stage.Descriptors[ref.Address] != next {
 		t.Fatal("surviving CHECK or latest staged descriptor lost", next.CheckConstraints)
 	}
 	integer, err := sqltype.Integer(next.Columns[0].Usage.Type, 11)
@@ -61,7 +61,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 		t.Fatal(valid, err)
 	}
 	view := roleTableRef(t, e, "rr_stage_view")
-	if _, removed := stage.removals[view.Address]; !removed {
+	if _, removed := stage.Removals[view.Address]; !removed {
 		t.Fatal("view removal missing")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -45,7 +46,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if table.Owner != dbRole || table.Owner == actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical inherited DB-owner authority")
 				}
-				if private && auth.catalog.Get(currentDatabaseAddress) == committed {
+				if private && auth.catalog.Get(catalog.CurrentDatabaseAddress) == committed {
 					t.Fatal("private DB authority is not distinct from committed predecessor")
 				}
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
@@ -68,7 +69,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				}
 				checkReader(auth, false)
 				oldRoles, oldCatalog := e.roles, e.catalog.state
-				sessionRevision, epoch := session.authorization.revision, oldCatalog.epoch
+				sessionRevision, epoch := session.authorization.revision, oldCatalog.Epoch()
 				oldACL := authorization.ACLValue{Explicit: table.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), table.ACL.Entries...)}
 				oldKeys := append([]uniqueConstraint(nil), table.UniqueConstraints...)
 				before := indexMaintenanceCapture(e)
@@ -106,10 +107,10 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal("staging lost the grant or published/mutated a prefix")
 				}
 				checkReader(retained, true)
-				pendingRoles, pendingDB := retained.roleRecord, retained.catalog.Get(currentDatabaseAddress)
+				pendingRoles, pendingDB := retained.roleRecord, retained.catalog.Get(catalog.CurrentDatabaseAddress)
 				if outcome == "database" {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
+					database := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 					if private {
 						database.Owner = actor.Ref
 					} else {
@@ -122,7 +123,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
 					for address, descriptor := range oldCatalog.Descriptors() {
-						if address != currentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
+						if address != catalog.CurrentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
 							t.Fatal("DB-only replacement changed object/associated identities")
 						}
 					}
@@ -130,7 +131,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				} else if outcome == "cancel" {
 					cancel()
 				}
-				if e.roles != oldRoles || e.catalog.state.epoch != epoch || session.authorization.revision != sessionRevision {
+				if e.roles != oldRoles || e.catalog.state.Epoch() != epoch || session.authorization.revision != sessionRevision {
 					t.Fatal("replacement changed role/session/epoch authority")
 				}
 				err = message.end(nil)
@@ -163,7 +164,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				indexMaintenanceUnchanged(t, e, before)
 				checkReader(catalogAuthorization(e, e.CatalogRead()), false)
 				checkReader(retained, true)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.ACL, oldACL) || !reflect.DeepEqual(table.UniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(currentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.ACL, oldACL) || !reflect.DeepEqual(table.UniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(catalog.CurrentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
 					t.Fatal("veto mutated old ACL/keys/storage or retained authority roots")
 				}
 			})

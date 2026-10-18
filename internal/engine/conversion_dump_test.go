@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -164,7 +165,7 @@ func TestConversionDumpBlockedRestoreCancellation(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("actual restore reader never admitted")
 	}
-	if target.CatalogRead().state != before.state {
+	if target.CatalogRead().State() != before.State() {
 		t.Fatal("blocked reader replaced target catalog")
 	}
 	cancel()
@@ -179,7 +180,7 @@ func TestConversionDumpBlockedRestoreCancellation(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("admitted restore cancellation did not join")
 	}
-	if target.CatalogRead().state != before.state || target.CatalogRead().Get(keep.Address()) != keep {
+	if target.CatalogRead().State() != before.State() || target.CatalogRead().Get(keep.Address()) != keep {
 		t.Fatal("canceled import replaced sentinel conversion")
 	}
 }
@@ -211,7 +212,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 		}
 		expected[ref] = actual.Ref
 	}
-	candidate := cloneCatalog(source.CatalogRead().state)
+	candidate := catalog.CloneState(source.CatalogRead().State())
 	before := target.CatalogRead()
 	target.mu.Lock()
 	remapped, err := target.remapPreparedCatalog(candidate, sourceRoles, captured, expected)
@@ -231,20 +232,20 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	if _, err := target.Execute(targetOp, creation, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	candidate = cloneCatalog(source.CatalogRead().state)
+	candidate = catalog.CloneState(source.CatalogRead().State())
 	target.mu.Lock()
 	_, err = target.remapPreparedCatalog(candidate, sourceRoles, captured, expected)
 	target.mu.Unlock()
 	if err == nil {
 		t.Fatal("dropped/recreated conversion owner adopted by name")
 	}
-	if target.CatalogRead().state != before.state {
+	if target.CatalogRead().State() != before.State() {
 		t.Fatal("failed principal fence replaced target catalog")
 	}
-	bad := cloneCatalog(source.CatalogRead().state)
+	bad := catalog.CloneState(source.CatalogRead().State())
 	invalid := *d
 	invalid.Handler = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90099}
-	bad.setDescriptor(d.Address(), &invalid)
+	bad.SetDescriptor(d.Address(), &invalid)
 	if err := (conversionProvider{}).Validate(source.catalog.read(bad), &invalid); err == nil {
 		t.Fatal("unavailable imported handler admitted")
 	}

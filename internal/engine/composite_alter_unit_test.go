@@ -69,7 +69,7 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			if calls == 0 || err == nil {
 				t.Fatal("provider phase did not reject publication", calls, err)
 			}
-			if kind == "cancel" && (!errors.Is(err, context.Canceled) || e.CatalogRead().state != before.state) {
+			if kind == "cancel" && (!errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State()) {
 				t.Fatal("canceled candidate published", err)
 			}
 			if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {

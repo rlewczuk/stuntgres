@@ -65,7 +65,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	innerEnds, gateEnds := innerStorage.ends, gateStorage.ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
-	gateRef := e.catalog.Domain.Ref(e.catalog.state.epoch, gate.Address())
+	gateRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), gate.Address())
 	defer e.endLockOwner(holder.transactions.ticket)
 	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	stage.querySources = scope.materializedSources
 	stage.materializedSourceView = snapshot
-	provider := stage.base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
+	provider := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}
@@ -210,9 +210,9 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	for _, d := range []Descriptor{outer, index, provider, inner} {
 		original := e.catalog.state.Get(d.Address())
-		e.catalog.state.removeDescriptor(d.Address())
+		e.catalog.state.RemoveDescriptor(d.Address())
 		err := e.catalogPreflightLocked(changes)
-		e.catalog.state.setDescriptor(d.Address(), original)
+		e.catalog.state.SetDescriptor(d.Address(), original)
 		if err == nil {
 			t.Fatal("source compatibility weakened strict original", d.Address())
 		}

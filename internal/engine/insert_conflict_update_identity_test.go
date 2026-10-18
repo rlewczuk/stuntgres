@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -133,13 +134,13 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				}
 			}
 			replacement := func(shapeChange bool) {
-				catalog := cloneCatalog(e.catalog.state)
+				catalog := catalog.CloneState(e.catalog.state)
 				relation := *catalog.MustRelation(ref.Address)
 				if shapeChange {
 					relation.Columns = relation.Columns[:1]
 					relation.Attributes = relation.Attributes[:1]
 				}
-				catalog.setDescriptor(ref.Address, &relation)
+				catalog.SetDescriptor(ref.Address, &relation)
 				e.catalog.state = catalog
 			}
 			// AuthorizationAfterWait supplies the real SQL REVOKE witness.
@@ -158,8 +159,8 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				}, ids.ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {
-				catalog := cloneCatalog(e.catalog.state)
-				catalog.epoch++
+				catalog := catalog.CloneState(e.catalog.state)
+				catalog.SetEpoch(catalog.Epoch() + 1)
 				e.catalog.state = catalog
 			}, ids.ErrCatalogReplaced)
 			if err := scope.Finish(rollback); err != rollback {

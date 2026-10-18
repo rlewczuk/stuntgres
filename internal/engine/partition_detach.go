@@ -201,12 +201,12 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	if err := stage.Replace(&nextChild); err != nil {
 		return err
 	}
-	for _, descriptor := range stage.base.Descriptors() {
+	for _, descriptor := range stage.Base.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != child.Address() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			continue
 		}
-		ancestor, ok := stage.base.Relation(index.SQLIndex.PartitionParent)
+		ancestor, ok := stage.Base.Relation(index.SQLIndex.PartitionParent)
 		if !ok || ancestor.SQLIndex == nil || ancestor.SQLIndex.Parent != parent.Address() {
 			return fmt.Errorf("stuntgres: invalid partition index ancestry")
 		}

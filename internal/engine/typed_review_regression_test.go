@@ -171,7 +171,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				creator, finish := roleOperation(t, e, "postgres")
 				defer finish()
 				roleExecute(t, e, creator, "CREATE TABLE holder(v "+rowName+")")
-				after = e.CatalogRead().state
+				after = e.CatalogRead().State()
 			}}
 			_, err := e.Execute(op, statement(t, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE integer CASCADE"), 0, nil)
 			var conflict CatalogConflict
@@ -179,7 +179,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				t.Fatal("late semantic own-row dependency admitted", called, err)
 			}
 			current := e.CatalogRead()
-			if current.state != after || current.Get(source.Address()) != source || current.Get(root.Address()) != root || current.Get(child.Address()) != child || e.storage[root.Address()] != rootStorage || e.storage[child.Address()] != childStorage {
+			if current.State() != after || current.Get(source.Address()) != source || current.Get(root.Address()) != root || current.Get(child.Address()) != child || e.storage[root.Address()] != rootStorage || e.storage[child.Address()] != childStorage {
 				t.Fatal("rejected TYPE changed published graph or storage")
 			}
 			if root.OfType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}) {
@@ -219,7 +219,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl 
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	next := *stage.base.MustType(address)
+	next := *stage.Base.MustType(address)
 	next.ACL, next.ObjectRevision = acl, next.ObjectRevision+1
 	next.ACLSyntheticDefault = false
 	if err := stage.Replace(&next); err != nil {
@@ -258,9 +258,9 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	defer finish()
 	roleExecute(t, e, reader, "CREATE TABLE mine(id integer)")
 	roleExecute(t, e, reader, "INSERT INTO mine VALUES(11)")
-	before := e.CatalogRead().state
+	before := e.CatalogRead().State()
 	roleError(t, e, reader, "CREATE TABLE denied OF pair", "42501", "permission denied for type pair", "")
-	if e.CatalogRead().state != before {
+	if e.CatalogRead().State() != before {
 		t.Fatal("denied CREATE changed catalog")
 	}
 	roleExecute(t, e, reader, "ALTER TABLE mine OF pair")
@@ -275,11 +275,11 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 		t.Fatal("source-owner CASCADE failed foreign-owner target")
 	}
 	typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
-	before = e.CatalogRead().state
+	before = e.CatalogRead().State()
 	roleError(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE", "42501", "permission denied for type member", "")
 	roleError(t, e, owner, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE member CASCADE", "42501", "permission denied for type member", "")
 	roleError(t, e, owner, "DROP TYPE pair,foreign_pair CASCADE", "42501", "must be owner of type foreign_pair", "")
-	if e.CatalogRead().state != before {
+	if e.CatalogRead().State() != before {
 		t.Fatal("denied member/grouped DROP changed graph")
 	}
 	memberDescriptor := e.CatalogRead().MustType(member)
@@ -313,7 +313,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 		called = true
 		e.catalog.Providers[ids.RelationClassID] = original
 		typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
-		after = e.CatalogRead().state
+		after = e.CatalogRead().State()
 	}}
 	_, err := e.Execute(op, statement(t, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE"), 0, nil)
 	var conflict CatalogConflict
@@ -322,7 +322,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	}
 	current := e.CatalogRead()
 	changed := current.MustType(member)
-	if current.state != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.storage[table.Address] != oldStorage || changed.SQLType != originalMember.SQLType || reflect.DeepEqual(changed.ACL, originalMember.ACL) {
+	if current.State() != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.storage[table.Address] != oldStorage || changed.SQLType != originalMember.SQLType || reflect.DeepEqual(changed.ACL, originalMember.ACL) {
 		t.Fatal("ACL conflict was not type-descriptor-only and atomic")
 	}
 	lockEmpty(t, e)

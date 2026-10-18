@@ -63,7 +63,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		{current.Inheritance.NotNull[nn.Attribute], nn.OID, parentNN, false},
 		{current.Inheritance.Checks[ck.Name], ck.OID, parentCK, true},
 	} {
-		if pair.p.Local || pair.p.count() != 2 || len(pair.p.Origins) != 1 || len(pair.p.Retired) != 1 {
+		if pair.p.Local || pair.p.Count() != 2 || len(pair.p.Origins) != 1 || len(pair.p.Retired) != 1 {
 			t.Fatal("DROP did not move exactly one live contribution to history", pair.p)
 		}
 		h := pair.p.Retired[0]
@@ -74,7 +74,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if parent.hasAttribute(1) || parent.Index["b"] != 0 || parent.Attributes[0] != 2 {
+	if parent.HasAttribute(1) || parent.Index["b"] != 0 || parent.Attributes[0] != 2 {
 		t.Fatal("DROP lost actual source tombstone or surviving stable rank")
 	}
 	if err := validateInheritance(e.CatalogRead(), current); err != nil {
@@ -87,7 +87,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		{bottom.Inheritance.NotNull[bottom.NotNullConstraints[0].Attribute], nn.OID},
 		{bottom.Inheritance.Checks[ck.Name], ck.OID},
 	} {
-		if pair.p.count() != 1 || len(pair.p.Retired) != 0 || len(pair.p.Origins) != 1 || pair.p.Origins[0].Parent != c.Address() || pair.p.Origins[0].Constraint != pair.source {
+		if pair.p.Count() != 1 || len(pair.p.Retired) != 0 || len(pair.p.Origins) != 1 || pair.p.Origins[0].Parent != c.Address() || pair.p.Origins[0].Constraint != pair.source {
 			t.Fatal("leaf copied ancestor historical multiplicity instead of actual live child fact", pair.p)
 		}
 	}
@@ -104,7 +104,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		t.Fatal("re-add reused retired source identity")
 	}
 	live := retiredUnitTable(t, e, "c")
-	if live.Inheritance.NotNull[nn.Attribute].count() != 3 || live.Inheritance.Checks[ck.Name].count() != 3 {
+	if live.Inheritance.NotNull[nn.Attribute].Count() != 3 || live.Inheritance.Checks[ck.Name].Count() != 3 {
 		t.Fatal("re-add omitted live plus archived support")
 	}
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
@@ -115,7 +115,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	}{
 		{final.Inheritance.NotNull[nn.Attribute], newNN}, {final.Inheritance.Checks[ck.Name], newCK},
 	} {
-		if pair.p.count() != 3 || len(pair.p.Retired) != 2 || len(pair.p.Origins) != 1 || pair.p.Retired[0].Constraint == pair.p.Retired[1].Constraint || pair.p.Retired[1].Constraint != pair.newOID {
+		if pair.p.Count() != 3 || len(pair.p.Retired) != 2 || len(pair.p.Origins) != 1 || pair.p.Retired[0].Constraint == pair.p.Retired[1].Constraint || pair.p.Retired[1].Constraint != pair.newOID {
 			t.Fatal("distinct DROP lifetimes collapsed or inflated", pair.p)
 		}
 	}

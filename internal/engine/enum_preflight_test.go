@@ -16,7 +16,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('old')"))
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.epoch, mood.Address())}
+	resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.Epoch(), mood.Address())}
 	holder := sessionStart(t, e, nil)
 	ref := transactionBegin(t, holder)
 	defer transactionEnd(t, holder, ref, false)

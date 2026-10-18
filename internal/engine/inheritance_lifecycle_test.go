@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,10 +23,10 @@ func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...id
 	return table
 }
 func inheritanceLifecycleInstall(e *Engine, tables ...*relationDescriptor) {
-	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
 	for _, table := range tables {
-		e.catalog.state.setDescriptor(table.Address(), table)
-		e.catalog.state.bindName(descriptorNameKey(table), table.Address())
+		e.catalog.state.SetDescriptor(table.Address(), table)
+		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
 		e.storage[table.Address()] = &relationStorage{}
 	}
 }
@@ -64,23 +65,23 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(stage.removals) != 1 || e.catalog.state != base.state {
+	if len(stage.Removals) != 1 || e.catalog.state != base.State() {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
 	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*relationDescriptor{p, left, right, leaf} {
-		if _, ok := stage.removals[table.Address()]; !ok {
+		if _, ok := stage.Removals[table.Address()]; !ok {
 			t.Fatal("missing descendant", table.Name())
 		}
 	}
 	for _, table := range []*relationDescriptor{other, sibling} {
-		if _, ok := stage.removals[table.Address()]; ok {
+		if _, ok := stage.Removals[table.Address()]; ok {
 			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
 	}
-	if e.catalog.state != base.state || leaf.Inheritance.Parents[2] != other.Address() {
+	if e.catalog.state != base.State() || leaf.Inheritance.Parents[2] != other.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -106,7 +107,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.state != base.state || len(stage.removals) != 2 {
+	if e.catalog.state != base.State() || len(stage.Removals) != 2 {
 		t.Fatal("cancel published changes")
 	}
 }
@@ -176,7 +177,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				parent.Address(): {{row: 1, version: 1, values: []sqltype.Value{one}}},
 				child.Address():  {{row: 2, version: 2, values: []sqltype.Value{two}}},
 			}
-			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, changes)
+			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}

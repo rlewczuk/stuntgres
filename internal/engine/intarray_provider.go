@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ import (
 type intarrayProvider struct{ control extensionControl }
 
 // Control implements extensionImplementation.
-func (p *intarrayProvider) Control() extensionControl { return p.control.detached() }
+func (p *intarrayProvider) Control() extensionControl { return p.control.Detached() }
 
 var stockIntarray = &intarrayProvider{control: extensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("functions, operators, and index support for 1-D arrays of integers")}}
 
@@ -71,7 +72,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
 		}
 		proc := &procedureDescriptor{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
-		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
+		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
 				err.Context = intarrayInputContext
@@ -108,7 +109,7 @@ func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 	}
 	for i, address := range ext.Members[1:] {
 		proc, ok := v.Procedure(address)
-		if !ok || proc.Address() != address || proc.intarrayProvider() != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
+		if !ok || proc.Address() != address || intarrayProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
 		name, signature, result := "bqarr_in", procedureSignature("2275"), ids.OID(base.SQLType.ID())

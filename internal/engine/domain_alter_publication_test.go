@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -71,14 +72,14 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			case "late_use":
 				domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.d)")
 			case "stale_domain", "owner":
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				changed := *d
 				changed.ObjectRevision++
 				if kind == "owner" {
 					aclUnitRoles(e, "domain_alter_owner")
 					changed.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("domain_alter_owner")
 				}
-				state.setDescriptor(d.Address(), &changed)
+				state.SetDescriptor(d.Address(), &changed)
 				e.catalog.state = state
 			case "root", "length", "generation", "ends":
 				store := *e.storage[table.Address()]
@@ -92,21 +93,21 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				}
 				e.storage[table.Address()] = &store
 			case "replacement":
-				state := cloneCatalog(e.catalog.state)
-				state.epoch++
+				state := catalog.CloneState(e.catalog.state)
+				state.SetEpoch(state.Epoch() + 1)
 				e.catalog.state = state
 			case "provider":
 				stage.domainBases = append(stage.domainBases, e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}))
-				state := cloneCatalog(e.catalog.state)
+				state := catalog.CloneState(e.catalog.state)
 				provider := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 				provider.ObjectRevision++
-				state.setDescriptor(provider.Address(), &provider)
+				state.SetDescriptor(provider.Address(), &provider)
 				e.catalog.state = state
 			}
 			before := e.catalog.state
 			stores := maps.Clone(e.storage)
 			roots := maps.Clone(e.indexRoots)
-			_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if kind == "success" || kind == "unrelated" {
 				if err != nil || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid {
 					t.Fatal("validity not atomically installed", err)
@@ -150,7 +151,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				}
 			}()
 			go func() {
-				_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+				_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				finished <- err
 			}()
 			select {

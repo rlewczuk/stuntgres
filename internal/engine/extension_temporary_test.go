@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -154,7 +155,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	oldIndex := e.indexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
-	replacement := stage.descriptors[survivor.Address()].(*relationDescriptor)
+	replacement := stage.Descriptors[survivor.Address()].(*relationDescriptor)
 	if len(replacement.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}
@@ -173,7 +174,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.Address()] != store || e.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.epoch != base.epoch {
+	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.Address()] != store || e.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.Epoch() != base.Epoch() {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {
@@ -250,8 +251,8 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		maximum := *survivor
 		maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 		e.mu.Lock()
-		next := cloneCatalog(e.catalog.state)
-		next.setDescriptor(survivor.Address(), &maximum)
+		next := catalog.CloneState(e.catalog.state)
+		next.SetDescriptor(survivor.Address(), &maximum)
 		e.catalog.state = next
 		e.mu.Unlock()
 		closeOwner()
@@ -277,8 +278,8 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		e, owner, _, ext, _ := extensionTemporaryInstalled(t)
 		original := e.catalog.state
 		e.mu.Lock()
-		broken := cloneCatalog(original)
-		broken.removeDescriptor(ext.Members[4])
+		broken := catalog.CloneState(original)
+		broken.RemoveDescriptor(ext.Members[4])
 		e.catalog.state = broken
 		e.mu.Unlock()
 		t.Cleanup(func() { e.mu.Lock(); e.catalog.state = original; e.mu.Unlock() })
@@ -504,12 +505,12 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 			t.Fatal("retained provider identity changed", address)
 		}
 	}
-	if e.catalog.state.NameAddress(descriptorNameKey(ext)) != ext.Address() {
+	if e.catalog.state.NameAddress(catalog.DescriptorNameKey(ext)) != ext.Address() {
 		t.Fatal("global TEMP extension name lost")
 	}
 	for _, member := range ext.Members {
 		d := e.catalog.state.Get(member)
-		if e.catalog.state.NameAddress(descriptorNameKey(d)) != member {
+		if e.catalog.state.NameAddress(catalog.DescriptorNameKey(d)) != member {
 			t.Fatal("signature key lost", member)
 		}
 		if err := e.catalog.Providers[member.ClassID].Validate(e.CatalogRead(), d); err != nil {
@@ -526,21 +527,21 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		t.Fatal("retained procedure DEFAULT authority", err)
 	}
 	procedureCopy := *e.catalog.state.MustProcedure(procedureRef.Address)
-	substituted := cloneCatalog(e.catalog.state)
-	substituted.setDescriptor(procedureRef.Address, &procedureCopy)
+	substituted := catalog.CloneState(e.catalog.state)
+	substituted.SetDescriptor(procedureRef.Address, &procedureCopy)
 	if !storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("compatible COW procedure metadata lost captured view lifetime")
 	}
 	invalidProcedure := procedureCopy
 	invalidProcedure.Strict = !invalidProcedure.Strict
-	substituted.setDescriptor(procedureRef.Address, &invalidProcedure)
+	substituted.SetDescriptor(procedureRef.Address, &invalidProcedure)
 	if storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
 	foreignNamespace := *e.catalog.state.MustNamespace(ext.TargetNamespace)
 	foreignNamespace.Temporary = installer.session.token
-	foreign := cloneCatalog(e.catalog.state)
-	foreign.setDescriptor(ext.TargetNamespace, &foreignNamespace)
+	foreign := catalog.CloneState(e.catalog.state)
+	foreign.SetDescriptor(ext.TargetNamespace, &foreignNamespace)
 	if storedViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
 		t.Fatal("foreign physical namespace token substituted retained procedure authority")
 	}
@@ -620,7 +621,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	roleExecute(t, e, op, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
 	prepared, err := e.ValidateCatalogStage(context.Background(), candidate)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: candidate.base.Epoch()})
+		_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
 	}
 	if err == nil {
 		t.Fatal("late schema dependent bypassed publication fence")

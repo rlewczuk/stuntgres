@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -88,12 +89,12 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 				sql = redump
 			}
 			original := expression.presentation
-			next := cloneCatalog(e.CatalogRead().state)
+			next := catalog.CloneState(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
 			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
-			next.setDescriptor(d.Address(), &owner)
+			next.SetDescriptor(d.Address(), &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
@@ -157,7 +158,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}
-	if e.CatalogRead().state != base.state || len(d.Policies) != 0 {
+	if e.CatalogRead().State() != base.State() || len(d.Policies) != 0 {
 		t.Fatal("canceled publication changed immutable roots")
 	}
 }
@@ -253,11 +254,11 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			base := e.CatalogRead()
-			state := cloneCatalog(base.state)
+			state := catalog.CloneState(base.State())
 			attached := *owner
 			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
-			state.setDescriptor(owner.Address(), &attached)
-			base.state = state
+			state.SetDescriptor(owner.Address(), &attached)
+			base = base.WithState(state)
 			var target ids.ObjectAddress
 			for address, descriptor := range state.Descriptors() {
 				if address.ClassID == tc.class && descriptor.Name() == tc.name {
@@ -290,7 +291,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			survivor, ok := stage.descriptors[owner.Address()].(*relationDescriptor)
+			survivor, ok := stage.Descriptors[owner.Address()].(*relationDescriptor)
 			if !ok || len(survivor.Policies) != 0 || len(attached.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}

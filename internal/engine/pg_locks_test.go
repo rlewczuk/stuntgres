@@ -16,7 +16,7 @@ import (
 
 func pgLocksUnitCapture(t *testing.T, e *Engine) []lock.Record {
 	t.Helper()
-	records, err := e.locks.PGLocks(e.catalog.state.epoch)
+	records, err := e.locks.PGLocks(e.catalog.state.Epoch())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	store := e.storage[d.Address()]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID

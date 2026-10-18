@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -120,8 +121,8 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 				t.Fatal("future epoch gained retained authority")
 			}
 			impostor := *proc
-			state := cloneCatalog(view.state)
-			state.setDescriptor(ref.Address, &impostor)
+			state := catalog.CloneState(view.State())
+			state.SetDescriptor(ref.Address, &impostor)
 			if storedViewReferenceValid(e.catalog.read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}

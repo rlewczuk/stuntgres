@@ -119,11 +119,11 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if ref.Domain() != e.catalog.Domain {
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
+	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.owner.ref.Epoch() {
 		return false, false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	if s.uniqueBinding == nil || s.uniqueBinding.catalog != catalog.state {
+	if s.uniqueBinding == nil || s.uniqueBinding.catalog != catalog.State() {
 		return false, true, nil
 	}
 	parent, ok := catalog.Relation(ref.Address)
@@ -160,7 +160,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		e.nextVersion++
 		version = rowVersion{row: ids.RowID(e.nextRow), version: ids.VersionID(e.nextVersion), values: row}
 	}
-	version.indexAdmission = catalog.state
+	version.indexAdmission = catalog.State()
 	version.indexOutputs = candidate.indexes
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		events := [1]serializableWrite{{row: version.row, version: version.version}}

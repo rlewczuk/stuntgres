@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -143,10 +144,10 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, public); err != nil {
 		t.Fatal(err)
 	}
-	catalog, roles := e.CatalogRead(), e.Roles()
+	view, roles := e.CatalogRead(), e.Roles()
 	state, nextOID, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
-	rows := pgParameterACLUnitCapture(t, e, catalog, roles)
+	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
+	rows := pgParameterACLUnitCapture(t, e, view, roles)
 	if rows.count() != 2 {
 		t.Fatal("only actual descriptors", rows.count())
 	}
@@ -157,7 +158,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 			t.Fatal("canonical membership", name, err)
 		}
 		seen[name] = true
-		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: name})
+		address := view.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: name})
 		id, err := row[0].OID()
 		if err != nil || id == 0 || ids.OID(id) != address.ObjectID || address.ClassID == ids.RelationClassID {
 			t.Fatal("actual entry identity", address, id, err)
@@ -168,18 +169,18 @@ func TestPGParameterACLCapture(t *testing.T) {
 		}
 		pgParameterACLUnitEntries(t, e, row[2], want)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+	if e.catalog.state != state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 		t.Fatal("capture mutated owner roots/frontiers")
 	}
-	d, ref := pgParameterACLUnitSource(t, e, catalog)
-	if rows, err := e.capturePGParameterACL(context.Background(), catalog, New().Roles(), ref, d); err == nil || rows != nil {
+	d, ref := pgParameterACLUnitSource(t, e, view)
+	if rows, err := e.capturePGParameterACL(context.Background(), view, New().Roles(), ref, d); err == nil || rows != nil {
 		t.Fatal("foreign roles accepted", err)
 	}
-	address := catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
-	corrupt := *catalog.MustParameter(address)
+	address := view.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
+	corrupt := *view.MustParameter(address)
 	corrupt.Owner = authorization.PrincipalRef{}
-	broken := cloneCatalog(catalog.state)
-	broken.setDescriptor(address, &corrupt)
+	broken := catalog.CloneState(view.State())
+	broken.SetDescriptor(address, &corrupt)
 	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
@@ -271,7 +272,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state == before.state || e.roles == scope.deparseAuth.roleRecord {
+	if e.catalog.state == before.State() || e.roles == scope.deparseAuth.roleRecord {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()

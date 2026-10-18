@@ -3,9 +3,11 @@ package engine
 import (
 	"context"
 	"database/sql/driver"
+	"maps"
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -30,7 +32,7 @@ func captureTemporaryProjectionCatalog(e *Engine) temporaryProjectionCatalog {
 
 func (p temporaryProjectionCatalog) unchanged(t *testing.T) {
 	t.Helper()
-	if !reflect.DeepEqual(p.view.state.descriptors, p.descriptors) || !reflect.DeepEqual(p.view.state.names, p.names) {
+	if !reflect.DeepEqual(maps.Collect(p.view.State().Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(p.view.State().Names()), p.names) {
 		t.Fatal("replacement/retirement mutated a retained catalog")
 	}
 }
@@ -42,7 +44,7 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal("invalid published descriptor", a, err)
 		}
-		found := view.Lookup(descriptorNameKey(d))
+		found := view.Lookup(catalog.DescriptorNameKey(d))
 		if len(found) != 1 || found[0] != a {
 			t.Fatal("descriptor lost its unique name binding", a, found)
 		}
@@ -268,7 +270,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		}
 	}
 	destBefore.unchanged(t)
-	if source.catalog.state != sourceBefore.view.state || source.sequences[sourceTemp] != sourceGenerator || a.sequences[sourceTemp] != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
+	if source.catalog.state != sourceBefore.view.State() || source.sequences[sourceTemp] != sourceGenerator || a.sequences[sourceTemp] != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
 		t.Fatal("destination import changed source live authority")
 	}
 	r, err := sequencePreparedExecute(dest, b, ast, &description)

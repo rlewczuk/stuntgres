@@ -82,7 +82,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			return nil, nil, alterTypeCheckReparseError(err)
 		}
 		e.mu.Lock()
-		if ref.Epoch != e.catalog.state.epoch {
+		if ref.Epoch != e.catalog.state.Epoch() {
 			e.mu.Unlock()
 			return nil, nil, ids.ErrCatalogReplaced
 		}

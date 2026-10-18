@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	view := e.stageRead(stage)
-	if !d.RelationKind.stored() || d.Populated || d.View == nil || viewOf(d).rule == 0 {
+	if !d.RelationKind.Stored() || d.Populated || d.View == nil || viewOf(d).rule == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
 	if err := (relationProvider{}).Validate(view, d); err != nil {
@@ -106,7 +107,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	source := &relationDescriptor{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
 	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -177,7 +178,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			e := New().restoreStage()
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
-			e.catalog.state = e.stageRead(stage).state
+			e.catalog.state = e.stageRead(stage).State()
 			e.storage[d.Address()] = &relationStorage{}
 			before, store := e.catalog.state, e.storage[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{{"public", "unit_mv", true, rows}}); err == nil {
@@ -191,7 +192,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	e := New().restoreStage()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	e.catalog.state = e.stageRead(stage).state
+	e.catalog.state = e.stageRead(stage).State()
 	e.storage[d.Address()] = &relationStorage{}
 	record := materializedSnapshot{"public", "unit_mv", true, "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record, record}); err == nil {
@@ -226,8 +227,8 @@ func TestMaterializedViewPublication(t *testing.T) {
 	if stage.initialTables != nil || e.catalog.state != before {
 		t.Fatal("canceled stage published rows/catalog")
 	}
-	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.epoch++
+	e.catalog.state = catalog.CloneState(e.catalog.state)
+	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}

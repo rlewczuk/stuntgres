@@ -63,14 +63,14 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 	}
 	stage.roleCandidate = candidate
 	roles = stage.roleRead(publication, stage.owner.stageRead(stage))
-	for address, descriptor := range stage.base.Descriptors() {
+	for address, descriptor := range stage.Base.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if _, removed := stage.removals[address]; removed {
+		if _, removed := stage.Removals[address]; removed {
 			continue
 		}
-		if replacement := stage.descriptors[address]; replacement != nil {
+		if replacement := stage.Descriptors[address]; replacement != nil {
 			descriptor = replacement
 		}
 		owner, acl, columns := descriptorACL(descriptor)
@@ -136,7 +136,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
-				err = stage.Remove(stage.owner.catalog.Domain.Ref(stage.base.Epoch(), address))
+				err = stage.Remove(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), address))
 			} else {
 				err = stage.Replace(&next)
 			}
@@ -160,12 +160,12 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			return err
 		}
 	}
-	for key, original := range stage.base.state.defaultACLs {
+	for key, original := range stage.Base.State().DefaultACLs() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		record := original
-		if staged, exists := stage.defaultACLs[key]; exists {
+		if staged, exists := stage.DefaultACLs[key]; exists {
 			if staged == nil {
 				continue // Namespace AUTO removal must not resurrect this key.
 			}
@@ -186,14 +186,14 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		}
 		// Creator ownership removes the entire actual record, including a
 		// stored empty global policy. Recipient cleanup uses the key baseline.
-		if stage.defaultReads == nil {
-			stage.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
+		if stage.DefaultReads == nil {
+			stage.DefaultReads = make(map[defaultACLKey]*defaultACLRecord)
 		}
-		if stage.defaultACLs == nil {
-			stage.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+		if stage.DefaultACLs == nil {
+			stage.DefaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 		}
-		stage.defaultReads[key] = original
-		stage.defaultACLs[key] = next
+		stage.DefaultReads[key] = original
+		stage.DefaultACLs[key] = next
 	}
 	return nil
 }
@@ -210,21 +210,21 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// Each actual creator-owned policy is independently collected, including
 	// scoped records already tombstoned by namespace AUTO removal. Recipient
 	// normalization and other creators' AUTO records are not owner roots.
-	for key := range stage.base.state.defaultACLs {
+	for key := range stage.Base.State().DefaultACLs() {
 		if sources[key.Creator] {
 			return true
 		}
 	}
-	for address, descriptor := range stage.descriptors {
+	for address, descriptor := range stage.Descriptors {
 		next, ok := descriptor.(*relationDescriptor)
-		original, existed := stage.base.Relation(address)
+		original, existed := stage.Base.Relation(address)
 		if ok && existed && len(next.Policies) < len(original.Policies) {
 			return true
 		}
 	}
 	// Column-owned sequences have their own real shared owner dependency.
 	// They are excluded from independent mutation roots, not from collection.
-	for _, descriptor := range stage.base.Descriptors() {
+	for _, descriptor := range stage.Base.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if ok && relation.RelationKind == sequenceRelation && relation.Sequence != nil &&
 			relation.Sequence.Owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
@@ -233,8 +233,8 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	}
 	// Cleanup skips already removed relations; their selected policies are
 	// nevertheless separate collected addresses in PostgreSQL.
-	for address := range stage.removals {
-		relation, ok := stage.base.Relation(address)
+	for address := range stage.Removals {
+		relation, ok := stage.Base.Relation(address)
 		if !ok {
 			continue
 		}

@@ -136,8 +136,8 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 		err = e.schemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		address := stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}]
-		child, _ = stage.descriptors[address].(*relationDescriptor)
+		address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}]
+		child, _ = stage.Descriptors[address].(*relationDescriptor)
 		if child == nil {
 			err = errors.New("authentic CREATE provider did not stage the descendant")
 		}
@@ -370,7 +370,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					}
 					command.scope.Finish(err)
 					holder.Finish(nil)
-					if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
+					if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 						t.Fatal("failed metadata admission published any partial graph or row change")
 					}
 					lockEmpty(t, e)

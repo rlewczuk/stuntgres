@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -77,12 +78,12 @@ func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *Statemen
 		// deliberately has no catalog stage to allocate or discard.
 		return &dropProvider{ctx: ctx, scope: scope, changes: changes, project: project}
 	}
-	return &dropProvider{base: stage.base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: ctx, scope: scope, changes: changes, project: project}
+	return &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: ctx, scope: scope, changes: changes, project: project}
 }
 
 func (p *dropProvider) replacement(address ids.ObjectAddress) Descriptor {
 	if p.stage != nil {
-		return p.stage.descriptors[address]
+		return p.stage.Descriptors[address]
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
 		if slot := prepared.slots[address]; slot.descriptor != 0 {
@@ -115,7 +116,7 @@ func (p *dropProvider) descriptor(address ids.ObjectAddress) Descriptor {
 
 func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 	if p.stage != nil {
-		_, removed := p.stage.removals[address]
+		_, removed := p.stage.Removals[address]
 		return removed
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
@@ -143,7 +144,7 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 			}
 		}
 		if p.stage != nil {
-			for address, descriptor := range p.stage.descriptors {
+			for address, descriptor := range p.stage.Descriptors {
 				if p.base.Get(address) == nil && !yield(address, descriptor) {
 					return
 				}
@@ -207,7 +208,7 @@ func (p *dropProvider) observe(address ids.ObjectAddress) {
 func (p *dropProvider) descriptorCount() int {
 	count := p.base.DescriptorCount()
 	if p.stage != nil {
-		for address := range p.stage.descriptors {
+		for address := range p.stage.Descriptors {
 			if p.base.Get(address) == nil {
 				count++
 			}
@@ -226,8 +227,8 @@ func (p *dropProvider) descriptorCount() int {
 func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
 		if p.stage != nil {
-			for address, removal := range p.stage.removals {
-				if !yield(address, removal.descriptor) {
+			for address, removal := range p.stage.Removals {
+				if !yield(address, removal.Descriptor) {
 					return
 				}
 			}
@@ -327,7 +328,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 		}
 	}
 	if p.stage != nil {
-		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.base.state, targets})
+		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.Base.State(), targets})
 		return
 	}
 	p.prepared.recordEffect(dropEffect{identityRoots: targets})
@@ -355,7 +356,7 @@ func (p *dropProvider) remove(ref ids.ObjectRef) error {
 
 func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	d := p.base.Get(ref.Address)
-	key := descriptorNameKey(d)
+	key := catalog.DescriptorNameKey(d)
 	if p.base.NameAddress(key) != ref.Address {
 		return CatalogConflict{}
 	}
@@ -365,22 +366,19 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 		return nil
 	}
 	stage := p.stage
-	if stage.removals == nil {
-		stage.removals = make(map[ids.ObjectAddress]catalogRemoval)
-	}
-	stage.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
+	stage.RecordRemoval(ref, d)
 	if namespace {
 		stage.removeSchemaDefaults(ref.Address)
 	}
 	// Retire private rebound candidates without resurrecting their name slots.
-	if candidate := stage.descriptors[ref.Address]; candidate != nil {
-		stagedKey := descriptorNameKey(candidate)
-		if stage.names[stagedKey] == ref.Address {
-			delete(stage.names, stagedKey)
+	if candidate := stage.Descriptors[ref.Address]; candidate != nil {
+		stagedKey := catalog.DescriptorNameKey(candidate)
+		if stage.Names[stagedKey] == ref.Address {
+			delete(stage.Names, stagedKey)
 		}
 	}
-	delete(stage.descriptors, ref.Address)
-	stage.touched[key] = ref.Address
+	delete(stage.Descriptors, ref.Address)
+	stage.Touched[key] = ref.Address
 	return nil
 }
 
@@ -420,7 +418,7 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 	}
 	e.mu.Lock()
 	storage := e.stageStorageLocked(stage, old.Address())
-	storageOwner := stage.base.MustRelation(old.Address())
+	storageOwner := stage.Base.MustRelation(old.Address())
 	if e.stageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || storage == nil {
 		e.mu.Unlock()
 		return CatalogConflict{}
@@ -439,7 +437,7 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 		return err
 	}
 	replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.Address())
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	return stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends)
 }
 
@@ -449,7 +447,7 @@ func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
 		return err
 	}
 	if p.stage != nil {
-		p.stage.base = catalog
+		p.stage.Base = catalog
 	}
 	p.base = catalog
 	if p.prepared != nil {
@@ -504,7 +502,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.catalog.Relation(ref.Address); !present {
@@ -544,7 +542,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog CatalogRead) error {
-	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.owner.Domain || prepared.ref.Epoch != catalog.Epoch() {
+	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.Owner().Domain || prepared.ref.Epoch != catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {
@@ -582,7 +580,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 	}
 	e := stage.owner
 	e.mu.Lock()
-	err := scope.validateColumnDropObservationsLocked(prepared, stage.base)
+	err := scope.validateColumnDropObservationsLocked(prepared, stage.Base)
 	if err == nil {
 		err = scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.catalog))
 	}
@@ -624,7 +622,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		case len(effect.identityRoots) != 0:
 			state := effect.identityState
 			if state == nil {
-				state = prepared.base.state
+				state = prepared.base.State()
 			}
 			stage.identityDependencies = append(stage.identityDependencies, catalogDependencyObservation{state, effect.identityRoots})
 		case effect.layout != nil:
@@ -658,7 +656,7 @@ func (prepared *preparedDrop) lookup(key ids.NameKey) ids.ObjectAddress {
 	if address == (ids.ObjectAddress{}) && prepared.base.NameAddress(key) == (ids.ObjectAddress{}) {
 		address = prepared.discovery.NameAddress(key)
 	}
-	if descriptor, present := prepared.descriptor(address); present && descriptorNameKey(descriptor) == key {
+	if descriptor, present := prepared.descriptor(address); present && catalog.DescriptorNameKey(descriptor) == key {
 		return address
 	}
 	return ids.ObjectAddress{}

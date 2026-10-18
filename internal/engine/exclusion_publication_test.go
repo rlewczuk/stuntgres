@@ -31,7 +31,7 @@ func TestExclusionPublication(t *testing.T) {
 				writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{value}}}
 				publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 				if materialize {
-					if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), true); err != nil {
+					if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -68,7 +68,7 @@ func TestExclusionPublication(t *testing.T) {
 				row, version := e.nextRow, e.nextVersion
 				writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{overflow}}}
 				publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
-				if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), true); err != nil {
+				if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 					t.Fatal(err)
 				}
 				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage, e.catalog.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.Address(): false}, nil, []rowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
@@ -111,7 +111,7 @@ func TestExclusionPublication(t *testing.T) {
 					writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{value}}}
 					publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 					if materialize {
-						if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), true); err != nil {
+						if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -152,7 +152,7 @@ func TestExclusionPublicationFinalCancellation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.base.Epoch()}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			polls := counting.checks.Load()
@@ -168,7 +168,7 @@ func TestExclusionPublicationFinalCancellation(t *testing.T) {
 				t.Fatal("cancellation occurred before package preparation", err)
 			}
 			before := indexMaintenanceCapture(e)
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: second.base.Epoch()}); !errors.Is(err, context.Canceled) {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: second.Base.Epoch()}); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 			indexMaintenanceUnchanged(t, e, before)

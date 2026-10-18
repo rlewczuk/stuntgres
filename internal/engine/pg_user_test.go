@@ -19,7 +19,7 @@ func pgUserUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_user")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
 func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Value {
@@ -215,10 +215,10 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.ObjectName = name
 		view.RelationKind = viewRelation
 		view.VirtualView = false
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.Address(), &view)
+		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_user_inner", ref)
@@ -279,12 +279,12 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	}
 	unknown := *d
 	unknown.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.setDescriptor(unknown.Address(), &unknown)
+	e.catalog.state.SetDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.Address()), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), unknown.Address()), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

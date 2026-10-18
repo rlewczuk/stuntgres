@@ -273,7 +273,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	// Mutate the actual normalized execution binding, not a stand-alone clone.
 	firstConflict.markAffected(ids.RowID(42), 0)
 	firstConflict.selected = []ids.ObjectAddress{sink.Address()}
-	firstConflict.catalog = auth.catalog.state
+	firstConflict.catalog = auth.catalog.State()
 	firstConflict.checkpoint = make(lock.Checkpoint)
 	firstConflict.statementKeys = make(lock.Checkpoint)
 	firstConflict.frame = make([]sqltype.Value, 4)

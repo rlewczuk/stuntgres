@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -49,8 +50,8 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 			next.Defaults = map[int32]columnDefault{old.Attributes[1]: {Expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
-			state := cloneCatalog(e.catalog.state)
-			state.setDescriptor(address, &next)
+			state := catalog.CloneState(e.catalog.state)
+			state.SetDescriptor(address, &next)
 			e.catalog.state = state
 			return
 		}

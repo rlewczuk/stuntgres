@@ -90,7 +90,7 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
-	target := authority.owner.Domain.Ref(authority.Epoch(), destination.Address())
+	target := authority.Owner().Domain.Ref(authority.Epoch(), destination.Address())
 	return func(ref ids.ObjectRef) ids.ObjectRef {
 		address := ref.Address
 		address.SubID = 0
@@ -120,17 +120,17 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 	if len(s.likeSources) == 0 {
 		return nil
 	}
-	if current.Epoch() != s.base.Epoch() {
+	if current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for _, source := range s.likeSources {
 		address := source.Address()
-		if original, incumbent := s.base.Find(address); incumbent {
+		if original, incumbent := s.Base.Find(address); incumbent {
 			if original != source || current.Get(address) != source {
 				return ids.ErrCatalogReplaced
 			}
 		} else {
-			staged, ok := s.descriptors[address].(*relationDescriptor)
+			staged, ok := s.Descriptors[address].(*relationDescriptor)
 			captured, sourceOK := source.(*relationDescriptor)
 			// Private index-history normalization may replace the pointer while
 			// retaining the staged incarnation and definition revision.

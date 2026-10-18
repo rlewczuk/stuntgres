@@ -120,7 +120,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 			return err
 		}
 	}
-	return stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), index.Address()))
+	return stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), index.Address()))
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
@@ -255,8 +255,8 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, err
 			}
 		}
-		roots := make([]ids.ObjectAddress, 0, len(stage.removals))
-		for address := range stage.removals {
+		roots := make([]ids.ObjectAddress, 0, len(stage.Removals))
+		for address := range stage.Removals {
 			roots = append(roots, address)
 		}
 		slices.SortFunc(roots, func(a, b ids.ObjectAddress) int {

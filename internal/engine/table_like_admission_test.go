@@ -84,7 +84,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					t.Fatal("predicate provider admission masked by another definition")
 				}
 				retained := false
-				for _, descriptor := range stage.descriptors {
+				for _, descriptor := range stage.Descriptors {
 					index, ok := descriptor.(*relationDescriptor)
 					if !ok || index.SQLIndex == nil {
 						continue

@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
 
 // catalogStore owns the engine's catalog state: the provenance domain, the
@@ -26,28 +25,12 @@ type catalogStore struct {
 	nextEnumMember int64
 }
 
-// catalogOwner is the identity every CatalogRead of one engine carries: the
-// provenance domain, the identities that stored principal and ACL values must
-// belong to, and the provider registries. The store embeds it, and Engine
-// never copies or replaces the store, so its address identifies the engine's
-// catalog without reaching the engine. It holds no engine services: code that needs roles,
-// paths or engine state takes them from its AuthorizationView or caller.
-type catalogOwner struct {
-	Domain       *ids.Domain
-	Principals   *authorization.Domain
-	ACLAuthority *sqltype.ACLAuthority
-	Providers    map[ids.OID]CatalogProvider
-	// Extensions is the registry of extension implementations. Like
-	// providers, it closes when construction ends.
-	Extensions map[string]extensionImplementation
-}
-
 // owner returns the store's owner record.
 func (s *catalogStore) owner() *catalogOwner { return &s.catalogOwner }
 
 // read returns a view of state owned by this store.
 func (s *catalogStore) read(state *catalogState) CatalogRead {
-	return CatalogRead{owner: s.owner(), state: state}
+	return catalog.NewRead(s.owner(), state)
 }
 
 // registerProviderLocked adds a provider before the builtin catalog is
@@ -64,12 +47,6 @@ func (s *catalogStore) registerProviderLocked(id ids.OID, p CatalogProvider) err
 	}
 	s.Providers[id] = p
 	return nil
-}
-
-// provider returns the registered provider of a catalog class, or nil. The
-// registry is immutable after construction.
-func (s *catalogOwner) provider(class ids.OID) CatalogProvider {
-	return s.Providers[class]
 }
 
 // allocateOIDLocked returns the next unused object identifier, skipping
@@ -138,13 +115,13 @@ func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {
 // and provenance checks without reacquiring synchronization when called from
 // catalog mutation preflight.
 func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectRef) error {
-	if s.Domain == nil || view.owner != s.owner() || view.state == nil {
+	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	if ref.Domain() == nil || ref.Domain() != s.Domain {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
-	if view.state.epoch != s.state.epoch || ref.Epoch != s.state.epoch {
+	if view.State().Epoch() != s.state.Epoch() || ref.Epoch != s.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	d, ok := view.Find(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -156,7 +133,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 	}
 	if ref.Address.SubID > 0 {
 		r, ok := d.(*relationDescriptor)
-		if !ok || !r.hasAttribute(ref.Address.SubID) {
+		if !ok || !r.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid catalog subobject")
 		}
 	}
@@ -166,10 +143,10 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 // validateCatalogViewLocked checks that view belongs to this store and its
 // current epoch.
 func (s *catalogStore) validateCatalogViewLocked(view CatalogRead) error {
-	if s.Domain == nil || view.owner != s.owner() || view.state == nil {
+	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if view.Epoch() != s.state.epoch {
+	if view.Epoch() != s.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

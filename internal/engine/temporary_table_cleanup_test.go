@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	for _, d := range []Descriptor{sequence, index, peerNamespace, &peerTable} {
 		e.catalogChangeLocked(c, d.Address(), d)
 	}
-	e.catalog.state = e.privateCatalogLocked(c).state
+	e.catalog.state = e.privateCatalogLocked(c).State()
 	op.session.temporaryNamespace = table.Namespace()
 	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
 	store := &relationStorage{versions: rows}
@@ -38,7 +39,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	root := &logicalIndexRoot{}
 	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{}
 	e.indexRoots[index.Address()] = root
-	epoch := e.catalog.state.epoch
+	epoch := e.catalog.state.Epoch()
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	if ns, ok := e.catalog.state.Namespace(table.Namespace()); !ok || ns.Temporary != op.session.token {
 		t.Fatal("cleanup lost retained namespace identity")
 	}
-	if e.catalog.state.Get(peerTable.Address()) != &peerTable || e.storage[peerTable.Address()] != peerStore || e.catalog.state.epoch != epoch {
+	if e.catalog.state.Get(peerTable.Address()) != &peerTable || e.storage[peerTable.Address()] != peerStore || e.catalog.state.Epoch() != epoch {
 		t.Fatal("peer or epoch changed")
 	}
 	if len(store.versions) != 1 || &store.versions[0] != &rows[0] {
@@ -92,7 +93,7 @@ func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *rel
 	stage.terminalCleanup = true
 	targets := []ids.ObjectAddress{owner.Address(), sequence.Address()}
 	for _, address := range targets {
-		if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), address)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -122,7 +123,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		}
 		for _, original := range []*relationDescriptor{survivor, late} {
 			replacement := e.catalog.state.MustRelation(original.Address())
-			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(descriptorNameKey(original)) != original.Address() {
+			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(catalog.DescriptorNameKey(original)) != original.Address() {
 				t.Fatal("reprepare missed consumer or changed captured definition")
 			}
 		}
@@ -144,11 +145,11 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		if e.catalog.state != captured || currentStore == nil || len(currentStore.versions) != 1 || currentRoot == nil || currentGenerator == nil {
 			t.Fatal("missing genuine row/index/generator fixture")
 		}
-		epoch, generation := e.catalog.state.epoch, e.catalog.state.namespaceGeneration
+		epoch, generation := e.catalog.state.Epoch(), e.catalog.state.NamespaceGeneration()
 		e.mu.Lock()
 		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ids.ObjectAddress{owner.Namespace()}, nil)
 		e.mu.Unlock()
-		if err != nil || !installed || e.storage[survivor.Address()] != currentStore || e.indexRoots[index] != currentRoot || e.sequences[unrelated] != currentGenerator || e.catalog.state.epoch != epoch || e.catalog.state.namespaceGeneration != generation {
+		if err != nil || !installed || e.storage[survivor.Address()] != currentStore || e.indexRoots[index] != currentRoot || e.sequences[unrelated] != currentGenerator || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
 		assertTemporaryNamespacePair(t, e, op.session.token, owner.Namespace())
@@ -164,8 +165,8 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	original := e.catalog.state
 	maximum := *survivor
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.setDescriptor(survivor.Address(), &maximum)
+	e.catalog.state = catalog.CloneState(original)
+	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 	// Restore the unexhausted setup before its automatic session retirement.
 	t.Cleanup(func() { e.catalog.state = original })
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -174,7 +175,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
-	replacement, ok := stage.descriptors[survivor.Address()].(*relationDescriptor)
+	replacement, ok := stage.Descriptors[survivor.Address()].(*relationDescriptor)
 	if !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 {
 		t.Fatal("terminal saturation changed original or omitted replacement")
 	}
@@ -193,8 +194,8 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	original := e.catalog.state
 	maximum := *survivor
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.setDescriptor(survivor.Address(), &maximum)
+	e.catalog.state = catalog.CloneState(original)
+	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 	t.Cleanup(func() {
 		if e.catalog.state.Get(sequence.Address()) != nil {
 			e.catalog.state = original
@@ -210,7 +211,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	if _, err := e.Describe(peerOp, held); err != nil {
 		t.Fatal("held peer description", err)
 	}
-	epoch, generation := e.catalog.state.epoch, e.catalog.state.namespaceGeneration
+	epoch, generation := e.catalog.state.Epoch(), e.catalog.state.NamespaceGeneration()
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 		t.Fatal("saturated replacement identity/frontier")
 	}
 	assertTemporaryNamespacePair(t, e, op.session.token, owner.Namespace())
-	if e.storage[survivor.Address()] != store || e.indexRoots[index] != root || e.catalog.state.epoch != epoch || e.catalog.state.namespaceGeneration != generation || e.sequences[sequence.Address()] != nil {
+	if e.storage[survivor.Address()] != store || e.indexRoots[index] != root || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation || e.sequences[sequence.Address()] != nil {
 		t.Fatal("maximum cleanup changed rows/roots/peer analysis or kept provider")
 	}
 	result, err := e.Execute(peerOp, held, 0, nil)
@@ -255,8 +256,8 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			original := e.catalog.state
 			maximum := *consumer
 			maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-			e.catalog.state = cloneCatalog(original)
-			e.catalog.state.setDescriptor(consumer.Address(), &maximum)
+			e.catalog.state = catalog.CloneState(original)
+			e.catalog.state.SetDescriptor(consumer.Address(), &maximum)
 			t.Cleanup(func() { e.catalog.state = original })
 			for _, terminal := range []bool{false, true} {
 				stage := e.BeginCatalogStage(e.CatalogRead())
@@ -268,11 +269,11 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 				}
 				if !terminal {
-					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.descriptors) != 0 || e.catalog.state.Get(consumer.Address()) != &maximum {
+					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.Descriptors) != 0 || e.catalog.state.Get(consumer.Address()) != &maximum {
 						t.Fatal("ordinary maximum cascade accepted or mutated", err)
 					}
 				} else {
-					replacement, ok := stage.descriptors[consumer.Address()].(*relationDescriptor)
+					replacement, ok := stage.Descriptors[consumer.Address()].(*relationDescriptor)
 					if err != nil || !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
@@ -290,7 +291,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			} else {
 				_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 			}
-			replacement, ok := stage.descriptors[consumer.Address()].(*relationDescriptor)
+			replacement, ok := stage.Descriptors[consumer.Address()].(*relationDescriptor)
 			if err != nil || !ok || replacement.Revision() != consumer.Revision()+1 {
 				t.Fatal("below-maximum cascade did not increment", err)
 			}

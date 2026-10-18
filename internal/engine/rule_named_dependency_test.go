@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -146,10 +147,10 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						if inferred {
 							want = 2
 						}
-						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.descriptors[parent.Address()].(*relationDescriptor).UniqueConstraints) != 0 {
+						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.Descriptors[parent.Address()].(*relationDescriptor).UniqueConstraints) != 0 {
 							t.Fatal("retirement changed unrelated rule or missed provider", rulesOf(current))
 						}
-						if stage.removals[parent.UniqueConstraints[0].Index].ref.Address != parent.UniqueConstraints[0].Index {
+						if stage.Removals[parent.UniqueConstraints[0].Index].Ref.Address != parent.UniqueConstraints[0].Index {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
@@ -227,7 +228,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			e, _, event, parent := ruleNamedDependencyFixture(t, modifier, false)
 			oldRule, oldConflict := ruleNamedDependencyAction(t, event, modifier)
 			oldConstraint := oldConflict.constraint
-			unchanged := cloneCatalog(e.catalog.state)
+			unchanged := catalog.CloneState(e.catalog.state)
 			e.mu.Lock()
 			err := e.remapDefinitionOIDsLocked(unchanged)
 			e.mu.Unlock()
@@ -242,14 +243,14 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}); allocations != 0 {
 				t.Fatal("no-change constraint visitor allocated", allocations)
 			}
-			next := cloneCatalog(e.catalog.state)
+			next := catalog.CloneState(e.catalog.state)
 			// Model an imported attached definition colliding with a descriptor
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.
 			collision := *alterConstraintDescriptor(t, e, "log")
 			collision.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oldConstraint.ObjectID}
 			collision.ObjectName = "collision"
-			next.setDescriptor(collision.Address(), &collision)
+			next.SetDescriptor(collision.Address(), &collision)
 			e.mu.Lock()
 			err = e.remapDefinitionOIDsLocked(next)
 			e.mu.Unlock()

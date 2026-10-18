@@ -6,13 +6,6 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// The actual installed aggregate owns these lookup-only aliases. They are not
-// descriptors, extension members, executable functions, or pg_proc SQL rows.
-type ownedAggregate struct {
-	Definition aggregateDefinition
-	Helpers    [2]routineIdentity
-}
-
 func intaggDefinition(function, transition, final ids.OID) aggregateDefinition {
 	return aggregateDefinition{Function: function, Kind: "n", Functions: [8]ids.OID{transition, final}, FinalModify: "r", MovingFinalModify: "r", TransitionType: 2281}
 }

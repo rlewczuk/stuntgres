@@ -607,7 +607,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 			}
 			// The closure captured a live stable attribute. A nested cascade
 			// may already have consumed it through a different provider path.
-			slot := next.indexForAttribute(edge.address.SubID)
+			slot := next.IndexForAttribute(edge.address.SubID)
 			if slot < 0 {
 				continue
 			}
@@ -682,7 +682,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		if extension, ok := d.(*extensionDescriptor); ok {
 			for _, member := range extension.Members {
 				stage.domainTargets = append(stage.domainTargets, member)
-				if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), member), false); err != nil {
+				if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), member), false); err != nil {
 					return err
 				}
 			}
@@ -692,7 +692,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	sort.Slice(stage.domainTargets, func(i, j int) bool { return stage.domainTargets[i].ObjectID < stage.domainTargets[j].ObjectID })
 	stage.dependencyPath, _ = e.referencePath(auth)
 	for _, d := range contained {
-		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), d.Address()), false); err != nil {
+		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 	}
@@ -702,12 +702,12 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	}
 	var details []string
 	for _, d := range contained {
-		label := dependencyObject(stage.base, d.Address(), stage.dependencyPath)
+		label := dependencyObject(stage.Base, d.Address(), stage.dependencyPath)
 		namespaceAddress := d.Namespace()
 		if extension, ok := d.(*extensionDescriptor); ok {
 			namespaceAddress = extension.TargetNamespace
 		}
-		namespace := stage.base.Get(namespaceAddress).Name()
+		namespace := stage.Base.Get(namespaceAddress).Name()
 		details = append(details, label+" depends on schema "+dependencyIdentifier(namespace))
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {
@@ -716,7 +716,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 				root = root || slices.Contains(extension.Members[:], edge.root)
 			}
 			if root && !edge.automatic {
-				details = append(details, edge.label+" depends on "+dependencyObject(stage.base, edge.target, stage.dependencyPath))
+				details = append(details, edge.label+" depends on "+dependencyObject(stage.Base, edge.target, stage.dependencyPath))
 			}
 		}
 	}
@@ -728,7 +728,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	}
 	for _, d := range schemas {
-		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), d.Address()), true); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), true); err != nil {
 			return err
 		}
 	}

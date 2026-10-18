@@ -23,7 +23,7 @@ func TestHashIndexFinalPublicationVeto(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	polls := counting.checks.Load()
@@ -39,7 +39,7 @@ func TestHashIndexFinalPublicationVeto(t *testing.T) {
 		t.Fatal("veto fired before root preparation", err)
 	}
 	before := indexMaintenanceCapture(e)
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: second.base.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: second.Base.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	indexMaintenanceUnchanged(t, e, before)
@@ -68,7 +68,7 @@ func TestHashIndexDerivedBatchFailureAndIndexSetFence(t *testing.T) {
 	}
 	run(t, e, "CREATE INDEX sibling ON t USING hash(n)")
 	before := indexMaintenanceCapture(e)
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err == nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 		t.Fatal("changed index set accepted old hash rebuild")
 	} else if _, ok := err.(CatalogConflict); !ok {
 		t.Fatal(err)

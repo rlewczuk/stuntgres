@@ -6,7 +6,7 @@ import "stuntgres/internal/engine/ids"
 // reownership without changing OIDs, object references, or old catalog roots.
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
-	next := view.state
+	next := view.State()
 	if _, err := reownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
@@ -20,9 +20,9 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	// reownership. Every changed same-ID consumer must invalidate held analysis.
 	if stage.domainAlter != nil {
 		for address, descriptor := range next.Descriptors() {
-			previous := stage.descriptors[address]
+			previous := stage.Descriptors[address]
 			if previous == nil {
-				previous = stage.base.Get(address)
+				previous = stage.Base.Get(address)
 			}
 			if previous == nil || previous == descriptor || descriptor.Revision() != previous.Revision() {
 				continue
@@ -35,19 +35,19 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			case *typeDescriptor:
 				copy := *descriptor
 				copy.ObjectRevision = revision
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 			case *relationDescriptor:
 				copy := *descriptor
 				copy.ObjectRevision = revision
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 			}
 		}
 	}
 	var stores map[ids.ObjectAddress]*relationStorage
 	for address, descriptor := range next.Descriptors() {
-		previous := stage.descriptors[address]
+		previous := stage.Descriptors[address]
 		if previous == nil {
-			previous = stage.base.Get(address)
+			previous = stage.Base.Get(address)
 		}
 		if descriptor == previous {
 			continue
@@ -88,8 +88,8 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				}
 			}
 		}
-		if stage.base.Get(address) == nil {
-			stage.descriptors[address] = descriptor
+		if stage.Base.Get(address) == nil {
+			stage.Descriptors[address] = descriptor
 		} else if err := stage.replaceDescriptor(descriptor, false); err != nil {
 			return err
 		}

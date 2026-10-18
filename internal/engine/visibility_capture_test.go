@@ -59,7 +59,7 @@ func TestVisibilityInquiryCaptureDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := scope.visibilityCatalog.state != nil; got != tc.captured {
+			if got := scope.visibilityCatalog.State() != nil; got != tc.captured {
 				t.Fatalf("visibility capture=%v, want %v", got, tc.captured)
 			}
 			if !tc.captured && (scope.visibilityRelationPath != nil || scope.visibilityOtherPath != nil) {

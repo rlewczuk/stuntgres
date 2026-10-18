@@ -13,21 +13,6 @@ const pgAttributeOID ids.OID = 1249
 
 var pgAttributeTypeIDs = [...]sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
 
-// Scalar-only history survives removal of the original type and its dependency.
-// Published maps and entries are immutable; no live query or codec sees them.
-type attributeMetadata struct {
-	Name                                string
-	TypeID                              uint32
-	Number                              int32
-	Facts                               sqltype.PostgreSQLAttributeFacts
-	Typmod                              int32
-	Dimensions                          int16
-	Collation                           uint32
-	NotNull, HasDefault, Dropped, Local bool
-	Inheritance                         int64
-	Identity, Generated                 string
-}
-
 func relationAttributeMetadata(relation *relationDescriptor, slot int) attributeMetadata {
 	column := relation.Columns[slot]
 	attribute := relation.Attributes[slot]
@@ -84,7 +69,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.state.epoch || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
+	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.State().Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	return e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
 	return &StatementScope{owner: txOwnerOf(node.ref), txRef: node.ref}
@@ -150,11 +151,11 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	node := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalog := cloneCatalog(e.catalog.state)
+	catalog := catalog.CloneState(e.catalog.state)
 	original := catalog.MustRelation(ref.Address)
 	copy := *original
 	copy.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	catalog.setDescriptor(ref.Address, &copy)
+	catalog.SetDescriptor(ref.Address, &copy)
 	e.catalog.state = catalog
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
 		t.Fatal(err)

@@ -19,13 +19,13 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	consumer := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider_local"}))
 	address := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider"})
 	provider := before.MustCollation(address)
-	capability, err := provider.usage()
+	capability, err := provider.Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(before.Epoch(), address)
 	expiredAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "expired_provider"})
-	expiredCapability, err := before.MustCollation(expiredAddress).usage()
+	expiredCapability, err := before.MustCollation(expiredAddress).Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		t.Fatal("lawful physical-owner retained provider rejected")
 	}
 	seedAddress := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 100}
-	seedCapability, err := view.MustCollation(seedAddress).usage()
+	seedCapability, err := view.MustCollation(seedAddress).Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
 	foreignAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.temporaryNamespace, Name: "foreign_provider"})
-	foreignCapability, err := before.MustCollation(foreignAddress).usage()
+	foreignCapability, err := before.MustCollation(foreignAddress).Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	view = e.CatalogRead()
 	permanent := view.MustRelation(view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "permanent_consumer"}))
 	permanentAddress := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "permanent_provider"})
-	permanentCapability, err := view.MustCollation(permanentAddress).usage()
+	permanentCapability, err := view.MustCollation(permanentAddress).Usage()
 	if err != nil {
 		t.Fatal(err)
 	}

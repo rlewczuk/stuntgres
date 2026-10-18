@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -75,8 +76,8 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("foreign coincident IDs imported")
 	}
 	// The literal retagger must apply ACL import even without type changes.
-	next := cloneCatalog(source.catalog.state)
-	next.aclItemImport = importer
+	next := catalog.CloneState(source.catalog.state)
+	next.SetACLItemImport(importer)
 	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
 	rebound, changed, err := retagBoundTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed || rebound.(literalExpression).value == value {
@@ -106,7 +107,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45002}
-	next.setDescriptor(address, &relationDescriptor{ObjectAddress: address, Columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}})
+	next.SetDescriptor(address, &relationDescriptor{ObjectAddress: address, Columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}})
 	original := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{value}}}}
 	stores := map[ids.ObjectAddress]*relationStorage{address: original}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
@@ -146,7 +147,7 @@ func TestACLItemRestoreFence(t *testing.T) {
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if freshTarget.catalog.state.aclItemImport != nil || freshSource.catalog.state.aclItemImport != nil {
+	if freshTarget.catalog.state.ACLItemImport() != nil || freshSource.catalog.state.ACLItemImport() != nil {
 		t.Fatal("import callback published")
 	}
 	aclUnitRoles(freshSource, "acl_missing_target")
@@ -155,14 +156,14 @@ func TestACLItemRestoreFence(t *testing.T) {
 	copy := *public
 	role, _ := freshSource.roleRead(freshSource.catalog.read(freshSource.catalog.state), freshSource.roles).Lookup("acl_missing_target")
 	copy.Owner = role.Ref
-	freshSource.catalog.state = cloneCatalog(freshSource.catalog.state)
-	freshSource.catalog.state.setDescriptor(copy.Address(), &copy)
+	freshSource.catalog.state = catalog.CloneState(freshSource.catalog.state)
+	freshSource.catalog.state.SetDescriptor(copy.Address(), &copy)
 	freshSource.mu.Unlock()
 	before := freshTarget.catalog.state
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource, freshSource.CatalogRead(), nil); err == nil {
 		t.Fatal("missing target principal admitted")
 	}
-	if freshTarget.catalog.state != before || freshTarget.catalog.state.aclItemImport != nil || freshSource.catalog.state.aclItemImport != nil {
+	if freshTarget.catalog.state != before || freshTarget.catalog.state.ACLItemImport() != nil || freshSource.catalog.state.ACLItemImport() != nil {
 		t.Fatal("failure published state/import callback")
 	}
 }

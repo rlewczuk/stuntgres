@@ -376,7 +376,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			spare := roots[0][len(roots[0]):cap(roots[0])]
 			suffix := append([]rowVersion(nil), spare...)
 			frontier := e.commitSeq
-			retainedFrontier, retainedEpoch := frontier, e.catalog.state.epoch
+			retainedFrontier, retainedEpoch := frontier, e.catalog.state.Epoch()
 			retainedCatalog := e.catalog.state
 			ref := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -448,7 +448,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				// effects; the mixed roots remain installed as the no-write witness.
 				e.mu.Lock()
 				next := *e.catalog.state
-				next.epoch++
+				next.SetEpoch(next.Epoch() + 1)
 				e.catalog.state = &next
 				e.mu.Unlock()
 				outcome, err = e.Commit(op, ref)
@@ -499,7 +499,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 					t.Fatalf("relation %d used wrong spare/growth root", i)
 				}
 				data := retained[i].source.view.read()
-				if data.frontier != retainedFrontier || data.catalog.state != retainedCatalog || data.catalog.Epoch() != retainedEpoch {
+				if data.frontier != retainedFrontier || data.catalog.State() != retainedCatalog || data.catalog.Epoch() != retainedEpoch {
 					t.Fatal("retained frontier/catalog metadata changed")
 				}
 				if retained[i].count != len(root) {

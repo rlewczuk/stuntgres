@@ -26,7 +26,7 @@ func commentFailure(t *testing.T, e *Engine, op *Operation, q, code, message, de
 	if !errors.As(err, &d) || *d != want {
 		t.Fatalf("%s: full diagnostic %#v want %#v", q, d, want)
 	}
-	if before.state != e.CatalogRead().state || rolesPublication != e.roles {
+	if before.State() != e.CatalogRead().State() || rolesPublication != e.roles {
 		t.Fatal("failed COMMENT published metadata")
 	}
 }
@@ -150,7 +150,7 @@ func TestCommentAuthorizationAndLookup(t *testing.T) {
 	before := e.CatalogRead()
 	_, err := e.Execute(admin, held, 0, nil)
 	state(t, err, "42501")
-	if before.state != e.CatalogRead().state {
+	if before.State() != e.CatalogRead().State() {
 		t.Fatal("prepared authority cached")
 	}
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")

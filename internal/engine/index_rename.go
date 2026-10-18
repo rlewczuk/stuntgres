@@ -10,7 +10,7 @@ import (
 // Publish parent constraint and backing descriptor together, preserving all key
 // and constraint identities and sharing their immutable attribute vectors.
 func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) error {
-	parent, ok := stage.base.Relation(index.SQLIndex.Parent)
+	parent, ok := stage.Base.Relation(index.SQLIndex.Parent)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
@@ -55,7 +55,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	}
 	next := *parent
 	next.ObjectRevision++
-	if index.SQLIndex.isExclusion() {
+	if index.SQLIndex.IsExclusion() {
 		next.ExclusionConstraints = append([]exclusionConstraint(nil), parent.ExclusionConstraints...)
 		next.ExclusionConstraints[slot].Name = index.Name()
 	} else {

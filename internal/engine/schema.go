@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -50,19 +51,19 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ids.ObjectA
 }
 
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
-	auth.catalog = stage.base
+	auth.catalog = stage.Base
 	auth.recaptureCatalog(auth.catalog)
 	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
-	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
+	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}
-	_, baseExists := stage.base.LookupName(key)
-	_, stagedExists := stage.names[key]
+	_, baseExists := stage.Base.LookupName(key)
+	_, stagedExists := stage.Names[key]
 	if baseExists || stagedExists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
@@ -79,7 +80,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		diagnostic.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."
 		return diagnostic
 	}
-	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
+	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
 	}
@@ -259,9 +260,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	// ownership pairing; never resolve an arbitrary later object by name.
 	var created ids.ObjectRef
 	if _, domain := stmt.(*parser.CreateDomain); domain {
-		for address, descriptor := range stage.descriptors {
-			if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.IsDomain() && stage.base.Get(address) == nil {
-				created = e.catalog.Domain.Ref(stage.base.Epoch(), address)
+		for address, descriptor := range stage.Descriptors {
+			if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.IsDomain() && stage.Base.Get(address) == nil {
+				created = e.catalog.Domain.Ref(stage.Base.Epoch(), address)
 				break
 			}
 		}
@@ -293,8 +294,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		}
 	}
 	var removedRelations []ids.ObjectAddress
-	for address, removal := range stage.removals {
-		if _, ok := removal.descriptor.(*relationDescriptor); ok {
+	for address, removal := range stage.Removals {
+		if _, ok := removal.Descriptor.(*relationDescriptor); ok {
 			removedRelations = append(removedRelations, address)
 		}
 	}
@@ -308,9 +309,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		return Result{}, err
 	}
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
-	for a := range stage.removals {
-		if r, ok := stage.base.Relation(a); ok && r.RelationKind == sequenceRelation {
-			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+	for a := range stage.Removals {
+		if r, ok := stage.Base.Relation(a); ok && r.RelationKind == sequenceRelation {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}
@@ -328,9 +329,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if err == nil {
-		for _, descriptor := range stage.descriptors {
+		for _, descriptor := range stage.Descriptors {
 			if ns, ok := descriptor.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == op.session.token {
 				op.session.temporaryNamespace = ns.Address()
 			}
@@ -368,13 +369,13 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
 			return err
 		}
 		if rights&authorization.CreatePrivilege == 0 {
-			database := auth.catalog.MustDatabase(currentDatabaseAddress)
+			database := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 			name := database.Name()
 			if name == "" {
 				name = "stuntgres" // The unnamed native Engine's existing database display.

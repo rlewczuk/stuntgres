@@ -86,13 +86,13 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
+			for _, address := range auth.catalog.State().OperatorNames().Buckets[operatorNameKey{path.at(i), spelling}] {
 				d := auth.catalog.MustOperator(address)
 				if d.Left == 0 {
 					continue
 				}
 				available = true
-				if !d.seeded() {
+				if !operatorSeeded(d) {
 					custom = true
 					break
 				}
@@ -107,7 +107,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
+		for _, address := range auth.catalog.State().OperatorNames().Buckets[operatorNameKey{path.at(i), spelling}] {
 			d := auth.catalog.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue
@@ -118,7 +118,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			}
 			seen[key] = true
 			candidates = append(candidates, d)
-			custom = custom || !d.seeded()
+			custom = custom || !operatorSeeded(d)
 		}
 	}
 	return operatorCandidateSet{catalog: auth.catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
@@ -139,7 +139,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]
-	if d.Function == 0 && !d.seeded() {
+	if d.Function == 0 && !operatorSeeded(d) {
 		message := operatorInputName(set.catalog, d.Left, d.Right, raw.Name)
 		diagnostic := sqlError("42883", "operator is only a shell: "+message).(*sqlstate.Error)
 		if raw.Pos.Character > 0 {
@@ -151,7 +151,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 }
 
 func requireBuiltinComparison(d *operatorDescriptor, pos parser.Position) error {
-	if !d.seeded() {
+	if !operatorSeeded(d) {
 		return expr.ErrorAt("0A000", "custom operators are unsupported in this comparison context", pos)
 	}
 	return nil
@@ -229,7 +229,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 			return nil, err
 		}
 	}
-	if d.seeded() {
+	if operatorSeeded(d) {
 		// Seed metadata is not an invocation descriptor. Dispatch the selected
 		// builtin through its existing real expression provider, reusing the
 		// operands already bound and coerced by catalog resolution.

@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -92,10 +93,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 		t.Fatal(err)
 	}
 	source := []sqltype.Value{base, oldOID}
-	next := cloneCatalog(view.state)
-	next.epoch++
-	next.setDescriptor(d.Address(), d)
-	next.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	next := catalog.CloneState(view.State())
+	next.SetEpoch(next.Epoch() + 1)
+	next.SetDescriptor(d.Address(), d)
+	next.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	// Retain a real TEMP namespace and row vector in the target generation.
 	tempNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 27000}
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
@@ -103,9 +104,9 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	temp.ObjectAddress, temp.ObjectNamespace, temp.ObjectName = tempAddress, tempNamespace, "retained"
 	temp.Generations, temp.CheckConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
-	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
-	e.catalog.state.setDescriptor(tempAddress, &temp)
+	e.catalog.state = catalog.CloneState(e.catalog.state)
+	e.catalog.state.SetDescriptor(tempNamespace, &namespaceDescriptor{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
+	e.catalog.state.SetDescriptor(tempAddress, &temp)
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()
 	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
@@ -186,21 +187,21 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			f.target.mu.Lock() // actual Eval must not retain the target mutex
 			switch change {
 			case "Catalog":
-				f.target.catalog.state = cloneCatalog(f.target.catalog.state)
-				f.target.catalog.state.epoch++
-				f.target.catalog.state.namespaceGeneration++
+				f.target.catalog.state = catalog.CloneState(f.target.catalog.state)
+				f.target.catalog.state.SetEpoch(f.target.catalog.state.Epoch() + 1)
+				f.target.catalog.state.SetNamespaceGeneration(f.target.catalog.state.NamespaceGeneration() + 1)
 			case "Roles":
 				roles := *f.target.roles
 				roles.revision++
 				f.target.roles = &roles
 			case "Temporary":
-				next := cloneCatalog(f.target.catalog.state)
+				next := catalog.CloneState(f.target.catalog.state)
 				copy := *next.MustRelation(f.temp)
 				copy.ObjectAddress.ObjectID++
 				copy.ObjectName = "concurrent_temp"
-				next.setDescriptor(copy.Address(), &copy)
+				next.SetDescriptor(copy.Address(), &copy)
 				f.target.storage[copy.Address()] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
-				next.epoch++
+				next.SetEpoch(next.Epoch() + 1)
 				f.target.catalog.state = next
 			case "CommitFrontier":
 				f.target.commitSeq++

@@ -83,7 +83,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 			continue
 		}
 		a := r.Sequence.Owned
-		if old.RelationKind == tableRelation && a.ClassID == old.Address().ClassID && a.ObjectID == old.Address().ObjectID && old.hasAttribute(a.SubID) {
+		if old.RelationKind == tableRelation && a.ClassID == old.Address().ClassID && a.ObjectID == old.Address().ObjectID && old.HasAttribute(a.SubID) {
 			owned = append(owned, r)
 		}
 	}
@@ -186,7 +186,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if _, conflict := err.(CatalogConflict); conflict {
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
-		if current.epoch == ref.Epoch {
+		if current.Epoch() == ref.Epoch {
 			for _, r := range group {
 				winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.Name()})
 				if exists && winner != r.Address() {

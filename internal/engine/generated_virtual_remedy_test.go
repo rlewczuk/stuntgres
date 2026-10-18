@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -116,10 +117,10 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 }
 
 func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
-	e, catalog, d := generatedUnitDescriptor(t)
-	catalog.state = cloneCatalog(catalog.state)
-	catalog.state.setDescriptor(d.Address(), d)
-	ref := e.catalog.Domain.Ref(catalog.Epoch(), d.Address())
+	e, view, d := generatedUnitDescriptor(t)
+	view = view.WithState(catalog.CloneState(view.State()))
+	view.State().SetDescriptor(d.Address(), d)
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	origin := ref
 	origin.Address.SubID = 2
 	typ := d.Columns[0].Usage.Type
@@ -147,7 +148,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	consumer.View = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
 	b := binding{querySources: []queryLeaf{{ref: ref, relation: d}}}
-	mapped, err := w.graftQuery(&b, catalog, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
+	mapped, err := w.graftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	innerAdd.left = innerLeft
 	inner := &projectNode{frame: 8, child: join, expressions: []expr.Expr{innerAdd, innerRight}}
 	outer := &projectNode{frame: 4, syntax: syntax, child: &derivedNode{query: &BoundQuery{Root: inner}}}
-	derived, err := w.graftQuery(&b, catalog, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
+	derived, err := w.graftQuery(&b, view, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

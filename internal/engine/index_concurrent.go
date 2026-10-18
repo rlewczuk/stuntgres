@@ -81,7 +81,7 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	if !ok {
 		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
-	if err = auth.CheckCreate(e.catalog.Domain.Ref(e.catalog.state.epoch, parent.Namespace())); err != nil {
+	if err = auth.CheckCreate(e.catalog.Domain.Ref(e.catalog.state.Epoch(), parent.Namespace())); err != nil {
 		return nil, nil, auth, err
 	}
 	return index, parent, auth, nil

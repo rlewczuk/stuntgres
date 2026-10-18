@@ -19,7 +19,7 @@ func pgGroupUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Object
 	if !ok {
 		t.Fatal("missing pg_group")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
 func pgGroupUnitRole(e *Engine, state *roleCatalog, id uint64, name string, login bool) authorization.PrincipalRef {
@@ -240,8 +240,8 @@ func TestPGGroupRoleRoot(t *testing.T) {
 		view.ObjectName, view.RelationKind, view.VirtualView = name, viewRelation, false
 		attrs := slices.Clone(d.Attributes)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.Address(), &view)
-		return e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
+		e.catalog.state.SetDescriptor(view.Address(), &view)
+		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	}
 	inner := addView(20010, "pg_group_inner", ref)
 	outer := addView(20011, "pg_group_outer", inner)

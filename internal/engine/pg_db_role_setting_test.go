@@ -105,9 +105,9 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
+	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}

@@ -15,7 +15,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		return nil, err
 	}
 	d, exists := e.privateCatalogLocked(scope.owner.catalog).Relation(ref.Address)
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || !exists {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !exists {
 		e.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}

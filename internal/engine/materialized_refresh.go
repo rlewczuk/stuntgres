@@ -72,7 +72,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err == nil {
 		current, _ = auth.catalog.Relation(ref.Address)
 	}
-	if err == nil && (s.txRef.Epoch() != e.catalog.state.epoch || !materializedRefreshCompatible(observed, current)) {
+	if err == nil && (s.txRef.Epoch() != e.catalog.state.Epoch() || !materializedRefreshCompatible(observed, current)) {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
@@ -185,7 +185,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 				}
 			}
 			previous.versions, previous.ends = versions, nil
-			evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.base}
+			evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.Base}
 			oldEntries, err = buildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
 				return Result{}, err
@@ -208,7 +208,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true
@@ -282,10 +282,10 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.RelationKind != materializedViewRelation || d.View == nil || s.base.Get(d.Address()) != d || e.stageCatalogBaseLocked(s).Get(d.Address()) != d || previous == nil || e.stageStorageLocked(s, d.Address()) != previous || !populated && len(rows) != 0 {
+	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.RelationKind != materializedViewRelation || d.View == nil || s.Base.Get(d.Address()) != d || e.stageCatalogBaseLocked(s).Get(d.Address()) != d || previous == nil || e.stageStorageLocked(s, d.Address()) != previous || !populated && len(rows) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
-	if s.base.Epoch() != e.catalog.state.epoch {
+	if s.Base.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.Revision() == ids.DefinitionRevision(^uint64(0)) || previous.generation == ^uint64(0) {
@@ -312,7 +312,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 		return err
 	}
 	s.materializedReplacement = &materializedReplacement{original: d, descriptor: &next, predecessor: previous, storage: &relationStorage{versions: versions, generation: previous.generation + 1}, generation: previous.generation, length: len(previous.versions), ends: previous.ends}
-	for _, descriptor := range s.base.Descriptors() {
+	for _, descriptor := range s.Base.Descriptors() {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.Address() {
 			s.materializedReplacement.indexCount++
 		}
@@ -333,8 +333,8 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	if r.original == nil || r.descriptor == nil {
 		return fmt.Errorf("stuntgres: invalid materialized replacement")
 	}
-	d, ok := s.descriptors[r.original.Address()].(*relationDescriptor)
-	if !ok || r.original.RelationKind != materializedViewRelation || s.base.Get(r.original.Address()) != r.original || r.storage == nil || r.predecessor == nil || r.storage == r.predecessor || r.storage.ends != nil || r.storage.generation != r.generation+1 || r.generation == ^uint64(0) {
+	d, ok := s.Descriptors[r.original.Address()].(*relationDescriptor)
+	if !ok || r.original.RelationKind != materializedViewRelation || s.Base.Get(r.original.Address()) != r.original || r.storage == nil || r.predecessor == nil || r.storage == r.predecessor || r.storage.ends != nil || r.storage.generation != r.generation+1 || r.generation == ^uint64(0) {
 		return fmt.Errorf("stuntgres: invalid materialized replacement")
 	}
 	// This private constructor owns the shallow descriptor copy. No general
@@ -364,10 +364,10 @@ func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, sto
 	if r == nil {
 		return nil
 	}
-	if s.descriptors[r.original.Address()] != r.descriptor {
+	if s.Descriptors[r.original.Address()] != r.descriptor {
 		return CatalogConflict{}
 	}
-	if catalog.epoch != s.base.Epoch() || catalog.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
+	if catalog.Epoch() != s.Base.Epoch() || catalog.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
 		return CatalogConflict{}
 	}
 	// The effective diff depends on every eligible key; root publication also
@@ -379,7 +379,7 @@ func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, sto
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != r.original.Address() {
 			continue
 		}
-		if s.base.Get(address) != descriptor {
+		if s.Base.Get(address) != descriptor {
 			return CatalogConflict{}
 		}
 		count++

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -32,10 +33,10 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
 	e.roles = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
-	next := cloneCatalog(e.catalog.state)
+	next := catalog.CloneState(e.catalog.state)
 	namespace := &namespaceDescriptor{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
-	next.setDescriptor(schema, namespace)
-	next.bindName(descriptorNameKey(namespace), schema)
+	next.SetDescriptor(schema, namespace)
+	next.BindName(catalog.DescriptorNameKey(namespace), schema)
 	e.catalog.state = next
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
@@ -104,7 +105,7 @@ func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorizat
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
 func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *relationDescriptor {
 	t.Helper()
-	typ, ok := stage.base.LookupType(sqltype.Int4)
+	typ, ok := stage.Base.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("stage has no int4 carrier")
 	}
@@ -129,6 +130,6 @@ func defaultUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()})
 	return err
 }

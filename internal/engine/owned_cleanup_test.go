@@ -189,7 +189,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	if err := stageOwnedCleanup(ctx, stage, e.roleRead(base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if len(stage.descriptors) != 0 || e.catalog.state != base.state || e.roles != roles {
+	if len(stage.Descriptors) != 0 || e.catalog.state != base.State() || e.roles != roles {
 		t.Fatal("canceled cleanup mutated state")
 	}
 	stage = e.BeginCatalogStage(base)

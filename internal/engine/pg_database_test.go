@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -69,11 +70,11 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 
 func TestPGDatabaseCapture(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, ref := pgDatabaseUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, ref := pgDatabaseUnitSource(t, e, view)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
-	rows := pgDatabaseUnitCapture(t, e, catalog)
+	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
+	rows := pgDatabaseUnitCapture(t, e, view)
 	row := rows.anonymous[0]
 	for i, value := range row {
 		wantNull := i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14 && i <= 17
@@ -86,7 +87,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			t.Fatal("OID", i, got, want, err)
 		}
 	}
-	database := catalog.MustDatabase(currentDatabaseAddress)
+	database := view.MustDatabase(catalog.CurrentDatabaseAddress)
 	for i, want := range map[int]string{1: database.Name(), 4: "c", 12: "C", 13: "C"} {
 		if got, err := row[i].Text(); err != nil || got != want {
 			t.Fatal("text", i, got, want, err)
@@ -102,14 +103,14 @@ func TestPGDatabaseCapture(t *testing.T) {
 		t.Fatal("absent database ACL baseline", row[17], database.ACL)
 	}
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := e.capturePGDatabase(ctx, catalog, e.Roles(), ref, d); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := e.capturePGDatabase(ctx, view, e.Roles(), ref, d); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	unchanged()
@@ -118,7 +119,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		catalog CatalogRead
 		roles   authorization.Read
 		ref     ids.ObjectRef
-	}{{foreign.CatalogRead(), e.Roles(), ref}, {catalog, foreign.Roles(), ref}, {catalog, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
+	}{{foreign.CatalogRead(), e.Roles(), ref}, {view, foreign.Roles(), ref}, {view, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
 		if got, err := e.capturePGDatabase(context.Background(), tc.catalog, tc.roles, tc.ref, d); got != nil || err == nil {
 			t.Fatal("foreign capture admitted", got, err)
 		}
@@ -127,21 +128,21 @@ func TestPGDatabaseCapture(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(column.Usage.Type.ID())
-		if got, err := e.capturePGDatabase(context.Background(), catalog, e.Roles(), ref, &invalid); got != nil || err == nil {
+		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("foreign concrete type", i, got, err)
 		}
 	}
 	for _, width := range []int{0, 17, 19} {
 		invalid := *d
 		invalid.Columns = make([]ColumnDescriptor, width)
-		if got, err := e.capturePGDatabase(context.Background(), catalog, e.Roles(), ref, &invalid); got != nil || err == nil {
+		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("invalid source width", width, got, err)
 		}
 	}
-	private := cloneCatalog(catalog.state)
+	private := catalog.CloneState(view.State())
 	for address := range private.Descriptors() {
 		if address.ClassID == ids.RelationClassID {
-			private.removeDescriptor(address)
+			private.RemoveDescriptor(address)
 		}
 	}
 	isolated := e.catalog.read(private)
@@ -150,7 +151,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	invalidDB := *database
 	invalidDB.Owner = foreign.authorizationDomain.Principal(10)
-	private.setDescriptor(currentDatabaseAddress, &invalidDB)
+	private.SetDescriptor(catalog.CurrentDatabaseAddress, &invalidDB)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
@@ -166,7 +167,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	base := e.CatalogRead()
 	old := pgDatabaseUnitCapture(t, e, base)
 	d, ref := pgDatabaseUnitSource(t, e, base)
-	original := base.MustDatabase(currentDatabaseAddress)
+	original := base.MustDatabase(catalog.CurrentDatabaseAddress)
 	successor, ok := e.Roles().Lookup("pg_read_all_data")
 	if !ok {
 		t.Fatal("missing predefined principal")
@@ -204,7 +205,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(old, 10, false)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) || e.CatalogRead().state != base.state {
+	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != base.State() {
 		t.Fatal("canceled publication changed base", err)
 	}
 	publication, err := e.ValidateCatalogStage(context.Background(), stage)

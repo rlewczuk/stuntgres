@@ -287,7 +287,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, b, create)
 		late := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
 		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
-			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.Address()), false)
+			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -447,7 +447,7 @@ func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address id
 			// merges this valid removal/rewire with our earlier retirement.
 			stage = e.BeginCatalogStage(e.catalog.read(e.catalog.state))
 			stage.authorizeLocked(auth, scope.op.session)
-			err = edit(stage, stage.base.MustForeign(address))
+			err = edit(stage, stage.Base.MustForeign(address))
 		}
 		e.mu.Unlock()
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -229,7 +230,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if next != nil {
 				changed[address] = objectGrantChange{descriptor: next}
 				if candidate == nil {
-					candidate = cloneCatalog(v.catalog.state)
+					candidate = catalog.CloneState(v.catalog.State())
 				}
 				if parameter, ok := next.(*parameterDescriptor); ok {
 					installParameterGrant(candidate, parameter)
@@ -237,7 +238,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 						changed[address] = objectGrantChange{}
 					}
 				} else {
-					candidate.setDescriptor(address, next)
+					candidate.SetDescriptor(address, next)
 				}
 			}
 			continue
@@ -418,16 +419,16 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				next.SequencePlanStamp = stamp
 			}
 			if candidate == nil {
-				candidate = cloneCatalog(v.catalog.state)
+				candidate = catalog.CloneState(v.catalog.State())
 			}
-			candidate.setDescriptor(address, next)
+			candidate.SetDescriptor(address, next)
 		}
 	}
 	if candidate == nil {
 		return Result{}, op.Context().Err()
 	}
 	if s.Kind == "schema" {
-		if err := candidate.advanceNamespaceGeneration(); err != nil {
+		if err := candidate.AdvanceNamespaceGeneration(); err != nil {
 			return Result{}, err
 		}
 	}

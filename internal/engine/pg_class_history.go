@@ -31,15 +31,15 @@ func visitSubclassParents(child *relationDescriptor, visit func(ids.ObjectAddres
 }
 
 func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
 		}
 		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
-			descriptor, staged := stage.descriptors[address]
+			descriptor, staged := stage.Descriptors[address]
 			if !staged {
-				descriptor = stage.base.Get(address)
+				descriptor = stage.Base.Get(address)
 			}
 			parent, ok := descriptor.(*relationDescriptor)
 			if !ok {
@@ -51,7 +51,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 			next := *parent
 			next.HasSubclasses = true
 			if staged {
-				stage.descriptors[address] = &next
+				stage.Descriptors[address] = &next
 				return nil
 			}
 			revision, err := e.catalog.revisionLocked()
@@ -87,7 +87,7 @@ func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRea
 			if !parent.HasSubclasses {
 				next := *parent
 				next.HasSubclasses = true
-				catalog.state.setDescriptor(address, &next)
+				catalog.State().SetDescriptor(address, &next)
 			}
 			return nil
 		}); err != nil {

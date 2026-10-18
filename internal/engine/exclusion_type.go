@@ -27,9 +27,9 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 	}
 	var next *relationDescriptor
 	for i, old := range parent.ExclusionConstraints {
-		index, ok := stage.base.Relation(old.Index)
+		index, ok := stage.Base.Relation(old.Index)
 		if !ok {
-			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
+			if current, exists := stage.Descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
 				continue // New definitions already bind the completed TYPE shape.
 			}
 		}
@@ -39,10 +39,10 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
-		if replacement, ok := stage.descriptors[old.Index].(*relationDescriptor); ok {
+		if replacement, ok := stage.Descriptors[old.Index].(*relationDescriptor); ok {
 			index = replacement
 		}
-		oldParent := stage.base.MustRelation(parent.Address())
+		oldParent := stage.Base.MustRelation(parent.Address())
 		evolved, err := evolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
@@ -56,7 +56,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 			next = &copy
 		}
 		c := &next.ExclusionConstraints[i]
-		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
+		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), old.Index), false); err != nil {
 			return nil, err
 		}
 		c.OID, err = e.catalog.allocateOIDLocked()
@@ -142,10 +142,10 @@ func rebindImportedExclusions(next *catalogState) error {
 			indexCopy, definitionCopy := *index, *definition
 			definitionCopy.Exclusion = operators
 			indexCopy.SQLIndex = &definitionCopy
-			next.setDescriptor(index.Address(), &indexCopy)
+			next.SetDescriptor(index.Address(), &indexCopy)
 		}
 		if replacement != nil {
-			next.setDescriptor(address, replacement)
+			next.SetDescriptor(address, replacement)
 		}
 	}
 	return nil

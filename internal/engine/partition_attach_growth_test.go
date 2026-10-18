@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -106,7 +107,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate = e.catalog.state.MustRelation(candidate.Address())
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, old.Address())
+			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Address())
 			partitionAttachUnitGrant(t, holder, ref, lock.AccessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.Address()
@@ -134,7 +135,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			current := e.catalog.state.MustRelation(parent.Address())
@@ -142,13 +143,13 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
-				next := cloneCatalog(e.catalog.state)
+				next := catalog.CloneState(e.catalog.state)
 				changed := *old
 				changed.ObjectName = "replacement_identity"
 				changed.ObjectRevision++
-				next.unbindName(descriptorNameKey(old))
-				next.bindName(descriptorNameKey(&changed), changed.Address())
-				next.setDescriptor(old.Address(), &changed)
+				next.UnbindName(catalog.DescriptorNameKey(old))
+				next.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
+				next.SetDescriptor(old.Address(), &changed)
 				e.catalog.state = next
 				// The exact descendant authority was admitted before the wait.
 				reader.partitionRelations[old.Address()] = old
@@ -245,7 +246,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target = e.catalog.state.MustRelation(target.Address())
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := e.catalog.Domain.Ref(e.catalog.state.epoch, leaf.Address())
+			leafRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), leaf.Address())
 			targetRef := leafRef
 			targetRef.Address = target.Address()
 			partitionAttachUnitGrant(t, holder, leafRef, lock.AccessShare)

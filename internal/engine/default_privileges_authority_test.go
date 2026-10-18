@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -87,11 +88,11 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_authority_seed(v INT)")
 	f.schema = f.op.session.temporaryNamespace
-	state := cloneCatalog(f.e.catalog.state)
+	state := catalog.CloneState(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
 	namespace.ACL = authorization.ACLValue{Explicit: true}
-	state.setDescriptor(f.schema, &namespace)
+	state.SetDescriptor(f.schema, &namespace)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
 	f.e.mu.Unlock()
@@ -101,7 +102,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	auth.catalog = f.e.catalog.read(state)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = f.reader
-	ref := f.e.catalog.Domain.Ref(state.epoch, f.schema)
+	ref := f.e.catalog.Domain.Ref(state.Epoch(), f.schema)
 	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: privilege}); err != nil {
 			t.Fatal("physical namespace authority depended on current actor", privilege, err)
@@ -124,10 +125,10 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	// Even an exact namespace token cannot elevate zero/foreign/private
 	// maintenance identities into a physical backend.
 	for _, token := range []ids.SessionToken{{}, New().catalog.Domain.Session(1), f.e.catalog.Domain.PrivateSession(f.op.session)} {
-		candidate := cloneCatalog(state)
+		candidate := catalog.CloneState(state)
 		invalidNamespace := namespace
 		invalidNamespace.Temporary = token
-		candidate.setDescriptor(f.schema, &invalidNamespace)
+		candidate.SetDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
 		invalid.catalog = f.e.catalog.read(candidate)
 		invalid.recaptureCatalog(invalid.catalog)
@@ -137,10 +138,10 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	withoutSession := auth
 	withoutSession.session = nil
 	defaultUnitDiagnostic(t, withoutSession.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
-	ordinary := cloneCatalog(state)
+	ordinary := catalog.CloneState(state)
 	permanent := namespace
 	permanent.Temporary = ids.SessionToken{}
-	ordinary.setDescriptor(f.schema, &permanent)
+	ordinary.SetDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = f.e.catalog.read(ordinary)
 	ordinaryAuth.recaptureCatalog(ordinaryAuth.catalog)
@@ -156,7 +157,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}
 	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}}
-	state.setDescriptor(table.Address(), table)
-	tableRef := f.e.catalog.Domain.Ref(state.epoch, table.Address())
+	state.SetDescriptor(table.Address(), table)
+	tableRef := f.e.catalog.Domain.Ref(state.Epoch(), table.Address())
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
 }

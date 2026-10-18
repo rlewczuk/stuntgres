@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -79,7 +80,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				captured, ref = enum.procedure, enum.ref
 				carrier, err := expressionRoutineDescriptor(node)
-				if err != nil || carrier != captured || !captured.returnsSet() || strictScalarRoutine(captured) {
+				if err != nil || carrier != captured || !procedureReturnsSet(captured) || strictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
 				if tc.name == "enum_parameter" {
@@ -106,7 +107,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || intaggProviderOf(captured) != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -190,10 +191,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 			} {
 				auth := *evaluation.routineAuthority
-				auth.catalog.state = cloneCatalog(auth.catalog.state)
+				auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
 				bad := *captured
 				mutate(&bad)
-				auth.catalog.state.setDescriptor(ref.Address, &bad)
+				auth.catalog.State().SetDescriptor(ref.Address, &bad)
 				if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
@@ -266,20 +267,20 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					for i, a := range ext.Members {
 						mapping[a] = ids.ObjectAddress{ids.ProcedureClassID, ids.OID(900001 + i), 0}
 					}
-					state := cloneCatalog(evaluation.catalog.state)
+					state := catalog.CloneState(evaluation.catalog.State())
 					for a := range mapping {
-						state.unbindName(descriptorNameKey(state.Get(a)))
-						state.removeDescriptor(a)
+						state.UnbindName(catalog.DescriptorNameKey(state.Get(a)))
+						state.RemoveDescriptor(a)
 					}
 					for a, dest := range mapping {
 						d := remapExtensionDescriptor(evaluation.catalog.Get(a), mapping)
-						state.setDescriptor(dest, d)
-						state.bindName(descriptorNameKey(d), dest)
+						state.SetDescriptor(dest, d)
+						state.BindName(catalog.DescriptorNameKey(d), dest)
 					}
-					state.epoch++
+					state.SetEpoch(state.Epoch() + 1)
 					view := e.catalog.read(state)
 					remap := func(r ids.ObjectRef) ids.ObjectRef {
-						r.Epoch = state.epoch
+						r.Epoch = state.Epoch()
 						if a, ok := mapping[r.Address]; ok {
 							r.Address = a
 						}
@@ -409,17 +410,17 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	foreign := New()
 	foreignOwner := foreign.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
-		state := cloneCatalog(e.catalog.state)
+		state := catalog.CloneState(e.catalog.state)
 		for _, a := range ext.Members {
 			bad := *state.MustProcedure(a)
 			bad.Owner = owner
-			state.setDescriptor(a, &bad)
+			state.SetDescriptor(a, &bad)
 		}
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
-	if err := stockIntagg.ValidateExtension(CatalogRead{state: e.catalog.state}, ext); err == nil {
+	if err := stockIntagg.ValidateExtension(catalog.NewRead(nil, e.catalog.state), ext); err == nil {
 		t.Fatal("missing owning engine accepted")
 	}
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {

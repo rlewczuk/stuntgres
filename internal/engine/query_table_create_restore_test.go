@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -116,11 +117,11 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	stage, d := queryCreateStage(t, target, "copy", 1)
 	d.Columns[0].Usage = targetArray.Usage()
 	queryCreatePublish(t, target, stage)
-	candidate := cloneCatalog(target.CatalogRead().state)
+	candidate := catalog.CloneState(target.CatalogRead().State())
 	imported := *d
 	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	imported.Columns[0].Usage = array.Usage()
-	candidate.setDescriptor(d.Address(), &imported)
+	candidate.SetDescriptor(d.Address(), &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage[sourceCopy.Address()]}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.Address(): targetAnchor.Address()}
 	if err = reownCatalogScalarTypes(candidate, stores, mapping); err != nil {
@@ -221,11 +222,11 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	stage, d := queryCreateStage(t, target, "xid_copy", 1)
 	d.Columns[0].Usage = targetType.Usage()
 	queryCreatePublish(t, target, stage)
-	candidate := cloneCatalog(target.CatalogRead().state)
+	candidate := catalog.CloneState(target.CatalogRead().State())
 	imported := *d
 	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	imported.Columns[0].Usage = sourceType.Usage()
-	candidate.setDescriptor(d.Address(), &imported)
+	candidate.SetDescriptor(d.Address(), &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage[sourceCopy.Address()]}
 	if err := reownCatalogScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)

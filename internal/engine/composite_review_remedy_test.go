@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -54,9 +53,9 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer.OfType = ids.ObjectAddress{}
 		consumer.RelationKind = materializedViewRelation
 		consumer.Columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
-		state := *before.state
-		state.descriptors = maps.Clone(state.descriptors)
-		state.setDescriptor(table.Address(), &consumer)
+		state := *before.State()
+		state.CloneDescriptors()
+		state.SetDescriptor(table.Address(), &consumer)
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
@@ -71,7 +70,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 			t.Fatal("nonstored view blocked", err)
 		}
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("guard published a candidate")
 	}
 }
@@ -87,13 +86,13 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	err := stageCompositeFieldChecks(stage, source, source.Attributes[0], parser.DropRestrict, nil)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop column id of composite type pair because other objects depend on it")
-	if len(stage.descriptors) != 0 {
+	if len(stage.Descriptors) != 0 {
 		t.Fatal("RESTRICT staged removal")
 	}
 	if err := stageCompositeFieldChecks(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
-	next := stage.descriptors[original.Address()].(*typeDescriptor)
+	next := stage.Descriptors[original.Address()].(*typeDescriptor)
 	if len(next.DomainChecks) != 1 || next.DomainChecks[0].Name != "keep_check" || next.DomainChecks[0].OID != original.DomainChecks[1].OID || next.SQLType.ID() != original.SQLType.ID() || next.SQLType.DomainBase() != original.SQLType.DomainBase() {
 		t.Fatal("wrong owner or constraint pruned")
 	}
@@ -108,16 +107,16 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation failed", err)
 	}
-	if e.CatalogRead().state != before.state {
+	if e.CatalogRead().State() != before.State() {
 		t.Fatal("private pruning published")
 	}
 	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.descriptors[original.Address()].(*typeDescriptor).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
+	if len(stage.Descriptors[original.Address()].(*typeDescriptor).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
 		t.Fatal("last removal mutated surviving capture")
 	}
-	if stage.descriptors[original.Address()].(*typeDescriptor).SQLType.HasDomainChecks() {
+	if stage.Descriptors[original.Address()].(*typeDescriptor).SQLType.HasDomainChecks() {
 		t.Fatal("empty CHECK owner retained codec authority")
 	}
 }
@@ -138,7 +137,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, original := range []*relationDescriptor{left, right, child} {
-		pruned := stage.descriptors[original.Address()].(*relationDescriptor)
+		pruned := stage.Descriptors[original.Address()].(*relationDescriptor)
 		if len(pruned.CheckConstraints) != 1 || pruned.CheckConstraints[0].Name != "keep_check" || len(original.CheckConstraints) != 2 {
 			t.Fatal("diamond owner pruning lost", original.Name())
 		}
@@ -179,7 +178,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal("pruned inheritance candidate escaped cancellation", err)
 	}
-	if len(child.CheckConstraints) != 2 || e.CatalogRead().state != before.state {
+	if len(child.CheckConstraints) != 2 || e.CatalogRead().State() != before.State() {
 		t.Fatal("staged pruning mutated published roots")
 	}
 }

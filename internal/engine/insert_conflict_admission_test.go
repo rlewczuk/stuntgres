@@ -48,7 +48,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Address())
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
 	ctx := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
@@ -184,7 +184,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	def.Keys = []indexKey{{Attribute: 20, Class: class}}
 	def.Predicate = nil
 	second.SQLIndex = &def
-	f.e.catalog.state.setDescriptor(second.Address(), &second)
+	f.e.catalog.state.SetDescriptor(second.Address(), &second)
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -243,7 +243,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.Columns = []ColumnDescriptor{f.parent.Columns[1], f.parent.Columns[0]}
 		index.Attributes = []int32{1, 2}
 		index.AttributeHighWater = 2
-		f.e.catalog.state.setDescriptor(index.Address(), &index)
+		f.e.catalog.state.SetDescriptor(index.Address(), &index)
 		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 		if err != nil {
 			t.Fatal(err)

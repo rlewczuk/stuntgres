@@ -310,7 +310,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -558,7 +558,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	descriptor, live := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || txref.Epoch() != e.catalog.state.epoch || !live {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || txref.Epoch() != e.catalog.state.Epoch() || !live {
 		return ids.ErrCatalogReplaced
 	}
 	if materializedAlterAuthority != nil &&
@@ -714,7 +714,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	if s.lockedRef.Domain() != e.catalog.Domain || s.lockedRef.Epoch != e.catalog.state.epoch {
+	if s.lockedRef.Domain() != e.catalog.Domain || s.lockedRef.Epoch != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	current := catalog.Get(s.lockedRef.Address)

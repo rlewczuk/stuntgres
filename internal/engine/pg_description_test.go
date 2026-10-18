@@ -3,9 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,7 +18,7 @@ func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.
 	if !ok {
 		t.Fatal("missing catalog descriptor")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
 func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {
@@ -129,12 +129,12 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	e := New()
 	source, ref := pgDescriptionUnitSource(t, e)
 	oldState := *e.catalog.state
-	oldState.descriptors = maps.Clone(e.catalog.state.descriptors)
+	oldState.CloneDescriptors()
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &relationDescriptor{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
-	oldState.setDescriptor(namespace, &namespaceDescriptor{ObjectAddress: namespace, Comment: "namespace"})
-	oldState.setDescriptor(relation, d)
+	oldState.SetDescriptor(namespace, &namespaceDescriptor{ObjectAddress: namespace, Comment: "namespace"})
+	oldState.SetDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)
 	if err != nil {
@@ -157,16 +157,16 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 		t.Fatal("capture mutated descriptor")
 	}
 	newState := oldState
-	newState.descriptors = maps.Clone(oldState.descriptors)
+	newState.CloneDescriptors()
 	updated := *d
 	updated.Comment = "replacement"
 	updated.ColumnComments = map[int32]string{3: "replacement third"}
-	newState.setDescriptor(relation, &updated)
+	newState.SetDescriptor(relation, &updated)
 	newRows, err := capturePGDescription(context.Background(), e.catalog.read(&newState), ref, source)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {
 		t.Fatal(err)
 	}
-	newState.removeDescriptor(relation)
+	newState.RemoveDescriptor(relation)
 	if pgDescriptionUnitBag(t, captured)[relation] != "whole" || descriptorComment(oldState.Get(relation), 3) != "third" {
 		t.Fatal("retained snapshot changed")
 	}
@@ -188,7 +188,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{e.catalog.state, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
+	for _, state := range []*catalogState{e.catalog.state, catalog.NewState(0)} {
 		captured, err := capturePGDescription(ctx, e.catalog.read(state), ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)

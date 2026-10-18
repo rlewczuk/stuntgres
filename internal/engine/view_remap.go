@@ -1064,7 +1064,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 			definition.rule = rule
 			replacement := *view
 			replacement.View = &definition
-			next.setDescriptor(view.Address(), &replacement)
+			next.SetDescriptor(view.Address(), &replacement)
 		}
 		reserved[rule] |= ruleOID | claimedOID
 	}

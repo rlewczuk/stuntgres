@@ -2,14 +2,6 @@ package engine
 
 import "stuntgres/internal/engine/ids"
 
-// routineIdentity is lookup-only metadata. It is deliberately not a Descriptor:
-// finding a routine alias must never grant execution or expand pg_proc SQL rows.
-type routineIdentity struct {
-	ID        ids.OID
-	Namespace ids.OID
-	Name      string
-	Signature procedureSignature
-}
 type routineKey struct {
 	name      string
 	signature procedureSignature

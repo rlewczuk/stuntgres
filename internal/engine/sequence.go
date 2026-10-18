@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -116,7 +117,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
@@ -452,7 +453,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if rewrite || d.Name() != old.Name() || d.Namespace() != old.Namespace() || d.Owner != old.Owner || persistenceChanged {
 			d.SequencePlanStamp = rev
 		}
-		key := descriptorNameKey(&d)
+		key := catalog.DescriptorNameKey(&d)
 		if a, exists := auth.catalog.LookupName(key); exists && a != d.Address() {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
 		}
@@ -553,10 +554,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.catalog.Epoch() != e.catalog.state.epoch {
+	if auth.catalog.Epoch() != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	for address := range checkStage.descriptors {
+	for address := range checkStage.Descriptors {
 		expected := auth.catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
@@ -565,7 +566,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, CatalogConflict{}
 		}
 	}
-	for address := range checkStage.removals {
+	for address := range checkStage.Removals {
 		expected := auth.catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
@@ -574,10 +575,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, CatalogConflict{}
 		}
 	}
-	for address, descriptor := range checkStage.descriptors {
+	for address, descriptor := range checkStage.Descriptors {
 		e.catalogChangeLocked(changes, address, descriptor)
 	}
-	for address := range checkStage.removals {
+	for address := range checkStage.Removals {
 		e.catalogChangeLocked(changes, address, nil)
 	}
 	cascade := checkStage.viewCascadeNames
@@ -595,24 +596,24 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
 	}
-	for address, descriptor := range checkStage.descriptors {
+	for address, descriptor := range checkStage.Descriptors {
 		next, ok := descriptor.(*relationDescriptor)
 		old, oldOK := auth.catalog.Relation(address)
 		if !ok || !oldOK {
 			continue
 		}
 		for _, attribute := range old.Attributes {
-			if !next.hasAttribute(attribute) {
+			if !next.HasAttribute(attribute) {
 				target := address
 				target.SubID = attribute
 				targets = append(targets, target)
 			}
 		}
 	}
-	for address := range checkStage.removals {
+	for address := range checkStage.Removals {
 		targets = append(targets, address)
 	}
-	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.state, targets: targets})
+	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.State(), targets: targets})
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)

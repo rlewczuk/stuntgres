@@ -41,7 +41,7 @@ func ownershipUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -167,7 +167,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	if err := stageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
-	if len(stage.descriptors) != 0 || e.catalog.state.Get(ns.Address()) != ns {
+	if len(stage.Descriptors) != 0 || e.catalog.state.Get(ns.Address()) != ns {
 		t.Fatal("overflow changed private/live descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

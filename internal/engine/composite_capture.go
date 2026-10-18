@@ -42,7 +42,7 @@ func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqlt
 		return compositeOccurrence{}, false, nil
 	}
 	catalog := b.bindingCatalog()
-	if b.expected.catalogOwner != catalog.owner || b.expected.catalogEpoch != catalog.Epoch() {
+	if b.expected.catalogOwner != catalog.Owner() || b.expected.catalogEpoch != catalog.Epoch() {
 		return compositeOccurrence{}, false, nil
 	}
 	captured, ok := b.expected.composites[key]

@@ -17,7 +17,7 @@ func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.
 	if !ok {
 		t.Fatal("missing pg_indexes")
 	}
-	return d, c.owner.Domain.Ref(c.Epoch(), a)
+	return d, c.Owner().Domain.Ref(c.Epoch(), a)
 }
 func pgIndexesUnitCapture(t *testing.T, c CatalogRead, auth AuthorizationView) *querySource {
 	t.Helper()

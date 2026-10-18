@@ -275,7 +275,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	}
 	current := retiredUnitTable(t, e, "c")
 	p := current.Inheritance.NotNull[current.NotNullConstraints[0].Attribute]
-	if p.Local || p.count() != 2 || len(p.Origins) != 1 || len(p.Retired) != 1 || p.Retired[0].Archive == 0 || !p.Retired[0].Replayed || p.Retired[0].Attribute != 1 || p.Retired[0].Parent.Address != retiredUnitTable(t, e, "p").Address() {
+	if p.Local || p.Count() != 2 || len(p.Origins) != 1 || len(p.Retired) != 1 || p.Retired[0].Archive == 0 || !p.Retired[0].Replayed || p.Retired[0].Attribute != 1 || p.Retired[0].Parent.Address != retiredUnitTable(t, e, "p").Address() {
 		t.Fatal("archival rank was treated as current b/live identity", p)
 	}
 	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) || current.Revision() != old.Revision()+1 || len(old.Inheritance.NotNull[current.NotNullConstraints[0].Attribute].Retired) != 0 {
@@ -328,7 +328,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	}
 	f := retiredUnitTable(t, e, "f")
 	fp := f.Inheritance.NotNull[saved.attributes[0]]
-	if fp.count() != 3 || len(fp.Retired) != 2 || fp.Retired[0].Lifetime == fp.Retired[1].Lifetime || fp.Retired[0].Archive != dh.Archive {
+	if fp.Count() != 3 || len(fp.Retired) != 2 || fp.Retired[0].Lifetime == fp.Retired[1].Lifetime || fp.Retired[0].Archive != dh.Archive {
 		t.Fatal("distinct archived lifetimes collapsed", fp)
 	}
 	if ck.NotValid || ck.NoInherit || ck.OID != old.CheckConstraints[0].OID {

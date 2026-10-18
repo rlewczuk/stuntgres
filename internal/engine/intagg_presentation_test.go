@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -70,20 +71,20 @@ func intaggUnitRecipes(t *testing.T) {
 			for i, address := range ext.Members {
 				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(910001 + i)}
 			}
-			state := cloneCatalog(e.catalog.state)
+			state := catalog.CloneState(e.catalog.state)
 			for address := range mapping {
-				state.unbindName(descriptorNameKey(e.catalog.state.Get(address)))
-				state.removeDescriptor(address)
+				state.UnbindName(catalog.DescriptorNameKey(e.catalog.state.Get(address)))
+				state.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
 				d := remapExtensionDescriptor(e.catalog.state.Get(address), mapping)
-				state.setDescriptor(destination, d)
-				state.bindName(descriptorNameKey(d), destination)
+				state.SetDescriptor(destination, d)
+				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}
-			state.epoch++
+			state.SetEpoch(state.Epoch() + 1)
 			view := e.catalog.read(state)
 			mapRef := func(old ids.ObjectRef) ids.ObjectRef {
-				old.Epoch = state.epoch
+				old.Epoch = state.Epoch()
 				if destination, ok := mapping[old.Address]; ok {
 					old.Address = destination
 				}

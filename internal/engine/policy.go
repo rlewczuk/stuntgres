@@ -6,40 +6,15 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
 )
 
-type policyRole struct {
-	Public bool
-	Ref    authorization.PrincipalRef
-}
-
 type policyExpression struct {
 	syntax       parser.Expr
 	expression   expr.Expr
 	presentation *viewDefinition
-}
-
-type policyCommand string
-
-const (
-	policyAll    policyCommand = "all"
-	policySelect policyCommand = "select"
-	policyInsert policyCommand = "insert"
-	policyUpdate policyCommand = "update"
-	policyDelete policyCommand = "delete"
-)
-
-type policyDefinition struct {
-	OID          ids.OID
-	Name         string
-	Permissive   bool
-	Command      policyCommand
-	Roles        []policyRole
-	Using, Check policyPayload
 }
 
 func policyOwnerNoun(stmt parser.Statement) string {
