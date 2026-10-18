@@ -2581,16 +2581,13 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
+			var returning sqltype.Usage
 			if definition, ok := functions.LookupAggregate(r.Name); ok {
-				node, err = b.bindRegisteredAggregate(r, name, definition)
+				node, returning, err = b.bindRegisteredAggregate(r, name, definition)
 			} else if hypotheticalSetName(r.Name) {
 				node, err = b.bindHypotheticalSet(r, name)
 			} else if orderedSetName(r.Name) {
 				node, err = b.bindOrderedSet(r, name)
-			} else if jsonArrayAggregateName(r.Name) {
-				node, err = b.bindJSONArrayAggregate(r, name)
-			} else if jsonObjectAggregateName(r.Name) {
-				node, err = b.bindJSONObjectAggregate(r, name)
 			} else if r.Name == "int_array_aggregate" {
 				node, err = b.bindIntaggAggregate(r, name)
 			} else {
@@ -2600,8 +2597,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if err != nil {
 				return nil, err
 			}
-			if !jsonArrayAggregateName(r.Name) && !(r.Name == "json_objectagg" && r.JSON != nil) {
-				node, err = b.ownAggregate(node)
+			node, err = b.ownAggregate(node)
+			if err != nil {
+				return nil, err
+			}
+			if returning.Type != nil {
+				node, err = b.aggregateReturning(r, node, returning)
 				if err != nil {
 					return nil, err
 				}
@@ -3745,6 +3746,13 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 	case functions.ConditionalArgument:
 		return b.coerceConditional(operand, request.Target, request.Label)
+	case functions.JSONFormattedArgument:
+		node := argument.Expression
+		info, err := b.coercionInfo(b.info(request.Target, node.SourcePosition(), coercionProperties(node, request.Plan)), node)
+		if err != nil {
+			return nil, err
+		}
+		return coercionExpression{info, node, request.Plan, sqltype.Explicit, false}, nil
 	case functions.AssignmentFormalArgument:
 		return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
 	case functions.DirectFormalArgument:

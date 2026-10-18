@@ -201,7 +201,7 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 					raw.Args = []parser.Expr{parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "i"}}}, Pos: parser.Position{Character: 20}}}
 				}
 				definition, _ := functions.LookupAggregate("sum")
-				node, err := b.bindRegisteredAggregate(raw, name, definition)
+				node, _, err := b.bindRegisteredAggregate(raw, name, definition)
 				if b.queryNamespace != namespace || len(b.queryHidden) != len(hidden) || &b.queryHidden[0] != &hidden[0] || !reflect.DeepEqual(b.queryHidden, beforeHidden) {
 					t.Fatal("SUM leaked or replaced namespace/hidden candidates", b.queryNamespace, b.queryHidden)
 				}

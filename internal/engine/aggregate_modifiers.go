@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -57,7 +58,7 @@ func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) boo
 
 func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter BoundExpr, info expressionInfo) (BoundExpr, error) {
 	call.filter = filter
-	objectProvider, object := call.provider.(jsonObjectAggregateProvider)
+	objectProvider, object := call.provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
 		var err error
 		call.argument, err = b.finalizeProjection(call.argument)
@@ -190,7 +191,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		return nil, err
 	}
 	if object {
-		provider, err := objectProvider.complete(call.argument.ResultUsage(), call.separator.ResultUsage())
+		provider, err := objectProvider.Complete(call.argument.ResultUsage(), call.separator.ResultUsage())
 		if err != nil {
 			return nil, err
 		}
@@ -222,9 +223,9 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 	if !sameIntaggIdentity(a.procedure, a.ref, other.procedure, other.ref) {
 		return false
 	}
-	if p, ok := a.provider.(jsonObjectAggregateProvider); ok {
-		q, same := other.provider.(jsonObjectAggregateProvider)
-		if !same || p.unique != q.unique {
+	if p, ok := a.provider.(functions.JSONObjectAggregate); ok {
+		q, same := other.provider.(functions.JSONObjectAggregate)
+		if !same || p.Unique() != q.Unique() {
 			return false
 		}
 	}
@@ -243,4 +244,28 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 		}
 	}
 	return true
+}
+
+// A modifier resolves one particular ANY input occurrence, not every use of its
+// parameter number. Keep earlier occurrences for finish's 42P08 validation.
+func (b *expressionBinder) completeJSONObjectAggregateInput(node BoundExpr) (BoundExpr, error) {
+	p, unknown := node.(parameterExpression)
+	if !unknown || p.Usage.Type != nil {
+		return node, nil
+	}
+	resolved, err := b.finalizeProjection(node)
+	if err != nil {
+		return nil, err
+	}
+	for i, prior := range b.anyParameters {
+		if prior.number != p.number || prior.Pos != p.Pos {
+			continue
+		}
+		copy(b.anyParameters[i:], b.anyParameters[i+1:])
+		last := len(b.anyParameters) - 1
+		b.anyParameters[last] = parameterExpression{}
+		b.anyParameters = b.anyParameters[:last]
+		break
+	}
+	return resolved, nil
 }

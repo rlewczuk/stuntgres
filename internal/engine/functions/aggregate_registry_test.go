@@ -5,7 +5,7 @@ import "testing"
 func TestAggregateDefinitionsAreWellFormed(t *testing.T) {
 	seen := map[string]bool{}
 	for _, definition := range aggregateDefinitions {
-		if len(definition.Names) == 0 || definition.Bind == nil {
+		if len(definition.Names) == 0 || (definition.Bind == nil) == (definition.BindReturning == nil) {
 			t.Fatalf("incomplete aggregate definition %v", definition.Names)
 		}
 		for _, name := range definition.Names {
@@ -34,7 +34,9 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 		"bit_and", "bit_or", "bit_xor", "string_agg", "array_agg", "range_agg", "range_intersect_agg",
 		"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx",
 		"regr_sxy", "regr_syy", "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count",
-		"regr_intercept", "regr_r2",
+		"regr_intercept", "regr_r2", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg",
+		"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg_unique",
+		"jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict", "json_objectagg",
 	}
 	for _, name := range claimed {
 		if _, ok := LookupAggregate(name); !ok {
@@ -42,7 +44,7 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 		}
 	}
 	// Matching is exact; the engine keeps intagg and every unported family.
-	for _, name := range []string{"SUM", "Count", "Array_Agg", "int_array_aggregate", "percentile_cont", "mode", "rank", "row_number", "json_agg", "jsonb_object_agg", "json_objectagg", "sum_", "regr"} {
+	for _, name := range []string{"SUM", "Count", "Array_Agg", "int_array_aggregate", "percentile_cont", "mode", "rank", "row_number", "JSON_AGG", "json_object", "jsonb_build_object", "json_array", "sum_", "regr"} {
 		if _, ok := LookupAggregate(name); ok {
 			t.Errorf("aggregate %q is claimed", name)
 		}

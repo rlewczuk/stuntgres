@@ -33,7 +33,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 				t.Fatal("identical call did not reuse slot", err)
 			}
 			call := b.aggregates[first.(aggregateExpression).slot]
-			p := call.provider.(jsonObjectAggregateProvider)
+			p := call.provider.(functions.JSONObjectAggregate)
 			id := sqltype.JSON
 			if strings.HasPrefix(name, "jsonb_") {
 				id = sqltype.JSONB
@@ -44,13 +44,13 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if strict {
 				operation = functions.AggregateJSONObjectStrict
 			}
-			if p.strict != strict || p.unique != unique || p.usage.Type != result || p.usage.Typmod != -1 || p.key.Type != key || p.input.Type != input || !call.includeNulls || call.operation != operation || !first.Properties().StageDependent {
+			if p.Strict() != strict || p.Unique() != unique || p.ResultUsage().Type != result || p.ResultUsage().Typmod != -1 || p.KeyUsage().Type != key || p.InputUsage().Type != input || !call.includeNulls || call.operation != operation || !first.Properties().StageDependent {
 				t.Fatal("fixed descriptor or policy lost", call, p)
 			}
 			if !unique {
 				return
 			}
-			root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: p.usage}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: call.operation, includeNulls: call.includeNulls}}}
+			root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: p.ResultUsage()}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: call.operation, includeNulls: call.includeNulls}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
@@ -58,11 +58,11 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			q := mapped.(*aggregateNode).calls[0].provider.(jsonObjectAggregateProvider)
+			q := mapped.(*aggregateNode).calls[0].provider.(functions.JSONObjectAggregate)
 			newKey, _ := destination.CatalogRead().LookupType(sqltype.Text)
 			newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 			newResult, _ := destination.CatalogRead().LookupType(id)
-			if q.key.Type != newKey || q.input.Type != newInput || q.usage.Type != newResult || !q.unique || q.strict != strict || p.key.Type != key {
+			if q.KeyUsage().Type != newKey || q.InputUsage().Type != newInput || q.ResultUsage().Type != newResult || !q.Unique() || q.Strict() != strict || p.KeyUsage().Type != key {
 				t.Fatal("remap lost fresh owners or policy")
 			}
 			state, err := q.Init(ctx)

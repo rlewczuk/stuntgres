@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"context"
 	"errors"
 	"strconv"
@@ -72,11 +73,11 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 						t.Fatal("incorrect parameter completion", parameters, b.anyParameters)
 					}
 					call := b.aggregates[node.(aggregateExpression).slot]
-					provider := call.provider.(jsonObjectAggregateProvider)
-					if provider.key != call.argument.ResultUsage() || provider.input != call.separator.ResultUsage() {
+					provider := call.provider.(functions.JSONObjectAggregate)
+					if provider.KeyUsage() != call.argument.ResultUsage() || provider.InputUsage() != call.separator.ResultUsage() {
 						t.Fatal("provider captured provisional inputs")
 					}
-					if provider.unique != strings.Contains(name, "_unique") || provider.strict != strings.HasSuffix(name, "_strict") {
+					if provider.Unique() != strings.Contains(name, "_unique") || provider.Strict() != strings.HasSuffix(name, "_strict") {
 						t.Fatal("modifier completion lost object policy", provider)
 					}
 					key, input := sqltype.String(text, "x"), sqltype.String(text, "one")
@@ -195,10 +196,10 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 			t.Fatal("DISTINCT did not complete both occurrences", b.anyParameters, err)
 		}
 		call := b.aggregates[node.(aggregateExpression).slot]
-		p := call.provider.(jsonObjectAggregateProvider)
+		p := call.provider.(functions.JSONObjectAggregate)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		if p.key.Type != text || p.input.Type != text || len(call.distinct) != 2 {
-			t.Fatal("same-number inputs lost distinct tuple", p.key, p.input, len(call.distinct))
+		if p.KeyUsage().Type != text || p.InputUsage().Type != text || len(call.distinct) != 2 {
+			t.Fatal("same-number inputs lost distinct tuple", p.KeyUsage(), p.InputUsage(), len(call.distinct))
 		}
 		state, err := p.Init(ctx)
 		if err != nil {

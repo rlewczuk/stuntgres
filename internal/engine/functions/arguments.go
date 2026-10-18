@@ -140,6 +140,10 @@ const (
 	// assignment context to Target with implicit coercion, as the
 	// statement-level setting calls bind their literal and parameter inputs.
 	AssignmentFormalArgument
+	// JSONFormattedArgument applies the planned explicit FORMAT JSON input
+	// conversion (Plan, Planned) to the bound Expression, as an explicit cast
+	// to Target.
+	JSONFormattedArgument
 )
 
 type CoercionRequest struct {

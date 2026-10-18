@@ -117,6 +117,9 @@ type Binder interface {
 	// current clause or consumer does not admit one (the regexp family's own
 	// placement policy).
 	RegexpSetPlacement(RegexpCall) error
+	// JSONReturningType resolves a SQL/JSON RETURNING type name as the
+	// statement's type input does, rejecting the RETURNING-forbidden forms.
+	JSONReturningType(parser.TypeName) (sqltype.Usage, error)
 }
 
 // AggregateBinder is the analyzer as aggregate bind code sees it: the scalar

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -376,7 +377,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if !validType {
 		return sqltype.Usage{}, fmt.Errorf("stuntgres: missing definition type provider")
 	}
-	if jsonReturning && jsonReturningPseudoType(d) {
+	if jsonReturning && functions.JSONReturningPseudoType(d) {
 		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 	}
 	if domainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void) {

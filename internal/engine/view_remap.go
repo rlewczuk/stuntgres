@@ -880,12 +880,13 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 						copy.calls[i].provider = functions.NewJSONArrayAggregateProvider(input, result, p.Absent(), plan)
 					}
 				}
-			case jsonObjectAggregateProvider:
-				p.key, p.input, p.usage = usage(p.key), usage(p.input), usage(p.usage)
+			case functions.JSONObjectAggregate:
+				key, input, result := usage(p.KeyUsage()), usage(p.InputUsage()), usage(p.ResultUsage())
 				if err == nil {
-					p.plan, err = sqltype.BindJSONObjectAggregate(p.key, p.input, p.usage, p.strict, p.unique)
+					var rebound functions.JSONObjectAggregate
+					rebound, err = p.Reconstruct(key, input, result)
+					copy.calls[i].provider = rebound
 				}
-				copy.calls[i].provider = p
 			case functions.ExtremaProvider:
 				result := usage(p.ResultUsage())
 				if err == nil {

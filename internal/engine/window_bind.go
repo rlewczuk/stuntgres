@@ -374,74 +374,7 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		}
 		return array.Usage(), nil
 	}
-	if raw.Name == "json_objectagg" && raw.JSON != nil {
-		_, usage, returning, err := b.resolveSQLJSONObjectAggregate(raw, name)
-		if err != nil {
-			return sqltype.Usage{}, err
-		}
-		if _, err = b.bindAggregateFilter(raw); err != nil {
-			return sqltype.Usage{}, err
-		}
-		if returning.Type != nil {
-			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
-			usage = returning
-		}
-		return usage, err
-	}
-	if definition, ok := functions.LookupAggregate(raw.Name); ok && definition.Window != nil {
-		arg, usage, err := definition.Window(b, raw, name)
-		*argument = arg
-		return usage, err
-	}
-	var small [2]comparisonOperand
-	var names [2]string
-	var operands []comparisonOperand
-	var types []string
-	if len(raw.Args) <= 2 {
-		operands, types = small[:len(raw.Args)], names[:len(raw.Args)]
-	} else if len(raw.Args) <= 100 {
-		operands = make([]comparisonOperand, len(raw.Args))
-		types = make([]string, len(raw.Args))
-	}
-	for i, child := range raw.Args {
-		operand, err := b.comparisonOperand(child)
-		if err != nil {
-			return sqltype.Usage{}, err
-		}
-		if operands != nil {
-			operands[i] = operand
-			types[i] = functions.DiagnosticNameOrUnknown(operand.descriptor())
-		}
-	}
-	if _, err := b.bindAggregateFilter(raw); err != nil {
-		return sqltype.Usage{}, err
-	}
-	if len(raw.Args) > 100 {
-		return sqltype.Usage{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	var operand comparisonOperand
-	if len(operands) > 0 {
-		operand = operands[0]
-	}
-	var arg BoundExpr
-	var err error
-	var usage sqltype.Usage
-	switch raw.Name {
-	case "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg":
-		var returning sqltype.Usage
-		arg, usage, returning, err = b.resolveJSONArrayAggregateSignature(raw, name, operand, types)
-		if err == nil && returning.Type != nil {
-			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
-			usage = returning
-		}
-	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict",
-		"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
-		var args [2]BoundExpr
-		args, usage, err = b.resolveJSONObjectAggregateSignature(raw, name, operands, types)
-		arg = args[0]
-	default:
-		err = functionSignatureErrorForTypes(name, raw.Pos, types)
-	}
+	arg, usage, err := functions.ResolveWindowAggregate(b, raw, name)
 	*argument = arg
 	return usage, err
 }

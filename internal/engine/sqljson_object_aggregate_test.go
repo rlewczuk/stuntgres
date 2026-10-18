@@ -53,9 +53,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 	input, _ := source.CatalogRead().LookupType(sqltype.Int4)
 	for _, id := range []sqltype.ID{sqltype.JSON, sqltype.JSONB} {
 		result, _ := source.CatalogRead().LookupType(id)
-		p := jsonObjectAggregateProvider{key: key.Usage(), input: input.Usage(), usage: result.Usage(), strict: true, unique: true}
-		var err error
-		p, err = p.complete(p.key, p.input)
+		p, err := functions.NewJSONObjectAggregate(result.Usage(), true, true).Complete(key.Usage(), input.Usage())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,16 +65,16 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		q := mapped.(*aggregateNode).calls[0].provider.(jsonObjectAggregateProvider)
-		if !q.unique || !q.strict || q.key.Type == p.key.Type || q.input.Type == p.input.Type || q.usage.Type == p.usage.Type {
+		q := mapped.(*aggregateNode).calls[0].provider.(functions.JSONObjectAggregate)
+		if !q.Unique() || !q.Strict() || q.KeyUsage().Type == p.KeyUsage().Type || q.InputUsage().Type == p.InputUsage().Type || q.ResultUsage().Type == p.ResultUsage().Type {
 			t.Fatal("remap lost policy or ownership")
 		}
 		state, err := q.Init(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		keyValue := sqltype.String(q.key.Type, "a")
-		value := sqltype.Null(q.input.Type)
+		keyValue := sqltype.String(q.KeyUsage().Type, "a")
+		value := sqltype.Null(q.InputUsage().Type)
 		if err = q.Advance(ctx, state, keyValue, value); err != nil {
 			t.Fatal(err)
 		}

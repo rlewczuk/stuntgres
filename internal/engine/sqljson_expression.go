@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -129,7 +130,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 		if err != nil {
 			return nil, err
 		}
-		if jsonReturningPseudoType(returning.Type) {
+		if functions.JSONReturningPseudoType(returning.Type) {
 			return nil, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 		}
 	}
@@ -182,7 +183,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 			}
 		}
 	}
-	if err := validateJSONOutputFormat(returning, raw.Output); err != nil {
+	if err := functions.ValidateJSONOutputFormat(returning, raw.Output); err != nil {
 		return nil, err
 	}
 	if kind == sqltype.SQLJSONSerialize {
@@ -219,7 +220,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 	if err = b.captureTypeDiagnosticInput(returning.Type); err != nil {
 		return nil, err
 	}
-	plan, err := jsonReturningCoercion(usage, returning, raw.Output)
+	plan, err := functions.JSONReturningCoercion(usage, returning, raw.Output)
 	if err != nil {
 		return nil, err
 	}

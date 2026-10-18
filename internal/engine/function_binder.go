@@ -198,3 +198,7 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 	d := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 	return typeDiagnosticNameAt(auth.catalog, d, path), nil
 }
+
+func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {
+	return b.engine.resolveAnnotationTypeInput(raw, b.op, false, false, true, true, false)
+}

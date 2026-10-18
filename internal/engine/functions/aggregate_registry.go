@@ -19,6 +19,10 @@ type AggregateDefinition struct {
 	// Bind analyzes the arguments and FILTER, resolves the signature, selects
 	// the provider and finishes the call through Binder.FinishAggregate.
 	Bind func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, error)
+	// BindReturning replaces Bind for the families with SQL/JSON syntax. It
+	// also returns the RETURNING usage (zero when absent), which the engine
+	// applies as an assignment coercion after its aggregate ownership checks.
+	BindReturning func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, sqltype.Usage, error)
 	// Window resolves the signature of a window call of the aggregate with
 	// the same analysis, without building a provider or registering
 	// aggregate state. It returns the coerced argument and the result usage.
@@ -40,6 +44,9 @@ var aggregateDefinitions = [...]AggregateDefinition{
 	{Names: []string{"string_agg"}, Bind: bindStringAggregate, Window: windowStringAggregate},
 	{Names: []string{"array_agg"}, Bind: bindArrayAggregate, Window: windowArrayAggregate},
 	{Names: []string{"range_agg", "range_intersect_agg"}, Bind: bindRangeAggregate, Window: windowRangeAggregate},
+	{Names: jsonArrayAggregateNames[:], BindReturning: bindJSONArrayAggregate, Window: windowJSONArrayAggregate},
+	{Names: jsonObjectAggregateNames[:], BindReturning: bindJSONObjectAggregate, Window: windowJSONObjectAggregate},
+	{Names: []string{"json_objectagg"}, BindReturning: bindJSONObjectAggregate, Window: windowSQLJSONObjectAggregate},
 }
 
 // LookupAggregate returns the definition that claims an aggregate name.

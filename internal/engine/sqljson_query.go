@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 		if err != nil {
 			return nil, err
 		}
-		if jsonReturningPseudoType(returning.Type) {
+		if functions.JSONReturningPseudoType(returning.Type) {
 			return nil, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 		}
 		id = sqltype.JSON
@@ -54,7 +55,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 	if raw.Output != nil {
 		id = sqltype.JSON
 	}
-	if err := validateJSONOutputFormat(returning, raw.Output); err != nil {
+	if err := functions.ValidateJSONOutputFormat(returning, raw.Output); err != nil {
 		return nil, err
 	}
 	usage := b.typ(id).Usage()
@@ -67,7 +68,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 	if returning.Type == nil {
 		return query, nil
 	}
-	coercion, err := jsonReturningCoercion(usage, returning, raw.Output)
+	coercion, err := functions.JSONReturningCoercion(usage, returning, raw.Output)
 	if err != nil {
 		return nil, err
 	}

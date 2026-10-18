@@ -10,13 +10,13 @@ import (
 	"testing"
 )
 
-func jsonObjectProviderUnit(t *testing.T, key, input, result sqltype.Usage, strict bool) jsonObjectAggregateProvider {
+func jsonObjectProviderUnit(t *testing.T, key, input, result sqltype.Usage, strict bool) functions.JSONObjectAggregate {
 	t.Helper()
-	p, err := sqltype.BindJSONObjectAggregate(key, input, result, strict, false)
+	p, err := functions.NewJSONObjectAggregate(result, strict, false).Complete(key, input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return jsonObjectAggregateProvider{key: key, input: input, usage: result, strict: strict, plan: p}
+	return p
 }
 
 func TestJSONObjectAggregateProviderEnvironment(t *testing.T) {
@@ -141,8 +141,8 @@ func TestJSONObjectAggregateProviderRemap(t *testing.T) {
 		newKey, _ := destination.CatalogRead().LookupType(sqltype.Text)
 		newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 		newResult, _ := destination.CatalogRead().LookupType(id)
-		provider := call.provider.(jsonObjectAggregateProvider)
-		if provider.key.Type != newKey || provider.input.Type != newInput || provider.usage.Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.key.Type != key || p.input.Type != input || !call.includeNulls {
+		provider := call.provider.(functions.JSONObjectAggregate)
+		if provider.KeyUsage().Type != newKey || provider.InputUsage().Type != newInput || provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.KeyUsage().Type != key || p.InputUsage().Type != input || !call.includeNulls {
 			t.Fatal("incomplete immutable remap")
 		}
 		state, err := provider.Init(ctx)
