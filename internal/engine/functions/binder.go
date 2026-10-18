@@ -90,4 +90,11 @@ type Binder interface {
 	// ConstantValue returns the value of a literal node built by the
 	// analyzer; ok is false for every other node.
 	ConstantValue(expr.Expr) (sqltype.Value, bool)
+	// BuiltinOperatorVisible reports whether operator lookup for the name
+	// reaches pg_catalog under the current search_path.
+	BuiltinOperatorVisible(parser.ObjectName) (bool, error)
+	// CallSignatureError is the analyzer's whole-call 42883: it re-analyzes
+	// the arguments for their diagnostic names, reports composite-candidate
+	// calls as unsupported, and notes the missing signature.
+	CallSignatureError(parser.FunctionExpr) error
 }

@@ -33,7 +33,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 		if _, err := b.builtinVisible(raw.Name, operatorLookup); err != nil {
 			return nil, err
 		}
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left, nil, raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, nil, raw)
 	}
 	if !sqltype.IsRangeInspectType(left) && !sqltype.IsRangeInspectType(right) && (left != nil || right != nil) {
 		if arrayMembershipName(name) {

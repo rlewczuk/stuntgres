@@ -32,7 +32,7 @@ func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (BoundExp
 	// Unary spelling is parsed by the existing generic-operator grammar but
 	// has no selected executable signature.
 	if len(raw.Args) != 2 {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left, right, raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, right, raw)
 	}
 	if !visible {
 		return nil, signature()

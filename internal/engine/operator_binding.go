@@ -135,7 +135,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 		diagnosticLeft = right
 	}
 	if err != nil {
-		return nil, operatorExpressionError(err, diagnosticLeft, right, raw)
+		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]
 	if d.function == 0 && !d.seeded() {

@@ -140,3 +140,11 @@ func (b *expressionBinder) ConstantValue(node expr.Expr) (sqltype.Value, bool) {
 	literal, ok := node.(literalExpression)
 	return literal.value, ok
 }
+
+func (b *expressionBinder) BuiltinOperatorVisible(name parser.ObjectName) (bool, error) {
+	return b.builtinVisible(name, operatorLookup)
+}
+
+func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
+	return b.functionSignatureError(raw)
+}

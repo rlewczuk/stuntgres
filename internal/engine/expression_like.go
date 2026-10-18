@@ -203,7 +203,7 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 		return nil, err
 	}
 	missing := func() (BoundExpr, error) {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left.descriptor(), right.descriptor(), raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left.descriptor(), right.descriptor(), raw)
 	}
 	if !visible {
 		return missing()

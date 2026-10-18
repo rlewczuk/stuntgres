@@ -24,7 +24,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 	left, right := operands[0].descriptor(), operands[1].descriptor()
 	signature := func() error { return b.arrayMembershipError(left, right, raw) }
 	if len(raw.Args) != 2 {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left, right, raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, right, raw)
 	}
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {

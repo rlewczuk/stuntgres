@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -110,7 +111,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 		rt = rt.BaseType()
 	}
 	missing := func() error {
-		return operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
+		return functions.OperatorError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
 	if !visible {
 		return nil, missing()

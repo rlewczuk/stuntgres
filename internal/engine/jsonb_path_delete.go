@@ -25,7 +25,7 @@ func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (BoundEx
 		return nil, err
 	}
 	if len(raw.Args) != 2 {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left, right, raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, right, raw)
 	}
 	if !visible {
 		return nil, b.arrayMembershipError(left, right, raw)

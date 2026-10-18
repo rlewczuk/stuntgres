@@ -27,7 +27,7 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 		return nil, err
 	}
 	if !functions.PatternAllowed(true, left.Usage, right.Usage) {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left.Usage.Type, right.Usage.Type, raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left.Usage.Type, right.Usage.Type, raw)
 	}
 	l, r, err := functions.CoercePatternArguments(b, left, right, b.typ(sqltype.Text).Usage())
 	if err != nil {

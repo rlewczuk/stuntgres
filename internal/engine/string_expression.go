@@ -285,7 +285,7 @@ func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr,
 		return nil, err
 	}
 	if !functions.StringPrefixViable(visible, len(raw.Args), types) {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), types[0], types[1], raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), types[0], types[1], raw)
 	}
 	args := make([]BoundExpr, 2)
 	for i, o := range operands {
@@ -327,7 +327,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 	}
 	if resolution != functions.Resolved {
 		if resolution == functions.Missing {
-			return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), types[0], types[1], raw)
+			return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), types[0], types[1], raw)
 		}
 		typeName := func(t *sqltype.Descriptor) string {
 			if t == nil {

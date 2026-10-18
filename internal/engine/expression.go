@@ -3638,35 +3638,6 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *Operation, inpu
 	}
 	return err
 }
-func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
-	d, ok := err.(*sqlstate.Error)
-	if !ok || d.Code != "42883" && d.Code != "42725" {
-		return err
-	}
-	copy := *d
-	name := func(t *sqltype.Descriptor) string {
-		if t == nil {
-			return "unknown"
-		}
-		return t.DiagnosticName()
-	}
-	if len(raw.Args) == 1 {
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s", objectNameText(raw.Name), name(left))
-		copy.Hint = "No operator matches the given name and argument type. You might need to add an explicit type cast."
-	} else {
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), objectNameText(raw.Name), name(right))
-		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
-	}
-	if copy.Code == "42725" {
-		copy.Message = strings.Replace(copy.Message, "operator does not exist:", "operator is not unique:", 1)
-		copy.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
-	}
-	copy.Position = ""
-	if raw.Pos.Character > 0 {
-		copy.Position = strconv.Itoa(raw.Pos.Character)
-	}
-	return &copy
-}
 
 // Unknown state exists only during analysis. It never becomes an executable Value.
 type comparisonOperand struct {
@@ -4098,7 +4069,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 		return nil, err
 	}
 	if !visible {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), lt, rt, raw)
+		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
 	if name == "-" && len(raw.Args) == 2 {
 		if node, selected, err := b.selectJSONBDelete(raw, left, right); selected {
@@ -4106,11 +4077,11 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 		}
 	}
 	if symbolicArithmeticName(name) {
-		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
+		return nil, functions.OperatorError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
 	signature, err := sqltype.ResolveArithmetic(operator, lt, rt, len(raw.Args) == 1)
 	if err != nil {
-		return nil, operatorExpressionError(err, lt, rt, raw)
+		return nil, functions.OperatorError(err, lt, rt, raw)
 	}
 	typ := b.typ(signature.Result)
 	leftType := b.typ(signature.Left)
