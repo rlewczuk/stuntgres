@@ -35,3 +35,20 @@ func ArrayTypeName(b Binder, d *sqltype.Descriptor) string {
 	}
 	return b.DiagnosticTypeName(d)
 }
+
+// DirectResolutionError reports a failed overload choice over arguments from
+// AnalyzeDirectArguments: unknown literals display as unknown, a missing
+// signature goes through Binder.SignatureError and an ambiguous one is 42725.
+func DirectResolutionError(b Binder, raw parser.FunctionExpr, args []expr.Expr, unknown []bool, ambiguous bool) error {
+	types := make([]string, len(args))
+	for i, arg := range args {
+		types[i] = "unknown"
+		if !unknown[i] && arg.ResultUsage().Type != nil {
+			types[i] = arg.ResultUsage().Type.DiagnosticName()
+		}
+	}
+	if ambiguous {
+		return ResolutionError(raw.Name, raw.Pos, types, true)
+	}
+	return b.SignatureError(raw.Name, raw.Pos, types)
+}

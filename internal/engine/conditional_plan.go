@@ -975,7 +975,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		if args != nil {
 			e.Args = args
 		}
-		if !selectedLogPowerName(e.Plan.Name()) {
+		if !functions.SelectedLogPower(e.Plan.Name()) {
 			for _, arg := range e.Args {
 				if randomLiteralNull(arg) {
 					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil

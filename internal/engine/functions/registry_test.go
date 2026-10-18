@@ -12,7 +12,15 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_extract", "uuid_extract_versions", "uuidv7"} {
+	// Families that sat in the engine's final name switch keep its exact
+	// spelling and its shared label/ResolutionOnly gates.
+	for _, name := range []string{"abs", "width_bucket", "log10", "atan2d", "trim_scale"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"", "uuid_extract", "uuid_extract_versions", "uuidv7", "ABS", "Width_Bucket", "random", "absolute"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}
@@ -29,6 +37,10 @@ func TestDefinitionsAreWellFormed(t *testing.T) {
 			key := strings.ToLower(name)
 			if name == "" || seen[key] {
 				t.Fatalf("empty or duplicate name %q", name)
+			}
+			// The parser folds unquoted names, so an exact name is lowercase.
+			if definition.ExactSpelling && name != key {
+				t.Fatalf("exact name %q is not lowercase", name)
 			}
 			seen[key] = true
 		}
