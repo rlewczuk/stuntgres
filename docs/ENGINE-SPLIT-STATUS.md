@@ -60,7 +60,7 @@ must not run alongside each other or another broad rewrite or alias removal
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
   - [ ] F4/F5 Tier A — port in place, then move
-    - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs DOCS_COMMIT)
+    - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs `96e11f662`)
       *(racecheck skipped at user request)*
     - [ ] string
     - [ ] LIKE/SIMILAR/regex

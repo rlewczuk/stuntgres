@@ -157,7 +157,7 @@ Tier C has a refined plan.
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
 - [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
-  `0f3c7e5a2` move, docs below) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
+  `0f3c7e5a2` move, docs `96e11f662`) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
   [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [ ] UUID [ ] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
   [ ] unaccent [ ] intarray [ ] intagg [ ] uuid-ossp
