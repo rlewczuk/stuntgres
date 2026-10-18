@@ -30,7 +30,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	entry := e.locks.entries[lockResource{ObjectRef: ps}]
 	mode := relationLockMode(0)
 	if entry != nil {
-		mode = entry.holders[s.transactions.ticket].mode
+		mode = entry.holders[s.transactions.ticket].Mode
 	}
 	e.locks.mu.Unlock()
 	if mode&accessExclusive != 0 {
@@ -199,7 +199,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		for _, ref := range []ids.ObjectRef{rs, ls, hs} {
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: ref}]
-			valid := entry != nil && entry.holders[scope.ticket].mode == accessExclusive
+			valid := entry != nil && entry.holders[scope.ticket].Mode == accessExclusive
 			e.locks.mu.Unlock()
 			if !valid {
 				t.Fatal("missing owned AX", ref)

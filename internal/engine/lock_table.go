@@ -67,7 +67,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	}
 	e := s.op.session.Engine()
 	mode := explicitLockMode(stmt.Mode)
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, nowait: stmt.Nowait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, NoWait: stmt.Nowait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
@@ -125,7 +125,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	if err != nil {
 		return err
 	}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		return sqlError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", name))
 	}
@@ -134,7 +134,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 	}
 	if err != nil {
 		return err

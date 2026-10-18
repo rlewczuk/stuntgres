@@ -68,8 +68,8 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	resource := lockResource{ObjectRef: ref, row: 5}
-	if err := f.e.locks.acquire(scope.op.Context(), scope.ticket, resource, rowUpdate); err != nil {
+	resource := lockResource{ObjectRef: ref, Row: 5}
+	if err := f.e.locks.Acquire(scope.op.Context(), scope.ticket, resource, rowUpdate); err != nil {
 		t.Fatal(err)
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
@@ -78,10 +78,10 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	if err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
-	if len(f.e.locks.checkpointUnique(scope.ticket, nil)) != 0 {
+	if len(f.e.locks.CheckpointUnique(scope.ticket, nil)) != 0 {
 		t.Fatal("skipped key retained")
 	}
-	if f.e.locks.checkpoint(scope.ticket)[resource].mode&rowUpdate == 0 {
+	if f.e.locks.Checkpoint(scope.ticket)[resource].mode&rowUpdate == 0 {
 		t.Fatal("row witness lock was lost")
 	}
 }
@@ -150,20 +150,20 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
 	session := scope.op.session
-	key := lockResource{kind: advisoryBigintResource, low: 42}
+	key := lockResource{Kind: advisoryBigintResource, Low: 42}
 	for range 2 {
 		advisoryUnitGrant(t, session, scope.txRef, key, advisoryShared)
 		advisoryUnitGrant(t, session, scope.txRef, key, advisoryExclusive)
 	}
-	want := relationHold{mode: advisoryShared | advisoryExclusive, shared: 2, exclusive: 2}
+	want := relationHold{Mode: advisoryShared | advisoryExclusive, Shared: 2, Exclusive: 2}
 	manager := f.e.locks
 	// A session ticket has no candidate unique-key contribution. The mark must
 	// not capture or later restore the persistent counted ownership.
-	mark := manager.checkpointUnique(session.advisory.ticket, nil)
+	mark := manager.CheckpointUnique(session.advisory.ticket, nil)
 	if len(mark) != 0 {
 		t.Fatal("persistent ticket entered candidate checkpoint", mark)
 	}
-	manager.restoreUnique(session.advisory.ticket, mark)
+	manager.RestoreUnique(session.advisory.ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
 	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)
@@ -174,7 +174,7 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	if got := advisoryUnitHold(session, key); got != want {
 		t.Fatal("candidate omission altered counted grants", got, want)
 	}
-	if len(manager.checkpointUnique(scope.ticket, nil)) != 1 {
+	if len(manager.CheckpointUnique(scope.ticket, nil)) != 1 {
 		t.Fatal("accepted unique claim was lost or skipped claim leaked")
 	}
 	failure := errors.New("candidate statement rollback")
@@ -184,7 +184,7 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	if got := advisoryUnitHold(session, key); got != want {
 		t.Fatal("statement Finish altered session ownership", got, want)
 	}
-	if len(manager.checkpointUnique(scope.ticket, nil)) != 0 {
+	if len(manager.CheckpointUnique(scope.ticket, nil)) != 0 {
 		t.Fatal("finished statement retained unique claims")
 	}
 	for range 2 {

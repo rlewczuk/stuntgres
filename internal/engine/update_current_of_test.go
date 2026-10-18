@@ -128,16 +128,16 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		ref := catalogRef(t, e, e.CatalogRead(), "keyed")
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: ref, row: identity.row}]
-		ordinary := entry != nil && entry.holders[s.transactions.ticket].mode&noKeyUpdate != 0
+		entry := e.locks.entries[lockResource{ObjectRef: ref, Row: identity.row}]
+		ordinary := entry != nil && entry.holders[s.transactions.ticket].Mode&noKeyUpdate != 0
 		e.locks.mu.Unlock()
 		if !ordinary {
 			t.Fatal("FETCH key-share skipped automatic UPDATE grant")
 		}
 		deleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
 		e.locks.mu.Lock()
-		entry = e.locks.entries[lockResource{ObjectRef: ref, row: identity.row}]
-		escalated := entry != nil && entry.holders[s.transactions.ticket].mode&rowUpdate != 0
+		entry = e.locks.entries[lockResource{ObjectRef: ref, Row: identity.row}]
+		escalated := entry != nil && entry.holders[s.transactions.ticket].Mode&rowUpdate != 0
 		e.locks.mu.Unlock()
 		if !escalated {
 			t.Fatal("positioned unique-key change skipped rowUpdate escalation")
@@ -173,7 +173,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: identity.row}]
+	entry := e.locks.entries[lockResource{ObjectRef: ref, Row: identity.row}]
 	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == worker.transactions.ticket && entry.pending[0].mode == noKeyUpdate
 	e.locks.mu.Unlock()
 	if !queued {

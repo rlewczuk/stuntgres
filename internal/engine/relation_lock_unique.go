@@ -25,8 +25,8 @@ type uniqueLockKey struct {
 // uniqueKeyComparer decides key equality for one claim. The manager calls it
 // only outside its mutex, so a comparison may evaluate providers.
 type uniqueKeyComparer interface {
-	equalKey(ctx context.Context, stored any) (bool, error)
-	ownedKey() any // an owned copy of the claimed value, interned when new
+	EqualKey(ctx context.Context, stored any) (bool, error)
+	OwnedKey() any // an owned copy of the claimed value, interned when new
 }
 
 // Called only with the existing lock owner's mutex. Empty buckets disappear;
@@ -48,9 +48,9 @@ func (m *relationLockManager) retireUniqueKey(key *uniqueLockKey) {
 }
 
 // Providers run outside every manager/engine/session metadata mutex. Pinning
-// reserves the exact interned resource across startAcquire; its normal entry
+// reserves the exact interned resource across StartAcquire; its normal entry
 // owns checkpoint, queue, timeout, deadlock, outcome and epoch lifetimes.
-func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ids.ObjectRef, hash uint64, claim uniqueKeyComparer) (lockResource, func(), error) {
+func (m *relationLockManager) PinUniqueKey(ctx context.Context, ticket *relationTicket, ref ids.ObjectRef, hash uint64, claim uniqueKeyComparer) (lockResource, func(), error) {
 	identity := uniqueLockBucket{ObjectRef: ref, hash: hash}
 	for {
 		if err := ctx.Err(); err != nil {
@@ -71,7 +71,7 @@ func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relation
 		m.mu.Unlock()
 		var found *uniqueLockKey
 		for _, key := range candidates {
-			equal, err := claim.equalKey(ctx, key.value)
+			equal, err := claim.EqualKey(ctx, key.value)
 			if err != nil {
 				return lockResource{}, nil, err
 			}
@@ -82,7 +82,7 @@ func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relation
 		}
 		var owned any
 		if found == nil {
-			owned = claim.ownedKey()
+			owned = claim.OwnedKey()
 		}
 		m.mu.Lock()
 		if !m.valid(ticket) {

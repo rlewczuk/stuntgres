@@ -590,7 +590,7 @@ func TestPartitionConstraintsAdmittedCancellation(t *testing.T) {
 				resource = "keyed_leaf"
 			}
 			tx := transactionBegin(t, holder)
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: roleTableRef(t, e, resource)}, accessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: roleTableRef(t, e, resource)}, accessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			before := indexMaintenanceCapture(e)

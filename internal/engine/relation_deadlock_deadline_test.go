@@ -24,7 +24,7 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 			y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
 			deadlockRequest(t, e, at, x, accessExclusive)
 			deadlockRequest(t, e, bt, y, accessExclusive)
-			r, err := e.locks.startAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{timeout: time.Hour})
+			r, err := e.locks.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{Timeout: time.Hour})
 			if err != nil || r == nil {
 				t.Fatal(err)
 			}
@@ -34,7 +34,7 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 			r.timer.Stop()
 			expired := time.Now().Add(-time.Second)
 			if statement {
-				r.policy.statementDeadline = expired
+				r.policy.StatementDeadline = expired
 			} else {
 				r.deadline = expired
 			}
@@ -75,12 +75,12 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
 	deadlockRequest(t, e, at, x, accessExclusive)
 	deadlockRequest(t, e, bt, y, accessExclusive)
-	if r, err := e.locks.startAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{nowait: true}); r != nil || !errors.Is(err, errRelationUnavailable) {
+	if r, err := e.locks.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{NoWait: true}); r != nil || !errors.Is(err, errRelationUnavailable) {
 		t.Fatal("NOWAIT must not enqueue", r, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	r, err := e.locks.startAcquire(ctx, bt, x, accessExclusive, relationLockPolicy{})
+	r, err := e.locks.StartAcquire(ctx, bt, x, accessExclusive, relationLockPolicy{})
 	if err != nil || r == nil {
 		t.Fatal(err)
 	}
@@ -95,11 +95,11 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	}
 	lockEmpty(t, e)
 	// A later real transaction incarnation is independent of the ended requests.
-	transactionEnd(t, a, at.ref, false)
-	transactionEnd(t, b, bt.ref, false)
+	transactionEnd(t, a, at.Ref(), false)
+	transactionEnd(t, b, bt.Ref(), false)
 	transactionBegin(t, a)
 	next := a.transactions.ticket
-	if next == at || next.ref == at.ref {
+	if next == at || next.Ref() == at.Ref() {
 		t.Fatal("transaction incarnation reused")
 	}
 	deadlockRequest(t, e, next, x, accessExclusive)
@@ -107,7 +107,7 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	e.endLockOwner(at)
 	e.endLockOwner(bt)
 	e.locks.mu.Lock()
-	held := e.locks.entries[x].holders[next].mode&accessExclusive != 0 && e.locks.entries[y].holders[next].mode&accessExclusive != 0
+	held := e.locks.entries[x].holders[next].Mode&accessExclusive != 0 && e.locks.entries[y].holders[next].Mode&accessExclusive != 0
 	e.locks.mu.Unlock()
 	if !held {
 		t.Fatal("old end affected fresh incarnation")

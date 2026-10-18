@@ -223,7 +223,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		var ticket *relationTicket
 		if sessionTokenAttached(s.token) {
-			ticket, err = e.locks.registerSession(s.token)
+			ticket, err = e.locks.RegisterSession(s.token)
 		} else {
 			err = errors.New("stuntgres: invalid advisory session")
 		}
@@ -358,7 +358,7 @@ func (op *Operation) Done() {
 		return
 	}
 	op.done = true
-	op.lockWait.reset()
+	op.lockWait.Reset()
 	delete(s.operations, op)
 	op.cancel(nil)
 	if op.timerCancel != nil {

@@ -167,7 +167,7 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: identity.row}]
+	entry := e.locks.entries[lockResource{ObjectRef: ref, Row: identity.row}]
 	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == worker.transactions.ticket && entry.pending[0].mode == rowUpdate
 	e.locks.mu.Unlock()
 	if !queued {

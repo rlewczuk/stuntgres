@@ -33,7 +33,7 @@ func TestRelationDeadlockGraphFeeder(t *testing.T) {
 	e.locks.mu.Lock()
 	for i, resource := range []lockResource{y, x} {
 		entry := e.locks.entries[resource]
-		r := &relationRequest{ticket: tickets[i], provenance: tickets[i].ref, ctx: ctx, mode: accessExclusive, done: make(chan struct{}), ref: resource, entry: entry}
+		r := &relationRequest{ticket: tickets[i], provenance: tickets[i].Ref(), ctx: ctx, mode: accessExclusive, done: make(chan struct{}), ref: resource, entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[i].resources[resource] = struct{}{}
 		pending[i] = r
@@ -87,7 +87,7 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	deadlockRequest(t, e, bt, y, accessExclusive)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	one, err := e.locks.startAcquire(ctx, at, y, accessExclusive, relationLockPolicy{timeout: time.Minute})
+	one, err := e.locks.StartAcquire(ctx, at, y, accessExclusive, relationLockPolicy{Timeout: time.Minute})
 	if err != nil || one == nil {
 		t.Fatal(err)
 	}
@@ -111,18 +111,18 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	// terminal result. None may replace the error or double-close notification.
 	cancel()
 	e.endLockOwner(victimTicket)
-	e.locks.fence(at.ref.Epoch() + 1)
+	e.locks.Fence(at.Ref().Epoch() + 1)
 	if again := deadlockResult(t, victim); again != original {
 		t.Fatalf("first terminal error replaced: %v -> %v", original, again)
 	}
 	select {
-	case <-survivor.done:
+	case <-survivor.Done():
 	case <-time.After(time.Second):
 		t.Fatal("survivor terminal cleanup missing")
 	}
 	lockEmpty(t, e)
 	copied := *at
-	if _, err := e.locks.startAcquire(context.Background(), &copied, x, accessShare, relationLockPolicy{}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := e.locks.StartAcquire(context.Background(), &copied, x, accessShare, relationLockPolicy{}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("retired copied ticket accepted", err)
 	}
 }

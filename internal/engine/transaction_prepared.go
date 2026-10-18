@@ -137,7 +137,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 			e.mu.Unlock()
 			s.attachTransactionLocked()
 			t.mu.Unlock()
-			err = e.locks.checkPreparedAdvisory(entry.ticket)
+			err = e.locks.CheckPreparedAdvisory(entry.ticket)
 			if err == nil {
 				err = e.checkTransactionExclusions(s)
 			}
@@ -160,7 +160,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	}
 	t.session.settings.finishTransaction(true)
 	t.mu.Unlock()
-	e.locks.detachPrepared(entry.ticket)
+	e.locks.DetachPrepared(entry.ticket)
 	return nil
 }
 

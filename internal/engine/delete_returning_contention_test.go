@@ -36,10 +36,10 @@ func TestDeleteReturningCurrentPredecessor(t *testing.T) {
 			await := updateDeleteAsync(t, e, worker, context.Background(), query)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
+			resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
 			e.locks.mu.Lock()
 			entry := e.locks.entries[resource]
-			actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].mode&(rowUpdate|noKeyUpdate) != 0
+			actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
 			e.locks.mu.Unlock()
 			if !actual {
 				t.Fatal("not actual predecessor contention")
@@ -97,13 +97,13 @@ func TestDeleteReturningWaitCancellation(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.locks.mu.Lock()
-	first := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
-	second := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[1].row}
+	first := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+	second := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[1].row}
 	entry := e.locks.entries[second]
 	actual := entry != nil && len(entry.pending) == 1 && e.locks.entries[first] != nil
 	if actual {
 		ticket := entry.pending[0].ticket
-		actual = e.locks.entries[first].holders[ticket].mode&rowUpdate != 0
+		actual = e.locks.entries[first].holders[ticket].Mode&rowUpdate != 0
 	}
 	e.locks.mu.Unlock()
 	if !actual {

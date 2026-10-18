@@ -83,10 +83,10 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				await := updateDeleteAsync(t, e, worker, context.Background(), q)
 				lockPending(t, e, 1)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				resource := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
+				resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
 				e.locks.mu.Lock()
 				entry := e.locks.entries[resource]
-				actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].mode&(rowUpdate|noKeyUpdate) != 0
+				actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
 				e.locks.mu.Unlock()
 				if !actual {
 					t.Fatal("not a shared logical-row arbitration wait")

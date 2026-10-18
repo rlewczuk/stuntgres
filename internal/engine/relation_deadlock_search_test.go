@@ -121,7 +121,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 	e.locks.mu.Lock()
 	enqueue := func(owner, resource int, mode relationLockMode) {
 		entry := e.locks.entries[resources[resource]]
-		r := &relationRequest{ticket: tickets[owner], provenance: tickets[owner].ref, ctx: ctx, mode: mode, done: make(chan struct{}), ref: resources[resource], entry: entry}
+		r := &relationRequest{ticket: tickets[owner], provenance: tickets[owner].Ref(), ctx: ctx, mode: mode, done: make(chan struct{}), ref: resources[resource], entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[owner].resources[resources[resource]] = struct{}{}
 		requests = append(requests, r)
@@ -139,7 +139,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		for ticket, mode := range entry.holders {
 			for owner, candidate := range tickets {
 				if ticket == candidate {
-					actual[i].holders = append(actual[i].holders, deadlockModelWait{owner, mode.mode&accessExclusive != 0})
+					actual[i].holders = append(actual[i].holders, deadlockModelWait{owner, mode.Mode&accessExclusive != 0})
 				}
 			}
 		}
@@ -152,8 +152,8 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		}
 	}
 	for _, r := range requests {
-		if r != nil && r.terminal && r.err != nil {
-			t.Errorf("avoidable victim: %v", r.err)
+		if r != nil && r.terminal && r.Err() != nil {
+			t.Errorf("avoidable victim: %v", r.Err())
 		}
 	}
 	e.locks.mu.Unlock()
@@ -166,7 +166,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 	for _, r := range requests {
 		if r != nil {
 			select {
-			case <-r.done:
+			case <-r.Done():
 			case <-time.After(time.Second):
 				t.Fatal("ended request not notified")
 			}

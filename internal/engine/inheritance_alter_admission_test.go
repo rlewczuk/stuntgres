@@ -97,7 +97,7 @@ func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor
 		t.Fatal(err)
 	}
 	ref := e.domain.Ref(e.CatalogRead().Epoch(), table.address)
-	if err := e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	return scope

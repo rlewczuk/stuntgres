@@ -27,10 +27,10 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session,
 func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, ticket *relationTicket, want relationLockMode) {
 	t.Helper()
 	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: row}]
+	entry := e.locks.entries[lockResource{ObjectRef: ref, Row: row}]
 	var actual relationLockMode
 	if entry != nil {
-		actual = entry.holders[ticket].mode
+		actual = entry.holders[ticket].Mode
 	}
 	e.locks.mu.Unlock()
 	if actual != want {
@@ -41,7 +41,7 @@ func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.Ro
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
 	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: row}]
+	entry := e.locks.entries[lockResource{ObjectRef: ref, Row: row}]
 	found := false
 	if entry != nil {
 		for _, request := range entry.pending {

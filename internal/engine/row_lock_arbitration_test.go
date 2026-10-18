@@ -24,11 +24,11 @@ func TestRowLockRelationAuthority(t *testing.T) {
 			rowHolds := 0
 			relationHolds := 0
 			for resource, entry := range e.locks.entries {
-				held := entry.holders[a.transactions.ticket].mode
-				if resource.row != 0 && held != 0 {
+				held := entry.holders[a.transactions.ticket].Mode
+				if resource.Row != 0 && held != 0 {
 					rowHolds++
 				}
-				if resource.row == 0 && held == relationRowShare {
+				if resource.Row == 0 && held == relationRowShare {
 					relationHolds++
 				}
 			}

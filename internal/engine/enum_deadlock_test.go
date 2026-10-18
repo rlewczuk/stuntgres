@@ -43,13 +43,13 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	victim := -1
 	e.locks.mu.Lock()
 	for i, r := range pending {
-		if r.terminal && r.err != nil {
+		if r.terminal && r.Err() != nil {
 			if victim != -1 {
 				t.Error("multiple type victims")
 			}
 			victim = i
 		}
-		if e.locks.entries[resources[i]].holders[tickets[i]].mode != typeExclusive {
+		if e.locks.entries[resources[i]].holders[tickets[i]].Mode != typeExclusive {
 			t.Error("deadlock detection released grant before transaction finish")
 		}
 	}
@@ -65,7 +65,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for i, ticket := range tickets {
 		blocker := tickets[1-i]
 		resource := resources[1-i]
-		want[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for ExclusiveLock on type %d (class 1247, sub-ID 0, epoch %d); blocked by transaction %d (session %d, epoch %d).", ticket.ref.ID(), ticket.ref.Session().ID(), ticket.ref.Epoch(), resource.Address.ObjectID, resource.Epoch, blocker.ref.ID(), blocker.ref.Session().ID(), blocker.ref.Epoch())] = true
+		want[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for ExclusiveLock on type %d (class 1247, sub-ID 0, epoch %d); blocked by transaction %d (session %d, epoch %d).", ticket.Ref().ID(), ticket.Ref().Session().ID(), ticket.Ref().Epoch(), resource.Address.ObjectID, resource.Epoch, blocker.Ref().ID(), blocker.Ref().Session().ID(), blocker.Ref().Epoch())] = true
 	}
 	for _, line := range strings.Split(d.Detail, "\n") {
 		if !want[line] {
@@ -86,7 +86,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for _, s := range sessions {
 		ref := transactionBegin(t, s)
 		for _, resource := range resources {
-			if err := e.locks.acquire(context.Background(), s.transactions.ticket, resource, typeExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), s.transactions.ticket, resource, typeExclusive); err != nil {
 				t.Fatal("retired cycle blocked fresh owner", err)
 			}
 		}

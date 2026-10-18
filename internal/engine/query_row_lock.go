@@ -113,14 +113,14 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if s.ticket == nil || s.ticket.ref != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || row == 0 || leaf.storage == nil {
+	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || row == 0 || leaf.storage == nil {
 		return false, fmt.Errorf("stuntgres: invalid query row acquisition authority")
 	}
 	e := s.op.session.Engine()
 	// Conditional requests reuse the manager's atomic immediate-grant branch:
 	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, nowait: mark.wait != parser.RowLockBlock, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref, row: row}, mark.mode, policy)
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, NoWait: mark.wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref, Row: row}, mark.mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		if mark.wait == parser.RowLockSkip {
 			return false, nil
@@ -135,7 +135,7 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		if err = request.wait(); err != nil {
+		if err = request.Wait(); err != nil {
 			return false, err
 		}
 		if s.implicit {

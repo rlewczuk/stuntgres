@@ -45,7 +45,7 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				e.locks.mu.Lock()
 				matched := false
 				for resource, entry := range e.locks.entries {
-					if resource.key != nil && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.session == b.token {
+					if resource.key != nil && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.Session() == b.token {
 						matched = true
 					}
 				}
@@ -100,12 +100,12 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					matched := false
 					if deferrable {
 						entry := e.locks.entries[lockResource{completion: at}]
-						matched = entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == transactionCompletion && entry.pending[0].ticket.session == b.token && entry.holders[at].mode&transactionCompletion != 0
+						matched = entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == transactionCompletion && entry.pending[0].ticket.Session() == b.token && entry.holders[at].Mode&transactionCompletion != 0
 					} else {
 						// DELETE retains the existing exact-key grant. The eager
 						// admission waits here before its dirty completion probe.
 						for resource, entry := range e.locks.entries {
-							if resource.key != nil && resource.key.bucket.ObjectRef.Address == index && len(resource.key.value.([]sqltype.Value)) == 1 && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.session == b.token && entry.holders[at].mode&uniqueClaim != 0 {
+							if resource.key != nil && resource.key.bucket.ObjectRef.Address == index && len(resource.key.value.([]sqltype.Value)) == 1 && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.Session() == b.token && entry.holders[at].Mode&uniqueClaim != 0 {
 								matched = true
 							}
 						}

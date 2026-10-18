@@ -28,7 +28,7 @@ func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, u
 
 func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode relationLockMode) {
 	t.Helper()
-	request, err := scope.op.session.Engine().locks.startAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{nowait: true})
+	request, err := scope.op.session.Engine().locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{NoWait: true})
 	if err != nil || request != nil {
 		t.Fatal("expected immediate real manager grant", request, err)
 	}
@@ -178,7 +178,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: e.domain.Ref(ref.Epoch, candidate.address)}]
-			newHold := entry != nil && entry.holders[reader.ticket].mode != 0
+			newHold := entry != nil && entry.holders[reader.ticket].Mode != 0
 			e.locks.mu.Unlock()
 			if newHold {
 				t.Fatal("waiting reader admitted a newly attached branch")

@@ -43,7 +43,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.locks.acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: originalRef}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: originalRef}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,7 +62,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{parent}
-	if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parent.ref}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parent.ref}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -83,7 +83,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	lockPending(t, e, 1)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: originalRef}]
-	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].mode&accessExclusive != 0
+	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].Mode&accessExclusive != 0
 	e.locks.mu.Unlock()
 	if !queued {
 		t.Fatal("scanner was not parked on the exact original descendant")
@@ -120,7 +120,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	e.locks.mu.Lock()
 	for _, physical := range []ids.ObjectRef{originalRef, lateRef} {
 		entry := e.locks.entries[lockResource{ObjectRef: physical}]
-		if entry == nil || entry.holders[scope.ticket].mode&accessShare == 0 {
+		if entry == nil || entry.holders[scope.ticket].Mode&accessShare == 0 {
 			e.locks.mu.Unlock()
 			t.Fatal("final descendant grant missing", physical)
 		}

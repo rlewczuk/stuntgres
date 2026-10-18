@@ -185,7 +185,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 			continue
 		}
 		grant, held := entry.holders[scope.ticket]
-		admitted = admitted && held && grant.mode == accessExclusive && scope.truncateSelected[address] != 0
+		admitted = admitted && held && grant.Mode == accessExclusive && scope.truncateSelected[address] != 0
 	}
 	e.locks.mu.Unlock()
 	if !excluded || !admitted {
@@ -223,7 +223,7 @@ func TestTruncateLocks(t *testing.T) {
 		_, prefixJournal := ticket.resources[lockResource{ObjectRef: p}]
 		_, pendingJournal := ticket.resources[lockResource{ObjectRef: q}]
 		grant, held := prefix.holders[ticket]
-		valid = held && grant.mode == accessExclusive && request.mode == accessExclusive && request.ref == (lockResource{ObjectRef: q}) && request.provenance.Session() == waiter.token && e.locks.owners[request.provenance] == ticket && prefixJournal && pendingJournal
+		valid = held && grant.Mode == accessExclusive && request.mode == accessExclusive && request.ref == (lockResource{ObjectRef: q}) && request.provenance.Session() == waiter.token && e.locks.owners[request.provenance] == ticket && prefixJournal && pendingJournal
 	}
 	e.locks.mu.Unlock()
 	if !valid {

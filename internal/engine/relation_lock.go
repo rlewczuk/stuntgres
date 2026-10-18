@@ -16,13 +16,13 @@ var errRelationOwnerEnded = errors.New("stuntgres: transaction ended")
 var errRelationUnavailable = errors.New("stuntgres: relation lock unavailable")
 
 type relationLockPolicy struct {
-	nowait            bool
-	timeout           time.Duration
-	statementDeadline time.Time
-	source            context.Context
-	provenance        ids.TxRef             // current statement owner for a persistent session request
-	timeoutSlot       *relationTimeoutSlot  // admitted command's pending-timeout projection; nil when untracked
-	completionPurpose completionLockPurpose // observational identity; never changes arbitration
+	NoWait            bool
+	Timeout           time.Duration
+	StatementDeadline time.Time
+	Source            context.Context
+	Provenance        ids.TxRef             // current statement owner for a persistent session request
+	TimeoutSlot       *relationTimeoutSlot  // admitted command's pending-timeout projection; nil when untracked
+	CompletionPurpose completionLockPurpose // observational identity; never changes arbitration
 }
 
 type relationSourceError struct{ error }
@@ -80,9 +80,9 @@ const (
 // Row zero is the relation resource; logical rows use their stable RowID.
 type lockResource struct {
 	ids.ObjectRef
-	kind       lockResourceKind
-	high, low  uint32
-	row        ids.RowID
+	Kind       lockResourceKind
+	High, Low  uint32
+	Row        ids.RowID
 	key        *uniqueLockKey
 	completion *relationTicket
 }
@@ -103,18 +103,27 @@ type relationTicket struct {
 	uniqueDelta        []lockResource
 }
 
-func (t *relationTicket) assignedPublicXID() uint32 { return atomic.LoadUint32(&t.assignedXID) }
-func (t *relationTicket) mirrorFullXID(xid uint64) {
+// Ref is the transaction a ticket belongs to; zero for a session ticket.
+func (t *relationTicket) Ref() ids.TxRef { return t.ref }
+
+// Session is the session that owns the ticket.
+func (t *relationTicket) Session() ids.SessionToken { return t.session }
+
+// Persistent reports a session-lifetime (advisory) ticket.
+func (t *relationTicket) Persistent() bool { return t.persistent }
+
+func (t *relationTicket) AssignedPublicXID() uint32 { return atomic.LoadUint32(&t.assignedXID) }
+func (t *relationTicket) MirrorFullXID(xid uint64) {
 	atomic.StoreUint64(&t.fullXID, xid)
 	atomic.StoreUint32(&t.assignedXID, uint32(xid))
 }
-func (t *relationTicket) assignedFullXID() uint64 { return atomic.LoadUint64(&t.fullXID) }
-func (t *relationTicket) ownershipEnded() bool    { return atomic.LoadUint32(&t.ended) != 0 }
+func (t *relationTicket) AssignedFullXID() uint64 { return atomic.LoadUint64(&t.fullXID) }
+func (t *relationTicket) OwnershipEnded() bool    { return atomic.LoadUint32(&t.ended) != 0 }
 func (t *relationTicket) retireOwnership()        { atomic.StoreUint32(&t.ended, 1) }
-func (t *relationTicket) completionState() ids.TxCompletion {
+func (t *relationTicket) CompletionState() ids.TxCompletion {
 	return ids.TxCompletion(atomic.LoadUint32(&t.completion))
 }
-func (t *relationTicket) mirrorCompletion(state ids.TxCompletion) {
+func (t *relationTicket) MirrorCompletion(state ids.TxCompletion) {
 	atomic.StoreUint32(&t.completion, uint32(state))
 }
 
@@ -139,8 +148,8 @@ type relationRequest struct {
 
 // Ordinary modes remain idempotent; only advisory grants have counted modes.
 type relationHold struct {
-	mode              relationLockMode
-	shared, exclusive uint64
+	Mode              relationLockMode
+	Shared, Exclusive uint64
 }
 
 type relationEntry struct {
@@ -186,9 +195,9 @@ func newRelationLockManager(domain *ids.Domain) *relationLockManager {
 	return &relationLockManager{domain: domain, multiNext: 1, owners: make(map[ids.TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
 
-// register admits a transaction ticket. The engine has already checked that
+// Register admits a transaction ticket. The engine has already checked that
 // ref is attached to its transaction owner and session (txOwnerAttached).
-func (m *relationLockManager) register(ref ids.TxRef) (*relationTicket, error) {
+func (m *relationLockManager) Register(ref ids.TxRef) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if ref.Domain() != m.domain || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().Domain() != m.domain {
@@ -249,7 +258,7 @@ type relationCheckpointHold struct {
 }
 type relationLockCheckpoint map[lockResource]relationCheckpointHold
 
-func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoint {
+func (m *relationLockManager) Checkpoint(t *relationTicket) relationLockCheckpoint {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.valid(t) || t.persistent {
@@ -257,11 +266,11 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 	}
 	held := make(relationLockCheckpoint, len(t.resources))
 	for ref := range t.resources {
-		if ref.completion != nil || ref.kind != ordinaryResource && ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource {
+		if ref.completion != nil || ref.Kind != ordinaryResource && ref.Kind != advisoryBigintResource && ref.Kind != advisoryPairResource {
 			continue
 		}
-		if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 {
-			held[ref] = relationCheckpointHold{mode: entry.holders[t].mode}
+		if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 {
+			held[ref] = relationCheckpointHold{mode: entry.holders[t].Mode}
 		}
 	}
 	for tuple, bits := range t.multiContributions {
@@ -269,7 +278,7 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 		if h.multi == nil {
 			h.multi = make(map[ids.VersionID]uint8)
 		}
-		h.multi[tuple.version] = bits
+		h.multi[tuple.Version] = bits
 		held[tuple.lockResource] = h
 	}
 	return held
@@ -277,28 +286,28 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 
 // Caller serializes the owner but holds no catalog/session/publication locks.
 // Intersecting prevents a stale checkpoint from resurrecting ownership.
-func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckpoint) {
+func (m *relationLockManager) Restore(t *relationTicket, held relationLockCheckpoint) {
 	var notify *relationRequest
 	m.mu.Lock()
 	if m.valid(t) && !t.persistent {
 		m.restoreMultiContributionsLocked(t, held)
 		for ref := range t.resources {
-			if ref.completion != nil || ref.kind != ordinaryResource && ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource {
+			if ref.completion != nil || ref.Kind != ordinaryResource && ref.Kind != advisoryBigintResource && ref.Kind != advisoryPairResource {
 				continue
 			}
 			entry := m.entries[ref]
 			if entry == nil {
 				continue
 			}
-			mode := entry.holders[t].mode & held[ref].mode
-			if mode == entry.holders[t].mode {
+			mode := entry.holders[t].Mode & held[ref].mode
+			if mode == entry.holders[t].Mode {
 				continue
 			}
 			if mode == 0 {
 				delete(entry.holders, t)
 				delete(t.resources, ref)
 			} else {
-				entry.holders[t] = relationHold{mode: mode}
+				entry.holders[t] = relationHold{Mode: mode}
 			}
 			m.settle(entry, &notify)
 			m.retire(ref, entry)
@@ -310,7 +319,7 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 
 // Candidate omission changes only key contributions, not source row/relation
 // grants. Reuse caller-owned scratch and preserve preexisting stronger modes.
-func (m *relationLockManager) checkpointUnique(t *relationTicket, held relationLockCheckpoint) relationLockCheckpoint {
+func (m *relationLockManager) CheckpointUnique(t *relationTicket, held relationLockCheckpoint) relationLockCheckpoint {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if held == nil {
@@ -319,21 +328,21 @@ func (m *relationLockManager) checkpointUnique(t *relationTicket, held relationL
 	clear(held)
 	if m.valid(t) && !t.persistent {
 		for ref := range t.resources {
-			if ref.key != nil && ref.kind == ordinaryResource && ref.completion == nil {
-				if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 {
-					held[ref] = relationCheckpointHold{mode: entry.holders[t].mode}
+			if ref.key != nil && ref.Kind == ordinaryResource && ref.completion == nil {
+				if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 {
+					held[ref] = relationCheckpointHold{mode: entry.holders[t].Mode}
 				}
 			}
 		}
 	}
 	return held
 }
-func (m *relationLockManager) restoreUnique(t *relationTicket, held relationLockCheckpoint) {
+func (m *relationLockManager) RestoreUnique(t *relationTicket, held relationLockCheckpoint) {
 	var notify *relationRequest
 	m.mu.Lock()
 	if m.valid(t) && !t.persistent {
 		for ref := range t.resources {
-			if ref.key == nil || ref.kind != ordinaryResource || ref.completion != nil {
+			if ref.key == nil || ref.Kind != ordinaryResource || ref.completion != nil {
 				continue
 			}
 			entry := m.entries[ref]
@@ -341,15 +350,15 @@ func (m *relationLockManager) restoreUnique(t *relationTicket, held relationLock
 				continue
 			}
 			hold := entry.holders[t]
-			mode := hold.mode & held[ref].mode
-			if mode == hold.mode {
+			mode := hold.Mode & held[ref].mode
+			if mode == hold.Mode {
 				continue
 			}
 			if mode == 0 {
 				delete(entry.holders, t)
 				delete(t.resources, ref)
 			} else {
-				hold.mode = mode
+				hold.Mode = mode
 				entry.holders[t] = hold
 			}
 			m.settle(entry, &notify)
@@ -363,7 +372,7 @@ func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
 	err = r.finishTimeout(err)
 	r.err = err
 	r.terminal = true
-	if (err != nil || r.ref.completion != nil) && r.entry.holders[r.ticket].mode == 0 {
+	if (err != nil || r.ref.completion != nil) && r.entry.holders[r.ticket].Mode == 0 {
 		pending := false
 		for _, other := range r.entry.pending {
 			if other != r && !other.terminal && other.ticket == r.ticket {
@@ -384,7 +393,7 @@ func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
 					break
 				}
 			}
-			if !pending && r.entry.holders[source].mode == 0 {
+			if !pending && r.entry.holders[source].Mode == 0 {
 				delete(source.resources, r.ref)
 			}
 		}
@@ -422,16 +431,16 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 		blocked, participantHeld := false, false
 		for t, held := range e.holders {
 			if sameLockSession(t, r.ticket) {
-				if (r.ref.kind == advisoryBigintResource || r.ref.kind == advisoryPairResource) && held.mode != 0 {
+				if (r.ref.Kind == advisoryBigintResource || r.ref.Kind == advisoryPairResource) && held.Mode != 0 {
 					participantHeld = true
 				}
-			} else if lockConflict(r.mode, held.mode) {
+			} else if lockConflict(r.mode, held.Mode) {
 				blocked = true
 			}
 		}
 		if !blocked && !participantHeld {
 			for _, earlier := range remaining {
-				if r.ref.completion == nil && (r.ref.row == 0 || r.mode != noKeyUpdate) && !sameLockSession(earlier.ticket, r.ticket) && lockConflict(r.mode, earlier.mode) {
+				if r.ref.completion == nil && (r.ref.Row == 0 || r.mode != noKeyUpdate) && !sameLockSession(earlier.ticket, r.ticket) && lockConflict(r.mode, earlier.mode) {
 					blocked = true
 					break
 				}
@@ -454,23 +463,34 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 	clear(e.pending[len(remaining):])
 	e.pending = remaining
 }
-func (m *relationLockManager) acquire(ctx context.Context, t *relationTicket, ref lockResource, mode relationLockMode) error {
-	request, err := m.startAcquire(ctx, t, ref, mode, relationLockPolicy{})
+func (m *relationLockManager) Acquire(ctx context.Context, t *relationTicket, ref lockResource, mode relationLockMode) error {
+	request, err := m.StartAcquire(ctx, t, ref, mode, relationLockPolicy{})
 	if err != nil || request == nil {
 		return err
 	}
-	return request.wait()
+	return request.Wait()
 }
 
+// Wait blocks until the request is terminal and returns its outcome.
+func (r *relationRequest) Wait() error { return r.wait() }
+
+// wait does the blocking. The reference suite recognizes a parked lock wait
+// by this frame's name, (*relationRequest).wait, so keep both names.
 func (r *relationRequest) wait() error {
 	<-r.done
 	return r.err
 }
 
-// startAcquire grants immediately or returns the exact journaled request.
+// Done is closed once the request is terminal; Err is valid after that.
+func (r *relationRequest) Done() <-chan struct{} { return r.done }
+
+// Err is the terminal outcome. Read it only after Done is closed.
+func (r *relationRequest) Err() error { return r.err }
+
+// StartAcquire grants immediately or returns the exact journaled request.
 // The caller can relinquish replacement admission before waiting, without
 // allowing replacement to interrupt an uncontended implicit statement.
-func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicket, ref lockResource, mode relationLockMode, policy relationLockPolicy) (*relationRequest, error) {
+func (m *relationLockManager) StartAcquire(ctx context.Context, t *relationTicket, ref lockResource, mode relationLockMode, policy relationLockPolicy) (*relationRequest, error) {
 	if err := relationWaitError(ctx, policy, time.Time{}, time.Now()); err != nil {
 		return nil, err
 	}
@@ -479,21 +499,21 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	advisory := ref.kind == advisoryBigintResource || ref.kind == advisoryPairResource
+	advisory := ref.Kind == advisoryBigintResource || ref.Kind == advisoryPairResource
 	if advisory {
-		if ref.ObjectRef != (ids.ObjectRef{}) || ref.row != 0 || ref.key != nil || ref.completion != nil ||
+		if ref.ObjectRef != (ids.ObjectRef{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil ||
 			mode != advisoryShared && mode != advisoryExclusive || t.detached {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid advisory lock request")
 		}
 		if t.persistent {
-			source := m.owners[policy.provenance]
-			if source == nil || source.detached || source.session != t.session || policy.provenance.Epoch() < m.epoch {
+			source := m.owners[policy.Provenance]
+			if source == nil || source.detached || source.session != t.session || policy.Provenance.Epoch() < m.epoch {
 				m.mu.Unlock()
 				return nil, ErrCatalogReplaced
 			}
 		}
-	} else if t.persistent || ref.kind != ordinaryResource || ref.high != 0 || ref.low != 0 {
+	} else if t.persistent || ref.Kind != ordinaryResource || ref.High != 0 || ref.Low != 0 {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
@@ -510,11 +530,11 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 			return nil, nil
 		}
 	} else if ref.Address.ClassID == ids.TypeClassID {
-		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
+		if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.Row != 0 || ref.key != nil || mode != typeExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
-	} else if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
+	} else if ref.Domain() != m.domain || ref.Epoch != t.ref.Epoch() || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.Row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.Row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.Row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}
@@ -522,12 +542,12 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	if e == nil {
 		e = &relationEntry{holders: make(map[*relationTicket]relationHold)}
 		if ref.completion != nil {
-			e.holders[ref.completion] = relationHold{mode: transactionCompletion}
+			e.holders[ref.completion] = relationHold{Mode: transactionCompletion}
 			ref.completion.resources[ref] = struct{}{}
 		}
 		m.entries[ref] = e
 	}
-	if e.holders[t].mode&mode != 0 {
+	if e.holders[t].Mode&mode != 0 {
 		err := relationWaitError(ctx, policy, time.Time{}, time.Now())
 		if err == nil {
 			err = m.grant(t, ref, e, mode)
@@ -537,19 +557,19 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	}
 	eligible, participantHeld := true, false
 	for other, held := range e.holders {
-		if advisory && sameLockSession(other, t) && held.mode != 0 {
+		if advisory && sameLockSession(other, t) && held.Mode != 0 {
 			participantHeld = true
 		}
-		if !sameLockSession(other, t) && lockConflict(mode, held.mode) {
+		if !sameLockSession(other, t) && lockConflict(mode, held.Mode) {
 			eligible = false
 		}
 	}
 	// Self reentry bypasses requests blocked by this owner's existing hold.
 	// A compatible tuple NO KEY UPDATE also need not wait behind a pending
 	// UPDATE blocked by KEY SHARE; actual granted tuple modes still conflict.
-	if eligible && e.holders[t].mode == 0 && !participantHeld {
+	if eligible && e.holders[t].Mode == 0 && !participantHeld {
 		for _, earlier := range e.pending {
-			if ref.completion == nil && (ref.row == 0 || mode != noKeyUpdate) && !earlier.terminal && !sameLockSession(earlier.ticket, t) && lockConflict(mode, earlier.mode) {
+			if ref.completion == nil && (ref.Row == 0 || mode != noKeyUpdate) && !earlier.terminal && !sameLockSession(earlier.ticket, t) && lockConflict(mode, earlier.mode) {
 				eligible = false
 				break
 			}
@@ -569,7 +589,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, err
 	}
-	if policy.nowait {
+	if policy.NoWait {
 		m.retire(ref, e)
 		m.mu.Unlock()
 		return nil, errRelationUnavailable
@@ -580,15 +600,15 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	t.resources[ref] = struct{}{}
 	provenance := t.ref
 	if t.persistent {
-		provenance = policy.provenance
+		provenance = policy.Provenance
 		m.owners[provenance].resources[ref] = struct{}{}
 	}
 	r := &relationRequest{ticket: t, provenance: provenance, ctx: ctx, mode: mode, done: make(chan struct{}), policy: policy, ref: ref, entry: e}
-	if policy.timeout > 0 {
-		r.deadline = time.Now().Add(policy.timeout)
+	if policy.Timeout > 0 {
+		r.deadline = time.Now().Add(policy.Timeout)
 	}
 	if r.tracksTimeout() {
-		policy.timeoutSlot.request.Store(r)
+		policy.TimeoutSlot.request.Store(r)
 	}
 	interrupt := func() {
 		var notify *relationRequest
@@ -630,7 +650,7 @@ func (m *relationLockManager) retire(ref lockResource, e *relationEntry) {
 
 // Transaction tickets end through Engine.endLockOwner, which first retires
 // engine-held exclusion state; only session tickets end here directly.
-func (m *relationLockManager) end(t *relationTicket) {
+func (m *relationLockManager) End(t *relationTicket) {
 	if t == nil {
 		return
 	}
@@ -669,7 +689,7 @@ func (m *relationLockManager) endLocked(t *relationTicket, err error, notify **r
 	t.multiContributions = nil
 	t.multiCache = nil
 }
-func (m *relationLockManager) fence(epoch ids.CatalogEpoch) {
+func (m *relationLockManager) Fence(epoch ids.CatalogEpoch) {
 	var notify *relationRequest
 	m.mu.Lock()
 	if epoch > m.epoch {
@@ -683,7 +703,7 @@ func (m *relationLockManager) fence(epoch ids.CatalogEpoch) {
 			}
 		}
 		for ref, e := range m.entries {
-			if ref.kind != ordinaryResource {
+			if ref.Kind != ordinaryResource {
 				for ticket := range e.holders {
 					if !ticket.persistent && ticket.ref.Epoch() < epoch {
 						delete(e.holders, ticket)

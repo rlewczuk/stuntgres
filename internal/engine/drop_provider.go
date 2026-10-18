@@ -469,10 +469,10 @@ func (p *dropProvider) acquire(ref ids.ObjectRef, reserveReplacement bool) error
 }
 
 func (scope *StatementScope) holdsColumnDropGrant(ref ids.ObjectRef) bool {
-	if scope.ticket == nil || scope.ticket.ref != scope.txRef {
+	if scope.ticket == nil || scope.ticket.Ref() != scope.txRef {
 		return false
 	}
-	return scope.op.session.Engine().locks.holds(scope.ticket, lockResource{ObjectRef: ref}, accessExclusive)
+	return scope.op.session.Engine().locks.Holds(scope.ticket, lockResource{ObjectRef: ref}, accessExclusive)
 }
 
 // prepareColumnDrop records the actual ordinary provider effects without owning

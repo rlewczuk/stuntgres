@@ -27,7 +27,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error
 	if !txOwnerAttached(ref) {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
-	ticket, err := e.locks.register(ref)
+	ticket, err := e.locks.Register(ref)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error
 	}
 	v := e.visibility[ref]
 	v.ticket = ticket
-	ticket.mirrorFullXID(v.fullXID)
+	ticket.MirrorFullXID(v.fullXID)
 	e.visibility[ref] = v
 	e.mu.Unlock()
 	return ticket, nil
@@ -124,7 +124,7 @@ func (e *Engine) resetVisibilityPhaseLocked(ref ids.TxRef) {
 			// These index-only hooks retire a completed internal publication
 			// phase. Final/prepared completion instead keeps manager ownership
 			// through end(), including the publication-to-notification interval.
-			v.ticket.mirrorFullXID(v.fullXID)
+			v.ticket.MirrorFullXID(v.fullXID)
 		}
 		if v.assignedXID == 0 && v.ticket == nil {
 			delete(e.visibility, ref)
@@ -165,7 +165,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 		if !eligible {
 			continue
 		}
-		if owner := e.locks.transactionTicket(ref); owner != nil {
+		if owner := e.locks.TransactionTicket(ref); owner != nil {
 			if err := s.waitCompletion(owner, completionVirtual); err != nil {
 				return err
 			}

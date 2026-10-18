@@ -291,10 +291,10 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		v, err := bound.Eval(&EvalContext{Context: op.Context(), statementScope: scope})
 		finish := scope.Finish(err)
 		op.Done()
-		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lockResource{kind: advisoryBigintResource, low: 42}).exclusive != 1 {
+		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lockResource{Kind: advisoryBigintResource, Low: 42}).Exclusive != 1 {
 			t.Fatal("actual VOID grant", v, err, finish)
 		}
-		if err = e.locks.unlockAdvisoryAll(s.advisory.ticket); err != nil {
+		if err = e.locks.UnlockAdvisoryAll(s.advisory.ticket); err != nil {
 			t.Fatal(err)
 		}
 	})

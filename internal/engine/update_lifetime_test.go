@@ -71,15 +71,15 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	oldCtx, oldCancel := context.WithCancel(context.Background())
 	defer oldCancel()
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	resource := lockResource{ObjectRef: ref, row: e.storage[ref.Address].versions[0].row}
-	request, err := e.locks.startAcquire(oldCtx, oldTicket, resource, noKeyUpdate, relationLockPolicy{})
+	resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+	request, err := e.locks.StartAcquire(oldCtx, oldTicket, resource, noKeyUpdate, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
 	if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9);")); err != nil {
 		t.Fatal(err)
 	}
-	if err = request.wait(); !errors.Is(err, ErrCatalogReplaced) {
+	if err = request.Wait(); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	transactionEnd(t, b, holder, false)
@@ -88,15 +88,15 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	sessionSQL(t, c, "UPDATE t SET v=10")
 	newTicket := c.transactions.ticket
 	newRef := catalogRef(t, e, e.CatalogRead(), "t")
-	newResource := lockResource{ObjectRef: newRef, row: e.storage[newRef.Address].versions[0].row}
+	newResource := lockResource{ObjectRef: newRef, Row: e.storage[newRef.Address].versions[0].row}
 	oldCancel()
 	e.endLockOwner(oldTicket)
-	e.locks.fence(ref.Epoch)
+	e.locks.Fence(ref.Epoch)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[newResource]
 	held := relationLockMode(0)
 	if entry != nil {
-		held = entry.holders[newTicket].mode
+		held = entry.holders[newTicket].Mode
 	}
 	oldJournal := len(oldTicket.resources)
 	e.locks.mu.Unlock()

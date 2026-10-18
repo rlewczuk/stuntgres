@@ -61,10 +61,10 @@ func deadlockPublicationRun(t *testing.T, e *Engine, request *relationRequest, o
 }
 
 // Journal a private request without running detection, as in the existing review
-// regression. This isolates detector observations from startAcquire/settle.
+// regression. This isolates detector observations from StartAcquire/settle.
 func deadlockPublicationPending(e *Engine, ticket *relationTicket, ref lockResource, mode relationLockMode, ctx context.Context) *relationRequest {
 	entry := e.locks.entries[ref]
-	r := &relationRequest{ticket: ticket, provenance: ticket.ref, ctx: ctx, mode: mode, done: make(chan struct{}), ref: ref, entry: entry}
+	r := &relationRequest{ticket: ticket, provenance: ticket.Ref(), ctx: ctx, mode: mode, done: make(chan struct{}), ref: ref, entry: entry}
 	ticket.resources[ref] = struct{}{}
 	entry.pending = append(entry.pending, r)
 	return r
@@ -110,7 +110,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			later := deadlockPublicationPending(e, bt, ref, accessExclusive, laterContext)
 			if source {
 				victimContext.Context = context.Background()
-				victim.policy.source = real
+				victim.policy.Source = real
 			}
 			e.locks.mu.Unlock()
 			deadlockPublicationRun(t, e, victim, observed, resume, func() {
@@ -140,7 +140,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			}
 			e.locks.mu.Lock()
 			collateral := later.terminal
-			holds := e.locks.entries[ref].holders[at].mode == accessShare && e.locks.entries[ref].holders[bt].mode == accessShare
+			holds := e.locks.entries[ref].holders[at].Mode == accessShare && e.locks.entries[ref].holders[bt].Mode == accessShare
 			e.locks.mu.Unlock()
 			if collateral || !holds {
 				t.Errorf("collateral terminal=%v, original holds retained=%v", collateral, holds)
@@ -185,7 +185,7 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 	// Actual arrival graph: B->A hard, C->B soft, A->C hard.
 	// Moving compatible C-AS ahead of B-AX resolves it without revoking A-AS.
 	queue := e.locks.entries[x].pending
-	topology := len(queue) == 2 && queue[0] == rb && queue[1] == rc && e.locks.entries[x].holders[at].mode == accessShare && e.locks.entries[y].holders[ct].mode == accessExclusive
+	topology := len(queue) == 2 && queue[0] == rb && queue[1] == rc && e.locks.entries[x].holders[at].Mode == accessShare && e.locks.entries[y].holders[ct].Mode == accessExclusive
 	e.locks.mu.Unlock()
 	if !topology {
 		t.Fatal("missing resolvable soft topology")
@@ -198,7 +198,7 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 		t.Errorf("compatible follower must grant from fresh live queues: %v", err)
 	}
 	e.locks.mu.Lock()
-	fresh := len(e.locks.entries[x].pending) == 0 && e.locks.entries[x].holders[at].mode == accessShare && e.locks.entries[x].holders[ct].mode == accessShare && !ra.terminal
+	fresh := len(e.locks.entries[x].pending) == 0 && e.locks.entries[x].holders[at].Mode == accessShare && e.locks.entries[x].holders[ct].Mode == accessShare && !ra.terminal
 	e.locks.mu.Unlock()
 	if !fresh {
 		t.Error("stale proposal, collateral victim, or missing compatible follower grant")
@@ -232,7 +232,7 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			gate := &deadlockNormalizationContext{Context: context.Background(), observed: make(chan struct{}), resume: make(chan struct{}), armed: true}
 			e.locks.mu.Lock()
 			interrupted := deadlockPublicationPending(e, at, ref, accessExclusive, gate)
-			interrupted.policy.source = caller
+			interrupted.policy.Source = caller
 			later := deadlockPublicationPending(e, bt, ref, accessExclusive, context.Background())
 			e.locks.mu.Unlock()
 			code, message := "", ""
@@ -245,13 +245,13 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 					interrupted.deadline = expired
 					code, message = "55P03", "canceling statement due to lock timeout"
 					if name == "lock-statement-tie" {
-						interrupted.policy.statementDeadline = expired
+						interrupted.policy.StatementDeadline = expired
 					}
 					if name == "lock-before-caller" {
 						caller.deadline = expired.Add(time.Millisecond)
 					}
 				case "statement", "statement-before-caller":
-					interrupted.policy.statementDeadline = expired
+					interrupted.policy.StatementDeadline = expired
 					code, message = "57014", "canceling statement due to statement timeout"
 					if name == "statement-before-caller" {
 						caller.deadline = expired.Add(time.Millisecond)
@@ -262,7 +262,7 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 						interrupted.deadline = expired
 					}
 					if name == "caller-statement-tie" {
-						interrupted.policy.statementDeadline = expired
+						interrupted.policy.StatementDeadline = expired
 					}
 				}
 			})
@@ -278,7 +278,7 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			}
 			e.locks.mu.Lock()
 			collateral := later.terminal
-			holds := e.locks.entries[ref].holders[at].mode == accessShare && e.locks.entries[ref].holders[bt].mode == accessShare
+			holds := e.locks.entries[ref].holders[at].Mode == accessShare && e.locks.entries[ref].holders[bt].Mode == accessShare
 			e.locks.mu.Unlock()
 			if collateral || !holds {
 				t.Errorf("deadline caused collateral terminal=%v or released holds=%v", collateral, !holds)

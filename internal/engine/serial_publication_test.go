@@ -62,7 +62,7 @@ func TestSerialDefaultUnpublishedProviderHold(t *testing.T) {
 				held := false
 				if entry != nil {
 					for _, mode := range entry.holders {
-						held = held || mode.mode&accessShare != 0
+						held = held || mode.Mode&accessShare != 0
 					}
 				}
 				e.locks.mu.Unlock()

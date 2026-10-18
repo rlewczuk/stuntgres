@@ -39,15 +39,15 @@ func TestMergeNothingRowAdmission(t *testing.T) {
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DO NOTHING RETURNING merge_action(),t.v")
 	mergeNothingPendingOutput(t, done, 0, nil)
 	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, row: row}]
-	retained := entry != nil && entry.holders[holder.transactions.ticket].mode != 0
+	entry := e.locks.entries[lockResource{ObjectRef: ref, Row: row}]
+	retained := entry != nil && entry.holders[holder.transactions.ticket].Mode != 0
 	workerAdmission := false
 	if entry != nil {
 		for ticket := range entry.holders {
-			workerAdmission = workerAdmission || ticket.ref.Session() == worker.token
+			workerAdmission = workerAdmission || ticket.Ref().Session() == worker.token
 		}
 		for _, request := range entry.pending {
-			workerAdmission = workerAdmission || !request.terminal && request.ticket.ref.Session() == worker.token
+			workerAdmission = workerAdmission || !request.terminal && request.ticket.Ref().Session() == worker.token
 		}
 	}
 	e.locks.mu.Unlock()

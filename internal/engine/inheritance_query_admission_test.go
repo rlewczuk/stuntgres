@@ -44,7 +44,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.locks.acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: oldRef}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: oldRef}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,7 +64,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	parentRef := e.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{parent}
-	if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -85,7 +85,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	lockPending(t, e, 1)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: oldRef}]
-	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].mode&accessExclusive != 0
+	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].Mode&accessExclusive != 0
 	e.locks.mu.Unlock()
 	if !queued {
 		t.Fatal("SELECT did not wait on admitted original descendant identity")
@@ -135,7 +135,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh.querySources = []queryLeaf{parent}
-	if err = e.locks.acquire(freshOp.Context(), fresh.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
+	if err = e.locks.Acquire(freshOp.Context(), fresh.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	if err = fresh.acquireInheritanceSources(nil); err != nil {

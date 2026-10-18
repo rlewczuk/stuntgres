@@ -19,7 +19,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	holder := sessionStart(t, e, nil)
 	ref := transactionBegin(t, holder)
 	defer transactionEnd(t, holder, ref, false)
-	if err := e.locks.acquire(context.Background(), holder.transactions.ticket, resource, typeExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, resource, typeExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(op.ctx, time.Second)

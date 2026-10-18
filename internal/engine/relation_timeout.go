@@ -17,13 +17,13 @@ const (
 )
 
 func relationTimeoutSourceCause(policy relationLockPolicy, lockDeadline, now time.Time) error {
-	if policy.source != nil {
-		if errors.Is(policy.source.Err(), context.Canceled) {
+	if policy.Source != nil {
+		if errors.Is(policy.Source.Err(), context.Canceled) {
 			return context.Canceled
 		}
-		if deadline, ok := policy.source.Deadline(); ok && !now.Before(deadline) &&
+		if deadline, ok := policy.Source.Deadline(); ok && !now.Before(deadline) &&
 			(lockDeadline.IsZero() || !lockDeadline.Before(deadline)) &&
-			(policy.statementDeadline.IsZero() || !policy.statementDeadline.Before(deadline)) {
+			(policy.StatementDeadline.IsZero() || !policy.StatementDeadline.Before(deadline)) {
 			return context.DeadlineExceeded
 		}
 	}
@@ -34,8 +34,8 @@ func relationTimeoutSourceCause(policy relationLockPolicy, lockDeadline, now tim
 // the lifecycle callback. Equal absolute SQL deadlines retain lock precedence.
 func relationTimeoutWinner(policy relationLockPolicy, lockDeadline, now time.Time) uint32 {
 	lockExpired := !lockDeadline.IsZero() && !now.Before(lockDeadline)
-	statementExpired := !policy.statementDeadline.IsZero() && !now.Before(policy.statementDeadline)
-	if lockExpired && (!statementExpired || !policy.statementDeadline.Before(lockDeadline)) {
+	statementExpired := !policy.StatementDeadline.IsZero() && !now.Before(policy.StatementDeadline)
+	if lockExpired && (!statementExpired || !policy.StatementDeadline.Before(lockDeadline)) {
 		return relationTimeoutLock
 	}
 	if statementExpired {
@@ -75,13 +75,13 @@ type relationTimeoutSlot struct {
 	failed  atomic.Bool                     // sticky: a tracked request ended with a SQL timeout ERROR
 }
 
-func (slot *relationTimeoutSlot) reset() {
+func (slot *relationTimeoutSlot) Reset() {
 	slot.request.Store(nil)
 	slot.failed.Store(false)
 }
 
 func (r *relationRequest) tracksTimeout() bool {
-	return r.policy.timeoutSlot != nil && (!r.deadline.IsZero() || !r.policy.statementDeadline.IsZero())
+	return r.policy.TimeoutSlot != nil && (!r.deadline.IsZero() || !r.policy.StatementDeadline.IsZero())
 }
 
 // The manager owns queue/grant/retirement. This atomic claim only prevents a
@@ -116,7 +116,7 @@ func (r *relationRequest) timeoutWaitError(now time.Time) error {
 func (r *relationRequest) finishTimeout(err error) error {
 	err = r.claimTimeoutTerminal(err)
 	if r.tracksTimeout() {
-		slot := r.policy.timeoutSlot
+		slot := r.policy.TimeoutSlot
 		if state := r.timeoutState.Load(); state == relationTimeoutLock || state == relationTimeoutStatement {
 			slot.failed.Store(true)
 		}
@@ -127,7 +127,7 @@ func (r *relationRequest) finishTimeout(err error) error {
 
 // Session.mu is held. Read no manager-owned fields; the immutable deadlines
 // and atomic state are published with the exact queued request pointer.
-func (slot *relationTimeoutSlot) pending(now time.Time) bool {
+func (slot *relationTimeoutSlot) Pending(now time.Time) bool {
 	if slot.failed.Load() {
 		return true
 	}

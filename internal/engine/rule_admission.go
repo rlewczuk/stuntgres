@@ -96,15 +96,15 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 	}
 	e.mu.Unlock()
-	policy := relationLockPolicy{timeoutSlot: &scope.op.lockWait, timeout: scope.op.lockTimeout, statementDeadline: scope.op.statementDeadline, source: scope.op.sourceContext}
+	policy := relationLockPolicy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
 	for _, requested := range requests {
-		request, err := e.locks.startAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: requested.ref}, requested.mode, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: requested.ref}, requested.mode, policy)
 		if request != nil {
 			if scope.replacementRead {
 				e.replacementMu.RUnlock()
 				scope.replacementRead = false
 			}
-			err = request.wait()
+			err = request.Wait()
 		}
 		if err != nil {
 			return nil, err

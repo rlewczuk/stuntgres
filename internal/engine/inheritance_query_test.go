@@ -121,7 +121,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	if first.leaf.ref == second.leaf.ref || first.version.row != second.version.row || second.leaf.storage != cs || second.hint != 1 {
 		t.Fatal(first, second)
 	}
-	if lockResourceForFirst, lockResourceForSecond := (lockResource{ObjectRef: first.leaf.ref, row: first.version.row}), (lockResource{ObjectRef: second.leaf.ref, row: second.version.row}); lockResourceForFirst == lockResourceForSecond {
+	if lockResourceForFirst, lockResourceForSecond := (lockResource{ObjectRef: first.leaf.ref, Row: first.version.row}), (lockResource{ObjectRef: second.leaf.ref, Row: second.version.row}); lockResourceForFirst == lockResourceForSecond {
 		t.Fatal("equal RowID aliased physical resources")
 	}
 	latest := two
@@ -159,7 +159,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	ref := e.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{leaf}
-	if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.acquireInheritanceSources(nil); err != nil {

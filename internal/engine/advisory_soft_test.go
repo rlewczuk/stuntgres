@@ -14,10 +14,10 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	c := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE advisory_soft_relation(v INT)")
 	ra, rb, rc := transactionBegin(t, a), transactionBegin(t, b), transactionBegin(t, c)
-	x := lockResource{kind: advisoryBigintResource, high: 21, low: 22}
+	x := lockResource{Kind: advisoryBigintResource, High: 21, Low: 22}
 	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "advisory_soft_relation")}
 	advisoryUnitGrant(t, a, ra, x, advisoryShared)
-	if err := e.locks.acquire(context.Background(), c.transactions.ticket, y, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), c.transactions.ticket, y, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	writer, err := advisoryUnitAcquire(t, b, rb, x, advisoryExclusive, false)
@@ -46,7 +46,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	writerPending := !writer.terminal
 	ordinaryPending := !ordinaryWait.terminal
 	e.locks.mu.Unlock()
-	if !writerPending || !ordinaryPending || advisoryUnitHold(a, x).shared != 1 || advisoryUnitHold(c, x).shared != 1 {
+	if !writerPending || !ordinaryPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
 		t.Fatal("rearrangement revoked holder or granted incompatible waiter")
 	}
 	transactionEnd(t, c, rc, false)
@@ -59,12 +59,12 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	e.locks.mu.Lock()
 	writerPending = !writer.terminal
 	e.locks.mu.Unlock()
-	if !writerPending || advisoryUnitHold(a, x).shared != 1 || advisoryUnitHold(c, x).shared != 1 {
+	if !writerPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
 		t.Fatal("transaction release crossed persistent lifetime")
 	}
 	advisoryUnitUnlock(t, c, x, advisoryShared, true)
 	advisoryUnitUnlock(t, a, x, advisoryShared, true)
-	if err = deadlockResult(t, writer); err != nil || advisoryUnitHold(b, x).exclusive != 1 {
+	if err = deadlockResult(t, writer); err != nil || advisoryUnitHold(b, x).Exclusive != 1 {
 		t.Fatal("explicit retained-count cleanup did not wake writer", err)
 	}
 }

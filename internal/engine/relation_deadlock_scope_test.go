@@ -125,7 +125,7 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	deadlockRequest(t, e, at, x, accessExclusive)
 	deadlockRequest(t, e, bt, y, accessExclusive)
 	ctx, cancel := context.WithCancel(context.Background())
-	r, err := e.locks.startAcquire(ctx, at, y, accessExclusive, relationLockPolicy{})
+	r, err := e.locks.StartAcquire(ctx, at, y, accessExclusive, relationLockPolicy{})
 	if err != nil || r == nil {
 		t.Fatal(r, err)
 	}

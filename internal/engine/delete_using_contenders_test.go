@@ -64,8 +64,8 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			await := deleteUsingJoin(t, cancel, done)
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref, row: original.row}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == rowUpdate && entry.holders[holder.transactions.ticket].mode == noKeyUpdate
+			entry := e.locks.entries[lockResource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == rowUpdate && entry.holders[holder.transactions.ticket].Mode == noKeyUpdate
 			e.locks.mu.Unlock()
 			if !queued {
 				t.Fatal("not an actual DELETE rowUpdate queue")

@@ -78,7 +78,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	owner, holder := blockingUnitOwner(t, e)
 	waiter, waiting := blockingUnitOwner(t, e)
 	resource := blockingUnitResource(e)
-	if err := e.locks.acquire(context.Background(), holder, resource, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder, resource, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	request := deadlockRequest(t, e, waiting, resource, accessExclusive)
@@ -145,10 +145,10 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		b, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.acquire(context.Background(), at, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), at, resource, accessShare); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.locks.acquire(context.Background(), bt, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), bt, resource, accessShare); err != nil {
 			t.Fatal(err)
 		}
 		// A is both a conflicting holder and an earlier queued upgrader for C.
@@ -178,7 +178,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		b, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.acquire(context.Background(), at, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), at, resource, accessShare); err != nil {
 			t.Fatal(err)
 		}
 		br := deadlockRequest(t, e, bt, resource, accessExclusive)
@@ -204,10 +204,10 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
 		for _, owner := range []*relationTicket{at, bt} {
-			if err := e.locks.acquire(context.Background(), owner, resource, accessShare); err != nil {
+			if err := e.locks.Acquire(context.Background(), owner, resource, accessShare); err != nil {
 				t.Fatal(err)
 			}
-			e.locks.detachPrepared(owner)
+			e.locks.DetachPrepared(owner)
 		}
 		cr := deadlockRequest(t, e, ct, resource, accessExclusive)
 		if cr == nil {
@@ -239,7 +239,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		transactionBegin(t, high)
 		ht := high.transactions.ticket
 		resource := blockingUnitResource(e)
-		if err := e.locks.acquire(context.Background(), lt, resource, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), lt, resource, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		request := deadlockRequest(t, e, ht, resource, accessExclusive)
@@ -259,7 +259,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if request == nil {
 			t.Fatal("high holder did not block")
 		}
-		if _, err := e.blockingPidValues(next.session.ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+		if _, err := e.blockingPidValues(next.Session().ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 			t.Fatal("high live blocker", err)
 		}
 		e.endLockOwner(ht)
@@ -279,8 +279,8 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				resource = lockResource{completion: at}
 				first, later = transactionCompletion, transactionCompletion
 			} else {
-				resource.row = 1
-				if err := e.locks.acquire(context.Background(), at, resource, keyShare); err != nil {
+				resource.Row = 1
+				if err := e.locks.Acquire(context.Background(), at, resource, keyShare); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -313,12 +313,12 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 		a, at := blockingUnitOwner(t, e)
 		b, bt := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.acquire(context.Background(), at, resource, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), at, resource, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		r, err := e.locks.startAcquire(ctx, bt, resource, accessExclusive, relationLockPolicy{})
+		r, err := e.locks.StartAcquire(ctx, bt, resource, accessExclusive, relationLockPolicy{})
 		if err != nil || r == nil {
 			t.Fatal(r, err)
 		}
@@ -337,7 +337,7 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 			t.Fatal("read-only inquiry mutated queue")
 		}
 		if fence {
-			e.locks.fence(bt.ref.Epoch() + 1)
+			e.locks.Fence(bt.Ref().Epoch() + 1)
 		} else {
 			cancel()
 		}

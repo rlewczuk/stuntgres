@@ -280,7 +280,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						t.Error("due statement ERROR accepted physical FATAL before callback delivery")
 					}
 					s.mu.Unlock()
-					result = relationWaitError(op.Context(), relationLockPolicy{source: op.sourceContext, statementDeadline: op.statementDeadline}, time.Time{}, observed)
+					result = relationWaitError(op.Context(), relationLockPolicy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
 					result = scope.Finish(result)
 				} else {
 					returned, finished := make(chan error, 1), make(chan error, 1)

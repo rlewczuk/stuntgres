@@ -10,7 +10,7 @@ func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mod
 	if err != nil {
 		return err
 	}
-	return s.op.session.Engine().locks.physicalEvents(s.ticket, []multiEvent{{tuple: multiTuple{lockResource{ObjectRef: ref, row: row.row}, row.version}, mode: mode, successor: successor}})
+	return s.op.session.Engine().locks.PhysicalEvents(s.ticket, []multiEvent{{Tuple: multiTuple{lockResource{ObjectRef: ref, Row: row.row}, row.version}, Mode: mode, Successor: successor}})
 }
 
 func (s *StatementScope) flushPhysicalEvents() error {
@@ -27,7 +27,7 @@ func (s *StatementScope) flushPhysicalEvents() error {
 		s.multiEvents = events[:0]
 		return assignmentErr
 	}
-	err := s.op.session.Engine().locks.physicalEvents(s.ticket, events)
+	err := s.op.session.Engine().locks.PhysicalEvents(s.ticket, events)
 	clear(events)
 	s.multiEvents = events[:0]
 	return err

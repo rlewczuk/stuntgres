@@ -6,9 +6,9 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// registerSession admits a session's persistent advisory ticket. The engine
+// RegisterSession admits a session's persistent advisory ticket. The engine
 // has already checked the token's private-session attachment.
-func (m *relationLockManager) registerSession(token ids.SessionToken) (*relationTicket, error) {
+func (m *relationLockManager) RegisterSession(token ids.SessionToken) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if token.Domain() != m.domain || token.ID() == 0 && token.Private() == nil {
@@ -42,7 +42,7 @@ func sameLockSession(a, b *relationTicket) bool { return a.participant() == b.pa
 // PREPARE publication has completed and transaction metadata is released, but
 // the originating statement still owns admission. Concurrent completion may
 // already have retired the ticket; never resurrect it or fail after publication.
-func (m *relationLockManager) detachPrepared(t *relationTicket) {
+func (m *relationLockManager) DetachPrepared(t *relationTicket) {
 	m.mu.Lock()
 	if m.valid(t) && !t.persistent {
 		t.detached = true
@@ -71,23 +71,23 @@ func (m *relationLockManager) grant(t *relationTicket, ref lockResource, e *rela
 	if t.persistent {
 		switch mode {
 		case advisoryShared:
-			if held.shared == ^uint64(0) {
+			if held.Shared == ^uint64(0) {
 				return errors.New("stuntgres: advisory hold count exhausted")
 			}
-			held.shared++
+			held.Shared++
 		case advisoryExclusive:
-			if held.exclusive == ^uint64(0) {
+			if held.Exclusive == ^uint64(0) {
 				return errors.New("stuntgres: advisory hold count exhausted")
 			}
-			held.exclusive++
+			held.Exclusive++
 		}
-	} else if held.mode&mode == mode {
+	} else if held.Mode&mode == mode {
 		return nil
 	}
-	if t.uniqueDeltaActive && !t.persistent && ref.kind == ordinaryResource && ref.key != nil && mode&uniqueClaim != 0 && held.mode&uniqueClaim == 0 {
+	if t.uniqueDeltaActive && !t.persistent && ref.Kind == ordinaryResource && ref.key != nil && mode&uniqueClaim != 0 && held.Mode&uniqueClaim == 0 {
 		t.uniqueDelta = append(t.uniqueDelta, ref)
 	}
-	held.mode |= mode
+	held.Mode |= mode
 	if t.resources == nil {
 		t.resources = make(map[lockResource]struct{})
 	}
@@ -96,10 +96,10 @@ func (m *relationLockManager) grant(t *relationTicket, ref lockResource, e *rela
 	return nil
 }
 
-func (m *relationLockManager) unlockAdvisory(t *relationTicket, ref lockResource, mode relationLockMode) (bool, error) {
+func (m *relationLockManager) UnlockAdvisory(t *relationTicket, ref lockResource, mode relationLockMode) (bool, error) {
 	var notify *relationRequest
 	m.mu.Lock()
-	if !m.valid(t) || !t.persistent || ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource || mode != advisoryShared && mode != advisoryExclusive {
+	if !m.valid(t) || !t.persistent || ref.Kind != advisoryBigintResource && ref.Kind != advisoryPairResource || mode != advisoryShared && mode != advisoryExclusive {
 		m.mu.Unlock()
 		return false, errors.New("stuntgres: invalid advisory unlock")
 	}
@@ -110,25 +110,25 @@ func (m *relationLockManager) unlockAdvisory(t *relationTicket, ref lockResource
 	}
 	held := e.holders[t]
 	if mode == advisoryShared {
-		if held.shared == 0 {
+		if held.Shared == 0 {
 			m.mu.Unlock()
 			return false, nil
 		}
-		held.shared--
-		if held.shared == 0 {
-			held.mode &^= advisoryShared
+		held.Shared--
+		if held.Shared == 0 {
+			held.Mode &^= advisoryShared
 		}
 	} else {
-		if held.exclusive == 0 {
+		if held.Exclusive == 0 {
 			m.mu.Unlock()
 			return false, nil
 		}
-		held.exclusive--
-		if held.exclusive == 0 {
-			held.mode &^= advisoryExclusive
+		held.Exclusive--
+		if held.Exclusive == 0 {
+			held.Mode &^= advisoryExclusive
 		}
 	}
-	if held.mode == 0 {
+	if held.Mode == 0 {
 		m.removeAdvisoryHold(t, ref, e)
 	} else {
 		e.holders[t] = held
@@ -150,7 +150,7 @@ func (m *relationLockManager) removeAdvisoryHold(t *relationTicket, ref lockReso
 	delete(t.resources, ref)
 }
 
-func (m *relationLockManager) unlockAdvisoryAll(t *relationTicket) error {
+func (m *relationLockManager) UnlockAdvisoryAll(t *relationTicket) error {
 	m.mu.Lock()
 	if !m.valid(t) || !t.persistent {
 		m.mu.Unlock()
@@ -164,7 +164,7 @@ func (m *relationLockManager) unlockAdvisoryAll(t *relationTicket) error {
 
 // DISCARD's preflight validates this persistent ticket before publishing any
 // catalog effects. A live operation lease prevents terminal ticket removal.
-func (m *relationLockManager) discardAdvisoryHolds(t *relationTicket) {
+func (m *relationLockManager) DiscardAdvisoryHolds(t *relationTicket) {
 	m.mu.Lock()
 	notify := m.unlockAdvisoryHoldsLocked(t)
 	m.mu.Unlock()
@@ -185,7 +185,7 @@ func (m *relationLockManager) unlockAdvisoryHoldsLocked(t *relationTicket) *rela
 
 // Caller owns the serialized transaction operation, but no transaction,
 // session or engine metadata. Only genuine overlapping grants restrict PREPARE.
-func (m *relationLockManager) checkPreparedAdvisory(t *relationTicket) error {
+func (m *relationLockManager) CheckPreparedAdvisory(t *relationTicket) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.valid(t) || t.persistent || t.detached {
@@ -193,10 +193,10 @@ func (m *relationLockManager) checkPreparedAdvisory(t *relationTicket) error {
 	}
 	session := m.sessions[t.session]
 	for ref := range t.resources {
-		if ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource {
+		if ref.Kind != advisoryBigintResource && ref.Kind != advisoryPairResource {
 			continue
 		}
-		if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 && entry.holders[session].mode != 0 {
+		if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 && entry.holders[session].Mode != 0 {
 			return sqlError("0A000", "cannot PREPARE while holding both session-level and transaction-level locks on the same object")
 		}
 	}

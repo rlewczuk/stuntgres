@@ -95,7 +95,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						for _, old := range owners {
 							ref := e.domain.Ref(base.Epoch(), old.address)
 							entry := e.locks.entries[lockResource{ObjectRef: ref}]
-							valid = valid && entry != nil && entry.holders[scope.ticket].mode == accessExclusive && len(entry.pending) == 0
+							valid = valid && entry != nil && entry.holders[scope.ticket].Mode == accessExclusive && len(entry.pending) == 0
 						}
 						e.locks.mu.Unlock()
 						if !valid || resources != len(owners) {

@@ -56,12 +56,12 @@ func TestTruncateRestartLocks(t *testing.T) {
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: qs}]
-			valid := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive && entry.holders[holder.transactions.ticket].mode == heldMode
+			valid := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive && entry.holders[holder.transactions.ticket].Mode == heldMode
 			if valid {
 				ticket := entry.pending[0].ticket
 				for _, ref := range []ids.ObjectRef{p, q, ps} {
 					prefix := e.locks.entries[lockResource{ObjectRef: ref}]
-					valid = valid && prefix != nil && prefix.holders[ticket].mode == accessExclusive
+					valid = valid && prefix != nil && prefix.holders[ticket].Mode == accessExclusive
 				}
 			}
 			e.locks.mu.Unlock()
@@ -103,7 +103,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				if query == "SELECT * FROM p_id_seq" {
 					wantMode = accessShare
 				}
-				valid := entry != nil && entry.holders[holder.transactions.ticket].mode == accessExclusive && len(entry.pending) == 1 && entry.pending[0].mode == wantMode
+				valid := entry != nil && entry.holders[holder.transactions.ticket].Mode == accessExclusive && len(entry.pending) == 1 && entry.pending[0].mode == wantMode
 				e.locks.mu.Unlock()
 				if !valid {
 					t.Fatal("function/cache bypassed successful reset AX")
@@ -141,7 +141,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 		// dependency. TRUNCATE retains table-AX then requests sequence-AX.
 		// The existing shared detector can resolve the closing hard cycle
 		// immediately; two simultaneously pending requests are not promised.
-		if err := e.locks.acquire(context.Background(), holderTicket, lockResource{ObjectRef: ps}, shareRowExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), holderTicket, lockResource{ObjectRef: ps}, shareRowExclusive); err != nil {
 			t.Fatal(err)
 		}
 		reset, _ := truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p"))
@@ -150,10 +150,10 @@ func TestTruncateRestartLocks(t *testing.T) {
 		table := e.locks.entries[lockResource{ObjectRef: p}]
 		sequence := e.locks.entries[lockResource{ObjectRef: ps}]
 		var resetTicket *relationTicket
-		valid := table != nil && sequence != nil && len(sequence.pending) == 1 && sequence.pending[0].mode == accessExclusive && sequence.holders[holderTicket].mode == shareRowExclusive
+		valid := table != nil && sequence != nil && len(sequence.pending) == 1 && sequence.pending[0].mode == accessExclusive && sequence.holders[holderTicket].Mode == shareRowExclusive
 		if valid {
 			resetTicket = sequence.pending[0].ticket
-			valid = table.holders[resetTicket].mode == accessExclusive
+			valid = table.holders[resetTicket].Mode == accessExclusive
 		}
 		e.locks.mu.Unlock()
 		if !valid {
@@ -198,7 +198,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			{holderTicket, resetTicket, p, "AccessShareLock"},
 			{resetTicket, holderTicket, ps, "AccessExclusiveLock"},
 		} {
-			expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.ref.ID(), edge.waiter.ref.Session().ID(), edge.waiter.ref.Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.ref.ID(), edge.blocker.ref.Session().ID(), edge.blocker.ref.Epoch())] = true
+			expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.Ref().ID(), edge.waiter.Ref().Session().ID(), edge.waiter.Ref().Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.Ref().ID(), edge.blocker.Ref().Session().ID(), edge.blocker.Ref().Epoch())] = true
 		}
 		for _, line := range strings.Split(diagnostic.Detail, "\n") {
 			if !expected[line] {

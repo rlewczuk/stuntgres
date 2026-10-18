@@ -80,7 +80,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		clear(session.preparedSQL.entries)
 		// The persistent ticket was validated before publication and cannot end
 		// while this operation lease is live. Manager callbacks run unlocked.
-		e.locks.discardAdvisoryHolds(session.advisory.ticket)
+		e.locks.DiscardAdvisoryHolds(session.advisory.ticket)
 	}
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
 		session.discardPlansGeneration++
@@ -111,7 +111,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
 	session, e := s.op.session, s.op.session.Engine()
 	ticket := session.advisory.ticket
-	if !e.locks.validSession(ticket, session.token) {
+	if !e.locks.ValidSession(ticket, session.token) {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
 	}
 	e.mu.Lock()

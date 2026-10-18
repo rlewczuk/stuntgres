@@ -14,13 +14,13 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
 		d, rd := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryPairResource, high: 12, low: 13}
-		prior := lockResource{kind: advisoryBigintResource, low: 14}
+		key := lockResource{Kind: advisoryPairResource, High: 12, Low: 13}
+		prior := lockResource{Kind: advisoryBigintResource, Low: 14}
 		advisoryUnitGrant(t, a, ra, key, advisoryShared)
 		advisoryUnitGrant(t, b, rb, prior, advisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		writer, err := e.locks.startAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{source: ctx, provenance: rb})
+		writer, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: rb})
 		if err != nil || writer == nil {
 			t.Fatal(writer, err)
 		}
@@ -48,7 +48,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		if err = deadlockResult(t, second); err != nil {
 			t.Fatal(err)
 		}
-		if advisoryUnitHold(a, key).shared != 1 || advisoryUnitHold(c, key).shared != 1 || advisoryUnitHold(d, key).shared != 1 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(b, prior).exclusive != 1 {
+		if advisoryUnitHold(a, key).Shared != 1 || advisoryUnitHold(c, key).Shared != 1 || advisoryUnitHold(d, key).Shared != 1 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(b, prior).Exclusive != 1 {
 			t.Fatal("cohort/cancellation changed prior grants")
 		}
 	})
@@ -56,31 +56,31 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryBigintResource, low: 15}
+		key := lockResource{Kind: advisoryBigintResource, Low: 15}
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		request, err := e.locks.startAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{source: ctx, provenance: rb, timeout: time.Second})
+		request, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: rb, Timeout: time.Second})
 		if err != nil || request == nil {
 			t.Fatal(request, err)
 		}
 		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
 		e.locks.mu.Lock()
 		terminal := request.terminal
-		requestError := request.err
-		count := e.locks.entries[key].holders[b.advisory.ticket].exclusive
+		requestError := request.Err()
+		count := e.locks.entries[key].holders[b.advisory.ticket].Exclusive
 		e.locks.mu.Unlock()
 		if !terminal || requestError != nil || count != 1 {
 			t.Fatal("grant publication boundary", terminal, requestError, count)
 		}
 		cancel()
-		if err = deadlockResult(t, request); err != nil || advisoryUnitHold(b, key).exclusive != 1 {
+		if err = deadlockResult(t, request); err != nil || advisoryUnitHold(b, key).Exclusive != 1 {
 			t.Fatal("late cancellation retracted terminal grant", err)
 		}
 		transactionEnd(t, b, rb, false)
 		next := transactionBegin(t, b)
 		advisoryUnitGrant(t, b, next, key, advisoryExclusive)
-		if advisoryUnitHold(b, key).exclusive != 2 {
+		if advisoryUnitHold(b, key).Exclusive != 2 {
 			t.Fatal("late callback contaminated new incarnation")
 		}
 	})
@@ -88,13 +88,13 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{kind: advisoryBigintResource, low: 16}
-		prior := lockResource{kind: advisoryPairResource, high: 16, low: 17}
+		key := lockResource{Kind: advisoryBigintResource, Low: 16}
+		prior := lockResource{Kind: advisoryPairResource, High: 16, Low: 17}
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		advisoryUnitGrant(t, b, rb, prior, advisoryExclusive)
 		ctx, cancel := context.WithTimeout(context.Background(), 70*time.Millisecond)
 		t.Cleanup(cancel)
-		request, err := e.locks.startAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{source: ctx, provenance: rb})
+		request, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: rb})
 		if err != nil || request == nil {
 			t.Fatal(request, err)
 		}
@@ -104,7 +104,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		<-ctx.Done()
 		e.locks.mu.Unlock()
 		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
-		if err = deadlockResult(t, request); !errors.Is(err, context.DeadlineExceeded) || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(b, prior).exclusive != 1 {
+		if err = deadlockResult(t, request); !errors.Is(err, context.DeadlineExceeded) || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(b, prior).Exclusive != 1 {
 			t.Fatal("delayed source callback granted/count leak", err)
 		}
 	})

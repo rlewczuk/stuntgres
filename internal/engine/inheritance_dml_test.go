@@ -31,7 +31,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 	s.lockedRef = e.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	s.lockedDescriptor = p
 	s.lockedStorage = e.storage[p.address]
-	if err = e.locks.acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
+	if err = e.locks.Acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
 		s.Finish(err)
 		done()
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 		}
 		seen[ref] = true
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
-		if entry == nil || entry.holders[s.ticket].mode&rowExclusive == 0 {
+		if entry == nil || entry.holders[s.ticket].Mode&rowExclusive == 0 {
 			e.locks.mu.Unlock()
 			t.Fatal("missing physical RX grant", ref)
 		}

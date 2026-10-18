@@ -29,7 +29,7 @@ func TestMergeUpdateRowLocks(t *testing.T) {
 			e.locks.mu.Lock()
 			rowWait := false
 			for resource, entry := range e.locks.entries {
-				if resource.ObjectRef == ref && resource.row != 0 && len(entry.pending) == 1 {
+				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.pending) == 1 {
 					rowWait = true
 				}
 			}

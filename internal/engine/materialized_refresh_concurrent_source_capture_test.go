@@ -66,7 +66,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	holderTx := transactionBegin(t, holder)
 	gateRef := e.domain.Ref(e.state.epoch, gate.address)
 	defer e.endLockOwner(holder.transactions.ticket)
-	if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: gateRef}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: gateRef}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -96,10 +96,10 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		entry := e.locks.entries[lockResource{ObjectRef: gateRef}]
 		waiting := entry != nil && len(entry.pending) == 1 &&
 			entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare &&
-			entry.holders[holder.transactions.ticket].mode&accessExclusive != 0
+			entry.holders[holder.transactions.ticket].Mode&accessExclusive != 0
 		innerRef := e.domain.Ref(gateRef.Epoch, inner.address)
 		innerEntry := e.locks.entries[lockResource{ObjectRef: innerRef}]
-		granted := innerEntry != nil && innerEntry.holders[scope.ticket].mode&accessShare != 0
+		granted := innerEntry != nil && innerEntry.holders[scope.ticket].Mode&accessShare != 0
 		e.locks.mu.Unlock()
 		if !waiting || !granted {
 			t.Fatal("not the actual gate AS wait with inner AS granted")

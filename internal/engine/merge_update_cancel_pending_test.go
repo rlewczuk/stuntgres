@@ -80,15 +80,15 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	}
 	if targetOnly {
 		sessionSQL(t, worker, "ROLLBACK TO before_cancel")
-		resource := lockResource{ObjectRef: ref, row: row}
+		resource := lockResource{ObjectRef: ref, Row: row}
 		e.locks.mu.Lock()
 		entry := e.locks.entries[resource]
-		held := entry != nil && entry.holders[worker.transactions.ticket].mode != 0
+		held := entry != nil && entry.holders[worker.transactions.ticket].Mode != 0
 		_, journaled := worker.transactions.ticket.resources[resource]
 		pending := false
 		if entry != nil {
 			for _, request := range entry.pending {
-				pending = pending || !request.terminal && request.ticket.ref.Session() == worker.token
+				pending = pending || !request.terminal && request.ticket.Ref().Session() == worker.token
 			}
 		}
 		e.locks.mu.Unlock()

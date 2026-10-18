@@ -54,7 +54,7 @@ func TestBtreeIndexExplicitExclusionBeforeTargets(t *testing.T) {
 								seenShare = true
 							}
 						}
-						if entry.holders[ticket].mode&relationShare != 0 {
+						if entry.holders[ticket].Mode&relationShare != 0 {
 							seenShare = true
 						}
 					}

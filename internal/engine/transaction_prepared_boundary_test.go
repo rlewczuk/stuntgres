@@ -604,7 +604,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	var resource lockResource
 	found := false
 	for held := range entry.ticket.resources {
-		if held.row == 0 && held.key == nil && held.Address == parent {
+		if held.Row == 0 && held.key == nil && held.Address == parent {
 			resource, found = held, true
 			break
 		}
@@ -614,7 +614,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	}
 	waitContext, cancelWaiter := context.WithCancel(context.Background())
 	defer cancelWaiter()
-	request, err := e.locks.startAcquire(waitContext, waiter.transactions.ticket, resource, accessShare, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(waitContext, waiter.transactions.ticket, resource, accessShare, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal("waiter was not queued behind prepared table hold", err)
 	}
@@ -644,7 +644,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	})
 	go func() {
 		defer close(observed)
-		if err := request.wait(); err != nil {
+		if err := request.Wait(); err != nil {
 			if waitContext.Err() == nil {
 				t.Error(err)
 			}

@@ -32,7 +32,7 @@ func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
 		record := e.transactionHistory[prior]
 		live := record.ticket == nil && record.state == ids.TxInProgress
 		if record.ticket != nil {
-			live = !record.ticket.ownershipEnded() && record.ticket.assignedFullXID() == prior
+			live = !record.ticket.OwnershipEnded() && record.ticket.AssignedFullXID() == prior
 		}
 		if live {
 			return errors.New("stuntgres: live transaction identity collision")
@@ -61,8 +61,8 @@ func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
 	e.assignedXID = full
 	v.assignedXID, v.fullXID = xid, full
 	if v.ticket != nil {
-		v.ticket.mirrorFullXID(full)
-		v.ticket.mirrorCompletion(ids.TxInProgress)
+		v.ticket.MirrorFullXID(full)
+		v.ticket.MirrorCompletion(ids.TxInProgress)
 	}
 	e.visibility[ref] = v
 	if node := e.serializable.nodes[ref]; node != nil {

@@ -24,7 +24,7 @@ func TestUpdateFromStoredSourceMarksOwnFrontier(t *testing.T) {
 		e.locks.mu.Lock()
 		sourceWait := false
 		for resource, entry := range e.locks.entries {
-			if resource.ObjectRef == sref && resource.row != 0 && len(entry.pending) == 1 {
+			if resource.ObjectRef == sref && resource.Row != 0 && len(entry.pending) == 1 {
 				sourceWait = true
 			}
 		}

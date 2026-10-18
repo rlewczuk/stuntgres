@@ -127,18 +127,18 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if tc.mark != 0 {
 				mode = relationRowShare
 			}
-			if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: viewRef}, mode); err != nil {
+			if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: viewRef}, mode); err != nil {
 				t.Fatal(err)
 			}
 			if tc.direct {
 				scope.querySources = append(scope.querySources, queryLeaf{ref: parentRef, relation: parent, storage: parentStorage})
-				if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
+				if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if tc.overlapping {
 				scope.querySources = append(scope.querySources, queryLeaf{ref: otherRef, relation: otherView})
-				if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: otherRef}, accessShare); err != nil {
+				if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: otherRef}, accessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -161,7 +161,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				if holdErr = holder.gate(&parser.Select{}); holdErr != nil {
 					t.Fatal(holdErr)
 				}
-				if holdErr = e.locks.acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: parentRef}, accessExclusive); holdErr != nil {
+				if holdErr = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: parentRef}, accessExclusive); holdErr != nil {
 					t.Fatal(holdErr)
 				}
 				result := make(chan error, 1)
@@ -230,7 +230,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				e.locks.mu.Lock()
 				var got relationLockMode
 				if entry := e.locks.entries[lockResource{ObjectRef: want.ref}]; entry != nil {
-					got = entry.holders[scope.ticket].mode
+					got = entry.holders[scope.ticket].Mode
 				}
 				e.locks.mu.Unlock()
 				if got != want.mode {
@@ -307,7 +307,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if err = peer.gate(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			request, err := e.locks.startAcquire(peerCtx, peer.ticket, lockResource{ObjectRef: parentRef}, relationExclusive, relationLockPolicy{timeoutSlot: &peerOp.lockWait})
+			request, err := e.locks.StartAcquire(peerCtx, peer.ticket, lockResource{ObjectRef: parentRef}, relationExclusive, relationLockPolicy{TimeoutSlot: &peerOp.lockWait})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -330,7 +330,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			if request != nil {
-				if err = request.wait(); err != nil {
+				if err = request.Wait(); err != nil {
 					t.Fatal("peer did not resume after source cleanup", err)
 				}
 			}

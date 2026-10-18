@@ -301,9 +301,9 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: prior}]
-			priorHeld := entry != nil && entry.holders[readerTicket].mode&accessShare != 0
+			priorHeld := entry != nil && entry.holders[readerTicket].Mode&accessShare != 0
 			first := e.locks.entries[lockResource{ObjectRef: left}]
-			joinHeld := first != nil && first.holders[readerTicket].mode&accessShare != 0
+			joinHeld := first != nil && first.holders[readerTicket].Mode&accessShare != 0
 			e.locks.mu.Unlock()
 			if !priorHeld || !joinHeld {
 				t.Fatal("join admission lost earlier authority or failed to acquire its first leaf", priorHeld, joinHeld)
@@ -312,11 +312,11 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			lockAwait(t, done, context.Canceled)
 			e.locks.mu.Lock()
 			entry = e.locks.entries[lockResource{ObjectRef: prior}]
-			priorHeld = entry != nil && entry.holders[readerTicket].mode&accessShare != 0
+			priorHeld = entry != nil && entry.holders[readerTicket].Mode&accessShare != 0
 			other := e.locks.entries[lockResource{ObjectRef: right}]
-			holderHeld := other != nil && other.holders[holderTicket].mode&accessExclusive != 0 && other.holders[readerTicket].mode == 0 && len(other.pending) == 0
+			holderHeld := other != nil && other.holders[holderTicket].Mode&accessExclusive != 0 && other.holders[readerTicket].Mode == 0 && len(other.pending) == 0
 			first = e.locks.entries[lockResource{ObjectRef: left}]
-			joinHeld = first != nil && first.holders[readerTicket].mode&accessShare != 0
+			joinHeld = first != nil && first.holders[readerTicket].Mode&accessShare != 0
 			e.locks.mu.Unlock()
 			// Full abort ends the reader ticket and all its grants. Savepoint
 			// abort retains the ticket and premark grant, but releases the

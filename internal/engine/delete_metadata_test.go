@@ -29,7 +29,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				e.mu.Lock()
 				row := e.storage[target.Address].versions[0].row
 				e.mu.Unlock()
-				resource := lockResource{ObjectRef: target, row: row}
+				resource := lockResource{ObjectRef: target, Row: row}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				done := deleteAsync(t, b, ctx, "DELETE FROM t WHERE v<=2")
@@ -40,7 +40,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				if entry != nil && len(entry.pending) == 1 {
 					request = entry.pending[0]
 				}
-				queued := request != nil && request.ticket == waiter && request.ref == resource && request.mode == rowUpdate && !request.terminal && entry.holders[a.transactions.ticket].mode == rowUpdate
+				queued := request != nil && request.ticket == waiter && request.ref == resource && request.mode == rowUpdate && !request.terminal && entry.holders[a.transactions.ticket].Mode == rowUpdate
 				e.locks.mu.Unlock()
 				if !queued {
 					t.Fatal("DELETE not actually queued on the original row resource")

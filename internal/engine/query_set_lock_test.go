@@ -304,7 +304,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 				e.locks.mu.Lock()
 				var got relationLockMode
 				if entry := e.locks.entries[lockResource{ObjectRef: want.ref}]; entry != nil {
-					got = entry.holders[scope.ticket].mode
+					got = entry.holders[scope.ticket].Mode
 				}
 				e.locks.mu.Unlock()
 				if got != want.mode {

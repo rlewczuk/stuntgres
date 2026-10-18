@@ -31,7 +31,7 @@ var pgLockModes = [...]struct {
 }
 
 func (owner pgLockOwner) virtualTransaction() string {
-	return strconv.FormatUint(uint64(owner.session), 10) + "/" + strconv.FormatUint(uint64(owner.local), 10)
+	return strconv.FormatUint(uint64(owner.Session), 10) + "/" + strconv.FormatUint(uint64(owner.Local), 10)
 }
 
 // Engine.mu is held. The retained node's exact ref supplies original backend
@@ -50,7 +50,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
 			continue
 		}
 		for address := range node.reads {
-			records = append(records, pgLockRecord{kind: pgPredicateLock, owner: owner, object: uint32(address.ObjectID)})
+			records = append(records, pgLockRecord{Kind: pgPredicateLock, Owner: owner, Object: uint32(address.ObjectID)})
 		}
 	}
 	return records, nil
@@ -70,7 +70,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	if err != nil {
 		return nil, err
 	}
-	records, err := e.locks.snapshotPGLocks(epoch)
+	records, err := e.locks.PGLocks(epoch)
 	if err != nil {
 		return nil, err
 	}
@@ -90,12 +90,12 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ordinary, predicates []pgLockRecord) ([][]sqltype.Value, error) {
 	count := len(predicates)
 	for _, record := range ordinary {
-		if record.kind == pgVirtualLock || record.kind == pgTransactionLock {
+		if record.Kind == pgVirtualLock || record.Kind == pgTransactionLock {
 			count++
 			continue
 		}
 		for _, mode := range pgLockModes {
-			if record.mode&mode.mode != 0 {
+			if record.Mode&mode.mode != 0 {
 				count++
 			}
 		}
@@ -107,11 +107,11 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			ownerText := record.owner.virtualTransaction()
-			switch record.kind {
+			ownerText := record.Owner.virtualTransaction()
+			switch record.Kind {
 			case pgVirtualLock, pgTransactionLock:
 				mode := "ExclusiveLock"
-				if record.waiting {
+				if record.Waiting {
 					mode = "ShareLock"
 				}
 				row, err := pgLockRow(d, database, record, mode, ownerText, values[len(rows)*16:(len(rows)+1)*16:(len(rows)+1)*16])
@@ -127,7 +127,7 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 				rows = append(rows, row)
 			default:
 				for _, mode := range pgLockModes {
-					if record.mode&mode.mode == 0 {
+					if record.Mode&mode.mode == 0 {
 						continue
 					}
 					row, err := pgLockRow(d, database, record, mode.name, ownerText, values[len(rows)*16:(len(rows)+1)*16:(len(rows)+1)*16])
@@ -160,43 +160,43 @@ func pgLockRow(d *relationDescriptor, database uint32, record pgLockRecord, mode
 	integer := func(i int, n int64) { row[i] = checked(sqltype.Integer(d.columns[i].Usage.Type, n)) }
 	text := func(i int, value string) { row[i] = sqltype.String(d.columns[i].Usage.Type, value) }
 	kind := ""
-	switch record.kind {
+	switch record.Kind {
 	case pgRelationLock, pgPredicateLock:
 		kind = "relation"
 		oid(1, database)
-		oid(2, record.object)
+		oid(2, record.Object)
 	case pgObjectLock, pgAdvisoryLock:
 		kind = "object"
-		if record.kind == pgAdvisoryLock {
+		if record.Kind == pgAdvisoryLock {
 			kind = "advisory"
 		}
 		oid(1, database)
-		oid(7, record.class)
-		oid(8, record.object)
-		integer(9, int64(record.subobject))
+		oid(7, record.Class)
+		oid(8, record.Object)
+		integer(9, int64(record.Subobject))
 	case pgVirtualLock:
 		kind = "virtualxid"
 		targetText := ownerText
-		if record.target != record.owner {
-			targetText = record.target.virtualTransaction()
+		if record.Target != record.Owner {
+			targetText = record.Target.virtualTransaction()
 		}
 		text(5, targetText)
 	case pgTransactionLock:
 		kind = "transactionid"
-		row[6] = checked(sqltype.XIDValue(d.columns[6].Usage.Type, record.xid))
+		row[6] = checked(sqltype.XIDValue(d.columns[6].Usage.Type, record.XID))
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown public lock kind")
 	}
 	text(0, kind)
 	text(10, ownerText)
-	if !record.owner.prepared {
-		integer(11, int64(record.owner.session))
+	if !record.Owner.Prepared {
+		integer(11, int64(record.Owner.Session))
 	}
 	text(12, mode)
-	row[13] = sqltype.Boolean(d.columns[13].Usage.Type, !record.waiting)
+	row[13] = sqltype.Boolean(d.columns[13].Usage.Type, !record.Waiting)
 	row[14] = sqltype.Boolean(d.columns[14].Usage.Type, false)
-	if record.waiting {
-		row[15] = checked(sqltype.TimestampFromTime(d.columns[15].Usage.Type, record.waitstart.UTC()))
+	if record.Waiting {
+		row[15] = checked(sqltype.TimestampFromTime(d.columns[15].Usage.Type, record.WaitStart.UTC()))
 	}
 	return row, failure
 }

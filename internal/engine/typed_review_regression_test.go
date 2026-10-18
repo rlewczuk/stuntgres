@@ -125,7 +125,7 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 				e.locks.mu.Lock()
 				if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
 					for _, holder := range entry.holders {
-						granted = granted || holder.mode == accessShare
+						granted = granted || holder.Mode == accessShare
 					}
 				}
 				e.locks.mu.Unlock()

@@ -71,9 +71,9 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 				}
 				f.e.locks.mu.Lock()
 				entry := f.e.locks.entries[lockResource{ObjectRef: parentRef}]
-				mode := entry.holders[owner.transactions.ticket].mode
+				mode := entry.holders[owner.transactions.ticket].Mode
 				childEntry := f.e.locks.entries[lockResource{ObjectRef: ref}]
-				childHeld := childEntry != nil && childEntry.holders[owner.transactions.ticket].mode != 0
+				childHeld := childEntry != nil && childEntry.holders[owner.transactions.ticket].Mode != 0
 				f.e.locks.mu.Unlock()
 				if mode != accessShare || childHeld {
 					t.Fatal("post-savepoint AX contributions survived", mode, childHeld)

@@ -162,7 +162,7 @@ func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]relationLockMode) error {
 	e := s.op.session.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, ref := range refs {
 		e.mu.Lock()
 		d, _ := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
@@ -175,14 +175,14 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		if modes[ref] != 0 {
 			mode = relationRowShare
 		}
-		request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			s.admissionWaited = true
 			if s.replacementRead {
 				e.replacementMu.RUnlock()
 				s.replacementRead = false
 			}
-			err = request.wait()
+			err = request.Wait()
 		}
 		if err != nil {
 			return err

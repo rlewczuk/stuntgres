@@ -15,8 +15,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 	c := s.insertConflict
 	e := s.op.session.Engine()
 	manager := e.locks
-	manager.beginUniqueDelta(s.ticket)
-	defer manager.endUniqueDelta(s.ticket)
+	manager.BeginUniqueDelta(s.ticket)
+	defer manager.EndUniqueDelta(s.ticket)
 	// Borrow the producer's one captured query state and canonical parameters.
 	// Action columns are an independent target/excluded frame, not source rows.
 	evaluation := *proposalEvaluation
@@ -36,7 +36,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return err
 			}
 			if c.catalog != s.uniqueBinding.catalog {
-				manager.restoreUniqueDelta(s.ticket)
+				manager.RestoreUniqueDelta(s.ticket)
 				s.discardExclusionCandidate(ref, candidate)
 				continue
 			}
@@ -57,7 +57,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 					return err
 				}
 				if retry {
-					manager.restoreUniqueDelta(s.ticket)
+					manager.RestoreUniqueDelta(s.ticket)
 					s.discardExclusionCandidate(ref, candidate)
 					continue
 				}
@@ -74,7 +74,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		}
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
-		manager.restoreUniqueDelta(s.ticket)
+		manager.RestoreUniqueDelta(s.ticket)
 		s.discardExclusionCandidate(ref, candidate)
 		mode := noKeyUpdate
 		for _, target := range c.updateTargets {
@@ -100,7 +100,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		if checked.index == nil || checked.row.row != old.row || checked.row.version != old.version {
-			manager.restoreUniqueDelta(s.ticket)
+			manager.RestoreUniqueDelta(s.ticket)
 			s.discardExclusionCandidate(ref, candidate)
 			continue
 		}
@@ -125,7 +125,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		if !matches {
-			manager.restoreUniqueDelta(s.ticket)
+			manager.RestoreUniqueDelta(s.ticket)
 			s.discardExclusionCandidate(ref, candidate)
 			return nil
 		}

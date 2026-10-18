@@ -144,14 +144,14 @@ func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
 
 func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode relationLockMode) error {
 	e := s.op.session.Engine()
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext})
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext})
 	if request != nil {
 		s.admissionWaited = true
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		err = request.wait()
+		err = request.Wait()
 	}
 	if err != nil {
 		return err

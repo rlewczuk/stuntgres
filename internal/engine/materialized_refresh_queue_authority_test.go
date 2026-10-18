@@ -32,7 +32,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if concurrent {
 				mode = relationExclusive
 			}
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, mode); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

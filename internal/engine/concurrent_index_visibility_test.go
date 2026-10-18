@@ -77,7 +77,7 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	e.mu.Lock()
 	bare := e.visibilityXID == counter
 	for ref, v := range e.visibility {
-		bare = bare && v.xid == 0 && v.xmin == 0 && v.assignedXID == 0 && !v.snapshot && !v.safeBuilder && v.ticket != nil && v.ticket.ref == ref
+		bare = bare && v.xid == 0 && v.xmin == 0 && v.assignedXID == 0 && !v.snapshot && !v.safeBuilder && v.ticket != nil && v.ticket.Ref() == ref
 	}
 	e.mu.Unlock()
 	if !bare {
@@ -163,7 +163,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	concurrentUnitCompletion(t, e, late.transactions.ticket, builder)
 	e.mu.Lock()
 	self, associated := e.visibility[scope.txRef]
-	mirroredXID := scope.ticket.assignedPublicXID()
+	mirroredXID := scope.ticket.AssignedPublicXID()
 	e.mu.Unlock()
 	// Phase reset withdraws all ordering/snapshot advertisement, not the
 	// registered ticket's canonical assignment association.

@@ -31,7 +31,7 @@ func TestTruncateGraphPartitions(t *testing.T) {
 			hold, ok = entry.holders[scope.ticket]
 		}
 		e.locks.mu.Unlock()
-		if !ok || hold.mode&accessExclusive == 0 {
+		if !ok || hold.Mode&accessExclusive == 0 {
 			t.Fatal("missing canonical hierarchy AX", ref)
 		}
 	}
@@ -66,7 +66,7 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	entry := e.locks.entries[lockResource{ObjectRef: p}]
 	var mode relationLockMode
 	if entry != nil {
-		mode = entry.holders[ticket].mode
+		mode = entry.holders[ticket].Mode
 	}
 	e.locks.mu.Unlock()
 	if mode&accessExclusive == 0 {

@@ -90,12 +90,12 @@ func TestRelationLockCompatibility(t *testing.T) {
 				ra := transactionBegin(t, a)
 				rb := transactionBegin(t, b)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, held); err != nil {
+				if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, held); err != nil {
 					t.Fatal(err)
 				}
 				done := make(chan error, 1)
 				go func() {
-					done <- e.locks.acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, request)
+					done <- e.locks.Acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, request)
 				}()
 				// PostgreSQL Table 13.2: SRX permits readers but excludes RX,
 				// SUE and other SRX holders; SUE otherwise permits RX.
@@ -127,25 +127,25 @@ func TestRelationLockCompatibility(t *testing.T) {
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
 		ticket := a.transactions.ticket
-		if err := e.locks.acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		done := make(chan error, 1)
 		go func() {
-			done <- e.locks.acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive)
+			done <- e.locks.Acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive)
 		}()
 		lockPending(t, e, 1)
 		for _, mode := range modes {
-			if err := e.locks.acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, mode); err != nil {
+			if err := e.locks.Acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 		}
 		copy := *ticket
-		if err := e.locks.acquire(context.Background(), &copy, lockResource{ObjectRef: ref}, accessShare); err == nil {
+		if err := e.locks.Acquire(context.Background(), &copy, lockResource{ObjectRef: ref}, accessShare); err == nil {
 			t.Fatal("copied ticket accepted")
 		}
 		for _, mode := range []relationLockMode{0, rowUpdate, accessShare | rowExclusive, shareRowExclusive | accessShare} {
-			if err := e.locks.acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, mode); err == nil {
+			if err := e.locks.Acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, mode); err == nil {
 				t.Fatal("invalid mode accepted")
 			}
 		}
@@ -165,18 +165,18 @@ func TestRelationLockCancellation(t *testing.T) {
 	rb := transactionBegin(t, b)
 	rc := transactionBegin(t, c)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	ax := make(chan error, 1)
 	go func() {
-		ax <- e.locks.acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive)
+		ax <- e.locks.Acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive)
 	}()
 	lockPending(t, e, 1)
 	rx := make(chan error, 1)
 	go func() {
-		rx <- e.locks.acquire(context.Background(), c.transactions.ticket, lockResource{ObjectRef: ref}, rowExclusive)
+		rx <- e.locks.Acquire(context.Background(), c.transactions.ticket, lockResource{ObjectRef: ref}, rowExclusive)
 	}()
 	lockPending(t, e, 2)
 	cancel()

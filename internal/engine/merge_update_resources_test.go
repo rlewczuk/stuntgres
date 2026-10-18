@@ -35,7 +35,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			row := e.storage[ref.Address].versions[0].row
-			resource := lockResource{ObjectRef: ref, row: row}
+			resource := lockResource{ObjectRef: ref, Row: row}
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT before_merge")
 			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id " + tc.arms
@@ -47,7 +47,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			entry := e.locks.entries[resource]
 			var mode relationLockMode
 			if entry != nil {
-				mode = entry.holders[s.transactions.ticket].mode
+				mode = entry.holders[s.transactions.ticket].Mode
 			}
 			_, journaled := s.transactions.ticket.resources[resource]
 			e.locks.mu.Unlock()
@@ -58,7 +58,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			sessionSQL(t, s, "ROLLBACK TO before_merge")
 			e.locks.mu.Lock()
 			entry = e.locks.entries[resource]
-			held := entry != nil && entry.holders[s.transactions.ticket].mode != 0
+			held := entry != nil && entry.holders[s.transactions.ticket].Mode != 0
 			_, journaled = s.transactions.ticket.resources[resource]
 			e.locks.mu.Unlock()
 			if held || journaled {

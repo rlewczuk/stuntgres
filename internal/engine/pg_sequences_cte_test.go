@@ -102,7 +102,7 @@ func pgSequencesCTEHolder(t *testing.T, e *Engine, s *Session, used bool) {
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
 		var mode relationLockMode
 		if entry != nil {
-			mode = entry.holders[s.transactions.ticket].mode
+			mode = entry.holders[s.transactions.ticket].Mode
 		}
 		e.locks.mu.Unlock()
 		var want relationLockMode

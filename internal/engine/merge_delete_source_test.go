@@ -34,7 +34,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			cursor.beforeClose = func() {
 				e.locks.mu.Lock()
 				for resource, entry := range e.locks.entries {
-					if resource.ObjectRef == b.ref && resource.row != 0 && (len(entry.holders) != 0 || len(entry.pending) != 0) {
+					if resource.ObjectRef == b.ref && resource.Row != 0 && (len(entry.holders) != 0 || len(entry.pending) != 0) {
 						premature = true
 					}
 				}

@@ -133,17 +133,17 @@ func TestDeleteUsingSourceAdmissionRefresh(t *testing.T) {
 			e.locks.mu.Lock()
 			var targetRX, sourceAS, sourceWait bool
 			for resource, entry := range e.locks.entries {
-				if resource.ObjectRef == target && resource.row == 0 {
+				if resource.ObjectRef == target && resource.Row == 0 {
 					for _, mode := range entry.holders {
-						targetRX = targetRX || mode.mode&rowExclusive != 0
+						targetRX = targetRX || mode.Mode&rowExclusive != 0
 					}
 				}
-				if resource.ObjectRef == source && resource.row == 0 {
+				if resource.ObjectRef == source && resource.Row == 0 {
 					for _, mode := range entry.holders {
-						sourceAS = sourceAS || mode.mode&accessShare != 0
+						sourceAS = sourceAS || mode.Mode&accessShare != 0
 					}
 				}
-				if resource.ObjectRef == blocked && resource.row == 0 {
+				if resource.ObjectRef == blocked && resource.Row == 0 {
 					sourceWait = len(entry.pending) == 1 && entry.pending[0].mode == accessShare
 				}
 			}

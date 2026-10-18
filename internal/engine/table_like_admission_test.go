@@ -124,7 +124,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: ref}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].mode&accessExclusive != 0
+			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].Mode&accessExclusive != 0
 			e.locks.mu.Unlock()
 			if !queued {
 				t.Fatal("not queued on exact captured provider", ref)
@@ -181,7 +181,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				assertHeld := func() {
 					e.locks.mu.Lock()
 					entry := e.locks.entries[lockResource{ObjectRef: ref}]
-					held := entry != nil && entry.holders[scope.ticket].mode&accessShare != 0
+					held := entry != nil && entry.holders[scope.ticket].Mode&accessShare != 0
 					e.locks.mu.Unlock()
 					if !held {
 						t.Fatal("provider hold lost before publication finished")

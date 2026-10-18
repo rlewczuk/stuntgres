@@ -57,7 +57,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			if tc.target {
 				ref.Address = d.address
 			}
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, tc.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())

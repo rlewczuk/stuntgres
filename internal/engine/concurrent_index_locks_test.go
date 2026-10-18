@@ -14,8 +14,8 @@ import (
 func concurrentUnitRequestWait(t *testing.T, request *relationRequest) error {
 	t.Helper()
 	select {
-	case <-request.done:
-		return request.wait()
+	case <-request.Done():
+		return request.Wait()
 	case <-time.After(5 * time.Second):
 		t.Fatal("completion request did not terminate")
 		return nil
@@ -36,7 +36,7 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 	lockPending(t, e, 2)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	exact := len(entry.pending) == 2 && entry.pending[0].mode == relationShare && entry.pending[0].ticket.ref.Session() == b.token && entry.pending[1].mode == rowExclusive && entry.pending[1].ticket.ref.Session() == c.token && entry.holders[a.transactions.ticket].mode&rowExclusive != 0
+	exact := len(entry.pending) == 2 && entry.pending[0].mode == relationShare && entry.pending[0].ticket.Ref().Session() == b.token && entry.pending[1].mode == rowExclusive && entry.pending[1].ticket.Ref().Session() == c.token && entry.holders[a.transactions.ticket].Mode&rowExclusive != 0
 	e.locks.mu.Unlock()
 	if !exact {
 		t.Fatal("ordinary Share build did not precede and block later RX request")
@@ -52,7 +52,7 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 	rows := sessionSQL(t, d, "SELECT n FROM t ORDER BY n")
 	rows.Rows.Close()
 	e.locks.mu.Lock()
-	compatible := entry.holders[d.transactions.ticket].mode&accessShare != 0 && len(entry.pending) == 2
+	compatible := entry.holders[d.transactions.ticket].Mode&accessShare != 0 && len(entry.pending) == 2
 	e.locks.mu.Unlock()
 	if !compatible {
 		t.Fatal("compatible reader did not obtain real grant across Share/RX queue")
@@ -86,12 +86,12 @@ func TestConcurrentIndexU2CapturedWriterCohortAndTopLevelOutcome(t *testing.T) {
 	wait := concurrentUnitCompletion(t, e, owner, b)
 	e.locks.mu.Lock()
 	parentEntry := e.locks.entries[lockResource{ObjectRef: ref}]
-	actual := parentEntry.holders[wait.ticket].mode&shareUpdateExclusive != 0 && parentEntry.holders[wait.ticket].mode&relationShare == 0 && len(parentEntry.pending) == 0
+	actual := parentEntry.holders[wait.ticket].Mode&shareUpdateExclusive != 0 && parentEntry.holders[wait.ticket].Mode&relationShare == 0 && len(parentEntry.pending) == 0
 	e.locks.mu.Unlock()
 	if !actual {
 		t.Fatal("concurrent builder used a queued parent Share acquisition")
 	}
-	cohort, err := e.locks.indexWriters(wait.ticket, ref)
+	cohort, err := e.locks.IndexWriters(wait.ticket, ref)
 	if err != nil || len(cohort) != 1 || cohort[0] != owner {
 		t.Fatal(cohort, err)
 	}
@@ -101,9 +101,9 @@ func TestConcurrentIndexU2CapturedWriterCohortAndTopLevelOutcome(t *testing.T) {
 		t.Fatal("later writer mutated captured cohort")
 	}
 	// Removing all relation contributions must not discharge completion ownership.
-	e.locks.restore(owner, nil)
+	e.locks.Restore(owner, nil)
 	e.locks.mu.Lock()
-	stillWaiting := !wait.terminal && wait.entry.holders[owner].mode == transactionCompletion
+	stillWaiting := !wait.terminal && wait.entry.holders[owner].Mode == transactionCompletion
 	e.locks.mu.Unlock()
 	if !stillWaiting {
 		t.Fatal("savepoint/contribution release impersonated transaction outcome")
@@ -127,19 +127,19 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(n INT)")
 	ta, tb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := roleTableRef(t, e, "t")
-	if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, rowExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, rowExclusive); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.locks.acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, shareUpdateExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, shareUpdateExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	completion, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{completion: a.transactions.ticket}, transactionCompletion, relationLockPolicy{completionPurpose: completionVirtual})
+	completion, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lockResource{completion: a.transactions.ticket}, transactionCompletion, relationLockPolicy{CompletionPurpose: completionVirtual})
 	if err != nil || completion == nil {
 		t.Fatal(completion, err)
 	}
-	exclusive, err := e.locks.startAcquire(ctx, a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive, relationLockPolicy{})
+	exclusive, err := e.locks.StartAcquire(ctx, a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive, relationLockPolicy{})
 	if err != nil || exclusive == nil {
 		t.Fatal(exclusive, err)
 	}
@@ -155,7 +155,7 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 		t.Fatal(diagnostic)
 	}
 	e.locks.mu.Lock()
-	hardSurvives := !completion.terminal && completion.entry.holders[a.transactions.ticket].mode == transactionCompletion
+	hardSurvives := !completion.terminal && completion.entry.holders[a.transactions.ticket].Mode == transactionCompletion
 	e.locks.mu.Unlock()
 	if !hardSurvives {
 		t.Fatal("hard completion edge was removed or reordered as a soft relation queue")
@@ -177,14 +177,14 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			owner, waiter := a.transactions.ticket, b.transactions.ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			policy := relationLockPolicy{completionPurpose: completionVirtual}
+			policy := relationLockPolicy{CompletionPurpose: completionVirtual}
 			if mode == "lock_deadline" {
-				policy.timeout = time.Nanosecond
+				policy.Timeout = time.Nanosecond
 			}
 			if mode == "statement_deadline" {
-				policy.statementDeadline = time.Now().Add(-time.Second)
+				policy.StatementDeadline = time.Now().Add(-time.Second)
 			}
-			request, err := e.locks.startAcquire(ctx, waiter, lockResource{completion: owner}, transactionCompletion, policy)
+			request, err := e.locks.StartAcquire(ctx, waiter, lockResource{completion: owner}, transactionCompletion, policy)
 			if mode == "statement_deadline" {
 				var diagnostic *sqlstate.Error
 				if request != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "57014" {
@@ -212,13 +212,13 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 					}
 					cancel()
 					// An ended exact owner is immediately complete; no new virtual authority.
-					next, err := e.locks.startAcquire(context.Background(), waiter, lockResource{completion: owner}, transactionCompletion, relationLockPolicy{completionPurpose: completionVirtual})
+					next, err := e.locks.StartAcquire(context.Background(), waiter, lockResource{completion: owner}, transactionCompletion, relationLockPolicy{CompletionPurpose: completionVirtual})
 					if next != nil || err != nil {
 						t.Fatal(next, err)
 					}
 					e.locks.mu.Lock()
 					_, retained := waiter.resources[lockResource{completion: owner}]
-					terminal := request.terminal && request.err == nil
+					terminal := request.terminal && request.Err() == nil
 					e.locks.mu.Unlock()
 					if retained || !terminal {
 						t.Fatal("late callback retained or retracted successful completion")

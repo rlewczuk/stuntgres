@@ -50,7 +50,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		t.Fatal(err)
 	}
 	old := e.domain.Ref(e.CatalogRead().Epoch(), c.address)
-	if err = e.locks.acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

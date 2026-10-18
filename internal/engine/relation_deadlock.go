@@ -154,8 +154,8 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 			detail.WriteByte('\n')
 		}
 		r, blocker := edge.request, edge.blocker
-		if r.ref.kind != ordinaryResource {
-			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.ID(), deadlockMode(r.mode), r.ref.high, r.ref.low, r.ref.kind, blocker.session.ID())
+		if r.ref.Kind != ordinaryResource {
+			fmt.Fprintf(&detail, "Session %d waits for %s on advisory lock [%d,%d,%d]; blocked by session %d.", r.ticket.session.ID(), deadlockMode(r.mode), r.ref.High, r.ref.Low, r.ref.Kind, blocker.session.ID())
 			continue
 		}
 		if r.ref.completion != nil {
@@ -166,8 +166,8 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 				kind = "type"
 			}
 			fmt.Fprintf(&detail, "Transaction %d (session %d, epoch %d) waits for %s on %s %d (class %d, sub-ID %d, epoch %d)", r.ticket.ref.ID(), r.ticket.ref.Session().ID(), r.ticket.ref.Epoch(), deadlockMode(r.mode), kind, r.ref.Address.ObjectID, r.ref.Address.ClassID, r.ref.Address.SubID, r.ref.Epoch)
-			if r.ref.row != 0 {
-				fmt.Fprintf(&detail, " row %d", r.ref.row)
+			if r.ref.Row != 0 {
+				fmt.Fprintf(&detail, " row %d", r.ref.Row)
 			}
 			if r.ref.key != nil {
 				detail.WriteString(" unique key")
@@ -252,7 +252,7 @@ func (s *deadlockSearch) findCycle() bool {
 			from := s.nodes[r.ticket.participant()]
 			for ticket, held := range q.entry.holders {
 				to, live := s.nodes[ticket.participant()]
-				if live && !sameLockSession(ticket, r.ticket) && lockConflict(r.mode, held.mode) {
+				if live && !sameLockSession(ticket, r.ticket) && lockConflict(r.mode, held.Mode) {
 					s.edges[from] = append(s.edges[from], deadlockEdge{from: from, to: to, request: r, blocker: ticket, before: -1, after: -1})
 				}
 			}
@@ -266,7 +266,7 @@ func (s *deadlockSearch) findCycle() bool {
 				// A conflicting existing hold makes this dependency hard already.
 				hard := false
 				for holder, held := range q.entry.holders {
-					if sameLockSession(holder, blocker.ticket) && lockConflict(r.mode, held.mode) {
+					if sameLockSession(holder, blocker.ticket) && lockConflict(r.mode, held.Mode) {
 						hard = true
 						break
 					}

@@ -109,7 +109,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: current}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].mode&accessExclusive != 0
+			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].Mode&accessExclusive != 0
 			obsolete := e.locks.entries[lockResource{ObjectRef: old}]
 			e.locks.mu.Unlock()
 			if !queued || obsolete != nil {
@@ -180,7 +180,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					t.Helper()
 					e.locks.mu.Lock()
 					entry := e.locks.entries[lockResource{ObjectRef: current}]
-					held := entry != nil && entry.holders[scope.ticket].mode&accessShare != 0
+					held := entry != nil && entry.holders[scope.ticket].Mode&accessShare != 0
 					e.locks.mu.Unlock()
 					if !held {
 						t.Fatal("retained provider hold lost before statement completion")

@@ -23,9 +23,9 @@ const (
 // key, queue, map, provider value or session pointer escapes manager metadata.
 // The public view joins this manager capture with a separate SSI capture.
 type pgLockOwner struct {
-	session  ids.SessionID
-	local    ids.TxID
-	prepared bool
+	Session  ids.SessionID
+	Local    ids.TxID
+	Prepared bool
 }
 
 // Manager membership is stable while capturing, but canonical assignment and
@@ -38,15 +38,15 @@ type pgLockIdentity struct {
 }
 
 type pgLockRecord struct {
-	kind          pgLockKind
-	owner         pgLockOwner
-	mode          relationLockMode
-	object, class uint32
-	subobject     int16
-	target        pgLockOwner
-	xid           uint32
-	waiting       bool
-	waitstart     time.Time
+	Kind          pgLockKind
+	Owner         pgLockOwner
+	Mode          relationLockMode
+	Object, Class uint32
+	Subobject     int16
+	Target        pgLockOwner
+	XID           uint32
+	Waiting       bool
+	WaitStart     time.Time
 }
 
 func publicLockOwner(domain *ids.Domain, ref ids.TxRef, prepared bool) (pgLockOwner, bool, error) {
@@ -57,7 +57,7 @@ func publicLockOwner(domain *ids.Domain, ref ids.TxRef, prepared bool) (pgLockOw
 	if !prepared && token.ID() > math.MaxInt32 {
 		return pgLockOwner{}, false, fmt.Errorf("stuntgres: lock session identity exceeds integer range")
 	}
-	return pgLockOwner{session: token.ID(), local: ref.ID(), prepared: prepared}, true, nil
+	return pgLockOwner{Session: token.ID(), Local: ref.ID(), Prepared: prepared}, true, nil
 }
 
 func (m *relationLockManager) pgLockOwner(t *relationTicket) (pgLockOwner, bool, error) {
@@ -69,7 +69,7 @@ func (m *relationLockManager) pgLockOwner(t *relationTicket) (pgLockOwner, bool,
 
 // Capture only: no settling, deadlock/timeout evaluation, callbacks, lazy
 // completion registration or Engine/Session/TX synchronization is permitted.
-func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockRecord, error) {
+func (m *relationLockManager) PGLocks(epoch ids.CatalogEpoch) ([]pgLockRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.epoch > epoch {
@@ -93,38 +93,38 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 		if !visible {
 			continue
 		}
-		identity := pgLockIdentity{owner: owner, xid: ticket.assignedPublicXID()}
+		identity := pgLockIdentity{owner: owner, xid: ticket.AssignedPublicXID()}
 		identities[ticket] = identity
 		if !ticket.detached {
-			records = append(records, pgLockRecord{kind: pgVirtualLock, owner: owner, target: owner})
+			records = append(records, pgLockRecord{Kind: pgVirtualLock, Owner: owner, Target: owner})
 			if session := m.sessions[ticket.session]; session != nil && len(session.resources) != 0 {
 				if active == nil {
 					active = make(map[ids.SessionID]pgLockOwner)
 				}
-				if active[owner.session].local < owner.local {
-					active[owner.session] = owner
+				if active[owner.Session].Local < owner.Local {
+					active[owner.Session] = owner
 				}
 			}
 		}
 		if identity.xid != 0 {
-			records = append(records, pgLockRecord{kind: pgTransactionLock, owner: owner, xid: identity.xid})
+			records = append(records, pgLockRecord{Kind: pgTransactionLock, Owner: owner, XID: identity.xid})
 		}
 	}
 	// Reuse one resource-local index; live lifetimes contribute modes to one
 	// process/object row, while detached prepared participants stay separate.
 	var advisoryRows map[pgLockOwner]int
 	for resource, entry := range m.entries {
-		if resource.kind == ordinaryResource && resource.completion == nil && resource.Epoch != epoch {
+		if resource.Kind == ordinaryResource && resource.completion == nil && resource.Epoch != epoch {
 			continue
 		}
 		// Logical row/key holds have no physical target. Completion ownership
 		// was emitted exactly once from the owning ticket above.
-		projectHolds := resource.row == 0 && resource.key == nil && resource.completion == nil
-		advisory := resource.kind == advisoryBigintResource || resource.kind == advisoryPairResource
+		projectHolds := resource.Row == 0 && resource.key == nil && resource.completion == nil
+		advisory := resource.Kind == advisoryBigintResource || resource.Kind == advisoryPairResource
 		clear(advisoryRows)
 		if projectHolds {
 			for ticket, hold := range entry.holders {
-				if hold.mode == 0 || !m.valid(ticket) {
+				if hold.Mode == 0 || !m.valid(ticket) {
 					continue
 				}
 				var owner pgLockOwner
@@ -132,7 +132,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 				var err error
 				if ticket.persistent {
 					owner, visible, err = publicLockOwner(m.domain, m.domain.Tx(ticket.session, 0, 0, nil, 0), false)
-					if current, ok := active[owner.session]; ok {
+					if current, ok := active[owner.Session]; ok {
 						owner = current
 					}
 				} else {
@@ -147,12 +147,12 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 				}
 				if advisory {
 					if !ticket.detached {
-						if current, ok := active[owner.session]; ok {
+						if current, ok := active[owner.Session]; ok {
 							owner = current
 						}
 					}
 					if index, ok := advisoryRows[owner]; ok {
-						records[index].mode |= hold.mode
+						records[index].Mode |= hold.Mode
 						continue
 					}
 					if advisoryRows == nil {
@@ -160,7 +160,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 					}
 					advisoryRows[owner] = len(records)
 				}
-				record, err := pgResourceRecord(resource, owner, hold.mode)
+				record, err := pgResourceRecord(resource, owner, hold.Mode)
 				if err != nil {
 					return nil, err
 				}
@@ -177,9 +177,9 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 			}
 			owner := identity.owner
 			var record pgLockRecord
-			if resource.completion != nil || resource.row != 0 || resource.key != nil {
+			if resource.completion != nil || resource.Row != 0 || resource.key != nil {
 				target := resource.completion
-				purpose := request.policy.completionPurpose
+				purpose := request.policy.CompletionPurpose
 				if target == nil {
 					target = m.pgWaitDependency(request)
 					purpose = completionTransaction
@@ -191,10 +191,10 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 				if !present {
 					continue
 				}
-				record = pgLockRecord{kind: pgVirtualLock, owner: owner, target: targetIdentity.owner}
-				if (purpose == completionTransaction || targetIdentity.owner.prepared) && targetIdentity.xid != 0 {
-					record.kind, record.xid = pgTransactionLock, targetIdentity.xid
-				} else if targetIdentity.owner.prepared {
+				record = pgLockRecord{Kind: pgVirtualLock, Owner: owner, Target: targetIdentity.owner}
+				if (purpose == completionTransaction || targetIdentity.owner.Prepared) && targetIdentity.xid != 0 {
+					record.Kind, record.XID = pgTransactionLock, targetIdentity.xid
+				} else if targetIdentity.owner.Prepared {
 					return nil, fmt.Errorf("stuntgres: lock dependency lacks live transaction identity")
 				}
 			} else {
@@ -204,7 +204,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 					return nil, err
 				}
 			}
-			record.waiting, record.waitstart = true, request.enqueuedAt
+			record.Waiting, record.WaitStart = true, request.enqueuedAt
 			records = append(records, record)
 		}
 	}
@@ -216,7 +216,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockR
 func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relationTicket {
 	var target *relationTicket
 	for ticket, hold := range request.entry.holders {
-		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !lockConflict(request.mode, hold.mode) {
+		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !lockConflict(request.mode, hold.Mode) {
 			continue
 		}
 		if target == nil || ticket.ref.Diagnostic() < target.ref.Diagnostic() {
@@ -226,7 +226,7 @@ func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relati
 	if target != nil {
 		return target
 	}
-	if request.ref.row != 0 && request.mode == noKeyUpdate {
+	if request.ref.Row != 0 && request.mode == noKeyUpdate {
 		return nil
 	}
 	for _, earlier := range request.entry.pending {
@@ -241,20 +241,20 @@ func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relati
 }
 
 func pgResourceRecord(resource lockResource, owner pgLockOwner, mode relationLockMode) (pgLockRecord, error) {
-	r := pgLockRecord{owner: owner, mode: mode}
-	switch resource.kind {
+	r := pgLockRecord{Owner: owner, Mode: mode}
+	switch resource.Kind {
 	case advisoryBigintResource, advisoryPairResource:
-		r.kind, r.class, r.object, r.subobject = pgAdvisoryLock, resource.high, resource.low, 1
-		if resource.kind == advisoryPairResource {
-			r.subobject = 2
+		r.Kind, r.Class, r.Object, r.Subobject = pgAdvisoryLock, resource.High, resource.Low, 1
+		if resource.Kind == advisoryPairResource {
+			r.Subobject = 2
 		}
 	case ordinaryResource:
-		r.object = uint32(resource.Address.ObjectID)
+		r.Object = uint32(resource.Address.ObjectID)
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
-			r.kind = pgRelationLock
+			r.Kind = pgRelationLock
 		case ids.TypeClassID:
-			r.kind, r.class = pgObjectLock, uint32(ids.TypeClassID)
+			r.Kind, r.Class = pgObjectLock, uint32(ids.TypeClassID)
 		default:
 			return pgLockRecord{}, fmt.Errorf("stuntgres: unknown lock object class")
 		}

@@ -11,13 +11,13 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	e := New()
 	a, ra := advisoryUnitOwner(t, e)
 	b, rb := advisoryUnitOwner(t, e)
-	key := lockResource{kind: advisoryBigintResource, low: 187418}
+	key := lockResource{Kind: advisoryBigintResource, Low: 187418}
 	advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 	m := e.locks
 	sessionTicket, source := b.advisory.ticket, b.transactions.ticket
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := m.startAcquire(ctx, sessionTicket, key, advisoryExclusive, relationLockPolicy{provenance: rb})
+	r, err := m.StartAcquire(ctx, sessionTicket, key, advisoryExclusive, relationLockPolicy{Provenance: rb})
 	if err != nil || r == nil {
 		t.Fatal("persistent advisory request", r, err)
 	}
@@ -54,7 +54,7 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 		t.Fatal("aborted provenance", err)
 	}
 	blockingUnitWant(t, e, b.token.ID())
-	if got := advisoryUnitHold(a, key); got.exclusive != 1 {
+	if got := advisoryUnitHold(a, key); got.Exclusive != 1 {
 		t.Fatal("abort released independent holder", got)
 	}
 	if got := advisoryUnitHold(b, key); got != (relationHold{}) {
@@ -64,7 +64,7 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	if fresh == rb || b.advisory.ticket != sessionTicket {
 		t.Fatal("wrong transaction/physical lifetime")
 	}
-	r2, err := m.startAcquire(ctx, sessionTicket, key, advisoryExclusive, relationLockPolicy{provenance: fresh})
+	r2, err := m.StartAcquire(ctx, sessionTicket, key, advisoryExclusive, relationLockPolicy{Provenance: fresh})
 	if err != nil || r2 == nil {
 		t.Fatal("fresh persistent request", r2, err)
 	}
@@ -91,7 +91,7 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	if pendingJournal || !heldJournal {
 		t.Fatal("grant did not retire only provenance journal", pendingJournal, heldJournal)
 	}
-	if got := advisoryUnitHold(b, key); got.exclusive != 1 {
+	if got := advisoryUnitHold(b, key); got.Exclusive != 1 {
 		t.Fatal("canceled provenance leaked count", got)
 	}
 	advisoryUnitUnlock(t, b, key, advisoryExclusive, true)

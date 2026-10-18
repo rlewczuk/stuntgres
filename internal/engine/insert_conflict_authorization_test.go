@@ -69,7 +69,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if admitted, err := holder.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("holder claim", admitted, err)
 	}
-	mark := f.e.locks.checkpointUnique(holder.ticket, nil)
+	mark := f.e.locks.CheckpointUnique(holder.ticket, nil)
 	if len(mark) != 1 {
 		t.Fatal("holder did not acquire exact unique key", mark)
 	}
@@ -141,7 +141,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("authorized prefix", admitted, err)
 	}
 	ticket := scope.ticket
-	prefixMark := f.e.locks.checkpointUnique(ticket, nil)
+	prefixMark := f.e.locks.CheckpointUnique(ticket, nil)
 	if len(prefixMark) != 1 {
 		t.Fatal("accepted prefix owns no exact reservation", prefixMark)
 	}
@@ -163,7 +163,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		entry := manager.entries[resource]
 		queued := false
 		prefixEntry := manager.entries[prefixResource]
-		if entry != nil && entry.holders[holder.ticket].mode&uniqueClaim != 0 && prefixEntry != nil && prefixEntry.holders[ticket].mode&uniqueClaim != 0 {
+		if entry != nil && entry.holders[holder.ticket].Mode&uniqueClaim != 0 && prefixEntry != nil && prefixEntry.holders[ticket].Mode&uniqueClaim != 0 {
 			for _, request := range entry.pending {
 				if request.ticket == ticket && request.mode&uniqueClaim != 0 && !request.terminal {
 					queued = true

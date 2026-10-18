@@ -58,7 +58,7 @@ func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relation
 // Only manager metadata is held. Inspect the authoritative journal and resource
 // queue without granting, settling, copying the graph, or invoking callbacks.
 // Pids are public session IDs, or zero for a prepared transaction.
-func (m *relationLockManager) blockingPids(pid ids.SessionID) ([]int32, error) {
+func (m *relationLockManager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	token := m.domain.Session(pid)
@@ -88,14 +88,14 @@ func (m *relationLockManager) blockingPids(pid ids.SessionID) ([]int32, error) {
 		return err
 	}
 	for t, held := range r.entry.holders {
-		if !m.valid(t) || sameLockSession(t, r.ticket) || !lockConflict(r.mode, held.mode) {
+		if !m.valid(t) || sameLockSession(t, r.ticket) || !lockConflict(r.mode, held.Mode) {
 			continue
 		}
 		// A participant can have session and transaction tickets. Pick one
 		// canonical ticket without sorting/copying the holder map.
 		duplicate := false
 		for other, hold := range r.entry.holders {
-			if other == t || !m.valid(other) || !sameLockSession(t, other) || !lockConflict(r.mode, hold.mode) {
+			if other == t || !m.valid(other) || !sameLockSession(t, other) || !lockConflict(r.mode, hold.Mode) {
 				continue
 			}
 			if other.persistent && !t.persistent || other.persistent == t.persistent && other.ref.ID() < t.ref.ID() {
@@ -109,7 +109,7 @@ func (m *relationLockManager) blockingPids(pid ids.SessionID) ([]int32, error) {
 			}
 		}
 	}
-	if r.ref.completion != nil || r.ref.row != 0 && r.mode == noKeyUpdate {
+	if r.ref.completion != nil || r.ref.Row != 0 && r.mode == noKeyUpdate {
 		return values, nil
 	}
 	for i, earlier := range r.entry.pending {
@@ -121,7 +121,7 @@ func (m *relationLockManager) blockingPids(pid ids.SessionID) ([]int32, error) {
 		}
 		duplicate := false
 		for t, hold := range r.entry.holders {
-			if m.valid(t) && sameLockSession(t, earlier.ticket) && lockConflict(r.mode, hold.mode) {
+			if m.valid(t) && sameLockSession(t, earlier.ticket) && lockConflict(r.mode, hold.Mode) {
 				duplicate = true
 				break
 			}

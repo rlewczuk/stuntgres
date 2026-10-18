@@ -1631,7 +1631,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {
-			e.locks.fence(installed)
+			e.locks.Fence(installed)
 		}
 	}()
 	if replacement.state == nil || replacement.owner == nil {

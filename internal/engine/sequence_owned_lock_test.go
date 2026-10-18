@@ -95,7 +95,7 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				lockAwait(t, done, nil)
 				e.locks.mu.Lock()
 				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				retained := entry != nil && entry.holders[b.transactions.ticket].mode&accessShare != 0
+				retained := entry != nil && entry.holders[b.transactions.ticket].Mode&accessShare != 0
 				e.locks.mu.Unlock()
 				if !retained {
 					t.Fatal("ownership table AS not retained to transaction end")
@@ -266,7 +266,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			sequence := catalogRef(t, e, before, "late")
 			table := catalogRef(t, e, before, "t")
 			// Real admission fixes sequence-first ordering without a pause hook.
-			if err := e.locks.acquire(context.Background(), bticket, lockResource{ObjectRef: sequence}, shareRowExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), bticket, lockResource{ObjectRef: sequence}, shareRowExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -275,7 +275,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			dropRequest := ownedLockQueued(t, e, sequence, accessExclusive, dropping)
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: table}]
-			cycle := entry != nil && entry.holders[dropRequest.ticket].mode&accessExclusive != 0
+			cycle := entry != nil && entry.holders[dropRequest.ticket].Mode&accessExclusive != 0
 			e.locks.mu.Unlock()
 			if !cycle {
 				t.Fatal("drop did not retain table AX while waiting for sequence")
@@ -297,7 +297,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 					ref             ids.ObjectRef
 					mode            string
 				}{{bticket, dropRequest.ticket, table, "AccessShareLock"}, {dropRequest.ticket, bticket, sequence, "AccessExclusiveLock"}} {
-					expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.ref.ID(), edge.waiter.ref.Session().ID(), edge.waiter.ref.Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.ref.ID(), edge.blocker.ref.Session().ID(), edge.blocker.ref.Epoch())] = true
+					expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.Ref().ID(), edge.waiter.Ref().Session().ID(), edge.waiter.Ref().Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.Ref().ID(), edge.blocker.Ref().Session().ID(), edge.blocker.Ref().Epoch())] = true
 				}
 				for _, line := range strings.Split(diagnostic.Detail, "\n") {
 					if !expected[line] {

@@ -261,7 +261,7 @@ func TestInsertSelectSourceLockIdentity(t *testing.T) {
 		held := false
 		if entry != nil {
 			for _, mode := range entry.holders {
-				if mode.mode == rowExclusive {
+				if mode.Mode == rowExclusive {
 					held = true
 				}
 			}

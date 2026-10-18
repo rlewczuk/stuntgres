@@ -44,7 +44,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 func (op *Operation) CommandError(err error) error {
 	var source relationSourceError
 	if errors.As(err, &source) {
-		return source.error
+		return source.Unwrap()
 	}
 	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.Context()), statementTimeoutCause) {
 		return sqlError("57014", "canceling statement due to statement timeout")

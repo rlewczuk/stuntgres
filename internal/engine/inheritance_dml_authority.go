@@ -28,8 +28,8 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 		return errors.New("stuntgres: replacement requires its captured target view")
 	}
 	var small [8]ids.RowID
-	target, missing := s.op.session.Engine().locks.replacementGrants(s.ticket, ref, versionRows(small[:0], old))
-	if s.ticket == nil || s.ticket.ref != s.txRef || !target {
+	target, missing := s.op.session.Engine().locks.ReplacementGrants(s.ticket, ref, versionRows(small[:0], old))
+	if s.ticket == nil || s.ticket.Ref() != s.txRef || !target {
 		return errors.New("stuntgres: replacement requires its target grant")
 	}
 	data := s.view.read()

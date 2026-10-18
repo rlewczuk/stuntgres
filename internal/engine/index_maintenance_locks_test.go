@@ -62,7 +62,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	a, b := roleTableRef(t, e, "a"), roleTableRef(t, e, "b")
 	ai, ai2, bi := roleTableRef(t, e, "ai"), roleTableRef(t, e, "ai2"), roleTableRef(t, e, "bi")
 	tx := transactionBegin(t, holder)
-	if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: b}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: b}, accessShare); err != nil {
 		t.Fatal(err)
 	}
 	before := indexMaintenanceCapture(e)
@@ -71,7 +71,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	e.locks.mu.Lock()
 	pending := e.locks.entries[lockResource{ObjectRef: b}].pending[0]
 	first := e.locks.entries[lockResource{ObjectRef: a}]
-	ordered := pending.mode == accessExclusive && first != nil && first.holders[pending.ticket].mode == accessExclusive
+	ordered := pending.mode == accessExclusive && first != nil && first.holders[pending.ticket].Mode == accessExclusive
 	for _, ref := range []ids.ObjectRef{ai, ai2, bi} {
 		ordered = ordered && e.locks.entries[lockResource{ObjectRef: ref}] == nil
 	}
@@ -115,7 +115,7 @@ func TestIndexMaintenanceExactLockModes(t *testing.T) {
 			ref := roleTableRef(t, e, c.resource)
 			sibling := roleTableRef(t, e, "sibling")
 			tx := transactionBegin(t, holder)
-			if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, c.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, c.held); err != nil {
 				t.Fatal(err)
 			}
 			cancel, await := indexMaintenanceAsync(t, e, utility, c.q)
@@ -125,7 +125,7 @@ func TestIndexMaintenanceExactLockModes(t *testing.T) {
 			correct := request.mode == c.want
 			if c.parent {
 				entry := e.locks.entries[lockResource{ObjectRef: table}]
-				correct = correct && entry != nil && entry.holders[request.ticket].mode == relationShare
+				correct = correct && entry != nil && entry.holders[request.ticket].Mode == relationShare
 			} else if c.resource != "t" {
 				correct = correct && e.locks.entries[lockResource{ObjectRef: table}] == nil
 			}

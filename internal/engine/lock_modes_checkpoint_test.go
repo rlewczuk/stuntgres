@@ -18,44 +18,44 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	table := lockResource{ObjectRef: ref}
 	row := table
-	row.row = 1
+	row.Row = 1
 	ta, tb := a.transactions.ticket, b.transactions.ticket
 	acquire := func(resource lockResource, mode relationLockMode) {
 		t.Helper()
-		if err := e.locks.acquire(context.Background(), ta, resource, mode); err != nil {
+		if err := e.locks.Acquire(context.Background(), ta, resource, mode); err != nil {
 			t.Fatal(err)
 		}
 	}
 	acquire(table, shareUpdateExclusive)
 	acquire(table, relationShare)
 	acquire(row, keyShare)
-	mark := e.locks.checkpoint(ta)
+	mark := e.locks.Checkpoint(ta)
 	acquire(table, accessExclusive)
 	acquire(row, rowUpdate)
 	next := table
-	next.row = 2
+	next.Row = 2
 	acquire(next, noKeyUpdate)
-	request, err := e.locks.startAcquire(context.Background(), tb, next, rowUpdate, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(context.Background(), tb, next, rowUpdate, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
-	e.locks.restore(ta, mark)
-	if err := request.wait(); err != nil {
+	e.locks.Restore(ta, mark)
+	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
 	e.locks.mu.Lock()
-	modes := e.locks.entries[table].holders[ta].mode
-	rowMode := e.locks.entries[row].holders[ta].mode
-	newMode := e.locks.entries[next].holders[ta].mode
+	modes := e.locks.entries[table].holders[ta].Mode
+	rowMode := e.locks.entries[row].holders[ta].Mode
+	newMode := e.locks.entries[next].holders[ta].Mode
 	e.locks.mu.Unlock()
 	if modes != shareUpdateExclusive|relationShare || rowMode != keyShare || newMode != 0 {
 		t.Fatal(modes, rowMode, newMode)
 	}
-	e.locks.restore(ta, mark)
+	e.locks.Restore(ta, mark)
 	e.endLockOwner(ta)
-	e.locks.restore(ta, mark)
+	e.locks.Restore(ta, mark)
 	e.locks.mu.Lock()
-	_, alive := e.locks.owners[ta.ref]
+	_, alive := e.locks.owners[ta.Ref()]
 	held := len(ta.resources)
 	e.locks.mu.Unlock()
 	if alive || held != 0 {

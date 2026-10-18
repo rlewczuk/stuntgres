@@ -33,10 +33,10 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 				ticket := a.transactions.ticket
 				e.locks.mu.Lock()
 				entry := e.locks.entries[lockResource{ObjectRef: sequence}]
-				sequenceHeld := entry != nil && entry.holders[ticket].mode != 0
+				sequenceHeld := entry != nil && entry.holders[ticket].Mode != 0
 				_, sequenceJournaled := ticket.resources[lockResource{ObjectRef: sequence}]
 				targetEntry := e.locks.entries[lockResource{ObjectRef: target}]
-				targetHeld := targetEntry != nil && targetEntry.holders[ticket].mode == rowExclusive
+				targetHeld := targetEntry != nil && targetEntry.holders[ticket].Mode == rowExclusive
 				e.locks.mu.Unlock()
 				if sequenceHeld || sequenceJournaled || !targetHeld {
 					t.Fatal("wrong live transaction grants", sequenceHeld, sequenceJournaled, targetHeld)
@@ -83,7 +83,7 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 		ticket := a.transactions.ticket
 		e.locks.mu.Lock()
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
-		held := entry != nil && entry.holders[ticket].mode == rowExclusive
+		held := entry != nil && entry.holders[ticket].Mode == rowExclusive
 		_, journaled := ticket.resources[lockResource{ObjectRef: ref}]
 		e.locks.mu.Unlock()
 		if !held || !journaled {
