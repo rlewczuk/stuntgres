@@ -71,6 +71,13 @@ func TestReferenceDatetimeFormattingReviewCollationDemand(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 		run(fixture.Exec(`CREATE TABLE dt_review_collation(id integer,input text COLLATE "C",mask text COLLATE "POSIX")`, 0))
 		upper := datetimeFormattingDiagnostic("42P22", "could not determine which collation to use for upper() function", "", "Use the COLLATE clause to set the collation explicitly.")
+		if b.PG {
+			// Explicit release difference: PostgreSQL 18.6 looks up the
+			// indeterminate collation before checking it while matching a TM
+			// field case-insensitively, and fails internally. 18.0 and native
+			// report the intended 42P22.
+			upper = datetimeFormattingDiagnostic("XX000", "cache lookup failed for collation 0", "", "")
+		}
 		badDay := datetimeFormattingDiagnostic("22007", `invalid value "ba" for "DD"`, "Value must be an integer.", "")
 		mixed := datetimeFormattingDiagnostic("22007", "invalid combination of date conventions", "", "Do not mix Gregorian and ISO week date conventions in a formatting template.")
 		cases := []struct {
