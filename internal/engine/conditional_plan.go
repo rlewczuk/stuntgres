@@ -713,11 +713,11 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case installedFunctionExpression:
-		next, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+		next, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
 		}
-		e.arg = next
+		e.Arg = next
 		changed = changed || did
 		expression = e
 	case sqlJSONExpression:
@@ -879,7 +879,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		}
 		return true
 	case installedFunctionExpression:
-		return e.procedure != nil && e.procedure.volatility == Immutable && literal(e.arg)
+		return e.procedure != nil && e.procedure.volatility == Immutable && literal(e.Arg)
 	case sqlJSONExpression:
 		if e.Property.Volatility != Immutable {
 			return false

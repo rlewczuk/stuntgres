@@ -2,9 +2,23 @@ package functions
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
 )
+
+// PostgreSQL REL_18_0 contrib/unaccent/unaccent.rules, PostgreSQL License.
+// https://github.com/postgres/postgres/blob/REL_18_0/contrib/unaccent/unaccent.rules
+// Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group.
+// Portions Copyright (c) 1994, Regents of the University of California.
+// https://www.postgresql.org/about/licence/
+//
+//go:embed unaccent.rules
+var stockUnaccentRules string
+
+// StockUnaccent is the compiled stock unaccent.rules; the engine's installed
+// unaccent provider evaluates through it.
+var StockUnaccent = CompileUnaccent(stockUnaccentRules)
 
 type unaccentRuleNode struct {
 	next        map[byte]*unaccentRuleNode
@@ -15,7 +29,7 @@ type unaccentRuleNode struct {
 // UnaccentMatcher holds immutable compiled rules, not installed dictionary identity.
 type UnaccentMatcher struct{ rules *unaccentRuleNode }
 
-// CompileUnaccent compiles PostgreSQL unaccent rules for an engine-owned provider.
+// CompileUnaccent compiles PostgreSQL unaccent rules.
 func CompileUnaccent(data string) *UnaccentMatcher {
 	root := &unaccentRuleNode{}
 	for _, line := range strings.Split(data, "\n") {

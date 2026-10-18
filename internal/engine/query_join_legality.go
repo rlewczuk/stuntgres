@@ -775,7 +775,7 @@ func joinExpressionSides(node BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	case installedCryptoFunctionExpression:
 		children = e.Args
 	case installedFunctionExpression:
-		children = []BoundExpr{e.arg}
+		children = []BoundExpr{e.Arg}
 	case sqlJSONExpression:
 		children = e.args
 	case jsonPredicateExpression:

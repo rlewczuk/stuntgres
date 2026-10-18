@@ -865,7 +865,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return true
 	case installedFunctionExpression:
 		o, ok := other.(installedFunctionExpression)
-		return ok && e.ref == o.ref && e.procedure.revision == o.procedure.revision && same(e.arg, o.arg)
+		return ok && e.ref == o.ref && e.procedure.revision == o.procedure.revision && same(e.Arg, o.Arg)
 	case sqlJSONExpression:
 		o, ok := other.(sqlJSONExpression)
 		if !ok || e.raw.Kind != o.raw.Kind || e.raw.Absent != o.raw.Absent || e.raw.Unique != o.raw.Unique || len(e.args) != len(o.args) {
@@ -1670,8 +1670,8 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.Info = info
 		expr = e
 	case installedFunctionExpression:
-		e.arg = rewrite(e.arg)
-		stage(&e.expressionInfo)
+		e.Arg = rewrite(e.Arg)
+		stage(&e.Info)
 		expr = e
 	case sqlJSONExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
@@ -2057,7 +2057,7 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case installedFunctionExpression:
-		walk(e.arg)
+		walk(e.Arg)
 	case sqlJSONExpression:
 		for _, arg := range e.args {
 			walk(arg)

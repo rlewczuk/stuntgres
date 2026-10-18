@@ -269,7 +269,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("foreign generation evaluated")
 	}
 	calls := 0
-	n.arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.arg.ResultUsage().Type)}
+	n.Arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.Arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
 	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || plannedVolatility(n) != Volatile || generationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)

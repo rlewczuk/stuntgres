@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -41,27 +40,4 @@ func (n installedUUIDOsspFunctionExpression) validate(v CatalogRead) error {
 		return fmt.Errorf("stuntgres: invalid stored uuid-ossp identity")
 	}
 	return stockUUIDOssp.validateProcedure(v, n.procedure)
-}
-
-// installedUUIDOsspRoutine is the procedure identity handed to bind code
-// through functions.Binder.InstalledRoutine.
-type installedUUIDOsspRoutine struct {
-	binder    *expressionBinder
-	catalog   CatalogRead
-	procedure *procedureDescriptor
-}
-
-func (r installedUUIDOsspRoutine) Validate() error {
-	return stockUUIDOssp.validateProcedure(r.catalog, r.procedure)
-}
-
-func (r installedUUIDOsspRoutine) Attach(call expr.Expr) (expr.Expr, error) {
-	generation, ok := call.(functions.UUIDGeneration)
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: invalid uuid-ossp call")
-	}
-	generation.RoutineReference = r.procedure
-	ref := r.binder.engine.catalog.domain.Ref(r.catalog.Epoch(), r.procedure.address)
-	r.binder.dependency(ref, r.procedure.revision)
-	return installedUUIDOsspFunctionExpression{UUIDGeneration: generation, procedure: r.procedure, ref: ref}, nil
 }

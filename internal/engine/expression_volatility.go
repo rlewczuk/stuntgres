@@ -148,7 +148,7 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 	case installedCryptoFunctionExpression:
 		return merge(n.procedure.volatility, children(n.Args...))
 	case installedFunctionExpression:
-		return merge(n.procedure.volatility, children(n.arg))
+		return merge(n.procedure.volatility, children(n.Arg))
 	case sqlJSONExpression:
 		return merge(n.Property.Volatility, children(n.args...))
 	case jsonPredicateExpression:

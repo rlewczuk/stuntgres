@@ -548,9 +548,9 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		return e, changed, nil
 	case installedFunctionExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if changed {
-			e.arg = arg
+			e.Arg = arg
 		}
 		return e, changed, err
 	case viewQualificationExpression:

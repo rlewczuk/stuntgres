@@ -408,7 +408,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		err = args(n.Args)
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
-		err = args([]BoundExpr{n.arg})
+		err = args([]BoundExpr{n.Arg})
 	case sqlJSONExpression:
 		fmt.Fprintf(out, "SQLJSON %s absent %t unique %t", n.raw.Kind, n.raw.Absent, n.raw.Unique)
 		err = args(n.args)

@@ -237,8 +237,8 @@ func closedPgcryptoDefault(node BoundExpr) bool {
 		if n.procedure == nil || n.procedure.crypto != stockPgcrypto || n.ref.Address != n.procedure.address || n.ref.Epoch == 0 || n.Plan.Name() != n.procedure.name || n.Validate() != nil {
 			return false
 		}
-		member, ok := pgcryptoLookup(n.procedure.name, cryptoExpressionSignature(n))
-		if !ok || n.procedure.signature != member.signature || n.procedure.result != member.result || n.procedure.volatility != member.volatility || n.procedure.strict != member.strict {
+		member, ok := functions.PgcryptoLookup(n.procedure.name, string(cryptoExpressionSignature(n)))
+		if !ok || string(n.procedure.signature) != member.Signature || n.procedure.result != member.Result || n.procedure.volatility != member.Volatility || n.procedure.strict != member.Strict {
 			return false
 		}
 	case coercionExpression, collationExpression, rowExpression, fieldExpression,

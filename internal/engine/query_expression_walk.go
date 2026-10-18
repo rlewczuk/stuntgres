@@ -125,7 +125,7 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case installedUUIDOsspFunctionExpression:
 		// No argument children.
 	case installedFunctionExpression:
-		walk(e.arg)
+		walk(e.Arg)
 	case sqlJSONExpression:
 		args(e.args)
 	case jsonPredicateExpression:
