@@ -20,9 +20,10 @@ func (a *sessionAdvisory) EndSession(token SessionToken, _ EndReason) error {
 func (m *relationLockManager) registerSession(token SessionToken) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	private := privateSessionOf(token)
 	if token.domain != m.domain ||
-		token.id == 0 && (token.private == nil || token.private.token != token) ||
-		token.id != 0 && token.private != nil {
+		token.id == 0 && (private == nil || private.token != token) ||
+		token.id != 0 && private != nil {
 		return nil, errors.New("stuntgres: invalid advisory session")
 	}
 	if m.sessions[token] != nil {

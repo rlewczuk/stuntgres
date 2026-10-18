@@ -48,7 +48,7 @@ type TxRef struct {
 	session    SessionToken
 	id         TxID
 	epoch      CatalogEpoch
-	attachment *transactionOwner
+	attachment TxOwner
 	diagnostic uint32
 }
 
@@ -73,6 +73,7 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
+	TxOwnerMarker
 	admission       sync.Mutex
 	copyScope       *StatementScope
 	copyDone        chan struct{}
@@ -248,7 +249,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 }
 
 func (t *transactionOwner) validate(ref TxRef) error {
-	if ref.domain != domainOf(t.session.Engine()) || ref.session != t.session.token || ref.id == 0 || ref.attachment != t {
+	if ref.domain != domainOf(t.session.Engine()) || ref.session != t.session.token || ref.id == 0 || txOwnerOf(ref) != t {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {

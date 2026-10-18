@@ -249,7 +249,7 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.temporary != (SessionToken{}) && (ns.temporary.domain != domainOf(v.owner) || ns.temporary.id == 0 || ns.temporary.private != nil) {
+	if ns.temporary != (SessionToken{}) && (ns.temporary.domain != domainOf(v.owner) || ns.temporary.id == 0 || privateSessionOf(ns.temporary) != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()

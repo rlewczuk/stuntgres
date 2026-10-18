@@ -53,10 +53,10 @@ func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *relationT
 				t.Fatal("completion waiter retained engine metadata lock")
 			}
 			e.mu.Unlock()
-			if !waiter.ref.attachment.mu.TryLock() {
+			if !txOwnerOf(waiter.ref).mu.TryLock() {
 				t.Fatal("completion waiter retained transaction owner lock")
 			}
-			waiter.ref.attachment.mu.Unlock()
+			txOwnerOf(waiter.ref).mu.Unlock()
 			return
 		}
 		select {

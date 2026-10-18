@@ -112,7 +112,7 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row RowID, mark queryRo
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if s.ticket == nil || s.ticket.ref != s.txRef || s.txRef.attachment != s.owner || s.txRef.session != s.op.session.token || row == 0 || leaf.storage == nil {
+	if s.ticket == nil || s.ticket.ref != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.session != s.op.session.token || row == 0 || leaf.storage == nil {
 		return false, fmt.Errorf("stuntgres: invalid query row acquisition authority")
 	}
 	e := s.op.session.Engine()

@@ -83,7 +83,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		private := e.privateCatalogLocked(tx.attachment.catalog)
+		private := e.privateCatalogLocked(txOwnerOf(tx).catalog)
 		e.mu.Unlock()
 		a := private.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
 		ext := private.state.descriptors[a].(*extensionDescriptor)
@@ -98,7 +98,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		private = e.privateCatalogLocked(tx.attachment.catalog)
+		private = e.privateCatalogLocked(txOwnerOf(tx).catalog)
 		e.mu.Unlock()
 		for _, a := range ext.members {
 			if private.state.descriptors[a] != nil {

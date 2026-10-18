@@ -86,7 +86,7 @@ func TestSerializableGraphCycleFirstCommitDoomsActivePivot(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.serializableCommittedLocked(first.ref, e.commitSeq)
-			if !last.doomed || last.committed || last.ref.attachment.state != TxActive || first.doomed {
+			if !last.doomed || last.committed || txOwnerOf(last.ref).state != TxActive || first.doomed {
 				t.Fatal("peer doom became an asynchronous TX abort")
 			}
 			serializableUnitDiagnostic(t, e.serializablePrecommitLocked(last.ref), "Canceled on identification as a pivot, during commit attempt.")

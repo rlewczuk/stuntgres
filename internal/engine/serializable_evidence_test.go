@@ -28,7 +28,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ObjectRef {
 	return ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
-	return &StatementScope{owner: node.ref.attachment, txRef: node.ref}
+	return &StatementScope{owner: txOwnerOf(node.ref), txRef: node.ref}
 }
 func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
 	e := New()
@@ -135,7 +135,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 		t.Fatal(err)
 	}
 	b.doomed = true
-	e.reconcileSerializableWritesLocked(b.ref.attachment)
+	e.reconcileSerializableWritesLocked(txOwnerOf(b.ref))
 	if len(b.writes) != 0 || len(e.serializable.creators) != 0 || !b.didWrite || !b.doomed || len(b.reads) != 1 || len(b.incoming) != 1 {
 		t.Fatal("rollback erased top-level state or retained discarded payload identity")
 	}
@@ -177,7 +177,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	reader := serializableUnitNode(t, e, false)
 	writer := serializableUnitNode(t, e, false)
 	scope := serializableUnitScope(writer)
-	owner := writer.ref.attachment
+	owner := txOwnerOf(writer.ref)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	create := [1]serializableWrite{{row: 41, version: 73}}

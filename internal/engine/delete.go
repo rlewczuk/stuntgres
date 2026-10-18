@@ -76,7 +76,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.ticket == nil || s.ticket.ref != s.txRef || s.txRef.attachment != s.owner || s.txRef.session != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
+	if s.ticket == nil || s.ticket.ref != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.session != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()

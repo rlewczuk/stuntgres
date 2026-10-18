@@ -44,7 +44,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 // Engine.mu also owns the ending session's sequence memories and TEMP pointer:
 // command drain does not exclude concurrent catalog replacement of live peers.
 func (e *Engine) endTemporaryCollations(source *Session) (err error) {
-	if source.token.private != nil {
+	if privateSessionOf(source.token) != nil {
 		return nil
 	}
 	var maintenance *Session

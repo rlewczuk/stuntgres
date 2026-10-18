@@ -22,13 +22,14 @@ type rowPublication struct {
 }
 
 func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
-	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || ref.attachment == nil || ref.domain != domainOf(e) || ref.session != op.session.token || ref.attachment != op.session.transactions || ref.id == 0 || ref != ref.attachment.ref {
+	owner := txOwnerOf(ref)
+	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.domain != domainOf(e) || ref.session != op.session.token || owner != op.session.transactions || ref.id == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
-	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
+	if owner.state != TxActive && owner.state != TxImplicit {
 		return errors.New("stuntgres: inactive publication transaction")
 	}
-	return e.publishRows(op, ref, writes, deletes, ref.attachment.catalog, nil, nil)
+	return e.publishRows(op, ref, writes, deletes, owner.catalog, nil, nil)
 }
 
 func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {

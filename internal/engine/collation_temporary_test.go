@@ -27,7 +27,7 @@ func collationPrivateSession(t *testing.T, e *Engine) *Session {
 func TestCollationPrivateSessionIdentity(t *testing.T) {
 	e := New()
 	a, b := collationPrivateSession(t, e), collationPrivateSession(t, e)
-	if a.token.id != 0 || b.token.id != 0 || a.token.private != a || b.token.private != b || a.token == b.token {
+	if a.token.id != 0 || b.token.id != 0 || privateSessionOf(a.token) != a || privateSessionOf(b.token) != b || a.token == b.token {
 		t.Fatal("private sessions alias numeric identity", a.token, b.token)
 	}
 	op, err := a.Acquire(context.Background())
@@ -64,7 +64,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	lockPending(t, e, 1)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	valid := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive && entry.pending[0].ticket.ref.session.private != nil
+	valid := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive && privateSessionOf(entry.pending[0].ticket.ref.session) != nil
 	e.locks.mu.Unlock()
 	if !valid || e.CatalogRead().state != before.state {
 		t.Fatal("cleanup bypassed genuine AX or published before lock admission")

@@ -353,7 +353,7 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	frontier := e.commitSeq
 	e.mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
-	op, err := a.ref.attachment.session.Acquire(ctx)
+	op, err := txOwnerOf(a.ref).session.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

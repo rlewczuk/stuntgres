@@ -18,7 +18,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ObjectRef) error 
 	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
 		return ErrCatalogReplaced
 	}
-	if s.txRef.domain != e.domain || s.txRef.attachment != s.owner || s.txRef != s.owner.ref {
+	if s.txRef.domain != e.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	node := e.serializable.nodes[s.txRef]
@@ -52,7 +52,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ObjectRef) error 
 }
 
 func (e *Engine) serializableWriteLocked(s *StatementScope, ref ObjectRef, events []serializableWrite) error {
-	if ref.owner != e.domain || ref.Address.SubID != 0 || s.txRef.domain != e.domain || s.txRef.attachment != s.owner || s.txRef != s.owner.ref {
+	if ref.owner != e.domain || ref.Address.SubID != 0 || s.txRef.domain != e.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
 	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {

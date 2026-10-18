@@ -158,7 +158,7 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, domain *Domain) ([]sqltype.Value, error) {
-	if !prepared && (token.domain != domain || token.private != nil || token.id == 0) {
+	if !prepared && (token.domain != domain || privateSessionOf(token) != nil || token.id == 0) {
 		return values, nil
 	}
 	var pid int64

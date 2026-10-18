@@ -16,7 +16,7 @@ type SessionID uint64
 type SessionToken struct {
 	domain  *Domain
 	id      SessionID
-	private *Session
+	private SessionOwner
 }
 
 func (t SessionToken) ID() SessionID { return t.id }
@@ -75,6 +75,7 @@ type resourceEntry struct {
 	owner  SessionResource
 }
 type Session struct {
+	SessionOwnerMarker
 	mu     sync.Mutex
 	cond   *sync.Cond
 	engine *Engine // Immutable after construction.
